@@ -30,4 +30,4 @@ Pull Request has to be linked to an issue. You need to describe better as possib
 Keep in mind in this early stage some kind of stuff could be a mess: we are still organizing ourself. 
 
 ## Resources
-We are using a lot of resources. You can find them on our Discord Server. 
+We are using many resources. You can find them on our Discord Server. 
