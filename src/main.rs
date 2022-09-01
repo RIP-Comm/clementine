@@ -2,7 +2,10 @@ use std::{env, error, fs, io::Read};
 
 use cartridge_header::CartridgeHeader;
 
+use crate::cpu::CPU;
+
 mod cartridge_header;
+mod cpu;
 
 fn main() {
     println!("clementine v0.1.0");
@@ -30,6 +33,9 @@ fn main() {
 
     let cartridge_header = CartridgeHeader::new(&data);
     println!("{}", cartridge_header.title);
+
+    let mut cpu = CPU::new(data);
+    cpu.step();
 }
 
 fn read_file(filepath: &str) -> Result<Vec<u8>, Box<dyn error::Error>> {
