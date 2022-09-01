@@ -28,7 +28,7 @@ fn main() {
         }
     };
 
-    let cartridge_header = CartridgeHeader::new(data);
+    let cartridge_header = CartridgeHeader::new(&data);
     println!("{}", cartridge_header.title);
 }
 
