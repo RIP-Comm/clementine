@@ -2,9 +2,9 @@ use crate::condition::Condition;
 
 /// Current Program Status Register.
 #[derive(Default)]
-pub(crate) struct CPSR(u32);
+pub(crate) struct Cpsr(u32);
 
-impl CPSR {
+impl Cpsr {
     pub(crate) fn can_execute(&self, cond: Condition) -> bool {
         match cond {
             Condition::GE => self.signed() == self.overflow(),
