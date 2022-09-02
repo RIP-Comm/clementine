@@ -21,7 +21,7 @@ pub(crate) enum Condition {
 impl From<u8> for Condition {
     fn from(item: u8) -> Self {
         match item {
-            10 => Condition::GE,
+            0xA => Condition::GE,
             _ => todo!(),
         }
     }
