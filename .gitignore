@@ -34,3 +34,6 @@ target/
 
 # Ignore code-workspaces
 *.code-workspace
+
+# Test roms
+*.gba

@@ -2,8 +2,9 @@ use std::{env, error, fs, io::Read};
 
 use cartridge_header::CartridgeHeader;
 
-use crate::cpu::Cpu;
+use crate::{cpu::Cpu, arm7tdmi::Arm7tdmi};
 
+mod arm7tdmi;
 mod cartridge_header;
 mod condition;
 mod cpsr;
@@ -36,7 +37,7 @@ fn main() {
     let cartridge_header = CartridgeHeader::new(&data);
     println!("{}", cartridge_header.title);
 
-    let mut cpu = Cpu::new(data);
+    let cpu = Arm7tdmi::new(data);
     cpu.step();
 }
 

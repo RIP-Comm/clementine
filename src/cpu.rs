@@ -1,45 +1,20 @@
-use crate::{condition::Condition, cpsr::Cpsr};
+use crate::condition::Condition;
 
-pub(crate) struct Cpu {
-    data: Vec<u8>,
-    program_counter: usize,
+pub(crate) trait Cpu {
+    
+    // Size of Opcode: it can to change.
+    type OpCodeType;
 
-    cpsr: Cpsr,
-}
+    // It generally takes the next instruction to PC
+    fn fetch(&self) -> Self::OpCodeType;
 
-const OPCODE_ARM_SIZE: usize = 4;
+    // It decodes the instruction to understand the 
+    // OpCode and the variables
+    fn decode(&self, op_code: Self::OpCodeType) -> Condition;
 
-impl Cpu {
-    pub(crate) fn new(data: Vec<u8>) -> Self {
-        Self {
-            data,
-            program_counter: 0,
-            cpsr: Cpsr::default(),
-        }
-    }
+    // It executes the opcode and update registers and memory
+    fn execute(&self);
 
-    pub(crate) fn step(&mut self) {
-        let opcode = self.fetch();
-        let condition = self.decode(opcode);
-        if self.cpsr.can_execute(condition) {
-            todo!("we can execute now")
-        }
-    }
-
-    fn fetch(&mut self) -> Vec<u8> {
-        let start_pc = self.program_counter;
-        self.program_counter += OPCODE_ARM_SIZE;
-        let op = self.data[start_pc..self.program_counter].to_vec();
-        for n in &op {
-            println!("fetch -> {:x}", n);
-        }
-
-        op
-    }
-
-    fn decode(&mut self, op: Vec<u8>) -> Condition {
-        let condition = op[3] & 0x0F; // latest 4 bit (28..32)
-        println!("condition -> {:b}", condition);
-        condition.into()
-    }
+    // Abstraction of what happens for every instruction
+    fn step(&self);
 }
