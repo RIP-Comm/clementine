@@ -13,7 +13,7 @@ We love collaborating with others, so feel free to interact with us however you 
 In this section we are writing some basic guidelines to organize better this project.
 
 ### ❓ Question
-You can open an issue to ask anyquestion about everything related to the project. Someone will answer to you as soon as possible.
+You can open an issue to ask any question about everything related to the project. Someone will answer to you as soon as possible.
 
 ### 🔨 Feature
 These kind of issues should be used to manage the project. So only mantainers can open a new feature issue. If you would like to take a task on your own, ask for it and someone will assign it to you. 
