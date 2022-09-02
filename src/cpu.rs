@@ -1,6 +1,6 @@
 use crate::{condition::Condition, cpsr::CPSR};
 
-pub(crate) struct CPU {
+pub(crate) struct Cpu {
     data: Vec<u8>,
     program_counter: usize,
 
@@ -9,7 +9,7 @@ pub(crate) struct CPU {
 
 const OPCODE_ARM_SIZE: usize = 4;
 
-impl CPU {
+impl Cpu {
     pub(crate) fn new(data: Vec<u8>) -> Self {
         Self {
             data,
