@@ -2,11 +2,9 @@ use std::{env, error, fs, io::Read};
 
 use cartridge_header::CartridgeHeader;
 
-use crate::cpu::Cpu;
+use crate::cpu::CPU;
 
 mod cartridge_header;
-mod condition;
-mod cpsr;
 mod cpu;
 
 fn main() {
@@ -36,7 +34,7 @@ fn main() {
     let cartridge_header = CartridgeHeader::new(&data);
     println!("{}", cartridge_header.title);
 
-    let mut cpu = Cpu::new(data);
+    let mut cpu = CPU::new(data);
     cpu.step();
 }
 
