@@ -12,31 +12,25 @@ const OPCODE_ARM_SIZE: usize = 4;
 impl Cpu for Arm7tdmi {
     type OpCodeType = u32;
 
-    fn fetch(&self) -> Self::OpCodeType{
+    fn fetch(&self) -> Self::OpCodeType {
         let end_instruction = self.program_counter + OPCODE_ARM_SIZE;
-        let data_instruction = self.data[self.program_counter..end_instruction].to_vec();
-        
-        let mut op_code: Self::OpCodeType = 0;
-        op_code += (data_instruction[0] as u32) << 24;
-        op_code += (data_instruction[1] as u32) << 16;
-        op_code += (data_instruction[2] as u32) << 8;
-        op_code += data_instruction[3] as u32;
+        let data_instruction: [u8; 4] = self.data[self.program_counter..end_instruction]
+            .try_into()
+            .unwrap();
 
-        println!("{:b}", op_code);
+        let op_code = u32::from_le_bytes(data_instruction);
+        println!("opcode -> {:b}", op_code);
 
         op_code
     }
 
-    fn decode(&self, op_code: Self::OpCodeType) -> Condition{
-        let condition: u8 = (op_code & 0x00_00_00_0F) as u8; // latest 4 bit (28..32)
+    fn decode(&self, op_code: Self::OpCodeType) -> Condition {
+        let condition: u8 = (op_code >> 28) as u8; // bit 31..=28
         println!("condition -> {:x}", condition);
-
         condition.into()
     }
 
-    fn execute(&self) {
-        
-    }
+    fn execute(&self) {}
 
     fn step(&self) {
         let op_code = self.fetch();
@@ -45,9 +39,7 @@ impl Cpu for Arm7tdmi {
         if self.cpsr.can_execute(condition) {
             todo!("we can execute now")
         }
-        
     }
-    
 }
 
 impl Arm7tdmi {
