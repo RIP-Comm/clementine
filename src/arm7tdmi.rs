@@ -1,4 +1,8 @@
-use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
+use crate::{
+    condition::Condition,
+    cpsr::Cpsr,
+    cpu::{Cpu, InstructionKind},
+};
 
 pub(crate) struct Arm7tdmi {
     data: Vec<u8>,
@@ -19,15 +23,26 @@ impl Cpu for Arm7tdmi {
             .unwrap();
 
         let op_code = u32::from_le_bytes(data_instruction);
+        println!();
         println!("opcode -> {:b}", op_code);
 
         op_code
     }
 
-    fn decode(&self, op_code: Self::OpCodeType) -> Condition {
-        let condition: u8 = (op_code >> 28) as u8; // bit 31..=28
+    fn decode(&self, op_code: Self::OpCodeType) -> (Condition, InstructionKind) {
+        let condition = (op_code >> 28) as u8; // bit 31..=28
+        let instruction = if (op_code & 0x0A_00_00_00) != 0 {
+            if (op_code & 0x01_00_00_00) != 0 {
+                InstructionKind::BranchLink
+            } else {
+                InstructionKind::Branch
+            }
+        } else {
+            todo!()
+        };
         println!("condition -> {:x}", condition);
-        condition.into()
+        println!("instruction -> {:?}", instruction);
+        (condition.into(), instruction)
     }
 
     fn execute(&self) {}
@@ -36,7 +51,7 @@ impl Cpu for Arm7tdmi {
         let op_code = self.fetch();
 
         let condition = self.decode(op_code);
-        if self.cpsr.can_execute(condition) {
+        if self.cpsr.can_execute(condition.0) {
             todo!("we can execute now")
         }
     }
