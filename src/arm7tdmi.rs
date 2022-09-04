@@ -1,9 +1,12 @@
-use std::{fmt::Error, rc::Rc};
+use std::{fmt::{Debug, Error}, rc::Rc};
+
 
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
 pub(crate) struct Arm7tdmi {
     rom: Rc<Vec<u8>>,
+
+    registers: [u32; 16],
 
     program_counter: u32,
     cpsr: Cpsr,
@@ -52,6 +55,9 @@ impl Cpu for Arm7tdmi {
             BranchLink => {
                 self.branch_link(op_code);
             }
+            Mov => {
+                self.mov(op_code);
+            }
             _ => todo!("Instruction not implemented yet."),
         }
     }
@@ -71,6 +77,7 @@ impl Arm7tdmi {
         Self {
             rom,
             program_counter: 0,
+            registers: [0; 16],
             cpsr: Cpsr::default(),
         }
     }
@@ -86,12 +93,46 @@ impl Arm7tdmi {
     fn branch_link(&mut self, op_code: u32) {
         todo!("Branch Link")
     }
+
+    fn mov(&mut self, op_code: u32) {
+        // bits [24-21] are the RD
+        let rd = (op_code & 0x00_00_F0_00) >> 12;
+        println!("RD: {:?}", rd);
+
+        // 25th bit is I = Immediate Flag
+        let immediate: bool = (op_code & 0x02_00_00_00) >> 25 == 1;
+        println!("Immediate: {:?}", immediate);
+
+        // 20th bit is S = Condition Set
+        if op_code & 0x00_08_00_00 > 0 {
+            todo!("Condition set")
+        }
+
+        if immediate {
+            // bits [7-0] are the immediate value
+            let immediate_value = op_code & 0x00_00_00_FF;
+            println!("value: {:?}", immediate_value);
+
+            // the instruction is MOV RD, immediate_value
+            self.registers[rd as usize] = immediate_value;
+        } else {
+            todo!("Not implemented yet.");
+        }
+
+        // N.B: I'm not sure where this has to be executed
+        self.program_counter += OPCODE_ARM_SIZE as u32;
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ArmModeInstruction {
     Branch = 0x0A_00_00_00,
     BranchLink = 0x0B_00_00_00,
+
+    /// 27-26 must be 0b00
+    /// 24-21 must be 0b1101
+    /// 19-16 must be 0b0000
+    Mov = 0x01_A0_00_00,
 }
 
 impl ArmModeInstruction {
@@ -99,10 +140,11 @@ impl ArmModeInstruction {
         use ArmModeInstruction::*;
 
         if Self::check(Branch, op_code) {
-            return Ok(Branch);
-        }
-        if Self::check(BranchLink, op_code) {
-            return Ok(BranchLink);
+            Ok(Branch)
+        } else if Self::check(BranchLink, op_code) {
+            Ok(BranchLink)
+        } else if Self::check(Mov, op_code) {
+            Ok(Mov)
         } else {
             Err(Error)
         }
@@ -117,6 +159,7 @@ impl ArmModeInstruction {
 
         match instruction_type {
             Branch | BranchLink => 0x0F_00_00_00,
+            Mov => 0x0D_EF_00_00,
             _ => todo!(),
         }
     }
@@ -131,5 +174,30 @@ mod tests {
     fn decode_branch() {
         let output = ArmModeInstruction::get_instruction(0b1110_1010_0000_0000_0000_0000_0111_1111);
         assert_eq!(output, Ok(ArmModeInstruction::Branch));
+    }
+
+    #[test]
+    fn check_mov_rx_immediate() {
+        // MOV R0, 0
+        let mut opcode: u32 = 0b11100011101000000000000000000000;
+
+        // MOV Rx,x
+        let mut cpu = Arm7tdmi::new(vec![]);
+        for rx in 0..16u32 {
+            let register_for_op = rx << 12;
+            let immediate_value = rx;
+
+            //Rd parameter
+            opcode = (opcode & 0xFF_FF_0F_FF) + register_for_op;
+            //Immediate parameter
+            opcode = (opcode & 0xFF_FF_FF_00) + immediate_value;
+
+            let (condition, instruction_type) = cpu.decode(opcode);
+            assert_eq!(condition as u32, Condition::AL as u32);
+            assert_eq!(instruction_type, ArmModeInstruction::Mov);
+
+            cpu.execute(opcode, instruction_type);
+            assert_eq!(cpu.registers[rx as usize], rx);
+        }
     }
 }
