@@ -1,10 +1,6 @@
 use std::fmt::Error;
 
-use crate::{
-    condition::Condition,
-    cpsr::Cpsr,
-    cpu::{Cpu},
-};
+use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
 pub(crate) struct Arm7tdmi {
     rom: Vec<u8>,
@@ -16,12 +12,10 @@ pub(crate) struct Arm7tdmi {
 const OPCODE_ARM_SIZE: usize = 4;
 
 impl Cpu for Arm7tdmi {
-
     type OpCodeType = u32;
     type InstructionType = ArmModeInstruction;
 
     fn fetch(&self) -> Self::OpCodeType {
-        
         let instruction_index = self.program_counter as usize;
         let end_instruction = instruction_index + OPCODE_ARM_SIZE;
         let data_instruction: [u8; 4] = self.rom[instruction_index..end_instruction]
@@ -36,7 +30,6 @@ impl Cpu for Arm7tdmi {
     }
 
     fn decode(&self, op_code: Self::OpCodeType) -> (Condition, Self::InstructionType) {
-
         let condition = (op_code >> 28) as u8; // bit 31..=28
         println!("condition -> {:x}", condition);
 
@@ -59,14 +52,14 @@ impl Cpu for Arm7tdmi {
             BranchLink => {
                 self.branch_link(op_code);
             }
-            _ => todo!("Instruction not implemented yet.")
+            _ => todo!("Instruction not implemented yet."),
         }
     }
 
     fn step(&mut self) {
         let op_code = self.fetch();
 
-        let (condition,instruction) = self.decode(op_code);
+        let (condition, instruction) = self.decode(op_code);
         if self.cpsr.can_execute(condition) {
             self.execute(op_code, instruction)
         }
@@ -95,25 +88,22 @@ impl Arm7tdmi {
     }
 }
 
-#[repr(u32)]
 #[derive(Debug)]
 pub(crate) enum ArmModeInstruction {
     Branch = 0x0A_00_00_00,
-    BranchLink =  0x0B_00_00_00,
+    BranchLink = 0x0B_00_00_00,
 }
 
 impl ArmModeInstruction {
-
     fn get_instruction(op_code: u32) -> Result<ArmModeInstruction, Error> {
         use ArmModeInstruction::*;
-        
+
         if Self::check(Branch as u32, op_code) {
-            return Ok(Branch)
+            return Ok(Branch);
         }
         if Self::check(BranchLink as u32, op_code) {
-            return Ok(BranchLink)
-        }
-        else{
+            return Ok(BranchLink);
+        } else {
             Err(Error)
         }
     }

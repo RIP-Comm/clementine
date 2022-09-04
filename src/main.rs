@@ -41,7 +41,6 @@ fn main() {
     loop {
         cpu.step();
     }
-    
 }
 
 fn read_file(filepath: &str) -> Result<Vec<u8>, Box<dyn error::Error>> {

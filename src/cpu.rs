@@ -13,7 +13,7 @@ pub(crate) trait Cpu {
     fn decode(&self, op_code: Self::OpCodeType) -> (Condition, Self::InstructionType);
 
     // It executes the opcode and updates registers and memory
-    fn execute(&mut self,op_code: u32,  instruction_type: Self::InstructionType);
+    fn execute(&mut self, op_code: u32, instruction_type: Self::InstructionType);
 
     // Abstraction of what happens for every instruction in the cpu
     fn step(&mut self);
