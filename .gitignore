@@ -35,5 +35,8 @@ target/
 # Ignore code-workspaces
 *.code-workspace
 
+### JetBrains ###
+.idea/*
+
 # Test roms
 *.gba
