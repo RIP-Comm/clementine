@@ -7,8 +7,10 @@ pub(crate) struct CartridgeHeader {
     pub(crate) fixed_value: [u8; 1],
     pub(crate) main_unit_code: [u8; 1],
     pub(crate) device_type: [u8; 1],
-    pub(crate) reserved_area: [u8; 1],
+    pub(crate) reserved_area_1: [u8; 7],
     pub(crate) software_version: [u8; 1],
+    pub(crate) complement_check: [u8; 1],
+    pub(crate) reserved_area_2: [u8; 2],
 }
 
 impl CartridgeHeader {
@@ -17,13 +19,14 @@ impl CartridgeHeader {
         let nintendo_logo = Self::extract_nintendo_logo(data);
         let game_title = Self::extract_game_title(data);
         let game_code = Self::extract_game_code(data);
-        // --- Add ---
         let marker_code = Self::extract_marker_code(data);
         let fixed_value = Self::extract_fixed_value(data);
         let main_unit_code = Self::extract_main_unit_code(data);
         let device_type = Self::extract_device_type(data);
-        let reserved_area = Self::extract_reserved_area(data);
+        let reserved_area_1 = Self::extract_reserved_area_1(data);
         let software_version = Self::extract_software_version(data);
+        let complement_check = Self::extract_complement_check(data);
+        let reserved_area_2 = Self::extract_reserved_area_2(data);
 
 
         verify_checksum(data).expect("Invalid checksum");
@@ -33,13 +36,14 @@ impl CartridgeHeader {
             nintendo_logo,
             game_title,
             game_code,
-            // --- Add ---
             marker_code,
             fixed_value,
             main_unit_code,
             device_type,
-            reserved_area,
+            reserved_area_1,
             software_version,
+            complement_check,
+            reserved_area_2,
         }
     }
 
@@ -85,8 +89,6 @@ impl CartridgeHeader {
             .expect("parsing game code")
     }
 
-    // --- Add ---
-
     // Address: 0B0h
     // Bytes:   2
     // Info:    uppercase ascii, 2 characters
@@ -114,7 +116,7 @@ impl CartridgeHeader {
     // Info:    00h for current GBA models
     fn extract_main_unit_code(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if data[0x0B2..=0x0B2] is equals to 00h?
-        data[0x0B3..=0x0B4]
+        data[0x0B3..=0x0B3]
             .try_into()
             .expect("extracting main unit code")
     }
@@ -123,7 +125,7 @@ impl CartridgeHeader {
     // Bytes:   1
     // Info:    usually 00h (bit7=DACS/debug related)
     fn extract_device_type(data: &[u8]) -> [u8; 1] {
-        data[0x0B4..=0x0B5]
+        data[0x0B4..=0x0B4]
             .try_into()
             .expect("extracting device type")
     }
@@ -131,22 +133,39 @@ impl CartridgeHeader {
     // Address: 0B5h
     // Bytes:   7
     // Info:    should be zero filled
-    fn extract_reserved_area(data: &[u8]) -> [u8; 7] {
+    fn extract_reserved_area_1(data: &[u8]) -> [u8; 7] {
         data[0x0B5..=0x0BB]
             .try_into()
-            .expect("extracting reserved area")
+            .expect("extracting reserved area 1")
     }
 
     // Address: 0BCh
     // Bytes:   1
     // Info:    usually 00h
-    fn extract_software_version(data: &[u8; 1]) -> [u8; 1] {
+    fn extract_software_version(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if data[0x0B2..=0x0B2] is equals to 00h?
-        data[0x0BC..=0x0BC]
+        data[0x0BC..=0x0Bc]
             .try_into()
             .expect("extracting software version")
     }
 
+    // Address: 0BDh
+    // Bytes:   1
+    // Info:    header checksum, required!
+    fn extract_complement_check(data: &[u8]) -> [u8; 1] {
+        data[0x0BD..=0x0BE]
+            .try_into()
+            .expect("extracting complement check")
+    }
+
+    // Address: 0BEh
+    // Bytes:   2
+    // Info:    should be zero filled
+    fn extract_reserved_area_2(data: &[u8]) -> [u8; 2] {
+        data[0x0BE..=0x0BF]
+            .try_into()
+            .expect("extracting reserved area 2")
+    }
 
 }
 
