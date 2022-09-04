@@ -84,18 +84,6 @@ impl CartridgeHeader {
             .expect("parsing marker code")
     }
 
-    // Address: 0B2h
-    // Bytes:   1
-    // Info:    must be 96h, required!
-    fn extract_fixed_value(data: &[u8])s {
-        let marker_code_bytes: [u8; 2] = data[0x0B0..=0x0B1]
-            .try_into()
-            .expect("extracting marker code");
-        
-        String::from_utf8(marker_code_bytes.into())
-            .expect("parsing marker code")
-    }
-
 }
 
 fn verify_checksum(data: &[u8]) -> Result<(), ()> {
