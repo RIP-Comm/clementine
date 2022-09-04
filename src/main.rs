@@ -2,7 +2,7 @@ use std::{env, error, fs, io::Read};
 
 use cartridge_header::CartridgeHeader;
 
-use crate::{cpu::Cpu, arm7tdmi::Arm7tdmi};
+use crate::{arm7tdmi::Arm7tdmi, cpu::Cpu};
 
 mod arm7tdmi;
 mod cartridge_header;
@@ -35,7 +35,7 @@ fn main() {
     };
 
     let cartridge_header = CartridgeHeader::new(&data);
-    println!("{}", cartridge_header.title);
+    println!("{}", cartridge_header.game_title);
 
     let cpu = Arm7tdmi::new(data);
     cpu.step();

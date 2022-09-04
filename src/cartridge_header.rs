@@ -1,15 +1,51 @@
 pub(crate) struct CartridgeHeader {
-    pub(crate) title: String,
+    pub(crate) entry_point: [u8; 4],
+    pub(crate) nintendo_logo: [u8; 156],
+    pub(crate) game_title: String,
+    pub(crate) game_code: String,
 }
 
 impl CartridgeHeader {
     pub fn new(data: &[u8]) -> Self {
-        let t = data[0x00A0..0x00AC].to_vec();
-        let t = String::from_utf8(t).expect("reading title");
+        let entry_point = Self::extract_entry_point(data);
+        let nintendo_logo = Self::extract_nintendo_logo(data);
+        let game_title = Self::extract_game_title(data);
+        let game_code = Self::extract_game_code(data);
 
         verify_checksum(data).expect("Invalid checksum");
 
-        Self { title: t }
+        Self {
+            entry_point,
+            nintendo_logo,
+            game_title,
+            game_code,
+        }
+    }
+
+    fn extract_entry_point(data: &[u8]) -> [u8; 4] {
+        data[0x000..=0x003]
+            .try_into()
+            .expect("extracting entry point")
+    }
+
+    fn extract_nintendo_logo(data: &[u8]) -> [u8; 156] {
+        data[0x004..=0x09F]
+            .try_into()
+            .expect("extracting nintendo logo")
+    }
+
+    fn extract_game_title(data: &[u8]) -> String {
+        let game_title_bytes: [u8; 12] = data[0x0A0..=0x0AB]
+            .try_into()
+            .expect("extracting game title");
+        String::from_utf8(game_title_bytes.into()).expect("parsing game title")
+    }
+
+    fn extract_game_code(data: &[u8]) -> String {
+        let game_code_bytes: [u8; 4] = data[0x0AC..=0x0AF]
+            .try_into()
+            .expect("extracting game code");
+        String::from_utf8(game_code_bytes.into()).expect("parsing game code")
     }
 }
 
