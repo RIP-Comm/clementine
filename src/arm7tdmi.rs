@@ -1,9 +1,11 @@
-use std::fmt::Error;
+use std::{fmt::Error, vec};
 
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
 pub(crate) struct Arm7tdmi {
     rom: Vec<u8>,
+
+    registers: [u32; 16],
 
     program_counter: u32,
     cpsr: Cpsr,
@@ -52,6 +54,9 @@ impl Cpu for Arm7tdmi {
             BranchLink => {
                 self.branch_link(op_code);
             }
+            Mov => {
+                self.mov(op_code);
+            }
             _ => todo!("Instruction not implemented yet."),
         }
     }
@@ -71,6 +76,7 @@ impl Arm7tdmi {
         Self {
             rom,
             program_counter: 0,
+            registers: [0; 16],
             cpsr: Cpsr::default(),
         }
     }
@@ -86,12 +92,39 @@ impl Arm7tdmi {
     fn branch_link(&mut self, op_code: u32) {
         todo!("Branch Link")
     }
+
+
+    fn mov(&mut self, op_code: u32) {
+        let rd = op_code & 0x00_00_F0_00;
+        println!("RD: {:?}", rd);
+        let immediate: bool = (op_code & 0x02_00_00_00) >> 25 == 1;
+        println!("Immediate: {:?}", immediate);
+
+        if immediate {
+            let immediate_value = op_code & 0x00_00_00_FF;
+            println!("value: {:?}", immediate_value);
+
+            self.registers[rd as usize] = immediate_value;
+        }
+        else {
+            todo!("Not implemented yet.");
+        }
+
+        self.program_counter += 4;
+    }
+
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ArmModeInstruction {
     Branch = 0x0A_00_00_00,
     BranchLink = 0x0B_00_00_00,
+    
+    /// 27-26 must be 0b00
+    /// 24-21 must be 0b1101
+    /// 19-16 must be 0b0000
+    Mov = 0x01_A0_00_00,
+    //Mov = 0b0000_0001_1010_0000_0000_0000_0000_0000,          
 }
 
 impl ArmModeInstruction {
@@ -103,6 +136,9 @@ impl ArmModeInstruction {
         }
         if Self::check(BranchLink, op_code) {
             return Ok(BranchLink);
+        }
+        if Self::check(Mov, op_code) {
+            return Ok(Mov);
         } else {
             Err(Error)
         }
@@ -117,6 +153,8 @@ impl ArmModeInstruction {
 
         match instruction_type {
             Branch | BranchLink => 0x0F_00_00_00,
+            Mov => 0x0D_EF_00_00,
+            //Mov => 0b0000_1101_1110_1111_0000_0000_0000_0000,
             _ => todo!(),
         }
     }
