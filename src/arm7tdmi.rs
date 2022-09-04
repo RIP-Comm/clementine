@@ -88,7 +88,7 @@ impl Arm7tdmi {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ArmModeInstruction {
     Branch = 0x0A_00_00_00,
     BranchLink = 0x0B_00_00_00,
@@ -110,5 +110,17 @@ impl ArmModeInstruction {
 
     fn check(instruction_type: u32, op_code: u32) -> bool {
         (instruction_type & op_code) == instruction_type
+    }
+}
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn decode_branch() {
+        let output = ArmModeInstruction::get_instruction(0b1110_1010_0000_0000_0000_0000_0111_1111);
+        assert_eq!(output, Ok(ArmModeInstruction::Branch));
     }
 }
