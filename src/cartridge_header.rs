@@ -4,6 +4,11 @@ pub(crate) struct CartridgeHeader {
     pub(crate) game_title: String,
     pub(crate) game_code: String,
     pub(crate) marker_code: String,
+    pub(crate) fixed_value: [u8; 1],
+    pub(crate) main_unit_code: [u8; 1],
+    pub(crate) device_type: [u8; 1],
+    pub(crate) reserved_area: [u8; 1],
+    pub(crate) software_version: [u8; 1],
 }
 
 impl CartridgeHeader {
@@ -13,7 +18,12 @@ impl CartridgeHeader {
         let game_title = Self::extract_game_title(data);
         let game_code = Self::extract_game_code(data);
         // --- Add ---
-        let marker_code = Self::extract_marker_code((data));
+        let marker_code = Self::extract_marker_code(data);
+        let fixed_value = Self::extract_fixed_value(data);
+        let main_unit_code = Self::extract_main_unit_code(data);
+        let device_type = Self::extract_device_type(data);
+        let reserved_area = Self::extract_reserved_area(data);
+        let software_version = Self::extract_software_version(data);
 
 
         verify_checksum(data).expect("Invalid checksum");
@@ -25,6 +35,11 @@ impl CartridgeHeader {
             game_code,
             // --- Add ---
             marker_code,
+            fixed_value,
+            main_unit_code,
+            device_type,
+            reserved_area,
+            software_version,
         }
     }
 
@@ -83,6 +98,55 @@ impl CartridgeHeader {
         String::from_utf8(marker_code_bytes.into())
             .expect("parsing marker code")
     }
+
+    // Address: 0B2h
+    // Bytes:   1
+    // Info:    must be 96h, required!
+    fn extract_fixed_value(data: &[u8]) -> [u8; 1] {
+        // TODO: Do we check if data[0x0B2..=0x0B2] is equals to 96h?
+        data[0x0B2..=0x0B2]
+            .try_into()
+            .expect("extracting fixed value")
+    }
+
+    // Address: 0B3h
+    // Bytes:   1
+    // Info:    00h for current GBA models
+    fn extract_main_unit_code(data: &[u8]) -> [u8; 1] {
+        // TODO: Do we check if data[0x0B2..=0x0B2] is equals to 00h?
+        data[0x0B3..=0x0B4]
+            .try_into()
+            .expect("extracting main unit code")
+    }
+
+    // Address: 0B4h
+    // Bytes:   1
+    // Info:    usually 00h (bit7=DACS/debug related)
+    fn extract_device_type(data: &[u8]) -> [u8; 1] {
+        data[0x0B4..=0x0B5]
+            .try_into()
+            .expect("extracting device type")
+    }
+
+    // Address: 0B5h
+    // Bytes:   7
+    // Info:    should be zero filled
+    fn extract_reserved_area(data: &[u8]) -> [u8; 7] {
+        data[0x0B5..=0x0BB]
+            .try_into()
+            .expect("extracting reserved area")
+    }
+
+    // Address: 0BCh
+    // Bytes:   1
+    // Info:    usually 00h
+    fn extract_software_version(data: &[u8; 1]) -> [u8; 1] {
+        // TODO: Do we check if data[0x0B2..=0x0B2] is equals to 00h?
+        data[0x0BC..=0x0BC]
+            .try_into()
+            .expect("extracting software version")
+    }
+
 
 }
 
