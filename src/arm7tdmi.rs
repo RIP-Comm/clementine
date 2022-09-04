@@ -118,7 +118,8 @@ impl Arm7tdmi {
             todo!("Not implemented yet.");
         }
 
-        self.program_counter += 4;
+        // N.B: I'm not sure where this has to be executed
+        self.program_counter += OPCODE_ARM_SIZE as u32;
     }
 }
 
@@ -138,13 +139,11 @@ impl ArmModeInstruction {
         use ArmModeInstruction::*;
 
         if Self::check(Branch, op_code) {
-            return Ok(Branch);
-        }
-        if Self::check(BranchLink, op_code) {
-            return Ok(BranchLink);
-        }
-        if Self::check(Mov, op_code) {
-            return Ok(Mov);
+            Ok(Branch)
+        } else if Self::check(BranchLink, op_code) {
+            Ok(BranchLink)
+        } else if Self::check(Mov, op_code) {
+            Ok(Mov)
         } else {
             Err(Error)
         }
@@ -184,9 +183,13 @@ mod tests {
         // MOV Rx,x
         let mut cpu = Arm7tdmi::new(vec![]);
         for rx in 0..16u32 {
-            let change_op = rx << 12;
-            opcode = (opcode & 0xFF_FF_0F_FF) + change_op;
-            opcode = (opcode & 0xFF_FF_FF_00) + rx;
+            let register_for_op = rx << 12;
+            let immediate_value = rx;
+
+            //Rd parameter
+            opcode = (opcode & 0xFF_FF_0F_FF) + register_for_op;
+            //Immediate parameter
+            opcode = (opcode & 0xFF_FF_FF_00) + immediate_value;
 
             let (condition, instruction_type) = cpu.decode(opcode);
             assert_eq!(condition as u32, Condition::AL as u32);
