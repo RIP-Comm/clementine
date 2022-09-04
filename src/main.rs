@@ -1,21 +1,18 @@
-use std::{env, error, fs, io::Read};
+use std::env;
 
-use cartridge_header::CartridgeHeader;
-
-use crate::{arm7tdmi::Arm7tdmi, cpu::Cpu};
+use crate::{arm7tdmi::Arm7tdmi, cartridge::Cartridge, cpu::Cpu};
 
 mod arm7tdmi;
-mod cartridge_header;
+mod cartridge;
 mod condition;
 mod cpsr;
 mod cpu;
-
 fn main() {
     println!("clementine v0.1.0");
 
-    let cartridge_name = env::args().skip(1).collect::<Vec<String>>();
+    let args = env::args().skip(1).collect::<Vec<String>>();
 
-    let name = match cartridge_name.first() {
+    let file_path = match args.first() {
         Some(name) => {
             println!("loading {name}");
             name
@@ -26,27 +23,19 @@ fn main() {
         }
     };
 
-    let data = match read_file(name) {
-        Ok(d) => d,
+    let cartridge = match Cartridge::from_file(file_path) {
+        Ok(val) => {
+            println!("Title = {}", val.header().game_title());
+            val
+        }
         Err(e) => {
-            println!("{e}");
+            println!("Err: {e}");
             std::process::exit(2);
         }
     };
 
-    let cartridge_header = CartridgeHeader::new(&data);
-    println!("{}", cartridge_header.game_title);
-
-    let mut cpu = Arm7tdmi::new(data);
+    let mut cpu = Arm7tdmi::new(cartridge.rom());
     loop {
         cpu.step();
     }
-}
-
-fn read_file(filepath: &str) -> Result<Vec<u8>, Box<dyn error::Error>> {
-    let mut f = fs::File::open(filepath)?;
-    let mut buf = vec![];
-    f.read_to_end(&mut buf)?;
-
-    Ok(buf)
 }

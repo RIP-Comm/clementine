@@ -1,9 +1,9 @@
-use std::fmt::Error;
+use std::{fmt::Error, rc::Rc};
 
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
 pub(crate) struct Arm7tdmi {
-    rom: Vec<u8>,
+    rom: Rc<Vec<u8>>,
 
     program_counter: u32,
     cpsr: Cpsr,
@@ -67,7 +67,7 @@ impl Cpu for Arm7tdmi {
 }
 
 impl Arm7tdmi {
-    pub(crate) fn new(rom: Vec<u8>) -> Self {
+    pub(crate) fn new(rom: Rc<Vec<u8>>) -> Self {
         Self {
             rom,
             program_counter: 0,
