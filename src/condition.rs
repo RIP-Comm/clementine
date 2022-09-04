@@ -22,6 +22,7 @@ impl From<u8> for Condition {
     fn from(item: u8) -> Self {
         match item {
             0xA => Condition::GE,
+            0xE => Condition::AL,
             _ => todo!(),
         }
     }
