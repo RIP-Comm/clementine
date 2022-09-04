@@ -98,17 +98,26 @@ impl ArmModeInstruction {
     fn get_instruction(op_code: u32) -> Result<ArmModeInstruction, Error> {
         use ArmModeInstruction::*;
 
-        if Self::check(Branch as u32, op_code) {
+        if Self::check(Branch, op_code) {
             return Ok(Branch);
         }
-        if Self::check(BranchLink as u32, op_code) {
+        if Self::check(BranchLink, op_code) {
             return Ok(BranchLink);
         } else {
             Err(Error)
         }
     }
 
-    fn check(instruction_type: u32, op_code: u32) -> bool {
-        (instruction_type & op_code) == instruction_type
+    fn check(instruction_type: ArmModeInstruction, op_code: u32) -> bool {
+        (Self::get_mask(&instruction_type) & op_code) == instruction_type as u32
+    }
+
+    fn get_mask(instruction_type: &ArmModeInstruction) -> u32 {
+        use ArmModeInstruction::*;
+
+        match instruction_type {
+            Branch | BranchLink => 0x0F_00_00_00,
+            _ => todo!(),
+        }
     }
 }
