@@ -37,8 +37,11 @@ fn main() {
     let cartridge_header = CartridgeHeader::new(&data);
     println!("{}", cartridge_header.game_title);
 
-    let cpu = Arm7tdmi::new(data);
-    cpu.step();
+    let mut cpu = Arm7tdmi::new(data);
+    loop {
+        cpu.step();
+    }
+    
 }
 
 fn read_file(filepath: &str) -> Result<Vec<u8>, Box<dyn error::Error>> {

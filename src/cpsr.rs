@@ -6,8 +6,10 @@ pub(crate) struct Cpsr(u32);
 
 impl Cpsr {
     pub(crate) fn can_execute(&self, cond: Condition) -> bool {
+        use Condition::*;
         match cond {
-            Condition::GE => self.signed() == self.overflow(),
+            GE => self.signed() == self.overflow(),
+            AL => true,
             _ => todo!(),
         }
     }
