@@ -177,6 +177,7 @@ impl CartridgeHeader {
     // Bytes:   1
     // Info:    header checksum, required!
     fn extract_complement_check(data: &[u8]) -> [u8; 1] {
+        // TODO: Do we check if extract_complement_check header (data[0x0BD..=0x0BD]) is correct?
         data[0x0BD..=0x0BD]
             .try_into()
             .expect("extracting complement check")
