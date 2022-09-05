@@ -1,5 +1,5 @@
 // Points to be clarified:
-// 1. Do we want to check that the value is correct in the appropriate functions? (e.g., extract_fixed_value)
+// 1. Do we want to check that the value of data[x..=y] is what we expect in the appropriate functions? (e.g., extract_fixed_value)
 // 2. BIOS must be able to overwrite the boot_mode header, as defined in the extract_boot_mode function comments; 
 // 3. BIOS must be able to overwrite the slave_id_number header, as defined in the extract_slave_id_number function comments; 
 // 4. If the GBA has been booted by using Joybus transfer mode, we have to put our initialization procedure directly at joybus_mode_entry_point address,
