@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Error};
+use std::{convert::TryInto, fmt::Debug};
 
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
@@ -35,11 +35,11 @@ impl Cpu for Arm7tdmi {
         let condition = (op_code >> 28) as u8; // bit 31..=28
         println!("condition -> {:x}", condition);
 
-        let res_decode = ArmModeInstruction::get_instruction(op_code);
-        if res_decode.is_err() {
-            todo!("ArmModeInstruction")
-        }
-        let instruction = res_decode.expect("ArmMode");
+        let instruction: ArmModeInstruction = match op_code.try_into() {
+            Ok(instruction) => instruction,
+            Err(e) => todo!("{}", e),
+        };
+
         println!("instruction -> {:?}", instruction);
 
         (condition.into(), instruction)
@@ -134,8 +134,10 @@ pub(crate) enum ArmModeInstruction {
     Mov = 0x01_A0_00_00,
 }
 
-impl ArmModeInstruction {
-    fn get_instruction(op_code: u32) -> Result<ArmModeInstruction, Error> {
+impl TryFrom<u32> for ArmModeInstruction {
+    type Error = String;
+
+    fn try_from(op_code: u32) -> Result<Self, Self::Error> {
         use ArmModeInstruction::*;
 
         if Self::check(Branch, op_code) {
@@ -145,10 +147,12 @@ impl ArmModeInstruction {
         } else if Self::check(Mov, op_code) {
             Ok(Mov)
         } else {
-            Err(Error)
+            Err("instruction not implemented :(.".to_owned())
         }
     }
+}
 
+impl ArmModeInstruction {
     fn check(instruction_type: ArmModeInstruction, op_code: u32) -> bool {
         (Self::get_mask(&instruction_type) & op_code) == instruction_type as u32
     }
@@ -171,7 +175,8 @@ mod tests {
 
     #[test]
     fn decode_branch() {
-        let output = ArmModeInstruction::get_instruction(0b1110_1010_0000_0000_0000_0000_0111_1111);
+        let output: Result<ArmModeInstruction, String> =
+            0b1110_1010_0000_0000_0000_0000_0111_1111.try_into();
         assert_eq!(output, Ok(ArmModeInstruction::Branch));
     }
 
