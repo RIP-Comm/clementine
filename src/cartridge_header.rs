@@ -1,9 +1,3 @@
-// Points to be clarified:
-// 1. BIOS must be able to overwrite the boot_mode header, as defined in the extract_boot_mode function comments; 
-// 2. BIOS must be able to overwrite the slave_id_number header, as defined in the extract_slave_id_number function comments; 
-// 3. If the GBA has been booted by using Joybus transfer mode, we have to put our initialization procedure directly at joybus_mode_entry_point address,
-//    or redirect to the actual boot procedure by depositing a "B <start>" opcode in the space used by joybus_mode_entry_point.
-
 pub(crate) struct CartridgeHeader {
     pub(crate) rom_entry_point: [u8; 4],
     pub(crate) nintendo_logo: [u8; 156],
