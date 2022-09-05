@@ -9,6 +9,7 @@ mod cartridge_header;
 mod condition;
 mod cpsr;
 mod cpu;
+mod instruction;
 
 fn main() {
     println!("clementine v0.1.0");
