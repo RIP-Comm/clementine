@@ -14,8 +14,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  fmt:
+    runs-on: ubuntu-latest
 
+    steps:
+    - uses: actions/checkout@v3
+    - name: Check fmt
+      run: cargo fmt --check
+
+  test:
+    needs: fmt
     runs-on: ubuntu-latest
 
     steps:
