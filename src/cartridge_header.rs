@@ -71,21 +71,21 @@ impl CartridgeHeader {
         }
     }
 
-    // Info: 32bit ARM branch opcode, eg. "B rom_start"
+    // 32bit ARM branch opcode, eg. "B rom_start"
     fn extract_rom_entry_point(data: &[u8]) -> [u8; 4] {
         data[0x000..=0x003]
             .try_into()
             .expect("extracting rom entry point")
     }
 
-    // Info: compressed bitmap, required!
+    // compressed bitmap, required!
     fn extract_nintendo_logo(data: &[u8]) -> [u8; 156] {
         data[0x004..=0x09F]
             .try_into()
             .expect("extracting nintendo logo")
     }
 
-    // Info: uppercase ascii, max 12 characters
+    // uppercase ascii, max 12 characters
     fn extract_game_title(data: &[u8]) -> String {
         let game_title_bytes: [u8; 12] = data[0x0A0..=0x0AB]
             .try_into()
@@ -95,7 +95,7 @@ impl CartridgeHeader {
             .expect("parsing game title")
     }
 
-    // Info: uppercase ascii, 4 characters
+    // uppercase ascii, 4 characters
     fn extract_game_code(data: &[u8]) -> String {
         let game_code_bytes: [u8; 4] = data[0x0AC..=0x0AF]
             .try_into()
@@ -106,7 +106,7 @@ impl CartridgeHeader {
     }
 
     
-    // Info: uppercase ascii, 2 characters
+    // uppercase ascii, 2 characters
     fn extract_marker_code(data: &[u8]) -> String {
         let marker_code_bytes: [u8; 2] = data[0x0B0..=0x0B1]
             .try_into()
@@ -116,7 +116,7 @@ impl CartridgeHeader {
             .expect("parsing marker code")
     }
 
-    // Info: must be 96h, required!
+    // must be 96h, required!
     fn extract_fixed_value(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if fixed_value header (data[0x0B2..=0x0B2]) is equals to 96h?
         data[0x0B2..=0x0B2]
@@ -124,7 +124,7 @@ impl CartridgeHeader {
             .expect("extracting fixed value")
     }
 
-    // Info: 00h for current GBA models
+    // 00h for current GBA models
     fn extract_main_unit_code(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if main_unit_code header (data[0x0B2..=0x0B2]) is equals to 00h?
         data[0x0B3..=0x0B3]
@@ -132,7 +132,7 @@ impl CartridgeHeader {
             .expect("extracting main unit code")
     }
 
-    // Info: usually 00h (bit7=DACS/debug related)
+    // usually 00h (bit7=DACS/debug related)
     fn extract_device_type(data: &[u8]) -> [u8; 1] {
         data[0x0B4..=0x0B4]
             .try_into()
@@ -140,14 +140,14 @@ impl CartridgeHeader {
     }
 
     
-    // Info: should be zero filled
+    // should be zero filled
     fn extract_reserved_area_1(data: &[u8]) -> [u8; 7] {
         data[0x0B5..=0x0BB]
             .try_into()
             .expect("extracting reserved area 1")
     }
 
-    // Info: usually 00h
+    // usually 00h
     fn extract_software_version(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if software_version header (data[0x0B2..=0x0B2]) is equals to 00h?
         data[0x0BC..=0x0BC]
@@ -155,7 +155,7 @@ impl CartridgeHeader {
             .expect("extracting software version")
     }
 
-    // Info: header checksum, required!
+    // header checksum, required!
     fn extract_complement_check(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if extract_complement_check header (data[0x0BD..=0x0BD]) is correct?
         data[0x0BD..=0x0BD]
@@ -163,7 +163,7 @@ impl CartridgeHeader {
             .expect("extracting complement check")
     }
 
-    // Info: should be zero filled
+    // should be zero filled
     fn extract_reserved_area_2(data: &[u8]) -> [u8; 2] {
         data[0x0BE..=0x0BF]
             .try_into()
@@ -172,7 +172,7 @@ impl CartridgeHeader {
 
     // --- Additional Multiboot Header Entries ---
 
-    // Info: 32bit ARM branch opcode, eg. "B ram_start"
+    // 32bit ARM branch opcode, eg. "B ram_start"
     fn extract_ram_entry_point(data: &[u8]) -> [u8; 4] {
         // This entry is used only if the GBA has been booted 
         // by using Normal or Multiplay transfer mode (but not by Joybus mode).
@@ -181,7 +181,7 @@ impl CartridgeHeader {
             .expect("extracting ram entry point")
     }
 
-    // Info: init as 00h - BIOS overwrites this value!
+    // init as 00h - BIOS overwrites this value!
     fn extract_boot_mode(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if boot_mode header (data[0x0C4..=0x0C4]) is equals to 00h?
 
@@ -198,7 +198,7 @@ impl CartridgeHeader {
             .expect("extracting boot mode")
     }
 
-    // Info: init as 00h - BIOS overwrites this value!
+    // init as 00h - BIOS overwrites this value!
     fn extract_slave_id_number(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if slave_id_number header (data[0x0C5..=0x0C5]) is equals to 00h?
 
@@ -216,14 +216,14 @@ impl CartridgeHeader {
             .expect("extracting slave id number")
     }
 
-    // Info:    seems to be unused
+    // seems to be unused
     fn extract_not_used(data: &[u8]) -> [u8; 26] {
         data[0x0C6..=0x0DF]
             .try_into()
             .expect("extracting not used")
     }
 
-    // Info:    32bit ARM branch opcode, eg. "B joy_start"
+    // 32bit ARM branch opcode, eg. "B joy_start"
     fn extract_joybus_mode_entry_point(data: &[u8]) -> [u8; 4] {
         // If the GBA has been booted by using Joybus transfer mode, 
         // then the entry point is located at this address rather than at 20000C0h (ram_entry_point - data[0x0C0..=0x0C3]). 
