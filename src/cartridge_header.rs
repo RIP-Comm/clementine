@@ -11,7 +11,6 @@ pub(crate) struct CartridgeHeader {
     pub(crate) software_version: [u8; 1],
     pub(crate) complement_check: [u8; 1],
     pub(crate) reserved_area_2: [u8; 2],
-    // --- Additional Multiboot Header Entries ---
     pub(crate) ram_entry_point: [u8; 4],
     pub(crate) boot_mode: [u8; 1],
     pub(crate) slave_id_number: [u8; 1],
@@ -33,7 +32,6 @@ impl CartridgeHeader {
         let software_version = Self::extract_software_version(data);
         let complement_check = Self::extract_complement_check(data);
         let reserved_area_2 = Self::extract_reserved_area_2(data);
-        // --- Additional Multiboot Header Entries ---
         let ram_entry_point = Self::extract_ram_entry_point(data);
         let boot_mode = Self::extract_boot_mode(data);
         let slave_id_number = Self::extract_slave_id_number(data);
@@ -55,7 +53,6 @@ impl CartridgeHeader {
             software_version,
             complement_check,
             reserved_area_2,
-            // --- Additional Multiboot Header Entries ---
             ram_entry_point,
             boot_mode,
             slave_id_number,
@@ -159,8 +156,6 @@ impl CartridgeHeader {
             .try_into()
             .expect("extracting reserved area 2")
     }
-
-    // --- Additional Multiboot Header Entries ---
 
     // 32bit ARM branch opcode, eg. "B ram_start"
     fn extract_ram_entry_point(data: &[u8]) -> [u8; 4] {
