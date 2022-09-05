@@ -1,8 +1,7 @@
 // Points to be clarified:
-// 1. Do we want to check that the value of data[x..=y] is what we expect in the appropriate functions? (e.g., extract_fixed_value)
-// 2. BIOS must be able to overwrite the boot_mode header, as defined in the extract_boot_mode function comments; 
-// 3. BIOS must be able to overwrite the slave_id_number header, as defined in the extract_slave_id_number function comments; 
-// 4. If the GBA has been booted by using Joybus transfer mode, we have to put our initialization procedure directly at joybus_mode_entry_point address,
+// 1. BIOS must be able to overwrite the boot_mode header, as defined in the extract_boot_mode function comments; 
+// 2. BIOS must be able to overwrite the slave_id_number header, as defined in the extract_slave_id_number function comments; 
+// 3. If the GBA has been booted by using Joybus transfer mode, we have to put our initialization procedure directly at joybus_mode_entry_point address,
 //    or redirect to the actual boot procedure by depositing a "B <start>" opcode in the space used by joybus_mode_entry_point.
 
 pub(crate) struct CartridgeHeader {
@@ -118,7 +117,6 @@ impl CartridgeHeader {
 
     // must be 96h, required!
     fn extract_fixed_value(data: &[u8]) -> [u8; 1] {
-        // TODO: Do we check if fixed_value header (data[0x0B2..=0x0B2]) is equals to 96h?
         data[0x0B2..=0x0B2]
             .try_into()
             .expect("extracting fixed value")
@@ -126,7 +124,6 @@ impl CartridgeHeader {
 
     // 00h for current GBA models
     fn extract_main_unit_code(data: &[u8]) -> [u8; 1] {
-        // TODO: Do we check if main_unit_code header (data[0x0B2..=0x0B2]) is equals to 00h?
         data[0x0B3..=0x0B3]
             .try_into()
             .expect("extracting main unit code")
@@ -149,7 +146,6 @@ impl CartridgeHeader {
 
     // usually 00h
     fn extract_software_version(data: &[u8]) -> [u8; 1] {
-        // TODO: Do we check if software_version header (data[0x0B2..=0x0B2]) is equals to 00h?
         data[0x0BC..=0x0BC]
             .try_into()
             .expect("extracting software version")
@@ -183,8 +179,6 @@ impl CartridgeHeader {
 
     // init as 00h - BIOS overwrites this value!
     fn extract_boot_mode(data: &[u8]) -> [u8; 1] {
-        // TODO: Do we check if boot_mode header (data[0x0C4..=0x0C4]) is equals to 00h?
-
         // The slave GBA download procedure overwrites this byte by a value which is indicating 
         // the used multiboot transfer mode.
         // Value  Expl.
@@ -200,8 +194,6 @@ impl CartridgeHeader {
 
     // init as 00h - BIOS overwrites this value!
     fn extract_slave_id_number(data: &[u8]) -> [u8; 1] {
-        // TODO: Do we check if slave_id_number header (data[0x0C5..=0x0C5]) is equals to 00h?
-
         // If the GBA has been booted in Normal or Multiplay mode, 
         // this byte becomes overwritten by the slave ID number of the local GBA
         // (that'd be always 01h for normal mode).
