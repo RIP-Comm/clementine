@@ -96,13 +96,13 @@ impl Arm7tdmi {
     }
 
     fn data_processing(&mut self, op_code: u32) {
-        /// bit [25] is I = Immediate Flag
+        // bit [25] is I = Immediate Flag
         let i = ((op_code & 0x02_00_00_00) >> 25) as u8;
-        /// bit [24-21]
+        // bits [24-21]
         let alu_opcode = ((op_code & 0x01_E0_00_00) >> 25) as u8;
-        /// bit [20] is sets condition codes
+        // bit [20] is sets condition codes
         let s = ((op_code & 0x00_10_00_00) >> 20) as u8;
-        /// bits [15-12] are the Rd
+        // bits [15-12] are the Rd
         let rd = ((op_code & 0x00_00_F0_00) >> 12) as u8;
 
         let op2 = match i {
@@ -174,9 +174,9 @@ impl Arm7tdmi {
             }
             /// Immediate as 2nd Operand
             1 => {
-                /// bits [11-8] are ROR-Shift applied to nn
+                // bits [11-8] are ROR-Shift applied to nn
                 let is = op_code & 0x00_00_0F_00;
-                /// bits [7-0] are the immediate value
+                // bits [7-0] are the immediate value
                 let nn = op_code & 0x00_00_00_FF;
 
                 // I'm not sure about `* 2`
