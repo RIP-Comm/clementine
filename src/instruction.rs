@@ -2,7 +2,7 @@
 pub(crate) enum ArmModeInstruction {
     DataProcessing1 = 0x00_00_00_00,
     DataProcessing2 = 0x00_00_00_10,
-    DataProcessing3 = 0x02_00_00_10,
+    DataProcessing3 = 0x02_00_00_00,
     Branch = 0x0A_00_00_00,
     BranchLink = 0x0B_00_00_00,
 }

@@ -174,7 +174,7 @@ impl Arm7tdmi {
             }
             /// Immediate as 2nd Operand
             1 => {
-                /// bits [11-8] are
+                /// bits [11-8] are ROR-Shift applied to nn
                 let is = op_code & 0x00_00_0F_00;
                 /// bits [7-0] are the immediate value
                 let nn = op_code & 0x00_00_00_FF;
@@ -191,7 +191,7 @@ impl Arm7tdmi {
             _ => todo!(),
         }
 
-        todo!("Returned CPSR flags");
+        // TODO: Returned CPSR flags
     }
 
     fn mov(&mut self, rd: usize, op2: u32) {
@@ -216,25 +216,28 @@ mod tests {
     #[test]
     fn check_mov_rx_immediate() {
         // MOV R0, 0
-        let mut opcode: u32 = 0b11100011101000000000000000000000;
+        let mut opcode: u32 = 0b1110_0011_1010_0000_0000_0000_0000_0000;
+
+        // bits [11-8] are ROR-Shift applied to nn
+        let is = opcode & 0x00_00_0F_00;
 
         // MOV Rx,x
         let mut cpu = Arm7tdmi::new(vec![]);
-        for rx in 0..16u32 {
+        for rx in 0..=0xF {
             let register_for_op = rx << 12;
             let immediate_value = rx;
 
-            //Rd parameter
+            // Rd parameter
             opcode = (opcode & 0xFF_FF_0F_FF) + register_for_op;
-            //Immediate parameter
+            // Immediate parameter
             opcode = (opcode & 0xFF_FF_FF_00) + immediate_value;
 
             let (condition, instruction_type) = cpu.decode(opcode);
             assert_eq!(condition as u32, Condition::AL as u32);
-            assert_eq!(instruction_type, ArmModeInstruction::Mov);
+            assert_eq!(instruction_type, ArmModeInstruction::DataProcessing3);
 
             cpu.execute(opcode, instruction_type);
-            assert_eq!(cpu.registers[rx as usize], rx);
+            assert_eq!(cpu.registers[rx as usize], rx.rotate_right(is * 2));
         }
     }
 }
