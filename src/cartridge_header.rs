@@ -80,9 +80,8 @@ impl CartridgeHeader {
         let game_title_bytes: [u8; 12] = data[0x0A0..=0x0AB]
             .try_into()
             .expect("extracting game title");
-        
-        String::from_utf8(game_title_bytes.into())
-            .expect("parsing game title")
+
+        String::from_utf8(game_title_bytes.into()).expect("parsing game title")
     }
 
     // uppercase ascii, 4 characters
@@ -90,20 +89,17 @@ impl CartridgeHeader {
         let game_code_bytes: [u8; 4] = data[0x0AC..=0x0AF]
             .try_into()
             .expect("extracting game code");
-        
-        String::from_utf8(game_code_bytes.into())
-            .expect("parsing game code")
+
+        String::from_utf8(game_code_bytes.into()).expect("parsing game code")
     }
 
-    
     // uppercase ascii, 2 characters
     fn extract_marker_code(data: &[u8]) -> String {
         let marker_code_bytes: [u8; 2] = data[0x0B0..=0x0B1]
             .try_into()
             .expect("extracting marker code");
-        
-        String::from_utf8(marker_code_bytes.into())
-            .expect("parsing marker code")
+
+        String::from_utf8(marker_code_bytes.into()).expect("parsing marker code")
     }
 
     // must be 96h, required!
@@ -127,7 +123,6 @@ impl CartridgeHeader {
             .expect("extracting device type")
     }
 
-    
     // should be zero filled
     fn extract_reserved_area_1(data: &[u8]) -> [u8; 7] {
         data[0x0B5..=0x0BB]
@@ -159,7 +154,7 @@ impl CartridgeHeader {
 
     // 32bit ARM branch opcode, eg. "B ram_start"
     fn extract_ram_entry_point(data: &[u8]) -> [u8; 4] {
-        // This entry is used only if the GBA has been booted 
+        // This entry is used only if the GBA has been booted
         // by using Normal or Multiplay transfer mode (but not by Joybus mode).
         data[0x0C0..=0x0C3]
             .try_into()
@@ -168,13 +163,13 @@ impl CartridgeHeader {
 
     // init as 00h - BIOS overwrites this value!
     fn extract_boot_mode(data: &[u8]) -> [u8; 1] {
-        // The slave GBA download procedure overwrites this byte by a value which is indicating 
+        // The slave GBA download procedure overwrites this byte by a value which is indicating
         // the used multiboot transfer mode.
         // Value  Expl.
         // 01h    Joybus mode
         // 02h    Normal mode
         // 03h    Multiplay mode
-        // Be sure that your uploaded program does not contain important 
+        // Be sure that your uploaded program does not contain important
         // program code or data at this location, or at the ID-byte location below.
         data[0x0C4..=0x0C4]
             .try_into()
@@ -183,14 +178,14 @@ impl CartridgeHeader {
 
     // init as 00h - BIOS overwrites this value!
     fn extract_slave_id_number(data: &[u8]) -> [u8; 1] {
-        // If the GBA has been booted in Normal or Multiplay mode, 
+        // If the GBA has been booted in Normal or Multiplay mode,
         // this byte becomes overwritten by the slave ID number of the local GBA
         // (that'd be always 01h for normal mode).
         // Value  Expl.
         // 01h    Slave #1
         // 02h    Slave #2
         // 03h    Slave #3
-        // When booted in Joybus mode, the value is NOT changed and 
+        // When booted in Joybus mode, the value is NOT changed and
         // remains the same as uploaded from the master GBA.
         data[0x0C5..=0x0C5]
             .try_into()
@@ -199,17 +194,15 @@ impl CartridgeHeader {
 
     // seems to be unused
     fn extract_not_used(data: &[u8]) -> [u8; 26] {
-        data[0x0C6..=0x0DF]
-            .try_into()
-            .expect("extracting not used")
+        data[0x0C6..=0x0DF].try_into().expect("extracting not used")
     }
 
     // 32bit ARM branch opcode, eg. "B joy_start"
     fn extract_joybus_mode_entry_point(data: &[u8]) -> [u8; 4] {
-        // If the GBA has been booted by using Joybus transfer mode, 
-        // then the entry point is located at this address rather than at 20000C0h (ram_entry_point - data[0x0C0..=0x0C3]). 
-        // Either put your initialization procedure directly at this address, or redirect 
-        // to the actual boot procedure by depositing a "B <start>" opcode here (either one using 32bit ARM code). 
+        // If the GBA has been booted by using Joybus transfer mode,
+        // then the entry point is located at this address rather than at 20000C0h (ram_entry_point - data[0x0C0..=0x0C3]).
+        // Either put your initialization procedure directly at this address, or redirect
+        // to the actual boot procedure by depositing a "B <start>" opcode here (either one using 32bit ARM code).
         // Or, if you are not intending to support joybus mode (which is probably rarely used), ignore this entry.
         data[0x0E0..=0x0E3]
             .try_into()
