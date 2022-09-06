@@ -18,6 +18,14 @@ impl Cpsr {
         self.0 & 0x8000 != 0
     }
 
+    pub(crate) fn set_signed(&mut self) {
+        self.0 |= 0b1000_0000_0000_0000_0000_0000_0000_0000;
+    }
+
+    pub(crate) fn set_not_signed(&mut self) {
+        self.0 &= 0b0111_1111_1111_1111_1111_1111_1111_1111;
+    }
+
     fn overflow(&self) -> bool {
         self.0 & 0x1000 != 0
     }

@@ -56,7 +56,7 @@ impl Cpu for Arm7tdmi {
                 self.branch_link(op_code);
             }
             Mov => {
-                self.mov(op_code);
+                todo!("Remove move, use data_processing instruction as a type");
             }
             _ => todo!("Instruction not implemented yet."),
         }
@@ -94,33 +94,108 @@ impl Arm7tdmi {
         todo!("Branch Link")
     }
 
-    fn mov(&mut self, op_code: u32) {
-        // bits [24-21] are the RD
-        let rd = (op_code & 0x00_00_F0_00) >> 12;
-        println!("RD: {:?}", rd);
+    fn data_processing(&mut self, op_code: u32) {
+        /// bit [25] is I = Immediate Flag
+        let i = ((op_code & 0x02_00_00_00) >> 25) as u8;
+        /// bit [24-21]
+        let alu_opcode = ((op_code & 0x01_E0_00_00) >> 25) as u8;
+        /// bit [20] is sets condition codes
+        let s = ((op_code & 0x00_10_00_00) >> 20) as u8;
+        /// bits [15-12] are the Rd
+        let rd = ((op_code & 0x00_00_F0_00) >> 12) as u8;
 
-        // 25th bit is I = Immediate Flag
-        let immediate: bool = (op_code & 0x02_00_00_00) >> 25 == 1;
-        println!("Immediate: {:?}", immediate);
+        let op2 = match i {
+            /// Register as 2nd Operand
+            0 => {
+                // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
+                let shift_type = ((op_code & 0x00_00_00_60) >> 5) as u8;
+                // bit [4] is Shift by Register Flag (0=Immediate, 1=Register)
+                let r = (op_code & 0x00_00_00_10) >> 4;
+                // 2nd Operand Register (R0..R15) (including PC=R15)
+                let mut op2 = ((op_code & 0x00_00_00_0F) >> 8);
 
-        // 20th bit is S = Condition Set
-        if op_code & 0x00_08_00_00 > 0 {
-            todo!("Condition set")
-        }
+                match r {
+                    /// Shift by amount
+                    0 => {
+                        /// Shift amount
+                        let is = ((op_code & 0x00_00_07_80) >> 7) as u8;
+                        match is {
+                            0 => match shift_type {
+                                /// LSL#0: No shift performed, ie. directly Op2=Rm, the C flag is NOT affected.
+                                0 => (), // TODO: It's better to implement the logical instruction in order to execute directly LSL#0?
+                                /// LSR#0: Interpreted as LSR#32, ie. Op2 becomes zero, C becomes Bit 31 of Rm.
+                                1 => {
+                                    // TODO: It's better to implement the logical instruction in order to execute directly LSR#0?
+                                    let rm = self.registers[op2 as usize];
+                                    match (rm & 0b1000_0000_0000_0000_0000_0000_0000_0000) >> 31 {
+                                        1 => self.cpsr.set_signed(),
+                                        0 => self.cpsr.set_not_signed(),
+                                        _ => unreachable!(),
+                                    }
 
-        if immediate {
-            // bits [7-0] are the immediate value
-            let immediate_value = op_code & 0x00_00_00_FF;
-            println!("value: {:?}", immediate_value);
+                                    op2 = 0;
+                                }
+                                /// ASR#0: Interpreted as ASR#32, ie. Op2 and C are filled by Bit 31 of Rm.
+                                2 => {
+                                    // TODO: It's better to implement the logical instruction in order to execute directly ASR#0?
+                                    let rm = self.registers[op2 as usize];
+                                    match (rm & 0b1000_0000_0000_0000_0000_0000_0000_0000) >> 31 {
+                                        1 => {
+                                            op2 = 1;
+                                            self.cpsr.set_signed()
+                                        }
+                                        0 => {
+                                            op2 = 0;
+                                            self.cpsr.set_not_signed()
+                                        }
+                                        _ => unreachable!(),
+                                    }
+                                }
+                                /// ROR#0: Interpreted as RRX#1 (RCR), like ROR#1, but Op2 Bit 31 set to old C.
+                                3 => {
+                                    // TODO: It's better to implement the logical instruction in order to execute directly RRX#0?
+                                    todo!("Op2 Bit 31 set to old C"); // I'm not sure what "old C" means
+                                }
+                                _ => unreachable!(),
+                            },
+                            is => op2 <<= is,
+                        };
+                    }
+                    /// Shift by register
+                    1 => {
+                        let rs = ((op_code & 0x00_00_0F_00) >> 8) as u8;
+                        op2 <<= self.registers[rs as usize] & 0x00_00_00_FF;
+                    }
+                    _ => unreachable!(),
+                };
 
-            // the instruction is MOV RD, immediate_value
-            self.registers[rd as usize] = immediate_value;
-        } else {
-            todo!("Not implemented yet.");
-        }
+                op2
+            }
+            /// Immediate as 2nd Operand
+            1 => {
+                /// bits [11-8] are
+                let is = op_code & 0x00_00_0F_00;
+                /// bits [7-0] are the immediate value
+                let nn = op_code & 0x00_00_00_FF;
 
-        // N.B: I'm not sure where this has to be executed
-        self.program_counter += OPCODE_ARM_SIZE as u32;
+                // I'm not sure about `* 2`
+                nn.rotate_right(is * 2) // TODO: review "ROR-Shift applied to nn (0-30, in steps of 2)"
+            }
+            _ => unreachable!(),
+        };
+
+        todo!("Match the ALU instruction and execute");
+        // Example:
+        // match alu_opcode.into() {
+        //     Mov => self.mov(rd, op2),
+        //     ...
+        // }
+
+        todo!("Returned CPSR flags");
+    }
+
+    fn mov(&mut self, rd: usize, op2: u32) {
+        self.registers[rd] = op2;
     }
 }
 
