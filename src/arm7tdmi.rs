@@ -1,5 +1,6 @@
 use std::{convert::TryInto, fmt::Debug};
 
+use crate::alu_instruction::ArmModeAluInstruction;
 use crate::instruction::ArmModeInstruction;
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
@@ -55,8 +56,8 @@ impl Cpu for Arm7tdmi {
             BranchLink => {
                 self.branch_link(op_code);
             }
-            Mov => {
-                todo!("Remove move, use data_processing instruction as a type");
+            DataProcessing1 | DataProcessing2 | DataProcessing3 => {
+                self.data_processing(op_code);
             }
             _ => todo!("Instruction not implemented yet."),
         }
@@ -184,12 +185,11 @@ impl Arm7tdmi {
             _ => unreachable!(),
         };
 
-        todo!("Match the ALU instruction and execute");
-        // Example:
-        // match alu_opcode.into() {
-        //     Mov => self.mov(rd, op2),
-        //     ...
-        // }
+        use ArmModeAluInstruction::*;
+        match ArmModeAluInstruction::from(alu_opcode) {
+            Mov => self.mov(rd as usize, op2),
+            _ => todo!(),
+        }
 
         todo!("Returned CPSR flags");
     }
