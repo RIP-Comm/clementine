@@ -4,6 +4,7 @@ use cartridge_header::CartridgeHeader;
 
 use crate::{arm7tdmi::Arm7tdmi, cpu::Cpu};
 
+mod alu_instruction;
 mod arm7tdmi;
 mod cartridge_header;
 mod condition;

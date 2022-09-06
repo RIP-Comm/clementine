@@ -1,12 +1,10 @@
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ArmModeInstruction {
+    DataProcessing1 = 0x00_00_00_00,
+    DataProcessing2 = 0x00_00_00_10,
+    DataProcessing3 = 0x02_00_00_10,
     Branch = 0x0A_00_00_00,
     BranchLink = 0x0B_00_00_00,
-
-    /// 27-26 must be 0b00
-    /// 24-21 must be 0b1101
-    /// 19-16 must be 0b0000
-    Mov = 0x01_A0_00_00,
 }
 
 impl TryFrom<u32> for ArmModeInstruction {
@@ -15,12 +13,16 @@ impl TryFrom<u32> for ArmModeInstruction {
     fn try_from(op_code: u32) -> Result<Self, Self::Error> {
         use ArmModeInstruction::*;
 
-        if Self::check(Branch, op_code) {
+        if Self::check(DataProcessing1, op_code) {
+            Ok(DataProcessing1)
+        } else if Self::check(DataProcessing2, op_code) {
+            Ok(DataProcessing2)
+        } else if Self::check(DataProcessing3, op_code) {
+            Ok(DataProcessing3)
+        } else if Self::check(Branch, op_code) {
             Ok(Branch)
         } else if Self::check(BranchLink, op_code) {
             Ok(BranchLink)
-        } else if Self::check(Mov, op_code) {
-            Ok(Mov)
         } else {
             Err("instruction not implemented :(.".to_owned())
         }
@@ -37,7 +39,8 @@ impl ArmModeInstruction {
 
         match instruction_type {
             Branch | BranchLink => 0x0F_00_00_00,
-            Mov => 0x0D_EF_00_00,
+            DataProcessing1 | DataProcessing2 => 0x0E_00_00_10,
+            DataProcessing3 => 0x0E_00_00_00,
             _ => todo!(),
         }
     }
