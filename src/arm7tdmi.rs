@@ -159,13 +159,37 @@ impl Arm7tdmi {
                                 }
                                 _ => unreachable!(),
                             },
-                            is => op2 <<= is,
+
+                            is => {
+                                match shift_type {
+                                    // Logical Shift Left
+                                    0 => op2 <<= is,
+                                    // Logical Shift Right
+                                    1 => op2 >>= is,
+                                    // Arithmetic Shift Right
+                                    2 => op2 = ((op2 as i32) >> is) as u32, // TODO: Review rust arithmetic shift right
+                                    // Rotate Right
+                                    3 => op2 = op2.rotate_right(is as u32),
+                                    _ => unreachable!(),
+                                }
+                            }
                         };
                     }
                     /// Shift by register
                     1 => {
                         let rs = ((op_code & 0x00_00_0F_00) >> 8) as u8;
-                        op2 <<= self.registers[rs as usize] & 0x00_00_00_FF;
+                        let shift_value = self.registers[rs as usize] & 0x00_00_00_FF;
+                        match shift_type {
+                            // Logical Shift Left
+                            0 => op2 <<= shift_value,
+                            // Logical Shift Right
+                            1 => op2 >>= shift_value,
+                            // Arithmetic Shift Right
+                            2 => op2 = ((op2 as i32) >> shift_value) as u32, // TODO: Review rust arithmetic shift right
+                            // Rotate Right
+                            3 => op2 = op2.rotate_right(shift_value as u32),
+                            _ => unreachable!(),
+                        };
                     }
                     _ => unreachable!(),
                 };
