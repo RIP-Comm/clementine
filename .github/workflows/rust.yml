@@ -30,3 +30,12 @@ jobs:
     - uses: actions/checkout@v3
     - name: Test
       run: cargo test --verbose
+      
+  lint:
+    needs: [fmt, test]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Lint
+      run: cargo clippy --verbose
