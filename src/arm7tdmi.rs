@@ -101,6 +101,8 @@ impl Arm7tdmi {
         let alu_opcode = ((op_code & 0x01_E0_00_00) >> 21) as u8;
         // bit [20] is sets condition codes
         let _s = ((op_code & 0x00_10_00_00) >> 20) as u8;
+        // bits [19-16] are the Rn
+        let rn = ((op_code & 0x00_0F_00_00) >> 16) as u8;
         // bits [15-12] are the Rd
         let rd = ((op_code & 0x00_00_F0_00) >> 12) as u8;
 
@@ -210,6 +212,7 @@ impl Arm7tdmi {
 
         match ArmModeAluInstruction::from(alu_opcode) {
             ArmModeAluInstruction::Mov => self.mov(rd as usize, op2),
+            ArmModeAluInstruction::Bic => self.bic(rn as usize, rd as usize, op2),
             _ => todo!(),
         }
 
@@ -219,6 +222,11 @@ impl Arm7tdmi {
     fn mov(&mut self, rd: usize, op2: u32) {
         self.registers[rd] = op2;
     }
+
+    fn bic(&mut self, rn: usize, rd: usize, op2: u32 ) {
+        self.registers[rd] = self.registers[rn] & !op2;
+    }
+
 }
 
 #[cfg(test)]
