@@ -98,7 +98,7 @@ impl Arm7tdmi {
         // bit [25] is I = Immediate Flag
         let i = ((op_code & 0x02_00_00_00) >> 25) as u8;
         // bits [24-21]
-        let alu_opcode = ((op_code & 0x01_E0_00_00) >> 25) as u8;
+        let alu_opcode = ((op_code & 0x01_E0_00_00) >> 21) as u8;
         // bit [20] is sets condition codes
         let _s = ((op_code & 0x00_10_00_00) >> 20) as u8;
         // bits [15-12] are the Rd
