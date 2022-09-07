@@ -212,8 +212,6 @@ impl Arm7tdmi {
             ArmModeAluInstruction::Mov => self.mov(rd as usize, op2),
             _ => todo!(),
         }
-
-        // TODO: Returned CPSR flags
     }
 
     fn mov(&mut self, rd: usize, op2: u32) {
