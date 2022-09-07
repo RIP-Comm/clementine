@@ -41,7 +41,6 @@ impl ArmModeInstruction {
             Branch | BranchLink => 0x0F_00_00_00,
             DataProcessing1 | DataProcessing2 => 0x0E_00_00_10,
             DataProcessing3 => 0x0E_00_00_00,
-            _ => todo!(),
         }
     }
 }

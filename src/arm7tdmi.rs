@@ -1,4 +1,4 @@
-use std::{convert::TryInto, fmt::Debug};
+use std::convert::TryInto;
 
 use crate::alu_instruction::ArmModeAluInstruction;
 use crate::instruction::ArmModeInstruction;
@@ -59,7 +59,6 @@ impl Cpu for Arm7tdmi {
             DataProcessing1 | DataProcessing2 | DataProcessing3 => {
                 self.data_processing(op_code);
             }
-            _ => todo!("Instruction not implemented yet."),
         }
     }
 
@@ -91,7 +90,7 @@ impl Arm7tdmi {
         println!("PC: {:?}", self.program_counter);
     }
 
-    fn branch_link(&mut self, op_code: u32) {
+    fn branch_link(&mut self, _op_code: u32) {
         todo!("Branch Link")
     }
 
@@ -101,30 +100,30 @@ impl Arm7tdmi {
         // bits [24-21]
         let alu_opcode = ((op_code & 0x01_E0_00_00) >> 25) as u8;
         // bit [20] is sets condition codes
-        let s = ((op_code & 0x00_10_00_00) >> 20) as u8;
+        let _s = ((op_code & 0x00_10_00_00) >> 20) as u8;
         // bits [15-12] are the Rd
         let rd = ((op_code & 0x00_00_F0_00) >> 12) as u8;
 
         let op2 = match i {
-            /// Register as 2nd Operand
+            // Register as 2nd Operand
             0 => {
                 // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
                 let shift_type = ((op_code & 0x00_00_00_60) >> 5) as u8;
                 // bit [4] is Shift by Register Flag (0=Immediate, 1=Register)
                 let r = (op_code & 0x00_00_00_10) >> 4;
                 // 2nd Operand Register (R0..R15) (including PC=R15)
-                let mut op2 = ((op_code & 0x00_00_00_0F) >> 8);
+                let mut op2 = (op_code & 0x00_00_00_0F) >> 8;
 
                 match r {
-                    /// Shift by amount
+                    // Shift by amount
                     0 => {
-                        /// Shift amount
+                        // Shift amount
                         let is = ((op_code & 0x00_00_07_80) >> 7) as u8;
                         match is {
                             0 => match shift_type {
-                                /// LSL#0: No shift performed, ie. directly Op2=Rm, the C flag is NOT affected.
+                                // LSL#0: No shift performed, ie. directly Op2=Rm, the C flag is NOT affected.
                                 0 => (), // TODO: It's better to implement the logical instruction in order to execute directly LSL#0?
-                                /// LSR#0: Interpreted as LSR#32, ie. Op2 becomes zero, C becomes Bit 31 of Rm.
+                                // LSR#0: Interpreted as LSR#32, ie. Op2 becomes zero, C becomes Bit 31 of Rm.
                                 1 => {
                                     // TODO: It's better to implement the logical instruction in order to execute directly LSR#0?
                                     let rm = self.registers[op2 as usize];
@@ -136,7 +135,7 @@ impl Arm7tdmi {
 
                                     op2 = 0;
                                 }
-                                /// ASR#0: Interpreted as ASR#32, ie. Op2 and C are filled by Bit 31 of Rm.
+                                // ASR#0: Interpreted as ASR#32, ie. Op2 and C are filled by Bit 31 of Rm.
                                 2 => {
                                     // TODO: It's better to implement the logical instruction in order to execute directly ASR#0?
                                     let rm = self.registers[op2 as usize];
@@ -152,7 +151,7 @@ impl Arm7tdmi {
                                         _ => unreachable!(),
                                     }
                                 }
-                                /// ROR#0: Interpreted as RRX#1 (RCR), like ROR#1, but Op2 Bit 31 set to old C.
+                                // ROR#0: Interpreted as RRX#1 (RCR), like ROR#1, but Op2 Bit 31 set to old C.
                                 3 => {
                                     // TODO: It's better to implement the logical instruction in order to execute directly RRX#0?
                                     todo!("Op2 Bit 31 set to old C"); // I'm not sure what "old C" means
@@ -175,7 +174,7 @@ impl Arm7tdmi {
                             }
                         };
                     }
-                    /// Shift by register
+                    // Shift by register
                     1 => {
                         let rs = ((op_code & 0x00_00_0F_00) >> 8) as u8;
                         let shift_value = self.registers[rs as usize] & 0x00_00_00_FF;
@@ -196,7 +195,7 @@ impl Arm7tdmi {
 
                 op2
             }
-            /// Immediate as 2nd Operand
+            // Immediate as 2nd Operand
             1 => {
                 // bits [11-8] are ROR-Shift applied to nn
                 let is = op_code & 0x00_00_0F_00;
@@ -209,9 +208,8 @@ impl Arm7tdmi {
             _ => unreachable!(),
         };
 
-        use ArmModeAluInstruction::*;
         match ArmModeAluInstruction::from(alu_opcode) {
-            Mov => self.mov(rd as usize, op2),
+            ArmModeAluInstruction::Mov => self.mov(rd as usize, op2),
             _ => todo!(),
         }
 
