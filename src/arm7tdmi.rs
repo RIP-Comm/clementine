@@ -49,17 +49,23 @@ impl Cpu for Arm7tdmi {
 
     fn execute(&mut self, op_code: u32, instruction_type: ArmModeInstruction) {
         use ArmModeInstruction::*;
-        match instruction_type {
+
+        // Every instruction must return the next PC value
+        let next_address = match instruction_type {
             Branch => {
-                self.branch(op_code);
+                self.branch(op_code)
+
             }
             BranchLink => {
-                self.branch_link(op_code);
+                self.branch_link(op_code)
+
             }
             DataProcessing1 | DataProcessing2 | DataProcessing3 => {
-                self.data_processing(op_code);
+                self.data_processing(op_code)
             }
-        }
+        };
+
+        self.program_counter = next_address;
     }
 
     fn step(&mut self) {
@@ -82,19 +88,21 @@ impl Arm7tdmi {
         }
     }
 
-    fn branch(&mut self, op_code: u32) {
+    fn branch(&mut self, op_code: u32) -> u32 {
         let offset = op_code & 0x00_FF_FF_FF;
         println!("offset: {:?}", offset);
 
         self.program_counter += 8 + offset * 4;
         println!("PC: {:?}", self.program_counter);
+
+        self.program_counter
     }
 
-    fn branch_link(&mut self, _op_code: u32) {
+    fn branch_link(&mut self, _op_code: u32) -> u32 {
         todo!("Branch Link")
     }
 
-    fn data_processing(&mut self, op_code: u32) {
+    fn data_processing(&mut self, op_code: u32) -> u32{
         // bit [25] is I = Immediate Flag
         let i = ((op_code & 0x02_00_00_00) >> 25) as u8;
         // bits [24-21]
@@ -105,6 +113,8 @@ impl Arm7tdmi {
         let rn = ((op_code & 0x00_0F_00_00) >> 16) as u8;
         // bits [15-12] are the Rd
         let rd = ((op_code & 0x00_00_F0_00) >> 12) as u8;
+        // return next PC value
+        let mut next_addr = self.program_counter + 8;
 
         let op2 = match i {
             // Register as 2nd Operand
@@ -191,6 +201,8 @@ impl Arm7tdmi {
                             3 => op2 = op2.rotate_right(shift_value as u32),
                             _ => unreachable!(),
                         };
+                        // if I=0, R=1 PC has incremented by 12
+                        next_addr = self.program_counter + 12
                     }
                     _ => unreachable!(),
                 };
@@ -209,14 +221,15 @@ impl Arm7tdmi {
             }
             _ => unreachable!(),
         };
-
+        println!("ALU instruction -> {:x?}", alu_opcode);
         match ArmModeAluInstruction::from(alu_opcode) {
             ArmModeAluInstruction::Mov => self.mov(rd as usize, op2),
             ArmModeAluInstruction::Bic => self.bic(rn as usize, rd as usize, op2),
             _ => todo!(),
         }
 
-        // TODO: Returned CPSR flags
+        next_addr
+         // TODO: Returned CPSR flags
     }
 
     fn mov(&mut self, rd: usize, op2: u32) {
@@ -253,6 +266,7 @@ mod tests {
 
         // MOV Rx,x
         let mut cpu = Arm7tdmi::new(vec![]);
+        let mut before_pc = cpu.program_counter;
         for rx in 0..=0xF {
             let register_for_op = rx << 12;
             let immediate_value = rx;
@@ -268,6 +282,14 @@ mod tests {
 
             cpu.execute(opcode, instruction_type);
             assert_eq!(cpu.registers[rx as usize], rx.rotate_right(is * 2));
+
+            before_pc += 8;
+            assert_eq!(cpu.program_counter, before_pc);
         }
+    }
+
+    #[test]
+    fn check_bic_rx_ry() {
+       //TODO: test about BIC instruction
     }
 }
