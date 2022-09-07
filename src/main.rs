@@ -46,7 +46,6 @@ fn main() {
         let mut buf = String::default();
         std::io::stdin().read_line(&mut buf).unwrap();
     }
-
 }
 
 fn read_file(filepath: &str) -> Result<Vec<u8>, Box<dyn error::Error>> {

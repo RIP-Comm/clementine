@@ -52,17 +52,9 @@ impl Cpu for Arm7tdmi {
 
         // Every instruction must return the next PC value
         let next_address = match instruction_type {
-            Branch => {
-                self.branch(op_code)
-
-            }
-            BranchLink => {
-                self.branch_link(op_code)
-
-            }
-            DataProcessing1 | DataProcessing2 | DataProcessing3 => {
-                self.data_processing(op_code)
-            }
+            Branch => self.branch(op_code),
+            BranchLink => self.branch_link(op_code),
+            DataProcessing1 | DataProcessing2 | DataProcessing3 => self.data_processing(op_code),
         };
 
         self.program_counter = next_address;
@@ -102,7 +94,7 @@ impl Arm7tdmi {
         todo!("Branch Link")
     }
 
-    fn data_processing(&mut self, op_code: u32) -> u32{
+    fn data_processing(&mut self, op_code: u32) -> u32 {
         // bit [25] is I = Immediate Flag
         let i = ((op_code & 0x02_00_00_00) >> 25) as u8;
         // bits [24-21]
@@ -229,17 +221,16 @@ impl Arm7tdmi {
         }
 
         next_addr
-         // TODO: Returned CPSR flags
+        // TODO: Returned CPSR flags
     }
 
     fn mov(&mut self, rd: usize, op2: u32) {
         self.registers[rd] = op2;
     }
 
-    fn bic(&mut self, rn: usize, rd: usize, op2: u32 ) {
+    fn bic(&mut self, rn: usize, rd: usize, op2: u32) {
         self.registers[rd] = self.registers[rn] & !op2;
     }
-
 }
 
 #[cfg(test)]
@@ -290,6 +281,6 @@ mod tests {
 
     #[test]
     fn check_bic_rx_ry() {
-       //TODO: test about BIC instruction
+        //TODO: test about BIC instruction
     }
 }
