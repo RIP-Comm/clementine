@@ -11,6 +11,7 @@ use crate::{arm7tdmi::Arm7tdmi, cpu::Cpu, egui_app::EguiApp};
 
 mod alu_instruction;
 mod arm7tdmi;
+mod bitwise;
 mod cartridge_header;
 mod condition;
 mod cpsr;

@@ -9,3 +9,4 @@ glium = "0.32"
 
 [dev-dependencies]
 pretty_assertions = "1.3.0"
+rand = "0.8.5"
