@@ -15,7 +15,7 @@ impl Cpsr {
     }
 
     fn signed(&self) -> bool {
-        self.0 & 0x8000 != 0
+        self.0 & 0x80000000 != 0
     }
 
     pub(crate) fn set_signed(&mut self) {
@@ -27,6 +27,25 @@ impl Cpsr {
     }
 
     fn overflow(&self) -> bool {
-        self.0 & 0x1000 != 0
+        self.0 & 0x10000000 != 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cpsr::Cpsr;
+
+    #[test]
+    fn check_sign_flag() {
+        let mut cpsr: Cpsr = Cpsr(0);
+        cpsr.set_signed();
+        assert!(cpsr.signed());
+    }
+
+    #[test]
+    fn check_overflow_flag() {
+        let mut cpsr: Cpsr = Cpsr(0);
+        cpsr.0 = 0b0001_0000_0000_0000_0000_0000_0000_0000;
+        assert!(cpsr.overflow());
     }
 }
