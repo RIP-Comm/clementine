@@ -62,21 +62,21 @@ impl CartridgeHeader {
         }
     }
 
-    // 32bit ARM branch opcode, eg. "B rom_start"
+    /// 32bit ARM branch opcode, eg. "B rom_start"
     fn extract_rom_entry_point(data: &[u8]) -> [u8; 4] {
         data[0x000..=0x003]
             .try_into()
             .expect("extracting rom entry point")
     }
 
-    // compressed bitmap, required!
+    /// Compressed bitmap, required
     fn extract_nintendo_logo(data: &[u8]) -> [u8; 156] {
         data[0x004..=0x09F]
             .try_into()
             .expect("extracting nintendo logo")
     }
 
-    // uppercase ascii, max 12 characters
+    /// Uppercase ascii, max 12 characters
     fn extract_game_title(data: &[u8]) -> String {
         let game_title_bytes: [u8; 12] = data[0x0A0..=0x0AB]
             .try_into()
@@ -85,7 +85,7 @@ impl CartridgeHeader {
         String::from_utf8(game_title_bytes.into()).expect("parsing game title")
     }
 
-    // uppercase ascii, 4 characters
+    /// Uppercase ascii, 4 characters
     fn extract_game_code(data: &[u8]) -> String {
         let game_code_bytes: [u8; 4] = data[0x0AC..=0x0AF]
             .try_into()
@@ -94,7 +94,7 @@ impl CartridgeHeader {
         String::from_utf8(game_code_bytes.into()).expect("parsing game code")
     }
 
-    // uppercase ascii, 2 characters
+    /// Uppercase ascii, 2 characters
     fn extract_marker_code(data: &[u8]) -> String {
         let marker_code_bytes: [u8; 2] = data[0x0B0..=0x0B1]
             .try_into()
@@ -103,42 +103,42 @@ impl CartridgeHeader {
         String::from_utf8(marker_code_bytes.into()).expect("parsing marker code")
     }
 
-    // must be 96h, required!
+    /// Must be 0x96, required
     fn extract_fixed_value(data: &[u8]) -> [u8; 1] {
         data[0x0B2..=0x0B2]
             .try_into()
             .expect("extracting fixed value")
     }
 
-    // 00h for current GBA models
+    /// 00h for current GBA models
     fn extract_main_unit_code(data: &[u8]) -> [u8; 1] {
         data[0x0B3..=0x0B3]
             .try_into()
             .expect("extracting main unit code")
     }
 
-    // usually 00h (bit7=DACS/debug related)
+    /// Usually 0x00 (bit7=DACS/debug related)
     fn extract_device_type(data: &[u8]) -> [u8; 1] {
         data[0x0B4..=0x0B4]
             .try_into()
             .expect("extracting device type")
     }
 
-    // should be zero filled
+    /// Should be zero filled
     fn extract_reserved_area_1(data: &[u8]) -> [u8; 7] {
         data[0x0B5..=0x0BB]
             .try_into()
             .expect("extracting reserved area 1")
     }
 
-    // usually 00h
+    /// Usually 0x00
     fn extract_software_version(data: &[u8]) -> [u8; 1] {
         data[0x0BC..=0x0BC]
             .try_into()
             .expect("extracting software version")
     }
 
-    // header checksum, required!
+    /// Header checksum, required
     fn extract_complement_check(data: &[u8]) -> [u8; 1] {
         // TODO: Do we check if extract_complement_check header (data[0x0BD..=0x0BD]) is correct?
         data[0x0BD..=0x0BD]
@@ -146,14 +146,14 @@ impl CartridgeHeader {
             .expect("extracting complement check")
     }
 
-    // should be zero filled
+    /// Should be zero filled
     fn extract_reserved_area_2(data: &[u8]) -> [u8; 2] {
         data[0x0BE..=0x0BF]
             .try_into()
             .expect("extracting reserved area 2")
     }
 
-    // 32bit ARM branch opcode, eg. "B ram_start"
+    /// 32bit ARM branch opcode, eg. "B ram_start"
     fn extract_ram_entry_point(data: &[u8]) -> [u8; 4] {
         // This entry is used only if the GBA has been booted
         // by using Normal or Multiplay transfer mode (but not by Joybus mode).
@@ -162,7 +162,7 @@ impl CartridgeHeader {
             .expect("extracting ram entry point")
     }
 
-    // init as 00h - BIOS overwrites this value!
+    /// Init as 00h - BIOS overwrites this value!
     fn extract_boot_mode(data: &[u8]) -> [u8; 1] {
         // The slave GBA download procedure overwrites this byte by a value which is indicating
         // the used multiboot transfer mode.
@@ -177,7 +177,7 @@ impl CartridgeHeader {
             .expect("extracting boot mode")
     }
 
-    // init as 00h - BIOS overwrites this value!
+    /// Init as 00h - BIOS overwrites this value!
     fn extract_slave_id_number(data: &[u8]) -> [u8; 1] {
         // If the GBA has been booted in Normal or Multiplay mode,
         // this byte becomes overwritten by the slave ID number of the local GBA
@@ -193,12 +193,12 @@ impl CartridgeHeader {
             .expect("extracting slave id number")
     }
 
-    // seems to be unused
+    /// Seems to be unused
     fn extract_not_used(data: &[u8]) -> [u8; 26] {
         data[0x0C6..=0x0DF].try_into().expect("extracting not used")
     }
 
-    // 32bit ARM branch opcode, eg. "B joy_start"
+    /// 32bit ARM branch opcode, eg. "B joy_start"
     fn extract_joybus_mode_entry_point(data: &[u8]) -> [u8; 4] {
         // If the GBA has been booted by using Joybus transfer mode,
         // then the entry point is located at this address rather than at 20000C0h (ram_entry_point - data[0x0C0..=0x0C3]).
