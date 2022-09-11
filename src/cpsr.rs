@@ -15,7 +15,7 @@ impl Cpsr {
     }
 
     fn signed(&self) -> bool {
-        self.0 & 0x80000000 != 0
+        self.0 & 0b1000_0000_0000_0000_0000_0000_0000_0000 != 0
     }
 
     pub(crate) fn set_signed(&mut self) {
@@ -27,7 +27,7 @@ impl Cpsr {
     }
 
     fn overflow(&self) -> bool {
-        self.0 & 0x10000000 != 0
+        self.0 & 0b0001_0000_0000_0000_0000_0000_0000_0000 != 0
     }
 }
 
