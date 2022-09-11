@@ -41,3 +41,37 @@ impl From<u8> for Condition {
         }
     }
 }
+
+/// Control bits condition.
+pub enum ModeBits {
+    OldUser = 0x00,
+    OldFiq = 0x01,
+    OldIrq = 0x02,
+    OldSupervisor = 0x03,
+    User = 0x10,
+    Fiq = 0x11,
+    Irq = 0x12,
+    Supervisor = 0x13,
+    Abort = 0x17,
+    Undefined = 0x1B,
+    System = 0x1F,
+}
+
+impl From<u8> for ModeBits {
+    fn from(item: u8) -> Self {
+        match item {
+            0x00 => Self::OldUser,
+            0x01 => Self::OldFiq,
+            0x02 => Self::OldIrq,
+            0x03 => Self::OldSupervisor,
+            0x10 => Self::User,
+            0x11 => Self::Fiq,
+            0x12 => Self::Irq,
+            0x13 => Self::Supervisor,
+            0x17 => Self::Abort,
+            0x1B => Self::Undefined,
+            0x1F => Self::System,
+            _ => unreachable!(),
+        }
+    }
+}
