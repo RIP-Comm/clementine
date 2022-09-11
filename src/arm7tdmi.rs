@@ -24,7 +24,7 @@ impl Cpu for Arm7tdmi {
         let end_instruction = instruction_index + OPCODE_ARM_SIZE;
         let data_instruction: [u8; 4] = self.rom[instruction_index..end_instruction]
             .try_into()
-            .unwrap();
+            .expect("`istruction` conversion into [u8; 4]");
 
         let op_code = u32::from_le_bytes(data_instruction);
         println!();
@@ -34,7 +34,9 @@ impl Cpu for Arm7tdmi {
     }
 
     fn decode(&self, op_code: Self::OpCodeType) -> (Condition, Self::InstructionType) {
-        let condition = (op_code >> 28) as u8; // bit 31..=28
+        let condition: u8 = (op_code >> 28) // bit 31..=28
+            .try_into()
+            .expect("conversion `condition` to u8");
         println!("condition -> {:x}", condition);
 
         let instruction: ArmModeInstruction = match op_code.try_into() {
@@ -96,19 +98,29 @@ impl Arm7tdmi {
 
     fn data_processing(&mut self, op_code: u32) {
         // bit [25] is I = Immediate Flag
-        let i = ((op_code & 0x02_00_00_00) >> 25) as u8;
+        let i: u8 = ((op_code & 0x02_00_00_00) >> 25)
+            .try_into()
+            .expect("conversion `immediate` to u8");
         // bits [24-21]
-        let alu_opcode = ((op_code & 0x01_E0_00_00) >> 21) as u8;
+        let alu_opcode: u8 = ((op_code & 0x01_E0_00_00) >> 21)
+            .try_into()
+            .expect("conversion `alu_opcode` to u8");
         // bit [20] is sets condition codes
-        let _s = ((op_code & 0x00_10_00_00) >> 20) as u8;
+        let _s: u8 = ((op_code & 0x00_10_00_00) >> 20)
+            .try_into()
+            .expect("conversion `set` to u8");
         // bits [15-12] are the Rd
-        let rd = ((op_code & 0x00_00_F0_00) >> 12) as u8;
+        let rd: u8 = ((op_code & 0x00_00_F0_00) >> 12)
+            .try_into()
+            .expect("conversion `rd` to u8");
 
         let op2 = match i {
             // Register as 2nd Operand
             0 => {
                 // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
-                let shift_type = ((op_code & 0x00_00_00_60) >> 5) as u8;
+                let shift_type: u8 = ((op_code & 0x00_00_00_60) >> 5)
+                    .try_into()
+                    .expect("conversion `shift_type` to u8");
                 // bit [4] is Shift by Register Flag (0=Immediate, 1=Register)
                 let r = (op_code & 0x00_00_00_10) >> 4;
                 // 2nd Operand Register (R0..R15) (including PC=R15)
@@ -118,7 +130,9 @@ impl Arm7tdmi {
                     // Shift by amount
                     0 => {
                         // Shift amount
-                        let is = ((op_code & 0x00_00_07_80) >> 7) as u8;
+                        let is: u8 = ((op_code & 0x00_00_07_80) >> 7)
+                            .try_into()
+                            .expect("conversion `is` to u8");
                         match is {
                             0 => match shift_type {
                                 // LSL#0: No shift performed, ie. directly Op2=Rm, the C flag is NOT affected.
@@ -176,7 +190,9 @@ impl Arm7tdmi {
                     }
                     // Shift by register
                     1 => {
-                        let rs = ((op_code & 0x00_00_0F_00) >> 8) as u8;
+                        let rs: u8 = ((op_code & 0x00_00_0F_00) >> 8)
+                            .try_into()
+                            .expect("conversion `rs` to u8");
                         let shift_value = self.registers[rs as usize] & 0x00_00_00_FF;
                         match shift_type {
                             // Logical Shift Left
