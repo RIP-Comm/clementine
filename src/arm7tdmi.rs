@@ -83,7 +83,7 @@ impl Arm7tdmi {
     }
 
     fn branch(&mut self, op_code: u32) {
-        let offset = op_code & 0x00_FF_FF_FF;
+        let offset = op_code & 0b0000_0000_1111_1111_1111_1111_1111_1111;
         println!("offset: {:?}", offset);
 
         self.program_counter += 8 + offset * 4;
@@ -96,29 +96,29 @@ impl Arm7tdmi {
 
     fn data_processing(&mut self, op_code: u32) {
         // bit [25] is I = Immediate Flag
-        let i = ((op_code & 0x02_00_00_00) >> 25) as u8;
+        let i = ((op_code & 0b0000_0010_0000_0000_0000_0000_0000_0000) >> 25) as u8;
         // bits [24-21]
-        let alu_opcode = ((op_code & 0x01_E0_00_00) >> 21) as u8;
+        let alu_opcode = ((op_code & 0b0000_0001_1110_0000_0000_0000_0000_0000) >> 21) as u8;
         // bit [20] is sets condition codes
-        let _s = ((op_code & 0x00_10_00_00) >> 20) as u8;
+        let _s = ((op_code & 0b0000_0000_0001_0000_0000_0000_0000_0000) >> 20) as u8;
         // bits [15-12] are the Rd
-        let rd = ((op_code & 0x00_00_F0_00) >> 12) as u8;
+        let rd = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12) as u8;
 
         let op2 = match i {
             // Register as 2nd Operand
             0 => {
                 // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
-                let shift_type = ((op_code & 0x00_00_00_60) >> 5) as u8;
+                let shift_type = ((op_code & 0b0000_0000_0000_0000_0000_0000_0110_0000) >> 5) as u8;
                 // bit [4] is Shift by Register Flag (0=Immediate, 1=Register)
-                let r = (op_code & 0x00_00_00_10) >> 4;
+                let r = (op_code & 0b0000_0000_0000_0000_0000_0000_0001_0000) >> 4;
                 // 2nd Operand Register (R0..R15) (including PC=R15)
-                let mut op2 = (op_code & 0x00_00_00_0F) >> 8;
+                let mut op2 = (op_code & 0b0000_0000_0000_0000_0000_0000_0000_1111) >> 8;
 
                 match r {
                     // Shift by amount
                     0 => {
                         // Shift amount
-                        let is = ((op_code & 0x00_00_07_80) >> 7) as u8;
+                        let is = ((op_code & 0b0000_0000_0000_0000_0000_0111_1000_0000) >> 7) as u8;
                         match is {
                             0 => match shift_type {
                                 // LSL#0: No shift performed, ie. directly Op2=Rm, the C flag is NOT affected.
@@ -176,8 +176,9 @@ impl Arm7tdmi {
                     }
                     // Shift by register
                     1 => {
-                        let rs = ((op_code & 0x00_00_0F_00) >> 8) as u8;
-                        let shift_value = self.registers[rs as usize] & 0x00_00_00_FF;
+                        let rs = ((op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000) >> 8) as u8;
+                        let shift_value = self.registers[rs as usize]
+                            & 0b0000_0000_0000_0000_0000__0000_1111_1111;
                         match shift_type {
                             // Logical Shift Left
                             0 => op2 <<= shift_value,
@@ -198,9 +199,9 @@ impl Arm7tdmi {
             // Immediate as 2nd Operand
             1 => {
                 // bits [11-8] are ROR-Shift applied to nn
-                let is = op_code & 0x00_00_0F_00;
+                let is = op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000;
                 // bits [7-0] are the immediate value
-                let nn = op_code & 0x00_00_00_FF;
+                let nn = op_code & 0b0000_0000_0000_0000_0000__0000_1111_1111;
 
                 // I'm not sure about `* 2`
                 nn.rotate_right(is * 2) // TODO: review "ROR-Shift applied to nn (0-30, in steps of 2)"
@@ -239,7 +240,7 @@ mod tests {
         let mut opcode: u32 = 0b1110_0011_1010_0000_0000_0000_0000_0000;
 
         // bits [11-8] are ROR-Shift applied to nn
-        let is = opcode & 0x00_00_0F_00;
+        let is = opcode & 0b0000_0000_0000_0000_0000_1111_0000_0000;
 
         // MOV Rx,x
         let mut cpu = Arm7tdmi::new(vec![]);
@@ -248,9 +249,9 @@ mod tests {
             let immediate_value = rx;
 
             // Rd parameter
-            opcode = (opcode & 0xFF_FF_0F_FF) + register_for_op;
+            opcode = (opcode & 0b1111_1111_1111_1111_0000_1111_1111_1111) + register_for_op;
             // Immediate parameter
-            opcode = (opcode & 0xFF_FF_FF_00) + immediate_value;
+            opcode = (opcode & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
 
             let (condition, instruction_type) = cpu.decode(opcode);
             assert_eq!(condition as u32, Condition::AL as u32);
