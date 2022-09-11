@@ -149,7 +149,7 @@ impl Arm7tdmi {
                                 1 => {
                                     // TODO: It's better to implement the logical instruction in order to execute directly LSR#0?
                                     let rm = self.registers[op2 as usize];
-                                    self.cpsr.set_signed(rm.get_bit(31));
+                                    self.cpsr.set_sign_flag(rm.get_bit(31));
                                     op2 = 0;
                                 }
                                 // ASR#0: Interpreted as ASR#32, ie. Op2 and C are filled by Bit 31 of Rm.
@@ -159,11 +159,11 @@ impl Arm7tdmi {
                                     match (rm & 0b1000_0000_0000_0000_0000_0000_0000_0000) >> 31 {
                                         1 => {
                                             op2 = 1;
-                                            self.cpsr.set_signed(true)
+                                            self.cpsr.set_sign_flag(true)
                                         }
                                         0 => {
                                             op2 = 0;
-                                            self.cpsr.set_signed(true)
+                                            self.cpsr.set_sign_flag(true)
                                         }
                                         _ => unreachable!(),
                                     }
@@ -241,7 +241,7 @@ impl Arm7tdmi {
 
     fn teq(&mut self, rn: u32, op2: u32) {
         let value = rn ^ op2;
-        self.cpsr.set_signed(value.is_bit_on(31));
+        self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
     }
 }
@@ -299,7 +299,7 @@ mod tests {
         let regs_before = cpu.registers;
         cpu.execute(op_code, instruction);
         assert_eq!(cpu.registers, regs_before);
-        assert!(!cpu.cpsr.signed());
+        assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
     }
 }
