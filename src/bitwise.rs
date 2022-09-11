@@ -1,8 +1,8 @@
 /// Contains some helper methods to manipulate bits,
 /// the index (`bit_idk`) is supposed to be from lsb to msb (right to left)
 pub(crate) trait Bits {
-    fn is_bit_on(self, bit_idx: u8) -> bool;
-    fn is_bit_off(self, bit_idx: u8) -> bool;
+    fn is_bit_on(&self, bit_idx: u8) -> bool;
+    fn is_bit_off(&self, bit_idx: u8) -> bool;
     fn set_bit_on(&mut self, bit_idx: u8);
     fn set_bit_off(&mut self, bit_idx: u8);
     fn toggle_bit(&mut self, bit_idx: u8);
@@ -11,14 +11,14 @@ pub(crate) trait Bits {
 }
 
 impl Bits for u32 {
-    fn is_bit_on(self, bit_idx: u8) -> bool {
+    fn is_bit_on(&self, bit_idx: u8) -> bool {
         debug_assert!(bit_idx < 32);
 
         let mask = 0b1 << bit_idx;
         (self & mask) != 0
     }
 
-    fn is_bit_off(self, bit_idx: u8) -> bool {
+    fn is_bit_off(&self, bit_idx: u8) -> bool {
         debug_assert!(bit_idx < 32);
 
         let mask = 0b1 << bit_idx;
