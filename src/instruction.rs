@@ -1,10 +1,10 @@
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ArmModeInstruction {
-    DataProcessing1 = 0x00_00_00_00,
-    DataProcessing2 = 0x00_00_00_10,
-    DataProcessing3 = 0x02_00_00_00,
-    Branch = 0x0A_00_00_00,
-    BranchLink = 0x0B_00_00_00,
+    DataProcessing1 = 0b0000_0000_0000_0000_0000_0000_0000_0000,
+    DataProcessing2 = 0b0000_0000_0000_0000_0000_0000_0001_0000,
+    DataProcessing3 = 0b0000_0010_0000_0000_0000_0000_0000_0000,
+    Branch = 0b0000_1010_0000_0000_0000_0000_0000_0000,
+    BranchLink = 0b0000_1011_0000_0000_0000_0000_0000_0000,
 }
 
 impl TryFrom<u32> for ArmModeInstruction {
@@ -38,9 +38,9 @@ impl ArmModeInstruction {
         use ArmModeInstruction::*;
 
         match instruction_type {
-            Branch | BranchLink => 0x0F_00_00_00,
-            DataProcessing1 | DataProcessing2 => 0x0E_00_00_10,
-            DataProcessing3 => 0x0E_00_00_00,
+            Branch | BranchLink => 0b0000_1111_0000_0000_0000_0000_0000_0000,
+            DataProcessing1 | DataProcessing2 => 0b0000_1110_0000_0000_0000_0000_0001_0000,
+            DataProcessing3 => 0b0000_1110_0000_0000_0000_0000_0000_0000,
         }
     }
 }
