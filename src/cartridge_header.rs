@@ -10,7 +10,7 @@ pub(crate) struct CartridgeHeader {
     pub(crate) device_type: [u8; 1],
     pub(crate) reserved_area_1: [u8; 7],
     pub(crate) software_version: [u8; 1],
-    pub(crate) complement_check: [u8; 1],
+    pub(crate) complement_check: u8,
     pub(crate) reserved_area_2: [u8; 2],
     pub(crate) ram_entry_point: [u8; 4],
     pub(crate) boot_mode: [u8; 1],
@@ -20,7 +20,7 @@ pub(crate) struct CartridgeHeader {
 }
 
 impl CartridgeHeader {
-    pub fn new(data: &[u8]) -> Self {
+    pub fn new(data: &[u8]) -> Result<Self, String> {
         let rom_entry_point = Self::extract_rom_entry_point(data);
         let nintendo_logo = Self::extract_nintendo_logo(data);
         let game_title = Self::extract_game_title(data);
@@ -31,7 +31,7 @@ impl CartridgeHeader {
         let device_type = Self::extract_device_type(data);
         let reserved_area_1 = Self::extract_reserved_area_1(data);
         let software_version = Self::extract_software_version(data);
-        let complement_check = Self::extract_complement_check(data);
+        let complement_check = Self::extract_complement_check(data)?;
         let reserved_area_2 = Self::extract_reserved_area_2(data);
         let ram_entry_point = Self::extract_ram_entry_point(data);
         let boot_mode = Self::extract_boot_mode(data);
@@ -39,9 +39,7 @@ impl CartridgeHeader {
         let not_used = Self::extract_not_used(data);
         let joybus_mode_entry_point = Self::extract_joybus_mode_entry_point(data);
 
-        verify_checksum(data).expect("Invalid checksum");
-
-        Self {
+        Ok(Self {
             rom_entry_point,
             nintendo_logo,
             game_title,
@@ -59,7 +57,7 @@ impl CartridgeHeader {
             slave_id_number,
             not_used,
             joybus_mode_entry_point,
-        }
+        })
     }
 
     /// 32bit ARM branch opcode, eg. "B rom_start"
@@ -139,11 +137,21 @@ impl CartridgeHeader {
     }
 
     /// Header checksum, required
-    fn extract_complement_check(data: &[u8]) -> [u8; 1] {
-        // TODO: Do we check if extract_complement_check header (data[0x0BD..=0x0BD]) is correct?
-        data[0x0BD..=0x0BD]
-            .try_into()
-            .expect("extracting complement check")
+    fn extract_complement_check(data: &[u8]) -> Result<u8, String> {
+        let checksum_expected = data[0xBD];
+        let checksum = data[0xA0..0xBD]
+            .iter()
+            .fold(0u8, |acc, &item| acc.wrapping_sub(item))
+            .wrapping_sub(0x19);
+
+        if checksum != checksum_expected {
+            return Err(format!(
+                "Expected {} but got {}",
+                checksum_expected, checksum
+            ));
+        }
+
+        Ok(checksum)
     }
 
     /// Should be zero filled
@@ -208,17 +216,5 @@ impl CartridgeHeader {
         data[0x0E0..=0x0E3]
             .try_into()
             .expect("extracting joybus mode entry point")
-    }
-}
-
-fn verify_checksum(data: &[u8]) -> Result<(), ()> {
-    let checksum_expected = data[0xBD];
-    let checksum = data[0xA0..=0xBC]
-        .iter()
-        .fold(0u8, |acc, &item| acc.wrapping_sub(item))
-        .wrapping_sub(0x19);
-    match checksum == checksum_expected {
-        true => Ok(()),
-        false => Err(()),
     }
 }

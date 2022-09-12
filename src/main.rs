@@ -44,7 +44,7 @@ fn main() {
         }
     };
 
-    let cartridge_header = CartridgeHeader::new(&data);
+    let cartridge_header = CartridgeHeader::new(&data).unwrap();
     println!("{}", cartridge_header.game_title);
 
     let cpu = Arm7tdmi::new(data);
