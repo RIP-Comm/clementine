@@ -1,4 +1,4 @@
-use crate::condition::Condition;
+use crate::{bitwise::Bits, condition::Condition};
 
 /// Current Program Status Register.
 #[derive(Default)]
@@ -15,15 +15,11 @@ impl Cpsr {
     }
 
     fn signed(&self) -> bool {
-        self.0 & 0b1000_0000_0000_0000_0000_0000_0000_0000 != 0
+        self.0.get_bit(31)
     }
 
-    pub(crate) fn set_signed(&mut self) {
-        self.0 |= 0b1000_0000_0000_0000_0000_0000_0000_0000;
-    }
-
-    pub(crate) fn set_not_signed(&mut self) {
-        self.0 &= 0b0111_1111_1111_1111_1111_1111_1111_1111;
+    pub(crate) fn set_signed(&mut self, value: bool) {
+        self.0.set_bit(31, value)
     }
 
     fn overflow(&self) -> bool {
@@ -38,7 +34,7 @@ mod tests {
     #[test]
     fn check_sign_flag() {
         let mut cpsr: Cpsr = Cpsr(0);
-        cpsr.set_signed();
+        cpsr.set_signed(true);
         assert!(cpsr.signed());
     }
 

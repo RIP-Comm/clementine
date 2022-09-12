@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
 use crate::alu_instruction::ArmModeAluInstruction;
+use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
@@ -141,12 +142,7 @@ impl Arm7tdmi {
                                 1 => {
                                     // TODO: It's better to implement the logical instruction in order to execute directly LSR#0?
                                     let rm = self.registers[op2 as usize];
-                                    match (rm & 0b1000_0000_0000_0000_0000_0000_0000_0000) >> 31 {
-                                        1 => self.cpsr.set_signed(),
-                                        0 => self.cpsr.set_not_signed(),
-                                        _ => unreachable!(),
-                                    }
-
+                                    self.cpsr.set_signed(rm.get_bit(31));
                                     op2 = 0;
                                 }
                                 // ASR#0: Interpreted as ASR#32, ie. Op2 and C are filled by Bit 31 of Rm.
@@ -156,11 +152,11 @@ impl Arm7tdmi {
                                     match (rm & 0b1000_0000_0000_0000_0000_0000_0000_0000) >> 31 {
                                         1 => {
                                             op2 = 1;
-                                            self.cpsr.set_signed()
+                                            self.cpsr.set_signed(true)
                                         }
                                         0 => {
                                             op2 = 0;
-                                            self.cpsr.set_not_signed()
+                                            self.cpsr.set_signed(true)
                                         }
                                         _ => unreachable!(),
                                     }
