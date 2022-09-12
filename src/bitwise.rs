@@ -6,8 +6,8 @@ pub(crate) trait Bits {
     fn set_bit_on(&mut self, bit_idx: u8);
     fn set_bit_off(&mut self, bit_idx: u8);
     fn toggle_bit(&mut self, bit_idx: u8);
-    fn set_bit(&mut self, bit_idx: u8, value: u8);
-    fn get_bit(self, bit_idx: u8) -> u8;
+    fn set_bit(&mut self, bit_idx: u8, value: bool);
+    fn get_bit(self, bit_idx: u8) -> bool;
 }
 
 impl Bits for u32 {
@@ -47,19 +47,15 @@ impl Bits for u32 {
         *self ^= mask;
     }
 
-    fn set_bit(&mut self, bit_idx: u8, value: u8) {
+    fn set_bit(&mut self, bit_idx: u8, value: bool) {
         match value {
-            0 => self.set_bit_off(bit_idx),
-            1 => self.set_bit_on(bit_idx),
-            _ => panic!(),
+            false => self.set_bit_off(bit_idx),
+            true => self.set_bit_on(bit_idx),
         }
     }
 
-    fn get_bit(self, bit_idx: u8) -> u8 {
-        match self.is_bit_on(bit_idx) {
-            true => 1,
-            false => 0,
-        }
+    fn get_bit(self, bit_idx: u8) -> bool {
+        self.is_bit_on(bit_idx)
     }
 }
 
@@ -124,20 +120,20 @@ mod tests {
     #[test]
     fn set_bit() {
         let mut b = 0b1100110_u32;
-        b.set_bit(0, 1);
-        b.set_bit(1, 1);
-        b.set_bit(2, 0);
-        b.set_bit(3, 0);
+        b.set_bit(0, true);
+        b.set_bit(1, true);
+        b.set_bit(2, false);
+        b.set_bit(3, false);
         assert_eq!(b, 0b1100011)
     }
 
     #[test]
     fn get_bit() {
         let b = 0b1011001110_u32;
-        assert_eq!(b.get_bit(0), 0);
-        assert_eq!(b.get_bit(1), 1);
-        assert_eq!(b.get_bit(2), 1);
-        assert_eq!(b.get_bit(31), 0);
+        assert!(b.get_bit(1));
+        assert!(!b.get_bit(0));
+        assert!(b.get_bit(2));
+        assert!(!b.get_bit(31));
     }
 
     #[test]
@@ -145,12 +141,5 @@ mod tests {
     fn invalid_index() {
         let b = 0u32;
         b.is_bit_on(32);
-    }
-
-    #[test]
-    #[should_panic]
-    fn invalid_set() {
-        let mut b = 0u32;
-        b.set_bit(0, 2);
     }
 }
