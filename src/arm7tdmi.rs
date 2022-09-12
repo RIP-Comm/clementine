@@ -98,6 +98,8 @@ impl Arm7tdmi {
     }
 
     fn data_processing(&mut self, op_code: u32) {
+        self.program_counter = self.program_counter.wrapping_add(4);
+
         // bit [25] is I = Immediate Flag
         let i: u8 = ((op_code & 0b0000_0010_0000_0000_0000_0000_0000_0000) >> 25)
             .try_into()
@@ -114,6 +116,11 @@ impl Arm7tdmi {
         let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
             .try_into()
             .expect("conversion `rd` to u8");
+
+        // bits [16-19] are the Rn
+        let rn: u8 = ((op_code & 0b0000_0000_0000_1111_0000_0000_0000_0000) >> 16)
+            .try_into()
+            .expect("conversion `rn` to u8");
 
         let op2 = match i {
             // Register as 2nd Operand
@@ -223,12 +230,19 @@ impl Arm7tdmi {
 
         match ArmModeAluInstruction::from(alu_opcode) {
             ArmModeAluInstruction::Mov => self.mov(rd as usize, op2),
+            ArmModeAluInstruction::Teq => self.teq(rn.try_into().expect("convert rn to u32"), op2),
             _ => todo!(),
         }
     }
 
     fn mov(&mut self, rd: usize, op2: u32) {
         self.registers[rd] = op2;
+    }
+
+    fn teq(&mut self, rn: u32, op2: u32) {
+        let value = rn ^ op2;
+        self.cpsr.set_signed(value.is_bit_on(31));
+        self.cpsr.set_zero_flag(value == 0);
     }
 }
 
@@ -272,5 +286,20 @@ mod tests {
             cpu.execute(opcode, instruction_type);
             assert_eq!(cpu.registers[rx as usize], rx.rotate_right(is * 2));
         }
+    }
+
+    #[test]
+    fn check_teq() {
+        let op_code: u32 = 0b1110_0001_0010_1001_0011_0000_0000_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+
+        let (_, instruction) = cpu.decode(op_code);
+        assert_eq!(instruction, ArmModeInstruction::DataProcessing1);
+
+        let regs_before = cpu.registers;
+        cpu.execute(op_code, instruction);
+        assert_eq!(cpu.registers, regs_before);
+        assert!(!cpu.cpsr.signed());
+        assert!(!cpu.cpsr.zero_flag());
     }
 }
