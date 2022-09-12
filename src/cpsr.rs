@@ -14,12 +14,21 @@ impl Cpsr {
         }
     }
 
-    fn signed(&self) -> bool {
+    pub(crate) fn signed(&self) -> bool {
         self.0.get_bit(31)
     }
 
     pub(crate) fn set_signed(&mut self, value: bool) {
         self.0.set_bit(31, value)
+    }
+
+    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
+    pub(crate) fn zero_flag(&self) -> bool {
+        self.0.get_bit(30)
+    }
+
+    pub(crate) fn set_zero_flag(&mut self, value: bool) {
+        self.0.set_bit(30, value)
     }
 
     fn overflow(&self) -> bool {
