@@ -1,5 +1,5 @@
 /// Arm opcode condition.
-pub(crate) enum Condition {
+pub enum Condition {
     EQ = 0x0,
     NE = 0x1,
     CS = 0x2,

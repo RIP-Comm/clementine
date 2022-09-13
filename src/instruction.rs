@@ -1,5 +1,5 @@
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum ArmModeInstruction {
+pub enum ArmModeInstruction {
     DataProcessing1 = 0b0000_0000_0000_0000_0000_0000_0000_0000,
     DataProcessing2 = 0b0000_0000_0000_0000_0000_0000_0001_0000,
     DataProcessing3 = 0b0000_0010_0000_0000_0000_0000_0000_0000,
@@ -30,11 +30,11 @@ impl TryFrom<u32> for ArmModeInstruction {
 }
 
 impl ArmModeInstruction {
-    fn check(instruction_type: ArmModeInstruction, op_code: u32) -> bool {
+    const fn check(instruction_type: Self, op_code: u32) -> bool {
         (Self::get_mask(&instruction_type) & op_code) == instruction_type as u32
     }
 
-    fn get_mask(instruction_type: &ArmModeInstruction) -> u32 {
+    const fn get_mask(instruction_type: &Self) -> u32 {
         use ArmModeInstruction::*;
 
         match instruction_type {

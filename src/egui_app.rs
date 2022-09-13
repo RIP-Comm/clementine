@@ -8,7 +8,7 @@ use crate::{
     ppu::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
 };
 
-pub(crate) struct EguiApp<T>
+pub struct EguiApp<T>
 where
     T: Cpu,
 {
@@ -60,7 +60,7 @@ where
     }
 }
 
-pub(crate) struct Gba<T>
+pub struct Gba<T>
 where
     T: Cpu,
 {
@@ -71,7 +71,7 @@ impl<T> Gba<T>
 where
     T: Cpu,
 {
-    pub(crate) fn new(cpu: T) -> Self {
+    pub(crate) const fn new(cpu: T) -> Self {
         Self { cpu }
     }
 }

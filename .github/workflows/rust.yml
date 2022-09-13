@@ -38,4 +38,4 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Lint
-      run: cargo clippy -- -D warnings
+      run: cargo clippy -- -D warnings -W clippy::complexity -W clippy::correctness -W clippy::nursery -W clippy::perf -W clippy::style -W clippy::suspicious
