@@ -1,6 +1,6 @@
 /// Contains some helper methods to manipulate bits,
 /// the index (`bit_idk`) is supposed to be from lsb to msb (right to left)
-pub(crate) trait Bits {
+pub trait Bits {
     fn is_bit_on(&self, bit_idx: u8) -> bool;
     fn is_bit_off(&self, bit_idx: u8) -> bool;
     fn set_bit_on(&mut self, bit_idx: u8);

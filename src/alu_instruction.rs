@@ -1,4 +1,4 @@
-pub(crate) enum ArmModeAluInstruction {
+pub enum ArmModeAluInstruction {
     And = 0x0,
     Eor = 0x1,
     Sub = 0x2,

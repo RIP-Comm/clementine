@@ -4,7 +4,7 @@ use crate::{bitwise::Bits, condition::Condition};
 
 /// Current Program Status Register.
 #[derive(Default)]
-pub(crate) struct Cpsr(u32);
+pub struct Cpsr(u32);
 
 impl Cpsr {
     pub(crate) fn can_execute(&self, cond: Condition) -> bool {
@@ -111,7 +111,7 @@ impl Cpsr {
         self.0.set_bit(29, value);
     }
 
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
+    #[allow(dead_code)] // TODO: remove allow when this API will be used at least one in prod code.
     pub fn set_overflow_flag(&mut self, value: bool) {
         self.0.set_bit(28, value);
     }

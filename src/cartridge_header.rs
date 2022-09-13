@@ -1,5 +1,5 @@
 #[allow(dead_code)] // FIXME: remove this `allow` when all member are used.
-pub(crate) struct CartridgeHeader {
+pub struct CartridgeHeader {
     pub(crate) rom_entry_point: [u8; 4],
     pub(crate) nintendo_logo: [u8; 156],
     pub(crate) game_title: String,

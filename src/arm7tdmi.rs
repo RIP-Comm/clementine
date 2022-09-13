@@ -5,7 +5,7 @@ use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
-pub(crate) struct Arm7tdmi {
+pub struct Arm7tdmi {
     rom: Vec<u8>,
 
     registers: [u32; 16],

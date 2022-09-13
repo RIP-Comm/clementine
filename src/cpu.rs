@@ -1,6 +1,6 @@
 use crate::condition::Condition;
 
-pub(crate) trait Cpu {
+pub trait Cpu {
     /// Size of Opcode: it can be changed
     type OpCodeType;
     type InstructionType;
