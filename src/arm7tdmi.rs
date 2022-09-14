@@ -93,8 +93,14 @@ impl Arm7tdmi {
         println!("PC: {:?}", self.program_counter);
     }
 
-    fn branch_link(&mut self, _op_code: u32) {
-        todo!("Branch Link")
+    fn branch_link(&mut self, op_code: u32) {
+        self.registers[14] = self.program_counter.wrapping_add(4); //R14 = LR
+
+        let offset = op_code & 0b0000_0000_1111_1111_1111_1111_1111_1111;
+        println!("offset: {:?}", offset);
+
+        self.program_counter += 8 + offset * 4;
+        println!("PC: {:?}", self.program_counter);
     }
 
     fn data_processing(&mut self, op_code: u32) {
@@ -258,6 +264,22 @@ mod tests {
         let output: Result<ArmModeInstruction, String> =
             0b1110_1010_0000_0000_0000_0000_0111_1111.try_into();
         assert_eq!(output, Ok(ArmModeInstruction::Branch));
+    }
+
+    #[test]
+    fn decode_branch_link() {
+        let output: Result<ArmModeInstruction, String> =
+            0b1110_1011_0000_0000_0000_0000_0111_1111.try_into();
+        assert_eq!(output, Ok(ArmModeInstruction::BranchLink));
+    }
+
+    #[test]
+    fn test_registers_14_after_branch_link() {
+        let mut cpu: Arm7tdmi = Arm7tdmi::new(vec![]);
+        cpu.program_counter = 10;
+        let pc = cpu.program_counter;
+        cpu.branch_link(0b0);
+        assert_eq!(cpu.registers[14], pc.wrapping_add(4));
     }
 
     #[test]
