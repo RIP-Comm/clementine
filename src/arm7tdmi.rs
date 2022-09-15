@@ -62,7 +62,12 @@ impl Cpu for Arm7tdmi {
             DataProcessing1 | DataProcessing2 | DataProcessing3 => {
                 self.data_processing(op_code);
             }
+            DataTransfer => {
+                self.single_data_transfer(op_code);
+            }
         }
+
+        self.program_counter = self.program_counter.wrapping_add(4);
     }
 
     fn step(&mut self) {
@@ -98,8 +103,6 @@ impl Arm7tdmi {
     }
 
     fn data_processing(&mut self, op_code: u32) {
-        self.program_counter = self.program_counter.wrapping_add(4);
-
         // bit [25] is I = Immediate Flag
         let i: u8 = ((op_code & 0b0000_0010_0000_0000_0000_0000_0000_0000) >> 25)
             .try_into()
@@ -235,6 +238,47 @@ impl Arm7tdmi {
         }
     }
 
+    fn single_data_transfer(&mut self, op_code: u32) {
+        let immediate = op_code.get_bit(25);
+        let up_down = op_code.get_bit(23);
+
+        let rn: u8 = ((op_code & 0b0000_0000_0000_1111_0000_0000_0000_0000) >> 16)
+            .try_into()
+            .expect("conversion `rn` to u8");
+
+        // 0xF is register of PC
+        let address = if rn == 0xF {
+            self.program_counter + 8
+        } else {
+            self.registers[rn as usize]
+        };
+
+        let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
+            .try_into()
+            .expect("conversion `rd` to u8");
+
+        let offset: u32 = if immediate {
+            todo!()
+        } else {
+            op_code & 0b0000_0000_0000_0000_0000_1111_1111_1111
+        };
+
+        let load_store: SingleDataTransfer = op_code
+            .try_into()
+            .expect("converto to Singel Data Transfer");
+
+        match load_store {
+            SingleDataTransfer::Ldr => {
+                self.registers[rd as usize] = if up_down {
+                    address.wrapping_sub(offset)
+                } else {
+                    address.wrapping_add(offset)
+                }
+            }
+            _ => todo!(),
+        }
+    }
+
     fn mov(&mut self, rd: usize, op2: u32) {
         self.registers[rd] = op2;
     }
@@ -243,6 +287,33 @@ impl Arm7tdmi {
         let value = rn ^ op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
+    }
+}
+
+enum SingleDataTransfer {
+    Ldr,
+    Str,
+    Pld,
+}
+
+impl From<u32> for SingleDataTransfer {
+    fn from(op_code: u32) -> Self {
+        // TODO: possible improvements
+        // - op_code.are_bits_on(31..28)
+        // - op_code.is_on(31).and(30).and(29)...
+        let must_for_pld = op_code.is_bit_on(31)
+            && op_code.is_bit_on(30)
+            && op_code.is_bit_on(29)
+            && op_code.is_bit_on(28);
+        if op_code.get_bit(20) {
+            if must_for_pld {
+                Self::Pld
+            } else {
+                Self::Ldr
+            }
+        } else {
+            Self::Str
+        }
     }
 }
 
@@ -301,5 +372,30 @@ mod tests {
         assert_eq!(cpu.registers, regs_before);
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
+    }
+
+    // TODO: this is only one case of these kind of instruction.
+    // create other cases or other tests :).
+    #[test]
+    fn check_single_data_transfer() {
+        let op_code: u32 = 0b1110_0101_1001_1111_1101_0000_0001_1000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+
+        let (_, instruction) = cpu.decode(op_code);
+        assert_eq!(instruction, ArmModeInstruction::DataTransfer);
+
+        let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
+            .try_into()
+            .expect("conversion `rd` to u8");
+
+        assert_eq!(rd, 13);
+
+        // because in this specific case address will be
+        // then will be 92 + 8 (.wrapping_sub(offset))
+        cpu.program_counter = 92;
+
+        cpu.execute(op_code, instruction);
+        assert_eq!(cpu.registers[13], 76);
+        assert_eq!(cpu.program_counter, 96);
     }
 }
