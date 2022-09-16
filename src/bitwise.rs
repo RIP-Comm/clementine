@@ -1,3 +1,5 @@
+use std::ops::RangeInclusive;
+
 /// Contains some helper methods to manipulate bits,
 /// the index (`bit_idk`) is supposed to be from lsb to msb (right to left)
 pub trait Bits {
@@ -8,6 +10,7 @@ pub trait Bits {
     fn toggle_bit(&mut self, bit_idx: u8);
     fn set_bit(&mut self, bit_idx: u8, value: bool);
     fn get_bit(self, bit_idx: u8) -> bool;
+    fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32;
 }
 
 impl Bits for u32 {
@@ -56,6 +59,14 @@ impl Bits for u32 {
 
     fn get_bit(self, bit_idx: u8) -> bool {
         self.is_bit_on(bit_idx)
+    }
+
+    fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32 {
+        let mut bits = 0b0;
+        for (range_idx, range_value) in bits_range.enumerate() {
+            bits |= (self.get_bit(range_value) as u32) << range_idx;
+        }
+        bits
     }
 }
 
@@ -141,5 +152,17 @@ mod tests {
     fn invalid_index() {
         let b = 0u32;
         b.is_bit_on(32);
+    }
+
+    #[test]
+    fn get_gits() {
+        let b = 0b1011001110_u32;
+        assert_eq!(b.get_bits(0..=3), 0b1110);
+        assert_eq!(b.get_bits(1..=1), 0b1);
+        assert_eq!(b.get_bits(4..=7), 0b1100);
+        assert_eq!(b.get_bits(8..=9), 0b10);
+        assert_eq!(b.get_bits(0..=9), 0b10_1100_1110);
+        assert_eq!(b.get_bits(0..=31), 0b10_1100_1110);
+        assert_eq!(b.get_bits(28..=31), 0b0);
     }
 }
