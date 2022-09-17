@@ -63,8 +63,9 @@ impl Bits for u32 {
 
     fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32 {
         let mut bits = 0b0;
-        for (range_idx, range_value) in bits_range.enumerate() {
-            bits |= (self.get_bit(range_value) as u32) << range_idx;
+        for (shift_value, bit_index) in bits_range.enumerate() {
+            let bit_value: Self = self.get_bit(bit_index).into();
+            bits |= bit_value << shift_value;
         }
         bits
     }
