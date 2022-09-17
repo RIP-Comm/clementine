@@ -284,7 +284,7 @@ impl Arm7tdmi {
     }
 
     fn teq(&mut self, rn: u32, op2: u32) {
-        let value = rn ^ op2;
+        let value = self.registers[rn as usize] ^ op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
     }
@@ -367,9 +367,9 @@ mod tests {
         let (_, instruction) = cpu.decode(op_code);
         assert_eq!(instruction, ArmModeInstruction::DataProcessing1);
 
-        let regs_before = cpu.registers;
+        let rn = 9_usize;
+        cpu.registers[rn] = 100;
         cpu.execute(op_code, instruction);
-        assert_eq!(cpu.registers, regs_before);
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
     }
