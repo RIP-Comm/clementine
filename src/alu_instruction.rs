@@ -17,8 +17,8 @@ pub enum ArmModeAluInstruction {
     Mvn = 0xF,
 }
 
-impl From<u8> for ArmModeAluInstruction {
-    fn from(alu_opcode: u8) -> Self {
+impl From<u32> for ArmModeAluInstruction {
+    fn from(alu_opcode: u32) -> Self {
         use ArmModeAluInstruction::*;
         match alu_opcode {
             0x0 => And,

@@ -108,48 +108,33 @@ impl Arm7tdmi {
         println!("PC: {:?}", self.program_counter);
     }
 
-    fn data_processing(&mut self, op_code: u32) {
+    fn data_processing(&mut self, opcode: u32) {
         // bit [25] is I = Immediate Flag
-        let i: u8 = ((op_code & 0b0000_0010_0000_0000_0000_0000_0000_0000) >> 25)
-            .try_into()
-            .expect("conversion `immediate` to u8");
+        let i: bool = opcode.get_bit(25);
         // bits [24-21]
-        let alu_opcode: u8 = ((op_code & 0b0000_0001_1110_0000_0000_0000_0000_0000) >> 21)
-            .try_into()
-            .expect("conversion `alu_opcode` to u8");
+        let alu_opcode = opcode.get_bits(21..=24);
         // bit [20] is sets condition codes
-        let _s: u8 = ((op_code & 0b0000_0000_0001_0000_0000_0000_0000_0000) >> 20)
-            .try_into()
-            .expect("conversion `set` to u8");
+        let _s = opcode.get_bit(20);
         // bits [15-12] are the Rd
-        let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
-            .try_into()
-            .expect("conversion `rd` to u8");
-
-        // bits [16-19] are the Rn
-        let rn: u8 = ((op_code & 0b0000_0000_0000_1111_0000_0000_0000_0000) >> 16)
-            .try_into()
-            .expect("conversion `rn` to u8");
+        let rd = opcode.get_bits(12..=15);
+        // bits [19-16] are the Rn
+        let rn = opcode.get_bits(16..=19);
 
         let op2 = match i {
             // Register as 2nd Operand
-            0 => {
-                // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
-                let shift_type: u8 = ((op_code & 0b0000_0000_0000_0000_0000_0000_0110_0000) >> 5)
-                    .try_into()
-                    .expect("conversion `shift_type` to u8");
-                // bit [4] is Shift by Register Flag (0=Immediate, 1=Register)
-                let r = (op_code & 0b0000_0000_0000_0000_0000_0000_0001_0000) >> 4;
-                // 2nd Operand Register (R0..R15) (including PC=R15)
-                let mut op2 = (op_code & 0b0000_0000_0000_0000_0000_0000_0000_1111) >> 8;
+            false => {
+                // bits [6-5] - Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
+                let shift_type = opcode.get_bits(5..=6);
+                // bit [4] - is Shift by Register Flag (0=Immediate, 1=Register)
+                let r = opcode.get_bit(4);
+                // bits [0-3] 2nd Operand Register (R0..R15) (including PC=R15)
+                let mut op2 = opcode.get_bits(0..=3);
 
                 match r {
                     // Shift by amount
-                    0 => {
-                        // Shift amount
-                        let is: u8 = ((op_code & 0b0000_0000_0000_0000_0000_0111_1000_0000) >> 7)
-                            .try_into()
-                            .expect("conversion `is` to u8");
+                    false => {
+                        // bits [7-11] - Shift amount
+                        let is = opcode.get_bits(7..=11);
                         match is {
                             0 => match shift_type {
                                 // LSL#0: No shift performed, ie. directly Op2=Rm, the C flag is NOT affected.
@@ -165,16 +150,15 @@ impl Arm7tdmi {
                                 2 => {
                                     // TODO: It's better to implement the logical instruction in order to execute directly ASR#0?
                                     let rm = self.registers[op2 as usize];
-                                    match (rm & 0b1000_0000_0000_0000_0000_0000_0000_0000) >> 31 {
-                                        1 => {
+                                    match rm.get_bit(31) {
+                                        true => {
                                             op2 = 1;
                                             self.cpsr.set_sign_flag(true)
                                         }
-                                        0 => {
+                                        false => {
                                             op2 = 0;
                                             self.cpsr.set_sign_flag(true)
                                         }
-                                        _ => unreachable!(),
                                     }
                                 }
                                 // ROR#0: Interpreted as RRX#1 (RCR), like ROR#1, but Op2 Bit 31 set to old C.
@@ -201,12 +185,10 @@ impl Arm7tdmi {
                         };
                     }
                     // Shift by register
-                    1 => {
-                        let rs: u8 = ((op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000) >> 8)
-                            .try_into()
-                            .expect("conversion `rs` to u8");
-                        let shift_value =
-                            self.registers[rs as usize] & 0b0000_0000_0000_0000_0000_0000_1111_1111;
+                    true => {
+                        // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
+                        let rs = opcode.get_bits(8..=11);
+                        let shift_value = self.registers[rs as usize].get_bits(0..=7);
                         match shift_type {
                             // Logical Shift Left
                             0 => op2 <<= shift_value,
@@ -219,27 +201,25 @@ impl Arm7tdmi {
                             _ => unreachable!(),
                         };
                     }
-                    _ => unreachable!(),
                 };
 
                 op2
             }
             // Immediate as 2nd Operand
-            1 => {
+            true => {
                 // bits [11-8] are ROR-Shift applied to nn
-                let is = op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000;
+                let is = opcode.get_bits(8..=11);
                 // bits [7-0] are the immediate value
-                let nn = op_code & 0b0000_0000_0000_0000_0000_0000_1111_1111;
+                let nn = opcode.get_bits(0..=7);
 
                 // I'm not sure about `* 2`
                 nn.rotate_right(is * 2) // TODO: review "ROR-Shift applied to nn (0-30, in steps of 2)"
             }
-            _ => unreachable!(),
         };
 
         match ArmModeAluInstruction::from(alu_opcode) {
             ArmModeAluInstruction::Mov => self.mov(rd as usize, op2),
-            ArmModeAluInstruction::Teq => self.teq(rn.try_into().expect("convert rn to u32"), op2),
+            ArmModeAluInstruction::Teq => self.teq(rn, op2),
             _ => todo!(),
         }
     }
