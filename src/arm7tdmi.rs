@@ -114,7 +114,7 @@ impl Arm7tdmi {
         // bits [24-21]
         let alu_opcode = opcode.get_bits(21..=24);
         // bit [20] is sets condition codes
-        let _s = opcode.get_bit(20);
+        let s = opcode.get_bit(20);
         // bits [15-12] are the Rd
         let rd = opcode.get_bits(12..=15);
         // bits [19-16] are the Rn
@@ -163,7 +163,8 @@ impl Arm7tdmi {
 
         match ArmModeAluInstruction::from(alu_opcode) {
             ArmModeAluInstruction::Mov => self.mov(rd as usize, op2),
-            ArmModeAluInstruction::Teq => self.teq(rn, op2),
+            ArmModeAluInstruction::Tst => self.tst(rn, op2, s),
+            ArmModeAluInstruction::Teq => self.teq(rn, op2, s),
             _ => todo!(),
         }
     }
@@ -210,10 +211,22 @@ impl Arm7tdmi {
         self.registers[rd] = op2;
     }
 
-    fn teq(&mut self, rn: u32, op2: u32) {
-        let value = self.registers[rn as usize] ^ op2;
-        self.cpsr.set_sign_flag(value.is_bit_on(31));
-        self.cpsr.set_zero_flag(value == 0);
+    fn tst(&mut self, rn: u32, op2: u32, s: bool) {
+        if s && rn != self.registers[15] {
+            let value = self.registers[rn as usize] & op2;
+            self.cpsr.set_sign_flag(value.is_bit_on(31));
+            self.cpsr.set_zero_flag(value == 0);
+            // Update the C flag during the calculation of Operand2?
+        }
+    }
+
+    fn teq(&mut self, rn: u32, op2: u32, s: bool) {
+        if s && rn != self.registers[15] {
+            let value = self.registers[rn as usize] ^ op2;
+            self.cpsr.set_sign_flag(value.is_bit_on(31));
+            self.cpsr.set_zero_flag(value == 0);
+            // Update the C flag during the calculation of Operand2?
+        }
     }
 
     fn shift(&mut self, shift_type: u32, shift_amount: u32, mut value: u32) -> u32 {
@@ -360,7 +373,7 @@ mod tests {
 
     #[test]
     fn check_teq() {
-        let op_code: u32 = 0b1110_0001_0010_1001_0011_0000_0000_0000;
+        let op_code: u32 = 0b1110_0001_0011_1001_0011_0000_0000_0000;
         let mut cpu = Arm7tdmi::new(vec![]);
 
         let (_, instruction) = cpu.decode(op_code);
@@ -371,6 +384,20 @@ mod tests {
         cpu.execute(op_code, instruction);
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
+    }
+
+    #[test]
+    fn check_tst() {
+        let op_code: u32 = 0b1110_0001_0001_1001_0011_0000_0000_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+
+        let (_, instruction) = cpu.decode(op_code);
+        assert_eq!(instruction, ArmModeInstruction::DataProcessing1);
+
+        let rn = 9_usize;
+        cpu.registers[rn] = 100;
+        cpu.execute(op_code, instruction);
+        assert!(!cpu.cpsr.sign_flag());
     }
 
     // TODO: this is only one case of these kind of instruction.
