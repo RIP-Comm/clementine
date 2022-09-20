@@ -224,13 +224,12 @@ impl Arm7tdmi {
         }
     }
 
-    fn single_data_transfer(&mut self, op_code: u32) {
-        let immediate = op_code.get_bit(25);
-        let up_down = op_code.get_bit(23);
+    fn single_data_transfer(&mut self, opcode: u32) {
+        let immediate = opcode.get_bit(25);
+        let up_down = opcode.get_bit(23);
 
-        let rn: u8 = ((op_code & 0b0000_0000_0000_1111_0000_0000_0000_0000) >> 16)
-            .try_into()
-            .expect("conversion `rn` to u8");
+        // bits [19-16] - Base register
+        let rn= opcode.get_bits(16..=19);
 
         // 0xF is register of PC
         let address = if rn == 0xF {
@@ -239,17 +238,16 @@ impl Arm7tdmi {
             self.registers[rn as usize]
         };
 
-        let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
-            .try_into()
-            .expect("conversion `rd` to u8");
+        // bits [15-12] - Source/Destination Register
+        let rd = opcode.get_bits(12..=15);
 
         let offset: u32 = if immediate {
             todo!()
         } else {
-            op_code & 0b0000_0000_0000_0000_0000_1111_1111_1111
+            opcode.get_bits(0..=11)
         };
 
-        let load_store: SingleDataTransfer = op_code
+        let load_store: SingleDataTransfer = opcode
             .try_into()
             .expect("converto to Singel Data Transfer");
 
