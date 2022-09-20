@@ -131,75 +131,19 @@ impl Arm7tdmi {
                 let mut op2 = opcode.get_bits(0..=3);
 
                 match r {
+                    // 0=Immediate, 1=Register
                     // Shift by amount
                     false => {
                         // bits [7-11] - Shift amount
-                        let is = opcode.get_bits(7..=11);
-                        match is {
-                            0 => match shift_type {
-                                // LSL#0: No shift performed, ie. directly Op2=Rm, the C flag is NOT affected.
-                                0 => (), // TODO: It's better to implement the logical instruction in order to execute directly LSL#0?
-                                // LSR#0: Interpreted as LSR#32, ie. Op2 becomes zero, C becomes Bit 31 of Rm.
-                                1 => {
-                                    // TODO: It's better to implement the logical instruction in order to execute directly LSR#0?
-                                    let rm = self.registers[op2 as usize];
-                                    self.cpsr.set_sign_flag(rm.get_bit(31));
-                                    op2 = 0;
-                                }
-                                // ASR#0: Interpreted as ASR#32, ie. Op2 and C are filled by Bit 31 of Rm.
-                                2 => {
-                                    // TODO: It's better to implement the logical instruction in order to execute directly ASR#0?
-                                    let rm = self.registers[op2 as usize];
-                                    match rm.get_bit(31) {
-                                        true => {
-                                            op2 = 1;
-                                            self.cpsr.set_sign_flag(true)
-                                        }
-                                        false => {
-                                            op2 = 0;
-                                            self.cpsr.set_sign_flag(true)
-                                        }
-                                    }
-                                }
-                                // ROR#0: Interpreted as RRX#1 (RCR), like ROR#1, but Op2 Bit 31 set to old C.
-                                3 => {
-                                    // TODO: It's better to implement the logical instruction in order to execute directly RRX#0?
-                                    todo!("Op2 Bit 31 set to old C"); // I'm not sure what "old C" means
-                                }
-                                _ => unreachable!(),
-                            },
-
-                            is => {
-                                match shift_type {
-                                    // Logical Shift Left
-                                    0 => op2 <<= is,
-                                    // Logical Shift Right
-                                    1 => op2 >>= is,
-                                    // Arithmetic Shift Right
-                                    2 => op2 = ((op2 as i32) >> is) as u32, // TODO: Review rust arithmetic shift right
-                                    // Rotate Right
-                                    3 => op2 = op2.rotate_right(is as u32),
-                                    _ => unreachable!(),
-                                }
-                            }
-                        };
+                        let shift_amount = opcode.get_bits(7..=11);
+                        op2 = self.shift(shift_type, shift_amount, op2);
                     }
                     // Shift by register
                     true => {
                         // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
                         let rs = opcode.get_bits(8..=11);
-                        let shift_value = self.registers[rs as usize].get_bits(0..=7);
-                        match shift_type {
-                            // Logical Shift Left
-                            0 => op2 <<= shift_value,
-                            // Logical Shift Right
-                            1 => op2 >>= shift_value,
-                            // Arithmetic Shift Right
-                            2 => op2 = ((op2 as i32) >> shift_value) as u32, // TODO: Review rust arithmetic shift right
-                            // Rotate Right
-                            3 => op2 = op2.rotate_right(shift_value as u32),
-                            _ => unreachable!(),
-                        };
+                        let shift_amount = self.registers[rs as usize].get_bits(0..=7);
+                        op2 = self.shift_immediate(shift_amount, shift_type, op2);
                     }
                 };
 
@@ -270,6 +214,62 @@ impl Arm7tdmi {
         let value = self.registers[rn as usize] ^ op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
+    }
+
+    fn shift(&mut self, shift_type: u32, shift_amount: u32, mut value: u32) -> u32 {
+        match shift_amount {
+            0 => match shift_type {
+                // LSL#0: No shift performed, ie. directly value=Rm, the C flag is NOT affected.
+                0 => (), // TODO: It's better to implement the logical instruction in order to execute directly LSL#0?
+                // LSR#0: Interpreted as LSR#32, ie. value becomes zero, C becomes Bit 31 of Rm.
+                1 => {
+                    // TODO: It's better to implement the logical instruction in order to execute directly LSR#0?
+                    let rm = self.registers[value as usize];
+                    self.cpsr.set_sign_flag(rm.get_bit(31));
+                    value = 0;
+                }
+                // ASR#0: Interpreted as ASR#32, ie. value and C are filled by Bit 31 of Rm.
+                2 => {
+                    // TODO: It's better to implement the logical instruction in order to execute directly ASR#0?
+                    let rm = self.registers[value as usize];
+                    match rm.get_bit(31) {
+                        true => {
+                            value = 1;
+                            self.cpsr.set_sign_flag(true)
+                        }
+                        false => {
+                            value = 0;
+                            self.cpsr.set_sign_flag(true)
+                        }
+                    }
+                }
+                // ROR#0: Interpreted as RRX#1 (RCR), like ROR#1, but value Bit 31 set to old C.
+                3 => {
+                    // TODO: It's better to implement the logical instruction in order to execute directly RRX#0?
+                    todo!("value Bit 31 set to old C"); // I'm not sure what "old C" means
+                }
+                _ => unreachable!(),
+            },
+            shift_amount => value = self.shift_immediate(shift_type, shift_amount, value),
+        };
+
+        value
+    }
+
+    fn shift_immediate(&self, shift_type: u32, shift_amount: u32, mut value: u32) -> u32 {
+        match shift_type {
+            // Logical Shift Left
+            0 => value <<= shift_amount,
+            // Logical Shift Right
+            1 => value >>= shift_amount,
+            // Arithmetic Shift Right
+            2 => value = ((value as i32) >> shift_amount) as u32, // TODO: Review rust arithmetic shift right
+            // Rotate Right
+            3 => value = value.rotate_right(shift_amount as u32),
+            _ => unreachable!(),
+        }
+
+        value
     }
 }
 
