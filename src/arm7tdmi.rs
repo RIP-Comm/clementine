@@ -229,7 +229,7 @@ impl Arm7tdmi {
         let up_down = opcode.get_bit(23);
 
         // bits [19-16] - Base register
-        let rn= opcode.get_bits(16..=19);
+        let rn = opcode.get_bits(16..=19);
 
         // 0xF is register of PC
         let address = if rn == 0xF {
@@ -247,9 +247,8 @@ impl Arm7tdmi {
             opcode.get_bits(0..=11)
         };
 
-        let load_store: SingleDataTransfer = opcode
-            .try_into()
-            .expect("converto to Singel Data Transfer");
+        let load_store: SingleDataTransfer =
+            opcode.try_into().expect("convert to Single Data Transfer");
 
         match load_store {
             SingleDataTransfer::Ldr => {
