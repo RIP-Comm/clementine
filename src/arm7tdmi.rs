@@ -169,7 +169,10 @@ impl Arm7tdmi {
     }
 
     fn single_data_transfer(&mut self, opcode: u32) {
+        // bit [25] - I - Immediate Offset Flag (0=Immediate, 1=Shifted Register)
         let immediate = opcode.get_bit(25);
+        // TODO: bit [24] - P - Pre/Post (0=post; add offset after transfer, 1=pre; before trans.)
+        // bit [23] - U - Up/Down Bit (0=down; subtract offset from base, 1=up; add to base)
         let up_down = opcode.get_bit(23);
 
         // bits [19-16] - Base register
@@ -186,7 +189,17 @@ impl Arm7tdmi {
         let rd = opcode.get_bits(12..=15);
 
         let offset: u32 = if immediate {
-            todo!()
+            // bits [11-7] - Is - Shift amount (1-31, 0=Special/See below)
+            let shift_amount = opcode.get_bits(7..=11);
+            // bits [6-5] - Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
+            let shift_type = opcode.get_bits(7..=11);
+            // bit [4] - Must be 0 (Reserved, see The Undefined Instruction)
+            debug_assert!(!opcode.get_bit(4));
+            // bits [3-0] - Rm - Offset Register (R0..R14) (not including PC=R15)
+            let rm = opcode.get_bits(0..=3);
+            debug_assert!(rm != 15);
+
+            self.shift(shift_type, shift_amount, self.registers[rm as usize])
         } else {
             opcode.get_bits(0..=11)
         };
