@@ -171,10 +171,20 @@ impl Arm7tdmi {
     fn single_data_transfer(&mut self, opcode: u32) {
         // bit [25] - I - Immediate Offset Flag (0=Immediate, 1=Shifted Register)
         let immediate = opcode.get_bit(25);
-        // TODO: bit [24] - P - Pre/Post (0=post; add offset after transfer, 1=pre; before trans.)
+        // TODO: pre_post never used
+        // bit [24] - P - Pre/Post (0=post; add offset after transfer, 1=pre; before trans.)
+        let pre_post = opcode.get_bit(24);
         // bit [23] - U - Up/Down Bit (0=down; subtract offset from base, 1=up; add to base)
         let up_down = opcode.get_bit(23);
-
+        // TODO: byte_word_bit never used
+        // bit [22] - B - Byte/Word bit (0=transfer 32bit/word, 1=transfer 8bit/byte)
+        let byte_word_bit = opcode.get_bit(22);
+        // TODO: t_w never used
+        // bit [21] - T/W - Memory Management/Write-back bit
+        let t_w = opcode.get_bit(21);
+        // bit [20] - L - Load/Store bit (0=Store to memory, 1=Load from memory)
+        let load_store: SingleDataTransfer =
+            opcode.try_into().expect("convert to Single Data Transfer");
         // bits [19-16] - Base register
         let rn = opcode.get_bits(16..=19);
 
@@ -201,13 +211,15 @@ impl Arm7tdmi {
 
             self.shift(shift_type, shift_amount, self.registers[rm as usize])
         } else {
+            // bits [11-0] - Unsigned 12bit Immediate Offset (0-4095, steps of 1)
             opcode.get_bits(0..=11)
         };
 
-        let load_store: SingleDataTransfer =
-            opcode.try_into().expect("convert to Single Data Transfer");
-
         match load_store {
+            SingleDataTransfer::Str => match up_down {
+                true => self.registers[(rn + offset) as usize] = self.registers[rd as usize],
+                false => self.registers[(rn - offset) as usize] = self.registers[rd as usize],
+            },
             SingleDataTransfer::Ldr => {
                 self.registers[rd as usize] = if up_down {
                     address.wrapping_sub(offset)
@@ -215,7 +227,20 @@ impl Arm7tdmi {
                     address.wrapping_add(offset)
                 }
             }
-            _ => todo!(),
+            SingleDataTransfer::Pld => {
+                // PLD must use following settings cond=1111b
+                debug_assert!(opcode.get_bits(28..=31) == 0b1111);
+                // P=1
+                debug_assert!(pre_post);
+                // B=1
+                debug_assert!(byte_word_bit);
+                // W=0
+                debug_assert!(!t_w);
+                // Rd=1111b
+                debug_assert!(rd == 0b1111);
+
+                todo!()
+            }
         }
     }
 
@@ -297,10 +322,12 @@ impl From<u32> for SingleDataTransfer {
         // TODO: possible improvements
         // - op_code.are_bits_on(31..28)
         // - op_code.is_on(31).and(30).and(29)...
-        let must_for_pld = op_code.is_bit_on(31)
-            && op_code.is_bit_on(30)
-            && op_code.is_bit_on(29)
-            && op_code.is_bit_on(28);
+        let must_for_pld = op_code.get_bits(28..=31) == 0b1111
+            && op_code.is_bit_on(24) // P=1
+            && op_code.is_bit_on(22) // B=1
+            && op_code.is_bit_off(21) // W=0
+            && op_code.is_bit_on(20) // L=1
+            && op_code.get_bits(12..=15) == 0b1111; // Rd=1111b
         if op_code.get_bit(20) {
             if must_for_pld {
                 Self::Pld
