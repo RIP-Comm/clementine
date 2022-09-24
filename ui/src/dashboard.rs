@@ -7,8 +7,6 @@ use crate::{gba_display::GbaDisplay, ui_traits::UiTool};
 
 use std::{
     collections::BTreeSet,
-    error, fs,
-    io::Read,
     sync::{Arc, Mutex},
 };
 
@@ -21,18 +19,16 @@ pub struct UiTools {
 
 impl UiTools {
     pub fn new(cartridge_name: String) -> Self {
-        let data = match read_file(&cartridge_name) {
-            Ok(d) => d,
+        let (cartridge, data) = match CartridgeHeader::from_file(cartridge_name.as_str()) {
+            Ok(val) => val,
             Err(e) => {
-                println!("{e}");
-                std::process::exit(2);
+                println!("Error: {:?}", e);
+                std::process::exit(2)
             }
         };
 
-        let cartridge_header =
-            CartridgeHeader::new(data.as_slice()).expect("Cartridge must be opened");
         let cpu = Arm7tdmi::new(data);
-        let gba = Gba::new(cartridge_header, cpu);
+        let gba = Gba::new(cartridge, cpu);
 
         let arc_gba = Arc::new(Mutex::new(gba));
 
@@ -126,12 +122,4 @@ impl Dashboard {
     fn show_windows(&mut self, ctx: &Context) {
         self.ui_tools.windows(ctx);
     }
-}
-
-fn read_file(filepath: &str) -> Result<Vec<u8>, Box<dyn error::Error>> {
-    let mut f = fs::File::open(filepath)?;
-    let mut buf = vec![];
-    f.read_to_end(&mut buf)?;
-
-    Ok(buf)
 }

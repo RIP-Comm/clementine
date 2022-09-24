@@ -38,7 +38,7 @@ impl<T: Cpu> View for CpuInspector<T> {
         ui.horizontal(|ui| {
             let mut cartridge_name: String = Default::default();
             if let Ok(gba) = self.gba.lock() {
-                cartridge_name = gba.cartridge_header.game_title.clone()
+                cartridge_name = gba.cartridge_header.game_title().into()
             }
             ui.text_edit_singleline(&mut cartridge_name);
             if ui.button("▶").clicked() {
