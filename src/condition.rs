@@ -1,4 +1,5 @@
 /// Arm opcode condition.
+#[derive(Debug, Eq, PartialEq)]
 pub enum Condition {
     EQ = 0x0,
     NE = 0x1,
