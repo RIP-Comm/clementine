@@ -5,12 +5,39 @@ use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
+/// Contains the 16 registers for the CPU, latest (R15) is special because
+/// is the program counter.
+#[derive(Default)]
+struct Registers([u32; 16]);
+
+impl Registers {
+    pub fn program_counter(&self) -> usize {
+        self.0[15].try_into().unwrap()
+    }
+
+    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
+    pub fn set_program_counter(&mut self, new_value: u32) {
+        self.0[15] = new_value
+    }
+
+    pub fn advance_program_counter(&mut self, bytes: u32) {
+        self.0[15] = self.0[15].wrapping_add(bytes);
+    }
+
+    #[allow(clippy::only_used_in_recursion)] // FIXME: Possible bug of clippy?
+    pub fn set_register_at(&mut self, reg: usize, new_value: u32) {
+        self.0[reg] = new_value;
+    }
+
+    pub const fn register_at(&self, reg: usize) -> u32 {
+        self.0[reg]
+    }
+}
+
 pub struct Arm7tdmi {
     rom: Vec<u8>,
 
-    registers: [u32; 16],
-
-    program_counter: u32,
+    registers: Registers,
     cpsr: Cpsr,
 }
 
@@ -21,7 +48,7 @@ impl Cpu for Arm7tdmi {
     type InstructionType = ArmModeInstruction;
 
     fn fetch(&self) -> Self::OpCodeType {
-        let instruction_index = self.program_counter as usize;
+        let instruction_index = self.registers.program_counter();
         let end_instruction = instruction_index + OPCODE_ARM_SIZE;
         let data_instruction: [u8; 4] = self.rom[instruction_index..end_instruction]
             .try_into()
@@ -67,7 +94,7 @@ impl Cpu for Arm7tdmi {
             }
         }
 
-        self.program_counter = self.program_counter.wrapping_add(4);
+        self.registers.advance_program_counter(4);
     }
 
     fn step(&mut self) {
@@ -84,8 +111,7 @@ impl Arm7tdmi {
     pub(crate) fn new(rom: Vec<u8>) -> Self {
         Self {
             rom,
-            program_counter: 0,
-            registers: [0; 16],
+            registers: Registers::default(),
             cpsr: Cpsr::default(),
         }
     }
@@ -94,18 +120,19 @@ impl Arm7tdmi {
         let offset = op_code & 0b0000_0000_1111_1111_1111_1111_1111_1111;
         println!("offset: {:?}", offset);
 
-        self.program_counter += 8 + offset * 4;
-        println!("PC: {:?}", self.program_counter);
+        self.registers.advance_program_counter(8 + offset * 4);
+        println!("PC: {:?}", self.registers.program_counter());
     }
 
     fn branch_link(&mut self, op_code: u32) {
-        self.registers[14] = self.program_counter.wrapping_add(4); //R14 = LR
+        let pc: u32 = self.registers.program_counter().try_into().unwrap();
+        self.registers.set_register_at(14, pc.wrapping_add(4)); // R14 = LR
 
         let offset = op_code & 0b0000_0000_1111_1111_1111_1111_1111_1111;
         println!("offset: {:?}", offset);
 
-        self.program_counter += 8 + offset * 4;
-        println!("PC: {:?}", self.program_counter);
+        self.registers.advance_program_counter(8 + offset * 4);
+        println!("PC: {:?}", self.registers.program_counter());
     }
 
     fn data_processing(&mut self, opcode: u32) {
@@ -142,7 +169,10 @@ impl Arm7tdmi {
                     true => {
                         // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
                         let rs = opcode.get_bits(8..=11);
-                        let shift_amount = self.registers[rs as usize].get_bits(0..=7);
+                        let shift_amount = self
+                            .registers
+                            .register_at(rs.try_into().unwrap())
+                            .get_bits(0..=7);
                         op2 = self.shift_immediate(shift_amount, shift_type, op2);
                     }
                 };
@@ -162,7 +192,7 @@ impl Arm7tdmi {
         };
 
         match ArmModeAluInstruction::from(alu_opcode) {
-            ArmModeAluInstruction::Mov => self.mov(rd as usize, op2),
+            ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2),
             ArmModeAluInstruction::Teq => self.teq(rn, op2),
             _ => todo!(),
         }
@@ -177,9 +207,10 @@ impl Arm7tdmi {
 
         // 0xF is register of PC
         let address = if rn == 0xF {
-            self.program_counter + 8
+            let pc: u32 = self.registers.program_counter().try_into().unwrap();
+            pc + 8_u32
         } else {
-            self.registers[rn as usize]
+            self.registers.register_at(rn.try_into().unwrap())
         };
 
         // bits [15-12] - Source/Destination Register
@@ -195,23 +226,24 @@ impl Arm7tdmi {
             opcode.try_into().expect("convert to Single Data Transfer");
 
         match load_store {
-            SingleDataTransfer::Ldr => {
-                self.registers[rd as usize] = if up_down {
+            SingleDataTransfer::Ldr => self.registers.set_register_at(
+                rd.try_into().unwrap(),
+                if up_down {
                     address.wrapping_sub(offset)
                 } else {
                     address.wrapping_add(offset)
-                }
-            }
+                },
+            ),
             _ => todo!(),
         }
     }
 
     fn mov(&mut self, rd: usize, op2: u32) {
-        self.registers[rd] = op2;
+        self.registers.set_register_at(rd, op2);
     }
 
     fn teq(&mut self, rn: u32, op2: u32) {
-        let value = self.registers[rn as usize] ^ op2;
+        let value = self.registers.register_at(rn.try_into().unwrap()) ^ op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
     }
@@ -224,14 +256,14 @@ impl Arm7tdmi {
                 // LSR#0: Interpreted as LSR#32, ie. value becomes zero, C becomes Bit 31 of Rm.
                 1 => {
                     // TODO: It's better to implement the logical instruction in order to execute directly LSR#0?
-                    let rm = self.registers[value as usize];
+                    let rm = self.registers.register_at(value.try_into().unwrap());
                     self.cpsr.set_sign_flag(rm.get_bit(31));
                     value = 0;
                 }
                 // ASR#0: Interpreted as ASR#32, ie. value and C are filled by Bit 31 of Rm.
                 2 => {
                     // TODO: It's better to implement the logical instruction in order to execute directly ASR#0?
-                    let rm = self.registers[value as usize];
+                    let rm = self.registers.register_at(value.try_into().unwrap());
                     match rm.get_bit(31) {
                         true => {
                             value = 1;
@@ -324,10 +356,10 @@ mod tests {
     #[test]
     fn test_registers_14_after_branch_link() {
         let mut cpu: Arm7tdmi = Arm7tdmi::new(vec![]);
-        cpu.program_counter = 10;
-        let pc = cpu.program_counter;
+        cpu.registers = Registers([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+        let pc: u32 = cpu.registers.program_counter().try_into().unwrap();
         cpu.branch_link(0b0);
-        assert_eq!(cpu.registers[14], pc.wrapping_add(4));
+        assert_eq!(cpu.registers.register_at(14), pc.wrapping_add(4));
     }
 
     #[test]
@@ -350,11 +382,20 @@ mod tests {
             opcode = (opcode & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
 
             let (condition, instruction_type) = cpu.decode(opcode);
-            assert_eq!(condition as u32, Condition::AL as u32);
+            assert_eq!(condition, Condition::AL);
             assert_eq!(instruction_type, ArmModeInstruction::DataProcessing3);
 
             cpu.execute(opcode, instruction_type);
-            assert_eq!(cpu.registers[rx as usize], rx.rotate_right(is * 2));
+            let rotated = rx.rotate_right(is * 2);
+            if rotated == 15 {
+                // NOTE: since is R15 you should also consider the advance of 4 bytes after execution.
+                assert_eq!(
+                    cpu.registers.register_at(rx.try_into().unwrap()),
+                    rotated + 4
+                );
+            } else {
+                assert_eq!(cpu.registers.register_at(rx.try_into().unwrap()), rotated);
+            }
         }
     }
 
@@ -367,7 +408,7 @@ mod tests {
         assert_eq!(instruction, ArmModeInstruction::DataProcessing1);
 
         let rn = 9_usize;
-        cpu.registers[rn] = 100;
+        cpu.registers.set_register_at(rn, 100);
         cpu.execute(op_code, instruction);
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
@@ -391,10 +432,10 @@ mod tests {
 
         // because in this specific case address will be
         // then will be 92 + 8 (.wrapping_sub(offset))
-        cpu.program_counter = 92;
+        cpu.registers.set_program_counter(92);
 
         cpu.execute(op_code, instruction);
-        assert_eq!(cpu.registers[13], 76);
-        assert_eq!(cpu.program_counter, 96);
+        assert_eq!(cpu.registers.register_at(13), 76);
+        assert_eq!(cpu.registers.program_counter(), 96);
     }
 }
