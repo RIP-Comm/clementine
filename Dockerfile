@@ -6,6 +6,6 @@ COPY src ./src
 RUN cargo install --path .
 
 FROM debian:buster-slim
-RUN apt-get update && apt-get install -y libfreetype6 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libfreetype6 libfontconfig1-dev && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/local/cargo/bin/clementine /usr/local/bin/clementine
 ENTRYPOINT ["clementine"]

@@ -1,4 +1,4 @@
-name: Publish Clementine on DockerHub
+name: Publish Clementine on GHCR
 
 on:
   push:
@@ -26,13 +26,13 @@ env:
 
 jobs:
   push_clementine_to_registry:
-    name: Push Clementine image to Docker Hub
+    name: Push Clementine image to GHCR
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
         uses: actions/checkout@v3
       
-      - name: Log in to Docker Hub
+      - name: Log in to GHCR
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
         with:
           registry: ${{ env.REGISTRY }}
