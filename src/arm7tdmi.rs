@@ -313,13 +313,14 @@ enum SingleDataTransfer {
 
 impl From<u32> for SingleDataTransfer {
     fn from(op_code: u32) -> Self {
-        // TODO: possible improvements
-        // - op_code.are_bits_on(31..28)
-        // - op_code.is_on(31).and(30).and(29)...
+        /*
         let must_for_pld = op_code.is_bit_on(31)
             && op_code.is_bit_on(30)
             && op_code.is_bit_on(29)
             && op_code.is_bit_on(28);
+        */
+
+        let must_for_pld = op_code.are_bits_on(28..=31);
         if op_code.get_bit(20) {
             if must_for_pld {
                 Self::Pld
