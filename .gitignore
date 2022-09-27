@@ -40,3 +40,6 @@ target/
 
 # Test roms
 *.gba
+
+# Ignore Visual Studio 
+.vs/
