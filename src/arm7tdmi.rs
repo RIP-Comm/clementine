@@ -3,6 +3,8 @@ use std::convert::TryInto;
 use crate::alu_instruction::ArmModeAluInstruction;
 use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
+use crate::internal_memory::InternalMemory;
+use crate::io_device::IoDevice;
 use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
 
 /// Contains the 16 registers for the CPU, latest (R15) is special because
@@ -39,6 +41,8 @@ pub struct Arm7tdmi {
 
     registers: Registers,
     cpsr: Cpsr,
+
+    memory: InternalMemory,
 }
 
 const OPCODE_ARM_SIZE: usize = 4;
@@ -113,6 +117,7 @@ impl Arm7tdmi {
             rom,
             registers: Registers::default(),
             cpsr: Cpsr::default(),
+            memory: InternalMemory::new(),
         }
     }
 
@@ -225,15 +230,20 @@ impl Arm7tdmi {
         let load_store: SingleDataTransfer =
             opcode.try_into().expect("convert to Single Data Transfer");
 
+        let value: u32 = self
+            .memory
+            .read_at(if up_down {
+                address.wrapping_sub(offset)
+            } else {
+                address.wrapping_add(offset)
+            })
+            .try_into()
+            .unwrap(); // FIXME: is this right? Or we should read a WORD (u32)
+
         match load_store {
-            SingleDataTransfer::Ldr => self.registers.set_register_at(
-                rd.try_into().unwrap(),
-                if up_down {
-                    address.wrapping_sub(offset)
-                } else {
-                    address.wrapping_add(offset)
-                },
-            ),
+            SingleDataTransfer::Ldr => self
+                .registers
+                .set_register_at(rd.try_into().unwrap(), value),
             _ => todo!(),
         }
     }
@@ -428,8 +438,11 @@ mod tests {
         // then will be 92 + 8 (.wrapping_sub(offset))
         cpu.registers.set_program_counter(92);
 
+        // simulate mem already contains something.
+        cpu.memory.write_at(76, 99);
+
         cpu.execute(op_code, instruction);
-        assert_eq!(cpu.registers.register_at(13), 76);
+        assert_eq!(cpu.registers.register_at(13), 99);
         assert_eq!(cpu.registers.program_counter(), 96);
     }
 }
