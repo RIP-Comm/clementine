@@ -12,6 +12,7 @@ pub trait Bits {
     fn get_bit(self, bit_idx: u8) -> bool;
     fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32;
     fn are_bits_on(self, bits_range: RangeInclusive<u8>) -> bool;
+    fn clear_bits(&mut self, bit_idx: u8, to: u8);
 }
 
 impl Bits for u32 {
@@ -82,12 +83,36 @@ impl Bits for u32 {
         }
         true
     }
+
+    /// To clear all bits from the `from` through `to` (inclusive)
+    fn clear_bits(&mut self, from: u8, to: u8) {
+        let from_mask = (1 << from) - 1;
+        let to_mask = (1 << to) - 1;
+        let mask = !(from_mask - to_mask);
+        *self &= mask;
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use rand::Rng;
+
+    #[test]
+    fn test_clear_bits_msb_to_idx() {
+        let mut b = 0b11111111;
+        b.clear_bits(5, 2);
+        println!("{}", b);
+        assert_eq!(b, 0b11100011);
+    }
+
+    #[test]
+    fn test_clear_bits_idx_to_0() {
+        let mut b = 0b11111111;
+        b.clear_bits(3, 1);
+        println!("{}", b);
+        assert_eq!(b, 0b11111001);
+    }
 
     #[test]
     fn test_is_on() {
