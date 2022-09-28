@@ -12,7 +12,6 @@ pub trait Bits {
     fn get_bit(self, bit_idx: u8) -> bool;
     fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32;
     fn are_bits_on(self, bits_range: RangeInclusive<u8>) -> bool;
-
 }
 
 impl Bits for u32 {
@@ -72,18 +71,13 @@ impl Bits for u32 {
         bits
     }
 
-    /*
-        Check if the bits in a certein range are all set.
-        Return false when there is at least 1 bit which is 0, true otherwise.
-        When all bits are setted to 1, the check in the inner loop fails and true is returned.
-
-    
-    */
+    ///   Check if the bits in a certein range are all set.
+    ///   Return false when there is at least 1 bit which is 0, true otherwise.
+    ///   When all bits are setted to 1, the check in the inner loop fails and true is returned.
     fn are_bits_on(self, bits_range: RangeInclusive<u8>) -> bool {
-        
         for (_, bit_index) in bits_range.enumerate() {
-            if self.is_bit_off(bit_index){
-                return false
+            if self.is_bit_off(bit_index) {
+                return false;
             }
         }
         true
