@@ -6,7 +6,7 @@ pub struct InternalMemory {
 }
 
 impl InternalMemory {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             internal_work_ram: [0; 0x7FFF],
         }

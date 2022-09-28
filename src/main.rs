@@ -18,6 +18,8 @@ mod cpsr;
 mod cpu;
 mod egui_app;
 mod instruction;
+mod internal_memory;
+mod io_device;
 mod ppu;
 
 fn main() {
