@@ -21,7 +21,7 @@ You can open an issue to ask any question about everything related to the projec
 ### 🔨 Feature
 These kind of issues should be used to manage the project. So only mantainers can open a new feature issue. If you would like to take a task on your own, ask for it and someone will assign it to you. 
 
-### 🪲 Bugs
+### 🐞 Bugs
 Open an issue if you find a bug. Try to describe as best as possibile the use case in which the bug appears.
 
 ### ➕ Enanchment
