@@ -11,6 +11,7 @@ pub trait Bits {
     fn set_bit(&mut self, bit_idx: u8, value: bool);
     fn get_bit(self, bit_idx: u8) -> bool;
     fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32;
+    fn are_bits_on(self, bits_range: RangeInclusive<u8>) -> bool;
 }
 
 impl Bits for u32 {
@@ -68,6 +69,18 @@ impl Bits for u32 {
             bits |= bit_value << shift_value;
         }
         bits
+    }
+
+    /// Checks if a certein sequence of bit is set to 1.
+    /// Return false whenever there is a least one bit which is set to 0, true otherwise.
+    /// When all bits are set to 1, the if statement fails and true is returned.
+    fn are_bits_on(self, bits_range: RangeInclusive<u8>) -> bool {
+        for (_, bit_index) in bits_range.enumerate() {
+            if self.is_bit_off(bit_index) {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -165,5 +178,12 @@ mod tests {
         assert_eq!(b.get_bits(0..=9), 0b10_1100_1110);
         assert_eq!(b.get_bits(0..=31), 0b10_1100_1110);
         assert_eq!(b.get_bits(28..=31), 0b0);
+    }
+
+    #[test]
+    fn are_bits_on() {
+        let b = 0b1011001110_u32;
+        assert!(!b.are_bits_on(0..=3));
+        assert!(b.are_bits_on(1..=3));
     }
 }
