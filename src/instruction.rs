@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArmModeInstruction {
     DataProcessing1 = 0b0000_0000_0000_0000_0000_0000_0000_0000,
@@ -46,5 +48,20 @@ impl ArmModeInstruction {
             DataProcessing3 => 0b0000_1110_0000_0000_0000_0000_0000_0000,
             DataTransfer => 0b0000_1100_0000_0000_0000_0000_0000_0000,
         }
+    }
+}
+
+impl Display for ArmModeInstruction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let instruction_str = match self {
+            Self::DataProcessing1 => "DataProcessing1",
+            Self::DataProcessing2 => "DataProcessing2",
+            Self::DataProcessing3 => "DataProcessing3",
+            Self::Branch => "Branch",
+            Self::BranchLink => "BranchLink",
+            Self::DataTransfer => "DataTransfer",
+        };
+
+        write!(f, "{}", instruction_str)
     }
 }
