@@ -20,6 +20,7 @@ mod egui_app;
 mod instruction;
 mod internal_memory;
 mod io_device;
+mod opcode;
 mod ppu;
 
 fn main() {
