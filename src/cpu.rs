@@ -17,4 +17,5 @@ pub trait Cpu {
 
     /// Abstraction of what happens for every instruction in the cpu
     fn step(&mut self);
+
 }

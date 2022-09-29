@@ -7,7 +7,7 @@ use std::{
 use cartridge_header::CartridgeHeader;
 use glium::glutin;
 
-use crate::{arm7tdmi::Arm7tdmi, cpu::Cpu, egui_app::EguiApp};
+use crate::{arm7tdmi::Arm7tdmi, cpu::Cpu, egui_app::EguiApp, ppu::Ppu};
 
 mod alu_instruction;
 mod arm7tdmi;
@@ -46,12 +46,16 @@ fn main() {
         }
     };
 
+    println!("Memory {:x}", data.len());
+
     let cartridge_header = CartridgeHeader::new(&data).unwrap();
     println!("{}", cartridge_header.game_title);
 
-    let cpu = Arm7tdmi::new(data);
+    let cpu = Arm7tdmi::new(data.clone());
 
-    let app = Arc::new(Mutex::new(EguiApp::new(cpu)));
+    let ppu = Ppu::new(data);
+
+    let app = Arc::new(Mutex::new(EguiApp::new(cpu, ppu)));
 
     let event_loop = glutin::event_loop::EventLoop::new();
     let window_builder = glutin::window::WindowBuilder::new()
@@ -69,6 +73,7 @@ fn main() {
         .with_vsync(true);
 
     let display = glium::Display::new(window_builder, context_builder, &event_loop).unwrap();
+
     let mut egui_glium = egui_glium::EguiGlium::new(&display, &event_loop);
 
     let application = Arc::clone(&app);

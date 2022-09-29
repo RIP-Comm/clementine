@@ -5,7 +5,7 @@ use egui_glium::egui_winit::{
 
 use crate::{
     cpu::Cpu,
-    ppu::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
+    ppu::{DISPLAY_HEIGHT, DISPLAY_WIDTH, Ppu},
 };
 
 pub struct EguiApp<T>
@@ -22,18 +22,34 @@ impl<T> EguiApp<T>
 where
     T: Cpu,
 {
-    pub(crate) fn new(cpu: T) -> Self {
+    pub(crate) fn new(cpu: T, ppu: Ppu) -> Self {
         Self {
             image: ColorImage::new([DISPLAY_WIDTH, DISPLAY_HEIGHT], Color32::BLACK),
             texture: None,
-            gba: Gba::new(cpu),
+            gba: Gba::new(cpu, ppu),
         }
     }
 
     pub(crate) fn draw(&mut self, egui_context: &egui::Context) {
+
+        // TODO We need to find of Video Memory boundaries
+        let start = 0x06000000 / 8;
+        let stop = 0x06017FFF / 8;
+
+        let video_ram = &self.gba.ppu.rom[start..stop];
+
         for y in 0..DISPLAY_HEIGHT {
             for x in 0..DISPLAY_WIDTH {
-                self.image[(x, y)] = Color32::from_rgb(0, 0, 0);
+                let start = 2 * (y * DISPLAY_HEIGHT + x);
+                let end = 2 * (y * DISPLAY_HEIGHT + x) + 1;
+                if start < video_ram.len() && end < video_ram.len() {
+                    let color = &video_ram[start..=end];
+                    let color = ((color[0] as u16) << 8) + color[1] as u16;
+                    let blue = (color & 0b0_11111_00000_00000 >> 10) as u8;
+                    let green = (color & 0b0_00000_11111_00000 >> 5) as u8;
+                    let red = (color & 0b0_00000_00000_11111) as u8;
+                    self.image[(x, y)] = Color32::from_rgb(red, green, blue);
+                }
             }
         }
 
@@ -65,13 +81,14 @@ where
     T: Cpu,
 {
     pub cpu: T,
+    pub ppu: Ppu,
 }
 
 impl<T> Gba<T>
 where
     T: Cpu,
 {
-    pub(crate) const fn new(cpu: T) -> Self {
-        Self { cpu }
+    pub(crate) const fn new(cpu: T, ppu: Ppu) -> Self {
+        Self { cpu, ppu }
     }
 }
