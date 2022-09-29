@@ -23,7 +23,7 @@ impl Registers {
     }
 
     pub fn advance_program_counter(&mut self, bytes: u32) {
-        // self.0[15] = self.0[15].wrapping_add(bytes);
+        self.0[15] = self.0[15].wrapping_add(bytes);
     }
 
     #[allow(clippy::only_used_in_recursion)] // FIXME: Possible bug of clippy?
