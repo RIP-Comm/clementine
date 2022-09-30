@@ -53,15 +53,6 @@ impl ArmModeInstruction {
 
 impl Display for ArmModeInstruction {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let instruction_str = match self {
-            Self::DataProcessing1 => "DataProcessing1",
-            Self::DataProcessing2 => "DataProcessing2",
-            Self::DataProcessing3 => "DataProcessing3",
-            Self::Branch => "Branch",
-            Self::BranchLink => "BranchLink",
-            Self::TransImm9 => "TransImm9",
-        };
-
-        write!(f, "{}", instruction_str)
+        write!(f, "{:?}", self)
     }
 }
