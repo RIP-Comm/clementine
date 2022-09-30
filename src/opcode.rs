@@ -42,7 +42,13 @@ impl Display for ArmModeOpcode {
             ArmModeInstruction::DataProcessing1 => {
                 "FMT: |_Cond__|0_0_0|___Op__|S|__Rn___|__Rd___|__Shift__|Typ|0|__Rm___|\n"
             }
-            ArmModeInstruction::Branch => {
+            ArmModeInstruction::DataProcessing2 => {
+                "FMT: |_Cond__|0_0_0|___Op__|S|__Rn___|__Rd___|__Rs___|0|Typ|1|__Rm___|\n"
+            }
+            ArmModeInstruction::DataProcessing3 => {
+                "FMT: |_Cond__|0_0_1|___Op__|S|__Rn___|__Rd___|_Shift_|___Immediate___|\n"
+            }
+            ArmModeInstruction::Branch | ArmModeInstruction::BranchLink => {
                 "FMT: |_Cond__|1_0_1|L|___________________Offset______________________|\n"
             }
             _ => todo!(),
@@ -63,8 +69,32 @@ impl Display for ArmModeOpcode {
                          DEC: |{cond:07}|0_0_0|{op:07}|{s:01}|{rn:07}|{rd:07}|{shift_amount:09}|{shift_type:03}|0|{rm:07}|\n\
                          BIN: |{cond:07b}|0_0_0|{op:07b}|{s:01b}|{rn:07b}|{rd:07b}|{shift_amount:09b}|{shift_type:03b}|0|{rm:07b}|\n")
             }
+            ArmModeInstruction::DataProcessing2 => {
+                let op = self.get_bits(21..=24);
+                let s = self.get_bit(20) as u8;
+                let rn = self.get_bits(16..=19);
+                let rd = self.get_bits(12..=15);
+                let rs = self.get_bits(8..=11);
+                let shift_type = self.get_bits(5..=6);
+                let rm = self.get_bits(0..=3);
 
-            ArmModeInstruction::Branch => {
+                format!("HEX: |{cond:07X}|0_0_0|{op:07X}|{s:01X}|{rn:07X}|{rd:07X}|{rs:07X}|0|{shift_type:03X}|1|{rm:07X}|\n\
+                         DEC: |{cond:07}|0_0_0|{op:07}|{s:01}|{rn:07}|{rd:07}|{rs:07}|0|{shift_type:03}|1|{rm:07}|\n\
+                         BIN: |{cond:07b}|0_0_0|{op:07b}|{s:01b}|{rn:07b}|{rd:07b}|{rs:07b}|0|{shift_type:03b}|1|{rm:07b}|\n")
+            }
+            ArmModeInstruction::DataProcessing3 => {
+                let op = self.get_bits(21..=24);
+                let s = self.get_bit(20) as u8;
+                let rn = self.get_bits(16..=19);
+                let rd = self.get_bits(12..=15);
+                let shift_amount = self.get_bits(8..=11);
+                let immediate = self.get_bits(0..=7);
+
+                format!("HEX: |{cond:07X}|0_0_1|{op:07X}|{s:01X}|{rn:07X}|{rd:07X}|{shift_amount:07X}|{immediate:015X}|\n\
+                         DEC: |{cond:07}|0_0_1|{op:07}|{s:01}|{rn:07}|{rd:07}|{shift_amount:07}|{immediate:015}|\n\
+                         BIN: |{cond:07b}|0_0_1|{op:07b}|{s:01b}|{rn:07b}|{rd:07b}|{shift_amount:07b}|{immediate:015b}|\n")
+            }
+            ArmModeInstruction::Branch | ArmModeInstruction::BranchLink => {
                 let l = self.get_bit(24) as u8;
                 let offset = self.get_bits(0..=23);
                 format!(
