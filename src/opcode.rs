@@ -15,7 +15,7 @@ impl TryFrom<u32> for ArmModeOpcode {
 
     fn try_from(opcode: u32) -> Result<Self, Self::Error> {
         Ok(Self {
-            instruction: ArmModeInstruction::try_from(opcode)?,
+            instruction: ArmModeInstruction::from(opcode),
             condition: Condition::from(opcode.get_bits(28..=31) as u8),
             raw: opcode,
         })
@@ -54,6 +54,7 @@ impl Display for ArmModeOpcode {
             ArmModeInstruction::Branch | ArmModeInstruction::BranchLink => {
                 "FMT: |_Cond__|1_0_1|L|___________________Offset______________________|\n"
             }
+            ArmModeInstruction::Unknown => "",
         };
 
         let cond = self.get_bits(28..=31);
@@ -119,6 +120,7 @@ impl Display for ArmModeOpcode {
                      BIN: |{cond:07b}|1_0_1|{l:01b}|{offset:047b}|\n"
                 )
             }
+            ArmModeInstruction::Unknown => String::new(),
         };
 
         let mut raw_bits = String::new();
