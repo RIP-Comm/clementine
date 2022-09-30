@@ -13,11 +13,11 @@ pub struct ArmModeOpcode {
 impl TryFrom<u32> for ArmModeOpcode {
     type Error = String;
 
-    fn try_from(opcode: u32) -> Result<Self, Self::Error> {
+    fn try_from(op_code: u32) -> Result<Self, Self::Error> {
         Ok(Self {
-            instruction: ArmModeInstruction::from(opcode),
-            condition: Condition::from(opcode.get_bits(28..=31) as u8),
-            raw: opcode,
+            instruction: ArmModeInstruction::from(op_code),
+            condition: Condition::from(op_code.get_bits(28..=31) as u8),
+            raw: op_code,
         })
     }
 }
@@ -38,7 +38,7 @@ impl Display for ArmModeOpcode {
         let bytes_pos1 = "POS: |..3 ..................2 ..................1 ..................0|\n";
         let bytes_pos2 = "     |1_0_9_8_7_6_5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0|\n";
 
-        let opcode_format: &str = match self.instruction {
+        let op_code_format: &str = match self.instruction {
             ArmModeInstruction::DataProcessing1 => {
                 "FMT: |_Cond__|0_0_0|___Op__|S|__Rn___|__Rd___|__Shift__|Typ|0|__Rm___|\n"
             }
@@ -58,7 +58,7 @@ impl Display for ArmModeOpcode {
         };
 
         let cond = self.get_bits(28..=31);
-        let opcode_value: String = match self.instruction {
+        let op_code_value: String = match self.instruction {
             ArmModeInstruction::DataProcessing1 => {
                 let op = self.get_bits(21..=24);
                 let s = self.get_bit(20) as u8;
@@ -133,7 +133,7 @@ impl Display for ArmModeOpcode {
 
         write!(
             f,
-            "{instruction}{bytes_pos1}{bytes_pos2}{raw_bits}{opcode_format}{opcode_value}"
+            "{instruction}{bytes_pos1}{bytes_pos2}{raw_bits}{op_code_format}{op_code_value}"
         )
     }
 }

@@ -18,9 +18,9 @@ pub enum ArmModeAluInstruction {
 }
 
 impl From<u32> for ArmModeAluInstruction {
-    fn from(alu_opcode: u32) -> Self {
+    fn from(alu_op_code: u32) -> Self {
         use ArmModeAluInstruction::*;
-        match alu_opcode {
+        match alu_op_code {
             0x0 => And,
             0x1 => Eor,
             0x2 => Sub,
