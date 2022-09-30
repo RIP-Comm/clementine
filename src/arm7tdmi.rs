@@ -129,40 +129,40 @@ impl Arm7tdmi {
         self.registers.advance_program_counter(8 + offset * 4);
     }
 
-    fn data_processing(&mut self, opcode: ArmModeOpcode) {
+    fn data_processing(&mut self, op_code: ArmModeOpcode) {
         // bit [25] is I = Immediate Flag
-        let i: bool = opcode.get_bit(25);
+        let i: bool = op_code.get_bit(25);
         // bits [24-21]
-        let alu_opcode = opcode.get_bits(21..=24);
+        let alu_op_code = op_code.get_bits(21..=24);
         // bit [20] is sets condition codes
-        let s = opcode.get_bit(20);
+        let s = op_code.get_bit(20);
         // bits [15-12] are the Rd
-        let rd = opcode.get_bits(12..=15);
+        let rd = op_code.get_bits(12..=15);
         // bits [19-16] are the Rn
-        let rn = opcode.get_bits(16..=19);
+        let rn = op_code.get_bits(16..=19);
 
         let op2 = match i {
             // Register as 2nd Operand
             false => {
                 // bits [6-5] - Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
-                let shift_type = opcode.get_bits(5..=6);
+                let shift_type = op_code.get_bits(5..=6);
                 // bit [4] - is Shift by Register Flag (0=Immediate, 1=Register)
-                let r = opcode.get_bit(4);
+                let r = op_code.get_bit(4);
                 // bits [0-3] 2nd Operand Register (R0..R15) (including PC=R15)
-                let mut op2 = opcode.get_bits(0..=3);
+                let mut op2 = op_code.get_bits(0..=3);
 
                 match r {
                     // 0=Immediate, 1=Register
                     // Shift by amount
                     false => {
                         // bits [7-11] - Shift amount
-                        let shift_amount = opcode.get_bits(7..=11);
+                        let shift_amount = op_code.get_bits(7..=11);
                         op2 = self.shift(shift_type, shift_amount, op2);
                     }
                     // Shift by register
                     true => {
                         // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
-                        let rs = opcode.get_bits(8..=11);
+                        let rs = op_code.get_bits(8..=11);
                         let shift_amount = self
                             .registers
                             .register_at(rs.try_into().unwrap())
@@ -176,16 +176,16 @@ impl Arm7tdmi {
             // Immediate as 2nd Operand
             true => {
                 // bits [11-8] are ROR-Shift applied to nn
-                let is = opcode.get_bits(8..=11);
+                let is = op_code.get_bits(8..=11);
                 // bits [7-0] are the immediate value
-                let nn = opcode.get_bits(0..=7);
+                let nn = op_code.get_bits(0..=7);
 
                 // I'm not sure about `* 2`
                 nn.rotate_right(is * 2) // TODO: review "ROR-Shift applied to nn (0-30, in steps of 2)"
             }
         };
 
-        match ArmModeAluInstruction::from(alu_opcode) {
+        match ArmModeAluInstruction::from(alu_op_code) {
             ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2),
             ArmModeAluInstruction::Teq => {
                 if s {
@@ -197,12 +197,12 @@ impl Arm7tdmi {
         }
     }
 
-    fn single_data_transfer(&mut self, opcode: ArmModeOpcode) {
-        let immediate = opcode.get_bit(25);
-        let up_down = opcode.get_bit(23);
+    fn single_data_transfer(&mut self, op_code: ArmModeOpcode) {
+        let immediate = op_code.get_bit(25);
+        let up_down = op_code.get_bit(23);
 
         // bits [19-16] - Base register
-        let rn = opcode.get_bits(16..=19);
+        let rn = op_code.get_bits(16..=19);
 
         // 0xF is register of PC
         let address = if rn == 0xF {
@@ -213,15 +213,15 @@ impl Arm7tdmi {
         };
 
         // bits [15-12] - Source/Destination Register
-        let rd = opcode.get_bits(12..=15);
+        let rd = op_code.get_bits(12..=15);
 
         let offset: u32 = if immediate {
             todo!()
         } else {
-            opcode.get_bits(0..=11)
+            op_code.get_bits(0..=11)
         };
 
-        let load_store: SingleDataTransfer = opcode
+        let load_store: SingleDataTransfer = op_code
             .raw
             .try_into()
             .expect("convert to Single Data Transfer");
@@ -372,10 +372,10 @@ mod tests {
     #[test]
     fn check_mov_rx_immediate() {
         // MOV R0, 0
-        let mut opcode: u32 = 0b1110_0011_1010_0000_0000_0000_0000_0000;
+        let mut op_code: u32 = 0b1110_0011_1010_0000_0000_0000_0000_0000;
 
         // bits [11-8] are ROR-Shift applied to nn
-        let is = opcode & 0b0000_0000_0000_0000_0000_1111_0000_0000;
+        let is = op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000;
 
         // MOV Rx,x
         let mut cpu = Arm7tdmi::new(vec![]);
@@ -384,15 +384,15 @@ mod tests {
             let immediate_value = rx;
 
             // Rd parameter
-            opcode = (opcode & 0b1111_1111_1111_1111_0000_1111_1111_1111) + register_for_op;
+            op_code = (op_code & 0b1111_1111_1111_1111_0000_1111_1111_1111) + register_for_op;
             // Immediate parameter
-            opcode = (opcode & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
+            op_code = (op_code & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
 
-            let opcode = cpu.decode(opcode);
-            assert_eq!(opcode.condition, Condition::AL);
-            assert_eq!(opcode.instruction, ArmModeInstruction::DataProcessing3);
+            let op_code = cpu.decode(op_code);
+            assert_eq!(op_code.condition, Condition::AL);
+            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
 
-            cpu.execute(opcode);
+            cpu.execute(op_code);
             let rotated = rx.rotate_right(is * 2);
             if rotated == 15 {
                 // NOTE: since is R15 you should also consider the advance of 4 bytes after execution.
