@@ -64,6 +64,9 @@ impl Cpu for Arm7tdmi {
     fn decode(&self, op_code: u32) -> Self::OpCodeType {
         let op_code = ArmModeOpcode::try_from(op_code).unwrap();
         println!("{}", op_code);
+        if op_code.instruction == ArmModeInstruction::Unknown {
+            todo!("implement this instruction")
+        }
 
         op_code
     }
@@ -82,6 +85,9 @@ impl Cpu for Arm7tdmi {
             }
             TransImm9 => {
                 self.single_data_transfer(op_code);
+            }
+            Unknown => {
+                todo!("implement this instruction")
             }
         }
 
@@ -182,7 +188,7 @@ impl Arm7tdmi {
         match ArmModeAluInstruction::from(alu_opcode) {
             ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2),
             ArmModeAluInstruction::Teq => self.teq(rn, op2),
-            _ => todo!(),
+            _ => todo!("implement alu operation"),
         }
     }
 
@@ -229,7 +235,7 @@ impl Arm7tdmi {
             SingleDataTransfer::Ldr => self
                 .registers
                 .set_register_at(rd.try_into().unwrap(), value),
-            _ => todo!(),
+            _ => todo!("implement single data transfer operation"),
         }
     }
 
@@ -331,16 +337,18 @@ mod tests {
 
     #[test]
     fn decode_branch() {
-        let output: Result<ArmModeInstruction, String> =
-            0b1110_1010_0000_0000_0000_0000_0111_1111.try_into();
-        assert_eq!(output, Ok(ArmModeInstruction::Branch));
+        let output: ArmModeOpcode = 0b1110_1010_0000_0000_0000_0000_0111_1111
+            .try_into()
+            .unwrap();
+        assert_eq!(output.instruction, ArmModeInstruction::Branch);
     }
 
     #[test]
     fn decode_branch_link() {
-        let output: Result<ArmModeInstruction, String> =
-            0b1110_1011_0000_0000_0000_0000_0111_1111.try_into();
-        assert_eq!(output, Ok(ArmModeInstruction::BranchLink));
+        let output: ArmModeOpcode = 0b1110_1011_0000_0000_0000_0000_0111_1111
+            .try_into()
+            .unwrap();
+        assert_eq!(output.instruction, ArmModeInstruction::BranchLink);
     }
 
     #[test]
@@ -430,5 +438,18 @@ mod tests {
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 99);
         assert_eq!(cpu.registers.program_counter(), 96);
+    }
+
+    #[test]
+    #[should_panic]
+    fn check_unknown_instruction() {
+        let op_code = 0b1110_1111_1111_1111_1111_1111_1111_1111;
+        let mut cpu = Arm7tdmi::new(vec![]);
+
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::Unknown);
+        assert_eq!(op_code.condition, Condition::AL);
+
+        cpu.execute(op_code);
     }
 }

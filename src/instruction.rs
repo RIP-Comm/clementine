@@ -8,28 +8,27 @@ pub enum ArmModeInstruction {
     Branch = 0b0000_1010_0000_0000_0000_0000_0000_0000,
     BranchLink = 0b0000_1011_0000_0000_0000_0000_0000_0000,
     TransImm9 = 0b0000_0100_0000_0000_0000_0000_0000_0000,
+    Unknown,
 }
 
-impl TryFrom<u32> for ArmModeInstruction {
-    type Error = String;
-
-    fn try_from(op_code: u32) -> Result<Self, Self::Error> {
+impl From<u32> for ArmModeInstruction {
+    fn from(op_code: u32) -> Self {
         use ArmModeInstruction::*;
 
         if Self::check(DataProcessing1, op_code) {
-            Ok(DataProcessing1)
+            DataProcessing1
         } else if Self::check(DataProcessing2, op_code) {
-            Ok(DataProcessing2)
+            DataProcessing2
         } else if Self::check(DataProcessing3, op_code) {
-            Ok(DataProcessing3)
+            DataProcessing3
         } else if Self::check(Branch, op_code) {
-            Ok(Branch)
+            Branch
         } else if Self::check(BranchLink, op_code) {
-            Ok(BranchLink)
+            BranchLink
         } else if Self::check(TransImm9, op_code) {
-            Ok(TransImm9)
+            TransImm9
         } else {
-            Err("instruction not implemented :(.".to_owned())
+            Unknown
         }
     }
 }
@@ -47,6 +46,7 @@ impl ArmModeInstruction {
             DataProcessing1 | DataProcessing2 => 0b0000_1110_0000_0000_0000_0000_0001_0000,
             DataProcessing3 => 0b0000_1110_0000_0000_0000_0000_0000_0000,
             TransImm9 => 0b0000_1110_0000_0000_0000_0000_0000_0000,
+            Unknown => 0b1111_1111_1111_1111_1111_1111_1111_1111,
         }
     }
 }
