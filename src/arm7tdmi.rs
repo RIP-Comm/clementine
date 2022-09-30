@@ -5,7 +5,8 @@ use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
 use crate::internal_memory::InternalMemory;
 use crate::io_device::IoDevice;
-use crate::{condition::Condition, cpsr::Cpsr, cpu::Cpu};
+use crate::opcode::ArmModeOpcode;
+use crate::{cpsr::Cpsr, cpu::Cpu};
 
 /// Contains the 16 registers for the CPU, latest (R15) is special because
 /// is the program counter.
@@ -48,42 +49,28 @@ pub struct Arm7tdmi {
 const OPCODE_ARM_SIZE: usize = 4;
 
 impl Cpu for Arm7tdmi {
-    type OpCodeType = u32;
-    type InstructionType = ArmModeInstruction;
+    type OpCodeType = ArmModeOpcode;
 
-    fn fetch(&self) -> Self::OpCodeType {
+    fn fetch(&self) -> u32 {
         let instruction_index = self.registers.program_counter();
         let end_instruction = instruction_index + OPCODE_ARM_SIZE;
         let data_instruction: [u8; 4] = self.rom[instruction_index..end_instruction]
             .try_into()
             .expect("`istruction` conversion into [u8; 4]");
 
-        let op_code = u32::from_le_bytes(data_instruction);
-        println!();
-        println!("opcode -> {:b}", op_code);
+        u32::from_le_bytes(data_instruction)
+    }
+
+    fn decode(&self, op_code: u32) -> Self::OpCodeType {
+        let op_code = ArmModeOpcode::try_from(op_code).unwrap();
+        println!("{}", op_code);
 
         op_code
     }
 
-    fn decode(&self, op_code: Self::OpCodeType) -> (Condition, Self::InstructionType) {
-        let condition: u8 = (op_code >> 28) // bit 31..=28
-            .try_into()
-            .expect("conversion `condition` to u8");
-        println!("condition -> {:x}", condition);
-
-        let instruction: ArmModeInstruction = match op_code.try_into() {
-            Ok(instruction) => instruction,
-            Err(e) => todo!("{}", e),
-        };
-
-        println!("instruction -> {:?}", instruction);
-
-        (condition.into(), instruction)
-    }
-
-    fn execute(&mut self, op_code: u32, instruction_type: ArmModeInstruction) {
+    fn execute(&mut self, op_code: Self::OpCodeType) {
         use ArmModeInstruction::*;
-        match instruction_type {
+        match op_code.instruction {
             Branch => {
                 self.branch(op_code);
             }
@@ -104,9 +91,9 @@ impl Cpu for Arm7tdmi {
     fn step(&mut self) {
         let op_code = self.fetch();
 
-        let (condition, instruction) = self.decode(op_code);
-        if self.cpsr.can_execute(condition) {
-            self.execute(op_code, instruction)
+        let op_code = self.decode(op_code);
+        if self.cpsr.can_execute(&op_code.condition) {
+            self.execute(op_code)
         }
     }
 }
@@ -121,26 +108,25 @@ impl Arm7tdmi {
         }
     }
 
-    fn branch(&mut self, op_code: u32) {
-        let offset = op_code & 0b0000_0000_1111_1111_1111_1111_1111_1111;
+    fn branch(&mut self, op_code: ArmModeOpcode) {
+        let offset = op_code.get_bits(0..=23);
         println!("offset: {:?}", offset);
 
         self.registers.advance_program_counter(8 + offset * 4);
         println!("PC: {:?}", self.registers.program_counter());
     }
 
-    fn branch_link(&mut self, op_code: u32) {
+    fn branch_link(&mut self, op_code: ArmModeOpcode) {
         let pc: u32 = self.registers.program_counter().try_into().unwrap();
         self.registers.set_register_at(14, pc.wrapping_add(4)); // R14 = LR
 
-        let offset = op_code & 0b0000_0000_1111_1111_1111_1111_1111_1111;
-        println!("offset: {:?}", offset);
+        let offset = op_code.get_bits(0..=23);
 
         self.registers.advance_program_counter(8 + offset * 4);
         println!("PC: {:?}", self.registers.program_counter());
     }
 
-    fn data_processing(&mut self, opcode: u32) {
+    fn data_processing(&mut self, opcode: ArmModeOpcode) {
         // bit [25] is I = Immediate Flag
         let i: bool = opcode.get_bit(25);
         // bits [24-21]
@@ -203,7 +189,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn single_data_transfer(&mut self, opcode: u32) {
+    fn single_data_transfer(&mut self, opcode: ArmModeOpcode) {
         let immediate = opcode.get_bit(25);
         let up_down = opcode.get_bit(23);
 
@@ -227,8 +213,10 @@ impl Arm7tdmi {
             opcode.get_bits(0..=11)
         };
 
-        let load_store: SingleDataTransfer =
-            opcode.try_into().expect("convert to Single Data Transfer");
+        let load_store: SingleDataTransfer = opcode
+            .raw
+            .try_into()
+            .expect("convert to Single Data Transfer");
 
         let value: u32 = self
             .memory
@@ -338,6 +326,7 @@ impl From<u32> for SingleDataTransfer {
 
 #[cfg(test)]
 mod tests {
+    use crate::condition::Condition;
     use crate::instruction::ArmModeInstruction;
     use pretty_assertions::assert_eq;
 
@@ -362,7 +351,7 @@ mod tests {
         let mut cpu: Arm7tdmi = Arm7tdmi::new(vec![]);
         cpu.registers = Registers([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
         let pc: u32 = cpu.registers.program_counter().try_into().unwrap();
-        cpu.branch_link(0b0);
+        cpu.branch_link(0b0_u32.try_into().unwrap());
         assert_eq!(cpu.registers.register_at(14), pc.wrapping_add(4));
     }
 
@@ -385,11 +374,11 @@ mod tests {
             // Immediate parameter
             opcode = (opcode & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
 
-            let (condition, instruction_type) = cpu.decode(opcode);
-            assert_eq!(condition, Condition::AL);
-            assert_eq!(instruction_type, ArmModeInstruction::DataProcessing3);
+            let opcode = cpu.decode(opcode);
+            assert_eq!(opcode.condition, Condition::AL);
+            assert_eq!(opcode.instruction, ArmModeInstruction::DataProcessing3);
 
-            cpu.execute(opcode, instruction_type);
+            cpu.execute(opcode);
             let rotated = rx.rotate_right(is * 2);
             if rotated == 15 {
                 // NOTE: since is R15 you should also consider the advance of 4 bytes after execution.
@@ -405,15 +394,15 @@ mod tests {
 
     #[test]
     fn check_teq() {
-        let op_code: u32 = 0b1110_0001_0010_1001_0011_0000_0000_0000;
+        let op_code = 0b1110_0001_0010_1001_0011_0000_0000_0000;
         let mut cpu = Arm7tdmi::new(vec![]);
 
-        let (_, instruction) = cpu.decode(op_code);
-        assert_eq!(instruction, ArmModeInstruction::DataProcessing1);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
 
         let rn = 9_usize;
         cpu.registers.set_register_at(rn, 100);
-        cpu.execute(op_code, instruction);
+        cpu.execute(op_code);
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
     }
@@ -422,11 +411,11 @@ mod tests {
     // create other cases or other tests :).
     #[test]
     fn check_single_data_transfer() {
-        let op_code: u32 = 0b1110_0101_1001_1111_1101_0000_0001_1000;
+        let op_code = 0b1110_0101_1001_1111_1101_0000_0001_1000;
         let mut cpu = Arm7tdmi::new(vec![]);
 
-        let (_, instruction) = cpu.decode(op_code);
-        assert_eq!(instruction, ArmModeInstruction::DataTransfer);
+        let op_code_type = cpu.decode(op_code);
+        assert_eq!(op_code_type.instruction, ArmModeInstruction::DataTransfer);
 
         let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
             .try_into()
@@ -441,7 +430,7 @@ mod tests {
         // simulate mem already contains something.
         cpu.memory.write_at(76, 99);
 
-        cpu.execute(op_code, instruction);
+        cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 99);
         assert_eq!(cpu.registers.program_counter(), 96);
     }

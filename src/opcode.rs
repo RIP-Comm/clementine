@@ -1,25 +1,28 @@
 use crate::bitwise::Bits;
+use crate::condition::Condition;
 use crate::instruction::ArmModeInstruction;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
-pub struct Opcode {
+pub struct ArmModeOpcode {
     pub instruction: ArmModeInstruction,
+    pub condition: Condition,
     pub raw: u32,
 }
 
-impl TryFrom<u32> for Opcode {
+impl TryFrom<u32> for ArmModeOpcode {
     type Error = String;
 
     fn try_from(opcode: u32) -> Result<Self, Self::Error> {
         Ok(Self {
             instruction: ArmModeInstruction::try_from(opcode)?,
+            condition: Condition::from(opcode.get_bits(28..=31) as u8),
             raw: opcode,
         })
     }
 }
 
-impl Deref for Opcode {
+impl Deref for ArmModeOpcode {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
@@ -27,7 +30,7 @@ impl Deref for Opcode {
     }
 }
 
-impl Display for Opcode {
+impl Display for ArmModeOpcode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let instruction = self.instruction.to_string();
         let instruction = format!("INS: {}\n", instruction);
@@ -66,8 +69,8 @@ impl Display for Opcode {
                 let offset = self.get_bits(0..=23);
                 format!(
                     "HEX: |{cond:07X}|1_0_1|{l:01X}|{offset:047X}|\n\
-                         DEC: |{cond:07}|1_0_1|{l:01}|{offset:047}|\n\
-                         BIN: |{cond:07b}|1_0_1|{l:01b}|{offset:047b}|\n"
+                     DEC: |{cond:07}|1_0_1|{l:01}|{offset:047}|\n\
+                     BIN: |{cond:07b}|1_0_1|{l:01b}|{offset:047b}|\n"
                 )
             }
             _ => todo!(),
