@@ -7,7 +7,7 @@ pub enum ArmModeInstruction {
     DataProcessing3 = 0b0000_0010_0000_0000_0000_0000_0000_0000,
     Branch = 0b0000_1010_0000_0000_0000_0000_0000_0000,
     BranchLink = 0b0000_1011_0000_0000_0000_0000_0000_0000,
-    DataTransfer = 0b0000_0100_0000_0000_0000_0000_0000_0000,
+    TransImm9 = 0b0000_0100_0000_0000_0000_0000_0000_0000,
 }
 
 impl TryFrom<u32> for ArmModeInstruction {
@@ -26,8 +26,8 @@ impl TryFrom<u32> for ArmModeInstruction {
             Ok(Branch)
         } else if Self::check(BranchLink, op_code) {
             Ok(BranchLink)
-        } else if Self::check(DataTransfer, op_code) {
-            Ok(DataTransfer)
+        } else if Self::check(TransImm9, op_code) {
+            Ok(TransImm9)
         } else {
             Err("instruction not implemented :(.".to_owned())
         }
@@ -46,7 +46,7 @@ impl ArmModeInstruction {
             Branch | BranchLink => 0b0000_1111_0000_0000_0000_0000_0000_0000,
             DataProcessing1 | DataProcessing2 => 0b0000_1110_0000_0000_0000_0000_0001_0000,
             DataProcessing3 => 0b0000_1110_0000_0000_0000_0000_0000_0000,
-            DataTransfer => 0b0000_1100_0000_0000_0000_0000_0000_0000,
+            TransImm9 => 0b0000_1110_0000_0000_0000_0000_0000_0000,
         }
     }
 }
@@ -59,7 +59,7 @@ impl Display for ArmModeInstruction {
             Self::DataProcessing3 => "DataProcessing3",
             Self::Branch => "Branch",
             Self::BranchLink => "BranchLink",
-            Self::DataTransfer => "DataTransfer",
+            Self::TransImm9 => "TransImm9",
         };
 
         write!(f, "{}", instruction_str)
