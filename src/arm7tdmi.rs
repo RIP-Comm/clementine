@@ -80,7 +80,7 @@ impl Cpu for Arm7tdmi {
             DataProcessing1 | DataProcessing2 | DataProcessing3 => {
                 self.data_processing(op_code);
             }
-            DataTransfer => {
+            TransImm9 => {
                 self.single_data_transfer(op_code);
             }
         }
@@ -110,10 +110,8 @@ impl Arm7tdmi {
 
     fn branch(&mut self, op_code: ArmModeOpcode) {
         let offset = op_code.get_bits(0..=23);
-        println!("offset: {:?}", offset);
 
         self.registers.advance_program_counter(8 + offset * 4);
-        println!("PC: {:?}", self.registers.program_counter());
     }
 
     fn branch_link(&mut self, op_code: ArmModeOpcode) {
@@ -123,7 +121,6 @@ impl Arm7tdmi {
         let offset = op_code.get_bits(0..=23);
 
         self.registers.advance_program_counter(8 + offset * 4);
-        println!("PC: {:?}", self.registers.program_counter());
     }
 
     fn data_processing(&mut self, opcode: ArmModeOpcode) {
@@ -415,7 +412,7 @@ mod tests {
         let mut cpu = Arm7tdmi::new(vec![]);
 
         let op_code_type = cpu.decode(op_code);
-        assert_eq!(op_code_type.instruction, ArmModeInstruction::DataTransfer);
+        assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
 
         let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
             .try_into()

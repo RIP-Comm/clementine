@@ -48,10 +48,12 @@ impl Display for ArmModeOpcode {
             ArmModeInstruction::DataProcessing3 => {
                 "FMT: |_Cond__|0_0_1|___Op__|S|__Rn___|__Rd___|_Shift_|___Immediate___|\n"
             }
+            ArmModeInstruction::TransImm9 => {
+                "FMT: |_Cond__|0_1_0|P|U|B|W|L|__Rn___|__Rd___|_________Offset________|\n"
+            }
             ArmModeInstruction::Branch | ArmModeInstruction::BranchLink => {
                 "FMT: |_Cond__|1_0_1|L|___________________Offset______________________|\n"
             }
-            _ => todo!(),
         };
 
         let cond = self.get_bits(28..=31);
@@ -94,6 +96,20 @@ impl Display for ArmModeOpcode {
                          DEC: |{cond:07}|0_0_1|{op:07}|{s:01}|{rn:07}|{rd:07}|{shift_amount:07}|{immediate:015}|\n\
                          BIN: |{cond:07b}|0_0_1|{op:07b}|{s:01b}|{rn:07b}|{rd:07b}|{shift_amount:07b}|{immediate:015b}|\n")
             }
+            ArmModeInstruction::TransImm9 => {
+                let p = self.get_bit(24) as u8;
+                let u = self.get_bit(23) as u8;
+                let b = self.get_bit(22) as u8;
+                let w = self.get_bit(21) as u8;
+                let l = self.get_bit(20) as u8;
+                let rn = self.get_bits(16..=19);
+                let rd = self.get_bits(12..=15);
+                let offset = self.get_bits(0..=11);
+
+                format!("HEX: |{cond:07X}|0_1_0|{p:01X}|{u:01X}|{b:01X}|{w:01X}|{l:01X}|{rn:07X}|{rd:07X}|{offset:023X}|\n\
+                         DEC: |{cond:07}|0_1_0|{p:01}|{u:01}|{b:01}|{w:01}|{l:01}|{rn:07}|{rd:07}|{offset:023}|\n\
+                         BIN: |{cond:07b}|0_1_0|{p:01b}|{u:01b}|{b:01b}|{w:01b}|{l:01b}|{rn:07b}|{rd:07b}|{offset:023b}|\n")
+            }
             ArmModeInstruction::Branch | ArmModeInstruction::BranchLink => {
                 let l = self.get_bit(24) as u8;
                 let offset = self.get_bits(0..=23);
@@ -103,7 +119,6 @@ impl Display for ArmModeOpcode {
                      BIN: |{cond:07b}|1_0_1|{l:01b}|{offset:047b}|\n"
                 )
             }
-            _ => todo!(),
         };
 
         let mut raw_bits = String::new();
