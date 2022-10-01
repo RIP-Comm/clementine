@@ -135,7 +135,7 @@ impl Arm7tdmi {
         // bits [24-21]
         let alu_opcode = opcode.get_bits(21..=24);
         // bit [20] is sets condition codes
-        let _s = opcode.get_bit(20);
+        let s = opcode.get_bit(20);
         // bits [15-12] are the Rd
         let rd = opcode.get_bits(12..=15);
         // bits [19-16] are the Rn
@@ -187,7 +187,11 @@ impl Arm7tdmi {
 
         match ArmModeAluInstruction::from(alu_opcode) {
             ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2),
-            ArmModeAluInstruction::Teq => self.teq(rn, op2),
+            ArmModeAluInstruction::Teq => {
+                if s {
+                    self.teq(rn, op2)
+                }
+            }
             _ => todo!("implement alu operation"),
         }
     }
@@ -399,17 +403,19 @@ mod tests {
 
     #[test]
     fn check_teq() {
-        let op_code = 0b1110_0001_0010_1001_0011_0000_0000_0000;
-        let mut cpu = Arm7tdmi::new(vec![]);
-
-        let op_code = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
-
-        let rn = 9_usize;
-        cpu.registers.set_register_at(rn, 100);
-        cpu.execute(op_code);
-        assert!(!cpu.cpsr.sign_flag());
-        assert!(!cpu.cpsr.zero_flag());
+        // This case cover S=0 then it will skip the execution of TEQ.
+        {
+            let op_code = 0b1110_0001_0010_1001_0011_0000_0000_0000;
+            let mut cpu = Arm7tdmi::new(vec![]);
+            let op_code = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+            let rn = 9_usize;
+            cpu.registers.set_register_at(rn, 100);
+            cpu.cpsr.set_sign_flag(true); // set for later verify.
+            cpu.execute(op_code);
+            assert!(cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+        }
     }
 
     // TODO: this is only one case of these kind of instruction.
