@@ -1,5 +1,5 @@
 /// Arm opcode condition.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Condition {
     EQ = 0x0,
     NE = 0x1,

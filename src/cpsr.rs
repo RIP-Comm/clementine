@@ -7,7 +7,7 @@ use crate::{bitwise::Bits, condition::Condition};
 pub struct Cpsr(u32);
 
 impl Cpsr {
-    pub(crate) fn can_execute(&self, cond: &Condition) -> bool {
+    pub(crate) fn can_execute(&self, cond: Condition) -> bool {
         use Condition::*;
         match cond {
             EQ => self.zero_flag(),                         // Equal (Z=1)
