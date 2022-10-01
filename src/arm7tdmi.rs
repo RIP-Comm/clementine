@@ -98,7 +98,7 @@ impl Cpu for Arm7tdmi {
         let op_code = self.fetch();
 
         let op_code = self.decode(op_code);
-        if self.cpsr.can_execute(&op_code.condition) {
+        if self.cpsr.can_execute(op_code.condition) {
             self.execute(op_code)
         }
     }
