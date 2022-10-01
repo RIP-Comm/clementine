@@ -192,6 +192,11 @@ impl Arm7tdmi {
                     self.teq(rn, op2)
                 }
             }
+            ArmModeAluInstruction::Cmp => {
+                if s {
+                    self.cmp(rn, op2)
+                }
+            }
             ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2),
             _ => todo!("implement alu operation"),
         }
@@ -254,6 +259,12 @@ impl Arm7tdmi {
 
     fn teq(&mut self, rn: u32, op2: u32) {
         let value = self.registers.register_at(rn.try_into().unwrap()) ^ op2;
+        self.cpsr.set_sign_flag(value.is_bit_on(31));
+        self.cpsr.set_zero_flag(value == 0);
+    }
+
+    fn cmp(&mut self, rn: u32, op2: u32) {
+        let value = self.registers.register_at(rn.try_into().unwrap()) - op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
     }
@@ -421,6 +432,33 @@ mod tests {
             assert!(cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
         }
+    }
+
+    #[test]
+    fn check_cmp_s1() {
+        let op_code: u32 = 0b1110_0001_0011_1010_0011_0000_0000_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+        let rn = 9_usize;
+        cpu.registers.set_register_at(rn, 1);
+        cpu.execute(op_code);
+        assert!(!cpu.cpsr.sign_flag());
+        assert!(cpu.cpsr.zero_flag());
+    }
+
+    #[test]
+    fn check_cmp_s0() {
+        let op_code: u32 = 0b1110_0001_0010_1010_0011_0000_0000_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+        let rn = 9_usize;
+        cpu.registers.set_register_at(rn, 1);
+        cpu.cpsr.set_sign_flag(true); // set for later verify.
+        cpu.execute(op_code);
+        assert!(cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
     }
 
     #[test]
