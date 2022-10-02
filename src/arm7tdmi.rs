@@ -192,6 +192,7 @@ impl Arm7tdmi {
                     self.teq(rn, op2)
                 }
             }
+            ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2),
             _ => todo!("implement alu operation"),
         }
     }
@@ -241,6 +242,10 @@ impl Arm7tdmi {
                 .set_register_at(rd.try_into().unwrap(), value),
             _ => todo!("implement single data transfer operation"),
         }
+    }
+
+    fn add(&mut self, rd: usize, rn: u32, op2: u32) {
+        self.registers.set_register_at(rd, rn.wrapping_add(op2));
     }
 
     fn mov(&mut self, rd: usize, op2: u32) {
@@ -415,6 +420,18 @@ mod tests {
             cpu.execute(op_code);
             assert!(cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
+        }
+    }
+
+    #[test]
+    fn check_add() {
+        {
+            let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
+            let mut cpu = Arm7tdmi::new(vec![]);
+            let op_code = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
+            cpu.execute(op_code);
+            assert_eq!(cpu.registers.register_at(0), 15 + 32);
         }
     }
 
