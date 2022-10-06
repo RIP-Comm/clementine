@@ -4,24 +4,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use cartridge_header::CartridgeHeader;
+use emu_clementine::cartridge_header::CartridgeHeader;
 use glium::glutin;
 
-use crate::{arm7tdmi::Arm7tdmi, cpu::Cpu, egui_app::EguiApp};
-
-mod alu_instruction;
-mod arm7tdmi;
-mod bitwise;
-mod cartridge_header;
-mod condition;
-mod cpsr;
-mod cpu;
-mod egui_app;
-mod instruction;
-mod internal_memory;
-mod io_device;
-mod opcode;
-mod ppu;
+use emu_clementine::{arm7tdmi::Arm7tdmi, cpu::Cpu};
+use ui_clementine::egui_app::EguiApp;
 
 fn main() {
     println!("clementine v0.1.0");

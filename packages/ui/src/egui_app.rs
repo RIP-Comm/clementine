@@ -3,7 +3,7 @@ use egui_glium::egui_winit::{
     egui::{self, Color32, ColorImage},
 };
 
-use crate::{
+use emu_clementine::{
     cpu::Cpu,
     ppu::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
 };
@@ -22,7 +22,7 @@ impl<T> EguiApp<T>
 where
     T: Cpu,
 {
-    pub(crate) fn new(cpu: T) -> Self {
+    pub fn new(cpu: T) -> Self {
         Self {
             image: ColorImage::new([DISPLAY_WIDTH, DISPLAY_HEIGHT], Color32::BLACK),
             texture: None,
@@ -30,7 +30,7 @@ where
         }
     }
 
-    pub(crate) fn draw(&mut self, egui_context: &egui::Context) {
+    pub fn draw(&mut self, egui_context: &egui::Context) {
         for y in 0..DISPLAY_HEIGHT {
             for x in 0..DISPLAY_WIDTH {
                 self.image[(x, y)] = Color32::from_rgb(0, 0, 0);
