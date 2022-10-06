@@ -5,6 +5,7 @@ pub mod cartridge_header;
 pub mod condition;
 pub mod cpsr;
 pub mod cpu;
+pub mod gba;
 pub mod instruction;
 pub mod internal_memory;
 pub mod io_device;

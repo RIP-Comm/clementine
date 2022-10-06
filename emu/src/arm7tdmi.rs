@@ -35,6 +35,10 @@ impl Registers {
     pub const fn register_at(&self, reg: usize) -> u32 {
         self.0[reg]
     }
+
+    pub fn to_vec(&self) -> Vec<u32> {
+        self.0.as_slice().to_vec()
+    }
 }
 
 pub struct Arm7tdmi {
@@ -101,6 +105,10 @@ impl Cpu for Arm7tdmi {
         if self.cpsr.can_execute(op_code.condition) {
             self.execute(op_code)
         }
+    }
+
+    fn registers(&self) -> Vec<u32> {
+        self.registers.to_vec()
     }
 }
 
