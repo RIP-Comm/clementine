@@ -105,7 +105,7 @@ impl Cpu for Arm7tdmi {
 }
 
 impl Arm7tdmi {
-    pub(crate) fn new(rom: Vec<u8>) -> Self {
+    pub fn new(rom: Vec<u8>) -> Self {
         Self {
             rom,
             registers: Registers::default(),

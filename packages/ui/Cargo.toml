@@ -1,0 +1,10 @@
+[package]
+name = "ui_clementine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+egui_glium = "0.19.0"
+emu_clementine = { path = "../emu"}
+glium = "0.32"
