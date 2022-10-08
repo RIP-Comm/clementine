@@ -37,7 +37,7 @@ impl UiTools {
         let arc_gba = Arc::new(Mutex::new(gba));
 
         Self::from_tools(vec![
-            Box::new(About::new()),
+            Box::new(About::default()),
             Box::new(CpuInspector::new(arc_gba.clone())),
             Box::new(GbaDisplay::new(arc_gba)),
         ])

@@ -1,12 +1,7 @@
 use crate::ui_traits::{UiTool, View};
 
+#[derive(Default)]
 pub struct About {}
-
-impl About {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl UiTool for About {
     fn name(&self) -> &'static str {

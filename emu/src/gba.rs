@@ -12,7 +12,7 @@ impl<T> Gba<T>
 where
     T: Cpu,
 {
-    pub fn new(cartridge_header: CartridgeHeader, cpu: T) -> Self {
+    pub const fn new(cartridge_header: CartridgeHeader, cpu: T) -> Self {
         Self {
             cpu,
             cartridge_header,
