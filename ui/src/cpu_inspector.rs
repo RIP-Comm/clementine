@@ -37,12 +37,10 @@ impl<T: Cpu> View for CpuInspector<T> {
         ui.add_space(12.0);
         ui.horizontal(|ui| {
             let mut cartridge_name: String = Default::default();
-
-            match self.gba.lock() {
-                Ok(gba) => cartridge_name = gba.cartridge_header.game_title.clone(),
-                Err(_) => (),
+            if let Ok(gba) = self.gba.lock() {
+                cartridge_name = gba.cartridge_header.game_title.clone()
             }
-            ui.text_edit_singleline(&mut cartridge_name.to_string());
+            ui.text_edit_singleline(&mut cartridge_name);
             if ui.button("▶").clicked() {
                 // Start a thread for gameboy execution
                 todo!("Start a thread for a background gameboy execution");
@@ -51,9 +49,8 @@ impl<T: Cpu> View for CpuInspector<T> {
                 self.play = false;
             }
             if ui.button("⏭").clicked() {
-                match self.gba.lock() {
-                    Ok(mut gba) => gba.cpu.step(),
-                    Err(_) => (),
+                if let Ok(mut gba) = self.gba.lock() {
+                    gba.cpu.step()
                 }
             }
         });
