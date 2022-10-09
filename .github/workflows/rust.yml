@@ -5,10 +5,14 @@ on:
     branches: [ "main" ]
     paths:
       - 'src/**/*'
+      - 'ui/**/*'
+      - 'emu/**/*'
   pull_request:
     branches: [ "main" ]
     paths:
       - 'src/**/*'
+      - 'ui/**/*'
+      - 'emu/**/*'
 
 env:
   CARGO_TERM_COLOR: always
