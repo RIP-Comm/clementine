@@ -72,7 +72,11 @@ impl<T: Cpu> View for CpuInspector<T> {
             .show(ui, |ui| {
                 for reg in registers {
                     let mut value = reg.to_string();
-                    ui.label(format!("R{:?}", index));
+                    ui.label(if index == 15 {
+                        format!("R{:?} (PC)", index)
+                    } else {
+                        format!("R{:?}", index)
+                    });
                     ui.text_edit_singleline(&mut value);
 
                     ui.end_row();
