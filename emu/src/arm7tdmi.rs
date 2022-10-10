@@ -157,7 +157,9 @@ impl Arm7tdmi {
                 // bit [4] - is Shift by Register Flag (0=Immediate, 1=Register)
                 let r = op_code.get_bit(4);
                 // bits [0-3] 2nd Operand Register (R0..R15) (including PC=R15)
-                let mut op2 = op_code.get_bits(0..=3);
+                let mut op2 = self
+                    .registers
+                    .register_at(op_code.get_bits(0..=3).try_into().unwrap());
 
                 match r {
                     // 0=Immediate, 1=Register
