@@ -205,7 +205,12 @@ impl Arm7tdmi {
                     self.cmp(rn, op2)
                 }
             }
-            ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2),
+            ArmModeAluInstruction::Add => self.add(
+                rd.try_into().unwrap(),
+                rn,
+                op2,
+                s,
+            ),
             ArmModeAluInstruction::Orr => self.orr(
                 rd.try_into().unwrap(),
                 self.registers.register_at(rn.try_into().unwrap()),
@@ -263,8 +268,28 @@ impl Arm7tdmi {
         }
     }
 
-    fn add(&mut self, rd: usize, rn: u32, op2: u32) {
-        self.registers.set_register_at(rd, rn.wrapping_add(op2));
+    fn add(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+        // we do the sum in 64bits so that the 32nd bit is the carry
+        let result_and_carry: u64 = (rn as u64).wrapping_add(op2 as u64);
+        let result: u32 = result_and_carry as u32;
+
+        self.registers.set_register_at(rd, result);
+
+        if s {
+            let sign_op1: bool = rn.get_bit(31);
+            let sign_op2: bool = op2.get_bit(31);
+            let sign_r: bool = result.get_bit(31);
+
+            let carry: bool = (result_and_carry & 0x100000000) >> 32 == 1;
+
+            // overflow only occurs when operands have the same sign and result has the opposite one
+            let same_sign: bool = sign_op1 == sign_op2;
+            self.cpsr
+                .set_overflow_flag(same_sign && (sign_op1 != sign_r));
+            self.cpsr.set_carry_flag(carry);
+            self.cpsr.set_zero_flag(result == 0);
+            self.cpsr.set_sign_flag(result.is_bit_on(31));
+        }
     }
 
     fn orr(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
@@ -496,6 +521,24 @@ mod tests {
             cpu.execute(op_code);
             assert_eq!(cpu.registers.register_at(0), 15 + 32);
         }
+    }
+
+    #[test]
+    fn check_add_carry_bit() {
+        let op_code: u32 = 0b1110_0000_1001_1111_0000_0000_0000_1110;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+
+        cpu.registers.set_register_at(15, 1 << 31);
+        cpu.registers.set_register_at(14, 1 << 31);
+        cpu.execute(op_code);
+        assert_eq!(cpu.registers.register_at(0), 0);
+        assert!(cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.overflow_flag());
+        assert!(!cpu.cpsr.sign_flag());
+        assert!(cpu.cpsr.zero_flag());
     }
 
     // TODO: this is only one case of these kind of instruction.
