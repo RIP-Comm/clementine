@@ -106,7 +106,6 @@ impl Cpsr {
         self.0.set_bit(30, value);
     }
 
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn set_carry_flag(&mut self, value: bool) {
         self.0.set_bit(29, value);
     }
