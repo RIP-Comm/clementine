@@ -206,7 +206,13 @@ impl Arm7tdmi {
                 }
             }
             ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2),
-            _ => todo!("implement alu operation"),
+            ArmModeAluInstruction::Orr => self.orr(
+                rd.try_into().unwrap(),
+                self.registers.register_at(rn.try_into().unwrap()),
+                op2,
+                s,
+            ),
+            _ => todo!("implement alu operation: {}", alu_op_code),
         }
     }
 
@@ -259,6 +265,17 @@ impl Arm7tdmi {
 
     fn add(&mut self, rd: usize, rn: u32, op2: u32) {
         self.registers.set_register_at(rd, rn.wrapping_add(op2));
+    }
+
+    fn orr(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+        let result: u32 = rn | op2;
+
+        self.registers.set_register_at(rd, result);
+
+        if s {
+            self.cpsr.set_zero_flag(result == 0);
+            self.cpsr.set_sign_flag(result.is_bit_on(31));
+        }
     }
 
     fn mov(&mut self, rd: usize, op2: u32) {
