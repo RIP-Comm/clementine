@@ -207,7 +207,7 @@ impl Arm7tdmi {
             }
             ArmModeAluInstruction::Add => self.add(
                 rd.try_into().unwrap(),
-                rn,
+                self.registers.register_at(rn.try_into().unwrap()),
                 op2,
                 s,
             ),
@@ -513,14 +513,13 @@ mod tests {
 
     #[test]
     fn check_add() {
-        {
-            let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
-            let mut cpu = Arm7tdmi::new(vec![]);
-            let op_code = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
-            cpu.execute(op_code);
-            assert_eq!(cpu.registers.register_at(0), 15 + 32);
-        }
+        let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
+        cpu.registers.set_register_at(15, 15);
+        cpu.execute(op_code);
+        assert_eq!(cpu.registers.register_at(0), 15 + 32);
     }
 
     #[test]
