@@ -17,6 +17,26 @@ pub enum ArmModeAluInstruction {
     Mvn = 0xF,
 }
 
+#[derive(Eq, PartialEq, Debug)]
+pub enum AluInstructionKind {
+    Logical,
+    Arithmetic,
+}
+
+pub trait Kind {
+    fn kind(&self) -> AluInstructionKind;
+}
+
+impl Kind for ArmModeAluInstruction {
+    fn kind(&self) -> AluInstructionKind {
+        use ArmModeAluInstruction::*;
+        match &self {
+            And | Eor | Tst | Teq | Orr | Mov | Bic | Mvn => AluInstructionKind::Logical,
+            Sub | Rsb | Add | Adc | Sbc | Rsc | Cmp | Cmn => AluInstructionKind::Arithmetic,
+        }
+    }
+}
+
 impl From<u32> for ArmModeAluInstruction {
     fn from(alu_op_code: u32) -> Self {
         use ArmModeAluInstruction::*;
@@ -39,5 +59,26 @@ impl From<u32> for ArmModeAluInstruction {
             0xF => Mvn,
             _ => unreachable!(),
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_logical_instruction() {
+        let alu_op_code = 9;
+        let instruction_kind = ArmModeAluInstruction::from(alu_op_code).kind();
+
+        assert_eq!(instruction_kind, AluInstructionKind::Logical);
+    }
+
+    #[test]
+    fn test_arithmetic_instruction() {
+        let alu_op_code = 2;
+        let instruction_kind = ArmModeAluInstruction::from(alu_op_code).kind();
+
+        assert_eq!(instruction_kind, AluInstructionKind::Arithmetic);
     }
 }
