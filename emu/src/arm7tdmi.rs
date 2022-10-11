@@ -1,6 +1,8 @@
 use std::convert::TryInto;
 
+use crate::alu_instruction::AluInstructionKind;
 use crate::alu_instruction::ArmModeAluInstruction;
+use crate::alu_instruction::Kind;
 use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
 use crate::internal_memory::InternalMemory;
@@ -137,6 +139,46 @@ impl Arm7tdmi {
         self.registers.advance_program_counter(8 + offset * 4);
     }
 
+    fn get_operand(&mut self, alu_opcode: u32, s: bool, i: bool, op2: u32) -> u32 {
+        match i {
+            // we get the operand from a register and then we shift it
+            false => {
+                // bits [0-3] 2nd Operand Register (R0..R15) (including PC=R15)
+                let rm = op2.get_bits(0..=3);
+                let rm = self.registers.register_at(rm.try_into().unwrap());
+                // bit [4] - is Shift by Register Flag (0=Immediate, 1=Register)
+                let r = op2.get_bit(4);
+                // bits [6-5] - Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
+                let shift_type = op2.get_bits(5..=6);
+
+                let shift_amount = match r {
+                    // the shift amount is in the instruction
+                    false => {
+                        // bits [7-11] - Shift amount
+                        op2.get_bits(7..=11)
+                    }
+                    // the shift amount is read from Rs
+                    true => {
+                        // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
+                        let rs = op2.get_bits(8..=11);
+
+                        self.registers.register_at(rs.try_into().unwrap()) & 0xFF
+                    }
+                };
+
+                self.shift_operand(alu_opcode, s, shift_type, shift_amount, rm)
+            }
+            true => {
+                // bits [7-0] are the immediate value
+                let imm = op2.get_bits(0..=7);
+                // bit [11-8] are the rotate amount
+                let rotate_amount = op2.get_bits(8..=11);
+
+                imm.rotate_right(rotate_amount * 2)
+            }
+        }
+    }
+
     fn data_processing(&mut self, op_code: ArmModeOpcode) {
         // bit [25] is I = Immediate Flag
         let i: bool = op_code.get_bit(25);
@@ -149,51 +191,7 @@ impl Arm7tdmi {
         // bits [19-16] are the Rn
         let rn = op_code.get_bits(16..=19);
 
-        let op2 = match i {
-            // Register as 2nd Operand
-            false => {
-                // bits [6-5] - Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
-                let shift_type = op_code.get_bits(5..=6);
-                // bit [4] - is Shift by Register Flag (0=Immediate, 1=Register)
-                let r = op_code.get_bit(4);
-                // bits [0-3] 2nd Operand Register (R0..R15) (including PC=R15)
-                let mut op2 = self
-                    .registers
-                    .register_at(op_code.get_bits(0..=3).try_into().unwrap());
-
-                match r {
-                    // 0=Immediate, 1=Register
-                    // Shift by amount
-                    false => {
-                        // bits [7-11] - Shift amount
-                        let shift_amount = op_code.get_bits(7..=11);
-                        op2 = self.shift(shift_type, shift_amount, op2);
-                    }
-                    // Shift by register
-                    true => {
-                        // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
-                        let rs = op_code.get_bits(8..=11);
-                        let shift_amount = self
-                            .registers
-                            .register_at(rs.try_into().unwrap())
-                            .get_bits(0..=7);
-                        op2 = self.shift_immediate(shift_amount, shift_type, op2);
-                    }
-                };
-
-                op2
-            }
-            // Immediate as 2nd Operand
-            true => {
-                // bits [11-8] are ROR-Shift applied to nn
-                let is = op_code.get_bits(8..=11);
-                // bits [7-0] are the immediate value
-                let nn = op_code.get_bits(0..=7);
-
-                // I'm not sure about `* 2`
-                nn.rotate_right(is * 2) // TODO: review "ROR-Shift applied to nn (0-30, in steps of 2)"
-            }
-        };
+        let op2 = self.get_operand(alu_op_code, s, i, op_code.get_bits(0..=11));
 
         match ArmModeAluInstruction::from(alu_op_code) {
             ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2),
@@ -321,60 +319,128 @@ impl Arm7tdmi {
         self.cpsr.set_zero_flag(value == 0);
     }
 
-    fn shift(&mut self, shift_type: u32, shift_amount: u32, mut value: u32) -> u32 {
-        match shift_amount {
-            0 => match shift_type {
-                // LSL#0: No shift performed, ie. directly value=Rm, the C flag is NOT affected.
-                0 => (), // TODO: It's better to implement the logical instruction in order to execute directly LSL#0?
-                // LSR#0: Interpreted as LSR#32, ie. value becomes zero, C becomes Bit 31 of Rm.
-                1 => {
-                    // TODO: It's better to implement the logical instruction in order to execute directly LSR#0?
-                    let rm = self.registers.register_at(value.try_into().unwrap());
-                    self.cpsr.set_sign_flag(rm.get_bit(31));
-                    value = 0;
-                }
-                // ASR#0: Interpreted as ASR#32, ie. value and C are filled by Bit 31 of Rm.
-                2 => {
-                    // TODO: It's better to implement the logical instruction in order to execute directly ASR#0?
-                    let rm = self.registers.register_at(value.try_into().unwrap());
-                    match rm.get_bit(31) {
-                        true => {
-                            value = 1;
-                            self.cpsr.set_sign_flag(true)
-                        }
-                        false => {
-                            value = 0;
-                            self.cpsr.set_sign_flag(true)
-                        }
+    fn shift_operand(
+        &mut self,
+        alu_opcode: u32,
+        s: bool,
+        shift_type: u32,
+        shift_amount: u32,
+        rm: u32,
+    ) -> u32 {
+        // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
+        let mut carry: bool = self.cpsr.carry_flag();
+
+        let result = match shift_type {
+            // LSL
+            0 => {
+                match shift_amount {
+                    // LSL#0: No shift performed, ie. directly value=Rm, the C flag is NOT affected.
+                    0 => rm,
+                    // LSL#1..32: Normal left logical shift
+                    1..=32 => {
+                        carry = rm.get_bit((32 - shift_amount).try_into().unwrap());
+
+                        rm << shift_amount
+                    }
+                    // LSL#33...: Result is 0 and carry is 0
+                    _ => {
+                        carry = false;
+
+                        0
                     }
                 }
-                // ROR#0: Interpreted as RRX#1 (RCR), like ROR#1, but value Bit 31 set to old C.
-                3 => {
-                    // TODO: It's better to implement the logical instruction in order to execute directly RRX#0?
-                    todo!("value Bit 31 set to old C"); // I'm not sure what "old C" means
+            }
+            // LSR
+            1 => {
+                match shift_amount {
+                    // LSR#0 is used to encode LSR#32, it has 0 result and carry equal to bit 31 of Rm
+                    0 => {
+                        carry = rm.get_bit(31);
+
+                        0
+                    }
+                    // LSR#1..32: Normal right logical shift
+                    1..=32 => {
+                        carry = rm.get_bit((shift_amount - 1).try_into().unwrap());
+
+                        rm >> shift_amount
+                    }
+                    // LSR#33...: result is 0 and carry is 0
+                    _ => {
+                        carry = false;
+
+                        0
+                    }
                 }
-                _ => unreachable!(),
-            },
-            shift_amount => value = self.shift_immediate(shift_type, shift_amount, value),
+            }
+            //ASR
+            2 => {
+                match shift_amount {
+                    // ASR#1..31: normal arithmetic right shift
+                    1..=31 => {
+                        carry = rm.get_bit((shift_amount - 1).try_into().unwrap());
+
+                        ((rm as i32) >> shift_amount) as u32
+                    }
+                    // ASR#0 (which is used to encode ASR#32), ASR#32 and above all have the same result
+                    _ => {
+                        carry = rm.get_bit(31);
+                        // arithmetically shifting by 31 is the same as shifting by 32, but with 32 rust complains
+                        ((rm as i32) >> 31) as u32
+                    }
+                }
+            }
+            // ROR
+            3 => {
+                // from documentation: ROR by n where n is greater than 32 will give the same
+                // result and carry out as ROR by n-32; therefore repeatedly y subtract 32 from n until the amount is
+                // in the range 1 to 32
+                let mut new_shift_amount = shift_amount;
+
+                if shift_amount > 32 {
+                    new_shift_amount %= 32;
+
+                    // if modulo operation yields 0 it means that shift_amount was a multiple of 32
+                    // so we should do ROR#32
+                    if new_shift_amount == 0 {
+                        new_shift_amount = 32;
+                    }
+                }
+
+                match new_shift_amount {
+                    // ROR#0 is used to encode RRX (appending C to the left and shift right by 1)
+                    0 => {
+                        let old_carry = self.cpsr.carry_flag() as u32;
+
+                        carry = rm.get_bit(0);
+
+                        (rm >> 1) | (old_carry << 31)
+                    }
+                    // ROR#1..31: normal rotate right
+                    1..=31 => {
+                        carry = rm.get_bit((shift_amount - 1).try_into().unwrap());
+
+                        rm.rotate_right(shift_amount)
+                    }
+                    // ROR#32 doesn't change rm but sets carry to bit 31 of rm
+                    32 => {
+                        carry = rm.get_bit(31);
+
+                        rm
+                    }
+                    // ROR#i with i > 32 is the same of ROR#n where n = i % 32
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
         };
 
-        value
-    }
-
-    fn shift_immediate(&self, shift_type: u32, shift_amount: u32, mut value: u32) -> u32 {
-        match shift_type {
-            // Logical Shift Left
-            0 => value <<= shift_amount,
-            // Logical Shift Right
-            1 => value >>= shift_amount,
-            // Arithmetic Shift Right
-            2 => value = ((value as i32) >> shift_amount) as u32, // TODO: Review rust arithmetic shift right
-            // Rotate Right
-            3 => value = value.rotate_right(shift_amount as u32),
-            _ => unreachable!(),
+        // If the instruction is a logical ALU instruction and S is set we set the carry flag
+        if ArmModeAluInstruction::from(alu_opcode).kind() == AluInstructionKind::Logical && s {
+            self.cpsr.set_carry_flag(carry);
         }
 
-        value
+        result
     }
 }
 
