@@ -57,7 +57,9 @@ impl Display for ArmModeOpcode {
             ArmModeInstruction::Unknown => "",
         };
 
-        let cond = self.get_bits(28..=31);
+        // let cond = self.get_bits(28..=31);
+        // Nice way to disable this block of code
+        #[cfg(feature = "")]
         let op_code_value: String = match self.instruction {
             ArmModeInstruction::DataProcessing1 => {
                 let op = self.get_bits(21..=24);
@@ -133,7 +135,7 @@ impl Display for ArmModeOpcode {
 
         write!(
             f,
-            "{instruction}{bytes_pos1}{bytes_pos2}{raw_bits}{op_code_format}{op_code_value}"
+            "{instruction}{bytes_pos1}{bytes_pos2}{raw_bits}{op_code_format}"
         )
     }
 }
