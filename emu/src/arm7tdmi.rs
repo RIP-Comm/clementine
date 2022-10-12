@@ -92,12 +92,15 @@ impl Cpu for Arm7tdmi {
             TransImm9 => {
                 self.single_data_transfer(op_code);
             }
+            BlockDataTransfer => {
+                self.block_data_transfer(op_code);
+            }
             Unknown => {
                 todo!("implement this instruction")
             }
         }
 
-        self.registers.advance_program_counter(4);
+        self.registers.advance_program_counter(4); // FIXME: don't sure of this
     }
 
     fn step(&mut self) {
@@ -265,6 +268,59 @@ impl Arm7tdmi {
                 .registers
                 .set_register_at(rd.try_into().unwrap(), value),
             _ => todo!("implement single data transfer operation"),
+        }
+    }
+
+    fn block_data_transfer(&mut self, op_code: ArmModeOpcode) {
+        let pre_post = op_code.get_bit(24);
+        let up_down = op_code.get_bit(23);
+        let s = op_code.get_bit(22);
+        if s {
+            todo!()
+        }
+        let write_back = op_code.get_bit(21);
+        let load_store = op_code.get_bit(20);
+        let rn = op_code.get_bits(16..=19);
+        let reg_list = op_code.get_bits(0..=15);
+
+        let memory_base = self.registers.register_at(rn.try_into().unwrap());
+        let alignment = 4; // Since are word, the alignment is 4.
+        let mut address = memory_base;
+        let change_address = |address: u32| {
+            if up_down {
+                address.wrapping_add(alignment)
+            } else {
+                address.wrapping_sub(alignment)
+            }
+        };
+
+        if load_store {
+            for reg_destination in 0..16 {
+                if reg_list.is_bit_on(reg_destination) {
+                    if pre_post {
+                        address = change_address(address);
+                    }
+
+                    let part_0: u32 = self.memory.read_at(address).try_into().unwrap();
+                    let part_1: u32 = self.memory.read_at(address + 1).try_into().unwrap();
+                    let part_2: u32 = self.memory.read_at(address + 2).try_into().unwrap();
+                    let part_3: u32 = self.memory.read_at(address + 3).try_into().unwrap();
+                    let value: u32 = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
+                    self.registers
+                        .set_register_at(reg_destination.try_into().unwrap(), value);
+
+                    if !pre_post {
+                        address = change_address(address);
+                    }
+                }
+            }
+        } else {
+            todo!()
+        }
+
+        if write_back {
+            self.registers
+                .set_register_at(rn.try_into().unwrap(), address);
         }
     }
 
@@ -647,5 +703,29 @@ mod tests {
         assert_eq!(op_code.condition, Condition::AL);
 
         cpu.execute(op_code);
+    }
+
+    #[test]
+    fn check_block_trans() {
+        let op_code = 0b1110_1000_1011_1101_1000_0000_0000_0111;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(13, 100); // fake mem address simulate dirty reg.
+        cpu.memory.write_at(100, 10);
+        cpu.memory.write_at(104, 11);
+        cpu.memory.write_at(108, 12);
+        cpu.memory.write_at(112, 13);
+
+        assert_eq!(op_code.instruction, ArmModeInstruction::BlockDataTransfer);
+        assert_eq!(op_code.condition, Condition::AL);
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.program_counter(), 13 + 4);
+        assert_eq!(cpu.registers.register_at(0), 10);
+        assert_eq!(cpu.registers.register_at(1), 11);
+        assert_eq!(cpu.registers.register_at(2), 12);
+
+        assert_eq!(cpu.registers.register_at(13), 112 + 4);
     }
 }
