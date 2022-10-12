@@ -8,6 +8,7 @@ pub enum ArmModeInstruction {
     Branch = 0b0000_1010_0000_0000_0000_0000_0000_0000,
     BranchLink = 0b0000_1011_0000_0000_0000_0000_0000_0000,
     TransImm9 = 0b0000_0100_0000_0000_0000_0000_0000_0000,
+    BlockDataTransfer = 0b0000_1000_0000_0000_0000_0000_0000_0000,
     Unknown,
 }
 
@@ -27,7 +28,10 @@ impl From<u32> for ArmModeInstruction {
             BranchLink
         } else if Self::check(TransImm9, op_code) {
             TransImm9
+        } else if Self::check(BlockDataTransfer, op_code) {
+            BlockDataTransfer
         } else {
+            println!("{op_code:b}");
             Unknown
         }
     }
@@ -46,6 +50,7 @@ impl ArmModeInstruction {
             DataProcessing1 | DataProcessing2 => 0b0000_1110_0000_0000_0000_0000_0001_0000,
             DataProcessing3 => 0b0000_1110_0000_0000_0000_0000_0000_0000,
             TransImm9 => 0b0000_1110_0000_0000_0000_0000_0000_0000,
+            BlockDataTransfer => 0b0000_1110_0000_0000_0000_0000_0000_0000,
             Unknown => 0b1111_1111_1111_1111_1111_1111_1111_1111,
         }
     }

@@ -54,6 +54,9 @@ impl Display for ArmModeOpcode {
             ArmModeInstruction::Branch | ArmModeInstruction::BranchLink => {
                 "FMT: |_Cond__|1_0_1|L|___________________Offset______________________|\n"
             }
+            ArmModeInstruction::BlockDataTransfer => {
+                "FMT: |_Cond__|1_0_0|P|U|S|W|L|__Rn___|__________Register_List________|\n"
+            }
             ArmModeInstruction::Unknown => "",
         };
 
@@ -121,6 +124,9 @@ impl Display for ArmModeOpcode {
                      DEC: |{cond:07}|1_0_1|{l:01}|{offset:047}|\n\
                      BIN: |{cond:07b}|1_0_1|{l:01b}|{offset:047b}|\n"
                 )
+            }
+            ArmModeInstruction::BlockDataTransfer => {
+                format!("just skip this for now")
             }
             ArmModeInstruction::Unknown => String::new(),
         };
