@@ -681,15 +681,15 @@ mod tests {
         assert_eq!(rd, 13);
 
         // because in this specific case address will be
-        // then will be 92 + 8 (.wrapping_sub(offset))
-        cpu.registers.set_program_counter(92);
+        // then will be 0x03000050 + 8 (.wrapping_sub(offset))
+        cpu.registers.set_program_counter(0x03000050);
 
         // simulate mem already contains something.
-        cpu.memory.write_at(76, 99);
+        cpu.memory.write_at(0x03000040, 99);
 
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 99);
-        assert_eq!(cpu.registers.program_counter(), 96);
+        assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
 
     #[test]
