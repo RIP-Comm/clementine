@@ -9,5 +9,6 @@ pub mod gba;
 pub mod instruction;
 pub mod internal_memory;
 pub mod io_device;
+pub mod io_registers;
 pub mod opcode;
 pub mod ppu;
