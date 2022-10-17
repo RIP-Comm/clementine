@@ -9,9 +9,9 @@ pub trait Bits {
     fn set_bit_off(&mut self, bit_idx: u8);
     fn toggle_bit(&mut self, bit_idx: u8);
     fn set_bit(&mut self, bit_idx: u8, value: bool);
-    fn get_bit(self, bit_idx: u8) -> bool;
-    fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32;
-    fn are_bits_on(self, bits_range: RangeInclusive<u8>) -> bool;
+    fn get_bit(&self, bit_idx: u8) -> bool;
+    fn get_bits(&self, bits_range: RangeInclusive<u8>) -> u32;
+    fn are_bits_on(&self, bits_range: RangeInclusive<u8>) -> bool;
     fn get_byte(&self, byte_nth: u8) -> u8;
     fn set_byte(&mut self, byte_nth: u8, value: u8);
 }
@@ -60,11 +60,11 @@ impl Bits for u32 {
         }
     }
 
-    fn get_bit(self, bit_idx: u8) -> bool {
+    fn get_bit(&self, bit_idx: u8) -> bool {
         self.is_bit_on(bit_idx)
     }
 
-    fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32 {
+    fn get_bits(&self, bits_range: RangeInclusive<u8>) -> u32 {
         let mut bits = 0b0;
         for (shift_value, bit_index) in bits_range.enumerate() {
             let bit_value: Self = self.get_bit(bit_index).into();
@@ -76,7 +76,7 @@ impl Bits for u32 {
     /// Checks if a certein sequence of bit is set to 1.
     /// Return false whenever there is a least one bit which is set to 0, true otherwise.
     /// When all bits are set to 1, the if statement fails and true is returned.
-    fn are_bits_on(self, bits_range: RangeInclusive<u8>) -> bool {
+    fn are_bits_on(&self, bits_range: RangeInclusive<u8>) -> bool {
         for (_, bit_index) in bits_range.enumerate() {
             if self.is_bit_off(bit_index) {
                 return false;
@@ -88,7 +88,7 @@ impl Bits for u32 {
     fn get_byte(&self, byte_nth: u8) -> u8 {
         if byte_nth > 3 {
             panic!("Byte number must be a value between 0 and 3.");
-}
+        }
 
         // We access the byte_nth octect:
         // from the byte_nth*8 bit to the byte_nth*8+7 bit (inclusive)
