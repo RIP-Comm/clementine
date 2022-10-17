@@ -149,7 +149,7 @@ impl IoDevice for InternalMemory {
 
     fn read_at(&self, address: Self::Address) -> Self::Value {
         match address {
-            0x03000000..=0x03007FFF => self.internal_work_ram[address as usize],
+            0x03000000..=0x03007FFF => self.internal_work_ram[(address - 0x03000000) as usize],
             0x04000000..=0x04000055 => self.read_address_lcd_register(address),
             _ => unimplemented!("Unimplemented memory region."),
         }
@@ -158,7 +158,7 @@ impl IoDevice for InternalMemory {
     fn write_at(&mut self, address: Self::Address, value: Self::Value) {
         match address {
             0x03000000..=0x03007FFF => {
-                self.internal_work_ram[address as usize] = value
+                self.internal_work_ram[(address - 0x03000000) as usize] = value
             }
             0x04000000..=0x04000055 => self.write_address_lcd_register(address, value),
             _ => unimplemented!("Unimplemented memory region."),
