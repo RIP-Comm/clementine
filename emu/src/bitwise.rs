@@ -12,6 +12,8 @@ pub trait Bits {
     fn get_bit(self, bit_idx: u8) -> bool;
     fn get_bits(self, bits_range: RangeInclusive<u8>) -> u32;
     fn are_bits_on(self, bits_range: RangeInclusive<u8>) -> bool;
+    fn get_byte(&self, byte_nth: u8) -> u8;
+    fn set_byte(&mut self, byte_nth: u8, value: u8);
 }
 
 impl Bits for u32 {
@@ -82,8 +84,48 @@ impl Bits for u32 {
         }
         true
     }
+
+    fn get_byte(&self, byte_nth: u8) -> u8 {
+        if byte_nth > 3 {
+            panic!("Byte number must be a value between 0 and 3.");
 }
 
+        // We access the byte_nth octect:
+        // from the byte_nth*8 bit to the byte_nth*8+7 bit (inclusive)
+        // e.g., 2nd octect is from 16th bit to 23rd bit
+        self.get_bits(byte_nth * 8..=byte_nth * 8 + 7)
+            .try_into()
+            .unwrap()
+    }
+
+    fn set_byte(&mut self, byte_nth: u8, value: u8) {
+        if byte_nth > 3 {
+            panic!("Byte number must be a value between 0 and 3.");
+        }
+
+        // This mask is used to select the byte_nth octect and set it to 0.
+        let mask = !match byte_nth {
+            0 => 0xFF,
+            1 => 0xFF << 8,
+            2 => 0xFF << 16,
+            3 => 0xFF << 24,
+            _ => unreachable!(),
+        };
+
+        // We shift the new octect in place.
+        let shifted_value: Self = match byte_nth {
+            0 => value as Self,
+            1 => (value as Self) << 8,
+            2 => (value as Self) << 16,
+            3 => (value as Self) << 24,
+            _ => unreachable!(),
+        };
+
+        // We set the byte_nth octect to 0 using the mask and we
+        // do the OR with the new octect.
+        *self = (*self & mask) | shifted_value;
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,5 +227,55 @@ mod tests {
         let b = 0b1011001110_u32;
         assert!(!b.are_bits_on(0..=3));
         assert!(b.are_bits_on(1..=3));
+    }
+
+    #[test]
+    fn get_byte() {
+        let b = 0b00000001_00100010_00000100_01001000;
+
+        assert_eq!(b.get_byte(0), 0b01001000_u8);
+        assert_eq!(b.get_byte(1), 0b00000100_u8);
+        assert_eq!(b.get_byte(2), 0b00100010_u8);
+        assert_eq!(b.get_byte(3), 0b00000001_u8);
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_byte_panic() {
+        let b = 0b00000001_00000010_00000100_00001000;
+
+        b.get_byte(4);
+    }
+
+    #[test]
+    fn set_byte() {
+        let mut b: u32 = 0;
+
+        b.set_byte(0, 0b1010_1010);
+
+        assert_eq!(b, 0b1010_1010);
+
+        b = 0;
+        b.set_byte(1, 0b1010_1010);
+
+        assert_eq!(b >> 8, 0b1010_1010);
+
+        b = 0;
+        b.set_byte(2, 0b1010_1010);
+
+        assert_eq!(b >> 16, 0b1010_1010);
+
+        b = 0;
+        b.set_byte(3, 0b1010_1010);
+
+        assert_eq!(b >> 24, 0b1010_1010);
+    }
+
+    #[test]
+    #[should_panic]
+    fn set_byte_panic() {
+        let mut b = 0b00000001_00000010_00000100_00001000;
+
+        b.set_byte(4, 0);
     }
 }
