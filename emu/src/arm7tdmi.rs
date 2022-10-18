@@ -171,7 +171,14 @@ impl Arm7tdmi {
                         // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
                         let rs = op2.get_bits(8..=11);
 
-                        self.registers.register_at(rs.try_into().unwrap()) & 0xFF
+                        let rs = self.registers.register_at(rs.try_into().unwrap()) & 0xFF;
+
+                        // If shift is taken from register and the value is 0 Rm is directly used as operand
+                        if rs == 0 {
+                            return rm;
+                        }
+
+                        rs
                     }
                 };
 
@@ -770,5 +777,21 @@ mod tests {
         assert_eq!(cpu.registers.register_at(2), 12);
 
         assert_eq!(cpu.registers.register_at(13), 0x3000010);
+    }
+
+    #[test]
+    fn shift_from_register_is_0() {
+        let op_code = 0b1110_0000_1000_0000_0001_0011_0111_0010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 5);
+        cpu.registers.set_register_at(2, 11);
+        cpu.registers.set_register_at(3, 8 << 8);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 16);
     }
 }
