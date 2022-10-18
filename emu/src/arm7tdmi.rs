@@ -148,9 +148,15 @@ impl Arm7tdmi {
             false => {
                 // bits [0-3] 2nd Operand Register (R0..R15) (including PC=R15)
                 let rm = op2.get_bits(0..=3);
-                let rm = self.registers.register_at(rm.try_into().unwrap());
                 // bit [4] - is Shift by Register Flag (0=Immediate, 1=Register)
                 let r = op2.get_bit(4);
+                let offset = match rm {
+                    // if Rm is R15(PC) we need to offset its value because of
+                    // instruction pipelining
+                    0xF => self.get_pc_offset_alu(i, r),
+                    _ => 0,
+                };
+                let rm = self.registers.register_at(rm.try_into().unwrap()) + offset;
                 // bits [6-5] - Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
                 let shift_type = op2.get_bits(5..=6);
 
@@ -182,6 +188,26 @@ impl Arm7tdmi {
         }
     }
 
+    /// Returns the offset that has to be applied to the value read by `PC`
+    /// in the case of data processing (ALU) instruction.
+    ///
+    /// This is needed because when the instruction at address `X` is executing,
+    /// PC points to `X+8` because of pipelining. If we need to read the shift
+    /// amount from register (`i` is `False` and `r` is `True`) the instruction
+    /// takes an additional cycle, thus `PC` points to `X+12`.
+    ///
+    /// # Arguments
+    ///
+    /// * `i` - A boolean value representing whether the 2nd operand is immediate or not
+    /// * `r` - A boolean value representing whether the shift amount is to be taken from register or not
+    const fn get_pc_offset_alu(&self, i: bool, r: bool) -> u32 {
+        if !i && r {
+            12
+        } else {
+            8
+        }
+    }
+
     fn data_processing(&mut self, op_code: ArmModeOpcode) {
         // bit [25] is I = Immediate Flag
         let i: bool = op_code.get_bit(25);
@@ -193,6 +219,14 @@ impl Arm7tdmi {
         let rd = op_code.get_bits(12..=15);
         // bits [19-16] are the Rn
         let rn = op_code.get_bits(16..=19);
+        let offset = match rn {
+            // if Rn is R15(PC) we need to offset its value because of
+            // instruction pipelining
+            0xF => self.get_pc_offset_alu(i, op_code.get_bit(4)),
+            _ => 0,
+        };
+
+        let rn = self.registers.register_at(rn.try_into().unwrap()) + offset;
 
         let op2 = self.get_operand(alu_op_code, s, i, op_code.get_bits(0..=11));
 
@@ -208,18 +242,8 @@ impl Arm7tdmi {
                     self.cmp(rn, op2)
                 }
             }
-            ArmModeAluInstruction::Add => self.add(
-                rd.try_into().unwrap(),
-                self.registers.register_at(rn.try_into().unwrap()),
-                op2,
-                s,
-            ),
-            ArmModeAluInstruction::Orr => self.orr(
-                rd.try_into().unwrap(),
-                self.registers.register_at(rn.try_into().unwrap()),
-                op2,
-                s,
-            ),
+            ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
             _ => todo!("implement alu operation: {}", alu_op_code),
         }
     }
@@ -364,13 +388,13 @@ impl Arm7tdmi {
     }
 
     fn teq(&mut self, rn: u32, op2: u32) {
-        let value = self.registers.register_at(rn.try_into().unwrap()) ^ op2;
+        let value = rn ^ op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
     }
 
     fn cmp(&mut self, rn: u32, op2: u32) {
-        let value = self.registers.register_at(rn.try_into().unwrap()) - op2;
+        let value = rn - op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
     }
@@ -643,7 +667,26 @@ mod tests {
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
         cpu.registers.set_register_at(15, 15);
         cpu.execute(op_code);
-        assert_eq!(cpu.registers.register_at(0), 15 + 32);
+        assert_eq!(cpu.registers.register_at(0), 15 + 8 + 32);
+    }
+
+    #[test]
+    fn check_add_pc_operand_shift_register() {
+        // Case when R15 is used as operand and shift amount is taken from register:
+        // R2 = R1 + (R15 << R3)
+        let op_code = 0b1110_0000_1000_0001_0010_0011_0001_1111;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing2);
+
+        cpu.registers.set_register_at(2, 5);
+        cpu.registers.set_register_at(1, 10);
+        cpu.registers.set_register_at(15, 500);
+        cpu.registers.set_register_at(3, 0);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(2), 500 + 12 + 10);
     }
 
     #[test]
@@ -657,11 +700,11 @@ mod tests {
         cpu.registers.set_register_at(15, 1 << 31);
         cpu.registers.set_register_at(14, 1 << 31);
         cpu.execute(op_code);
-        assert_eq!(cpu.registers.register_at(0), 0);
+        assert_eq!(cpu.registers.register_at(0), 8);
         assert!(cpu.cpsr.carry_flag());
         assert!(cpu.cpsr.overflow_flag());
         assert!(!cpu.cpsr.sign_flag());
-        assert!(cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.zero_flag());
     }
 
     // TODO: this is only one case of these kind of instruction.
