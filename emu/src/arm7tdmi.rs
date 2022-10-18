@@ -79,28 +79,22 @@ impl Cpu for Arm7tdmi {
 
     fn execute(&mut self, op_code: Self::OpCodeType) {
         use ArmModeInstruction::*;
-        match op_code.instruction {
-            Branch => {
-                self.branch(op_code);
-            }
-            BranchLink => {
-                self.branch_link(op_code);
-            }
-            DataProcessing1 | DataProcessing2 | DataProcessing3 => {
-                self.data_processing(op_code);
-            }
-            TransImm9 => {
-                self.single_data_transfer(op_code);
-            }
-            BlockDataTransfer => {
-                self.block_data_transfer(op_code);
-            }
+        // Instruction functions should return whether PC has to be advanced
+        // after instruction executed.
+        let should_advance_pc = match op_code.instruction {
+            Branch => self.branch(op_code),
+            BranchLink => self.branch_link(op_code),
+            DataProcessing1 | DataProcessing2 | DataProcessing3 => self.data_processing(op_code),
+            TransImm9 => self.single_data_transfer(op_code),
+            BlockDataTransfer => self.block_data_transfer(op_code),
             Unknown => {
                 todo!("implement this instruction")
             }
-        }
+        };
 
-        self.registers.advance_program_counter(4); // FIXME: don't sure of this
+        if should_advance_pc {
+            self.registers.advance_program_counter(4); // FIXME: don't sure of this
+        }
     }
 
     fn step(&mut self) {
@@ -127,19 +121,25 @@ impl Arm7tdmi {
         }
     }
 
-    fn branch(&mut self, op_code: ArmModeOpcode) {
+    fn branch(&mut self, op_code: ArmModeOpcode) -> bool {
         let offset = op_code.get_bits(0..=23);
 
         self.registers.advance_program_counter(8 + offset * 4);
+
+        // Never advance PC after B
+        false
     }
 
-    fn branch_link(&mut self, op_code: ArmModeOpcode) {
+    fn branch_link(&mut self, op_code: ArmModeOpcode) -> bool {
         let pc: u32 = self.registers.program_counter().try_into().unwrap();
         self.registers.set_register_at(14, pc.wrapping_add(4)); // R14 = LR
 
         let offset = op_code.get_bits(0..=23);
 
         self.registers.advance_program_counter(8 + offset * 4);
+
+        // Never advance PC after BL
+        false
     }
 
     fn get_operand(&mut self, alu_opcode: u32, s: bool, i: bool, op2: u32) -> u32 {
@@ -215,7 +215,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn data_processing(&mut self, op_code: ArmModeOpcode) {
+    fn data_processing(&mut self, op_code: ArmModeOpcode) -> bool {
         // bit [25] is I = Immediate Flag
         let i: bool = op_code.get_bit(25);
         // bits [24-21]
@@ -274,10 +274,13 @@ impl Arm7tdmi {
             ArmModeAluInstruction::Sub => self.sub(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Rsb => self.rsb(rd.try_into().unwrap(), rn, op2, s),
             _ => todo!("implement alu operation: {}", alu_op_code),
-        }
+        };
+
+        // We advance the PC only if Rd != R15
+        rd != 0xF
     }
 
-    fn single_data_transfer(&mut self, op_code: ArmModeOpcode) {
+    fn single_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
         let immediate = op_code.get_bit(25);
         let up_down = op_code.get_bit(23);
 
@@ -321,10 +324,13 @@ impl Arm7tdmi {
                 .registers
                 .set_register_at(rd.try_into().unwrap(), value),
             _ => todo!("implement single data transfer operation"),
-        }
+        };
+
+        // If LDR and Rd == R15 we don't increase the PC
+        !(load_store == SingleDataTransfer::Ldr && rd == 0xF)
     }
 
-    fn block_data_transfer(&mut self, op_code: ArmModeOpcode) {
+    fn block_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
         let pre_post = op_code.get_bit(24);
         let up_down = op_code.get_bit(23);
         let s = op_code.get_bit(22);
@@ -374,7 +380,10 @@ impl Arm7tdmi {
         if write_back {
             self.registers
                 .set_register_at(rn.try_into().unwrap(), address);
-        }
+        };
+
+        // If LDM and R15 is in register list we don't advance PC
+        !(load_store && reg_list.is_bit_on(15))
     }
 
     fn mvn(&mut self, rd: usize, op2: u32, s: bool) {
@@ -664,6 +673,7 @@ pub struct ArithmeticOpResult {
     pub zero: bool,
 }
 
+#[derive(PartialEq)]
 enum SingleDataTransfer {
     Ldr,
     Str,
@@ -743,15 +753,7 @@ mod tests {
 
             cpu.execute(op_code);
             let rotated = rx.rotate_right(is * 2);
-            if rotated == 15 {
-                // NOTE: since is R15 you should also consider the advance of 4 bytes after execution.
-                assert_eq!(
-                    cpu.registers.register_at(rx.try_into().unwrap()),
-                    rotated + 4
-                );
-            } else {
-                assert_eq!(cpu.registers.register_at(rx.try_into().unwrap()), rotated);
-            }
+            assert_eq!(cpu.registers.register_at(rx.try_into().unwrap()), rotated);
         }
     }
 
@@ -925,7 +927,7 @@ mod tests {
         assert_eq!(op_code.condition, Condition::AL);
         cpu.execute(op_code);
 
-        assert_eq!(cpu.registers.program_counter(), 13 + 4);
+        assert_eq!(cpu.registers.program_counter(), 13);
         assert_eq!(cpu.registers.register_at(0), 10);
         assert_eq!(cpu.registers.register_at(1), 11);
         assert_eq!(cpu.registers.register_at(2), 12);
