@@ -711,11 +711,11 @@ mod tests {
         let mut cpu = Arm7tdmi::new(vec![]);
         let op_code = cpu.decode(op_code);
 
-        cpu.registers.set_register_at(13, 100); // fake mem address simulate dirty reg.
-        cpu.memory.write_at(100, 10);
-        cpu.memory.write_at(104, 11);
-        cpu.memory.write_at(108, 12);
-        cpu.memory.write_at(112, 13);
+        cpu.registers.set_register_at(13, 0x03000000); // fake mem address simulate dirty reg.
+        cpu.memory.write_at(0x03000000, 10);
+        cpu.memory.write_at(0x03000000 + 4, 11);
+        cpu.memory.write_at(0x03000000 + 8, 12);
+        cpu.memory.write_at(0x03000000 + 12, 13);
 
         assert_eq!(op_code.instruction, ArmModeInstruction::BlockDataTransfer);
         assert_eq!(op_code.condition, Condition::AL);
@@ -726,6 +726,6 @@ mod tests {
         assert_eq!(cpu.registers.register_at(1), 11);
         assert_eq!(cpu.registers.register_at(2), 12);
 
-        assert_eq!(cpu.registers.register_at(13), 112 + 4);
+        assert_eq!(cpu.registers.register_at(13), 0x3000010);
     }
 }
