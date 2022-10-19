@@ -161,7 +161,7 @@ impl IoDevice for InternalMemory {
                 self.internal_work_ram[(address - 0x03000000) as usize] = value
             }
             0x04000000..=0x04000055 => self.write_address_lcd_register(address, value),
-            _ => unimplemented!("Unimplemented memory region."),
+            _ => unimplemented!("Unimplemented memory region {address}."),
         }
     }
 }
