@@ -86,9 +86,7 @@ impl Bits for u32 {
     }
 
     fn get_byte(&self, byte_nth: u8) -> u8 {
-        if byte_nth > 3 {
-            panic!("Byte number must be a value between 0 and 3.");
-        }
+        debug_assert!(byte_nth < 4);
 
         // We access the byte_nth octect:
         // from the byte_nth*8 bit to the byte_nth*8+7 bit (inclusive)
@@ -99,10 +97,7 @@ impl Bits for u32 {
     }
 
     fn set_byte(&mut self, byte_nth: u8, value: u8) {
-        if byte_nth > 3 {
-            panic!("Byte number must be a value between 0 and 3.");
-        }
-
+        debug_assert!(byte_nth < 4);
         // This mask is used to select the byte_nth octect and set it to 0.
         let mask = !match byte_nth {
             0 => 0xFF,
