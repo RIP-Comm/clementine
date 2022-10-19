@@ -88,9 +88,9 @@ impl Bits for u32 {
     fn get_byte(&self, byte_nth: u8) -> u8 {
         debug_assert!(byte_nth < 4);
 
-        // We access the byte_nth octect:
+        // We access the byte_nth octet:
         // from the byte_nth*8 bit to the byte_nth*8+7 bit (inclusive)
-        // e.g., 2nd octect is from 16th bit to 23rd bit
+        // e.g., 2nd octet is from 16th bit to 23rd bit
         self.get_bits(byte_nth * 8..=byte_nth * 8 + 7)
             .try_into()
             .unwrap()
@@ -98,7 +98,7 @@ impl Bits for u32 {
 
     fn set_byte(&mut self, byte_nth: u8, value: u8) {
         debug_assert!(byte_nth < 4);
-        // This mask is used to select the byte_nth octect and set it to 0.
+        // This mask is used to select the byte_nth octet and set it to 0.
         let mask = !match byte_nth {
             0 => 0xFF,
             1 => 0xFF << 8,
@@ -107,7 +107,7 @@ impl Bits for u32 {
             _ => unreachable!(),
         };
 
-        // We shift the new octect in place.
+        // We shift the new octet in place.
         let shifted_value: Self = match byte_nth {
             0 => value as Self,
             1 => (value as Self) << 8,
@@ -116,8 +116,8 @@ impl Bits for u32 {
             _ => unreachable!(),
         };
 
-        // We set the byte_nth octect to 0 using the mask and we
-        // do the OR with the new octect.
+        // We set the byte_nth octet to 0 using the mask and we
+        // do the OR with the new octet.
         *self = (*self & mask) | shifted_value;
     }
 }
