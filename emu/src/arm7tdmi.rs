@@ -239,6 +239,7 @@ impl Arm7tdmi {
 
         match ArmModeAluInstruction::from(alu_op_code) {
             ArmModeAluInstruction::And => self.and(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Eor => self.eor(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2),
             ArmModeAluInstruction::Teq => {
                 if s {
@@ -353,6 +354,17 @@ impl Arm7tdmi {
         if write_back {
             self.registers
                 .set_register_at(rn.try_into().unwrap(), address);
+        }
+    }
+
+    fn eor(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+        let result = rn ^ op2;
+
+        self.registers.set_register_at(rd, result);
+
+        if s {
+            self.cpsr.set_zero_flag(result == 0);
+            self.cpsr.set_sign_flag(result.get_bit(31));
         }
     }
 
@@ -819,5 +831,18 @@ mod tests {
         cpu.execute(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 0b10101010);
+    }
+
+    #[test]
+    fn check_eor() {
+        let op_code = 0b1110_00_1_0001_0_0000_0001_0000_10101010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 0b11111111);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 0b01010101);
     }
 }
