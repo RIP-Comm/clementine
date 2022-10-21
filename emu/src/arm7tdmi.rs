@@ -241,6 +241,7 @@ impl Arm7tdmi {
             ArmModeAluInstruction::And => self.and(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Eor => self.eor(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Bic => self.bic(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Mvn => self.mvn(rd.try_into().unwrap(), op2, s),
             ArmModeAluInstruction::Tst => {
                 if s {
                     self.tst(rn, op2)
@@ -360,6 +361,17 @@ impl Arm7tdmi {
         if write_back {
             self.registers
                 .set_register_at(rn.try_into().unwrap(), address);
+        }
+    }
+
+    fn mvn(&mut self, rd: usize, op2: u32, s: bool) {
+        let result = !op2;
+
+        self.registers.set_register_at(rd, result);
+
+        if s {
+            self.cpsr.set_sign_flag(result.get_bit(31));
+            self.cpsr.set_zero_flag(result == 0);
         }
     }
 
@@ -906,5 +918,17 @@ mod tests {
         cpu.execute(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 0b01010101);
+    }
+
+    #[test]
+    fn check_mvn() {
+        let op_code = 0b1110_00_1_1111_1_0000_0001_0000_11111111;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), (2_u32.pow(24) - 1) << 8);
+        assert!(cpu.cpsr.sign_flag());
     }
 }
