@@ -5,6 +5,13 @@ use crate::io_registers::LCDRegisters;
 pub struct InternalMemory {
     /// From 0x03000000 to 0x03007FFF (32kb).
     internal_work_ram: [u8; 0x7FFF],
+
+    /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors)
+    bg_palette_ram: [u8; 0x1FF],
+
+    /// From 0x05000200 to 0x050003FF (512 bytes, 256 colors)
+    obj_palette_ram: [u8; 0x1FF],
+
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
     lcd_registers: LCDRegisters,
 }
@@ -19,6 +26,8 @@ impl InternalMemory {
     pub const fn new() -> Self {
         Self {
             internal_work_ram: [0; 0x7FFF],
+            bg_palette_ram: [0; 0x1FF],
+            obj_palette_ram: [0; 0x1FF],
             lcd_registers: LCDRegisters::new(),
         }
     }
@@ -151,6 +160,8 @@ impl IoDevice for InternalMemory {
         match address {
             0x03000000..=0x03007FFF => self.internal_work_ram[(address - 0x03000000) as usize],
             0x04000000..=0x04000055 => self.read_address_lcd_register(address),
+            0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize],
+            0x05000200..=0x050003FF => self.obj_palette_ram[(address - 0x05000200) as usize],
             _ => unimplemented!("Unimplemented memory region."),
         }
     }
@@ -161,6 +172,10 @@ impl IoDevice for InternalMemory {
                 self.internal_work_ram[(address - 0x03000000) as usize] = value
             }
             0x04000000..=0x04000055 => self.write_address_lcd_register(address, value),
+            0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize] = value,
+            0x05000200..=0x050003FF => {
+                self.obj_palette_ram[(address - 0x05000200) as usize] = value
+            }
             _ => unimplemented!("Unimplemented memory region {address}."),
         }
     }
@@ -216,5 +231,47 @@ mod tests {
         let address = 0x04000049; // WININ higher byte
 
         assert_eq!(im.read_at(address), 5);
+    }
+
+    #[test]
+    fn write_bg_palette_ram() {
+        let mut im = InternalMemory::new();
+
+        let address = 0x05000008; // WININ lower byte
+
+        im.write_at(address, 10);
+        assert_eq!(im.bg_palette_ram[8], 10);
+    }
+
+    #[test]
+    fn read_bg_palette_ram() {
+        let mut im = InternalMemory::new();
+        im.bg_palette_ram[8] = 15;
+
+        let address = 0x05000008; // WININ lower byte
+        let value = im.read_at(address);
+
+        assert_eq!(value, 15);
+    }
+
+    #[test]
+    fn write_obj_palette_ram() {
+        let mut im = InternalMemory::new();
+
+        let address = 0x05000208; // WININ lower byte
+
+        im.write_at(address, 10);
+        assert_eq!(im.obj_palette_ram[8], 10);
+    }
+
+    #[test]
+    fn read_0bj_palette_ram() {
+        let mut im = InternalMemory::new();
+        im.obj_palette_ram[8] = 15;
+
+        let address = 0x05000208; // WININ lower byte
+        let value = im.read_at(address);
+
+        assert_eq!(value, 15);
     }
 }
