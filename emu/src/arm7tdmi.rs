@@ -264,6 +264,11 @@ impl Arm7tdmi {
                     self.cmp(rn, op2)
                 }
             }
+            ArmModeAluInstruction::Cmn => {
+                if s {
+                    self.cmn(rn, op2)
+                }
+            }
             ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Sub => self.sub(rd.try_into().unwrap(), rn, op2, s),
@@ -498,6 +503,12 @@ impl Arm7tdmi {
             sign: result.get_bit(31),
             zero: result == 0,
         }
+    }
+
+    fn cmn(&mut self, rn: u32, op2: u32) {
+        let add_result = Self::add_inner_op(rn, op2);
+
+        self.cpsr.set_flags(add_result);
     }
 
     fn cmp(&mut self, rn: u32, op2: u32) {
