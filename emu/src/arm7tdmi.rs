@@ -492,9 +492,9 @@ impl Arm7tdmi {
     }
 
     fn cmp(&mut self, rn: u32, op2: u32) {
-        let value = rn - op2;
-        self.cpsr.set_sign_flag(value.is_bit_on(31));
-        self.cpsr.set_zero_flag(value == 0);
+        let sub_result = Self::sub_inner_op(rn, op2);
+
+        self.cpsr.set_flags(sub_result);
     }
 
     fn sub(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
@@ -510,7 +510,7 @@ impl Arm7tdmi {
     fn rsb(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
         self.sub(rd, op2, rn, s);
     }
-    
+
     fn shift_operand(
         &mut self,
         alu_opcode: u32,
