@@ -247,7 +247,7 @@ impl Arm7tdmi {
                     self.tst(rn, op2)
                 }
             }
-            ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2),
+            ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2, s),
             ArmModeAluInstruction::Teq => {
                 if s {
                     self.teq(rn, op2)
@@ -443,8 +443,13 @@ impl Arm7tdmi {
         }
     }
 
-    fn mov(&mut self, rd: usize, op2: u32) {
+    fn mov(&mut self, rd: usize, op2: u32, s: bool) {
         self.registers.set_register_at(rd, op2);
+
+        if s {
+            self.cpsr.set_zero_flag(op2 == 0);
+            self.cpsr.set_sign_flag(op2.get_bit(31));
+        }
     }
 
     fn tst(&mut self, rn: u32, op2: u32) {
@@ -682,6 +687,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn check_mov_cpsr() {
+        // Checks for Z flag
+        let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.execute(op_code);
+
+        assert!(cpu.cpsr.zero_flag());
+
+        // Checks for Z flag
+        let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(2, -5_i32 as u32);
+        cpu.execute(op_code);
+
+        assert!(cpu.cpsr.sign_flag());
+    }
     #[test]
     fn check_teq() {
         // This case cover S=0 then it will skip the execution of TEQ.
