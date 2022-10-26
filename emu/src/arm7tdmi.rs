@@ -416,27 +416,36 @@ impl Arm7tdmi {
         }
     }
 
-    fn add(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+    fn add_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
         // we do the sum in 64bits so that the 32nd bit is the carry
-        let result_and_carry: u64 = (rn as u64).wrapping_add(op2 as u64);
+        let result_and_carry: u64 = (first_op as u64).wrapping_add(second_op as u64);
         let result: u32 = result_and_carry as u32;
 
-        self.registers.set_register_at(rd, result);
+        let sign_op1: bool = first_op.get_bit(31);
+        let sign_op2: bool = second_op.get_bit(31);
+        let sign_r: bool = result.get_bit(31);
+
+        let carry: bool = (result_and_carry & 0x100000000) >> 32 == 1;
+
+        // overflow only occurs when operands have the same sign and result has the opposite one
+        let same_sign: bool = sign_op1 == sign_op2;
+
+        ArithmeticOpResult {
+            result,
+            carry,
+            overflow: same_sign && (sign_op1 != sign_r),
+            sign: result.get_bit(31),
+            zero: result == 0,
+        }
+    }
+
+    fn add(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+        let add_result = Self::add_inner_op(rn, op2);
+
+        self.registers.set_register_at(rd, add_result.result);
 
         if s {
-            let sign_op1: bool = rn.get_bit(31);
-            let sign_op2: bool = op2.get_bit(31);
-            let sign_r: bool = result.get_bit(31);
-
-            let carry: bool = (result_and_carry & 0x100000000) >> 32 == 1;
-
-            // overflow only occurs when operands have the same sign and result has the opposite one
-            let same_sign: bool = sign_op1 == sign_op2;
-            self.cpsr
-                .set_overflow_flag(same_sign && (sign_op1 != sign_r));
-            self.cpsr.set_carry_flag(carry);
-            self.cpsr.set_zero_flag(result == 0);
-            self.cpsr.set_sign_flag(result.is_bit_on(31));
+            self.cpsr.set_flags(add_result);
         }
     }
 
