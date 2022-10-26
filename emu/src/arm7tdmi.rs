@@ -237,6 +237,12 @@ impl Arm7tdmi {
 
         let op2 = self.get_operand(alu_op_code, s, i, op_code.get_bits(0..=11));
 
+        // S = 1 and Rd = 0xF should not be allowed in User Mode.
+        // TODO: When in other modes it should load SPSR_<current_mode> into CPSR
+        if s && rd == 0xF {
+            unimplemented!("Implement cases when S=1 and Rd=0xF");
+        }
+
         match ArmModeAluInstruction::from(alu_op_code) {
             ArmModeAluInstruction::And => self.and(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Eor => self.eor(rd.try_into().unwrap(), rn, op2, s),
