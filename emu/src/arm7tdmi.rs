@@ -5,8 +5,8 @@ use crate::alu_instruction::ArmModeAluInstruction;
 use crate::alu_instruction::Kind;
 use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
-use crate::internal_memory::InternalMemory;
-use crate::io_device::IoDevice;
+use crate::memory::internal_memory::InternalMemory;
+use crate::memory::io_device::IoDevice;
 use crate::opcode::ArmModeOpcode;
 use crate::{cpsr::Cpsr, cpu::Cpu};
 
