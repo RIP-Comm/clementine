@@ -1,6 +1,7 @@
 use crate::bitwise::Bits;
-use crate::io_device::IoDevice;
-use crate::io_registers::LCDRegisters;
+use crate::memory::io_device::IoDevice;
+use crate::memory::lcd_registers::LCDRegisters;
+use crate::memory::timer_registers::TimerRegisters;
 
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 KBytes)
@@ -20,6 +21,9 @@ pub struct InternalMemory {
 
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
     lcd_registers: LCDRegisters,
+
+    /// From 0x04000100 to 0x0400010E
+    timer_registers: TimerRegisters,
 }
 
 impl Default for InternalMemory {
@@ -37,6 +41,7 @@ impl InternalMemory {
             obj_palette_ram: [0; 0x200],
             video_ram: [0; 0x18000],
             lcd_registers: LCDRegisters::new(),
+            timer_registers: TimerRegisters::new(),
         }
     }
 
@@ -158,6 +163,36 @@ impl InternalMemory {
             _ => panic!("Reading an write-only memory address: {address:b}"),
         }
     }
+
+    // There is no need to set the second byte because bits `8-15` are not used
+    fn write_address_timer_register(&mut self, address: u32, value: u8) {
+        match address {
+            0x04000100 => self.timer_registers.tm0cnt_l.set_byte(0, value),
+            0x04000102 => self.timer_registers.tm0cnt_h.set_byte(0, value),
+            0x04000104 => self.timer_registers.tm1cnt_l.set_byte(0, value),
+            0x04000106 => self.timer_registers.tm1cnt_h.set_byte(0, value),
+            0x04000108 => self.timer_registers.tm2cnt_l.set_byte(0, value),
+            0x0400010A => self.timer_registers.tm2cnt_h.set_byte(0, value),
+            0x0400010C => self.timer_registers.tm3cnt_l.set_byte(0, value),
+            0x0400010E => self.timer_registers.tm3cnt_h.set_byte(0, value),
+            _ => panic!("Reading an write-only memory address: {address:b}"),
+        }
+    }
+
+    // There is no need to read the second byte because bits `8-15` are not used
+    fn read_address_timer_register(&self, address: u32) -> u8 {
+        match address {
+            0x04000100 => self.timer_registers.tm0cnt_l.read().get_byte(0),
+            0x04000102 => self.timer_registers.tm0cnt_h.read().get_byte(0),
+            0x04000104 => self.timer_registers.tm1cnt_l.read().get_byte(0),
+            0x04000106 => self.timer_registers.tm1cnt_h.read().get_byte(0),
+            0x04000108 => self.timer_registers.tm2cnt_l.read().get_byte(0),
+            0x0400010A => self.timer_registers.tm2cnt_h.read().get_byte(0),
+            0x0400010C => self.timer_registers.tm3cnt_l.read().get_byte(0),
+            0x0400010E => self.timer_registers.tm3cnt_h.read().get_byte(0),
+            _ => panic!("Reading an write-only memory address: {address:b}"),
+        }
+    }
 }
 
 impl IoDevice for InternalMemory {
@@ -169,6 +204,7 @@ impl IoDevice for InternalMemory {
             0x00000000..=0x00003FFF => self.bios_system_rom[(address) as usize],
             0x03000000..=0x03007FFF => self.internal_work_ram[(address - 0x03000000) as usize],
             0x04000000..=0x04000055 => self.read_address_lcd_register(address),
+            0x04000100..=0x0400010E => self.read_address_timer_register(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize],
             0x05000200..=0x050003FF => self.obj_palette_ram[(address - 0x05000200) as usize],
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize],
@@ -183,6 +219,7 @@ impl IoDevice for InternalMemory {
                 self.internal_work_ram[(address - 0x03000000) as usize] = value
             }
             0x04000000..=0x04000055 => self.write_address_lcd_register(address, value),
+            0x04000100..=0x0400010E => self.write_address_timer_register(address, value),
             0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize] = value,
             0x05000200..=0x050003FF => {
                 self.obj_palette_ram[(address - 0x05000200) as usize] = value
@@ -345,10 +382,30 @@ mod tests {
 
         assert_eq!(im.video_ram[0x17FFF], 5);
     }
+
     #[test]
     fn test_read_write_bios_memory() {
         let mut im = InternalMemory::new();
         im.write_at(0x000001EC, 10);
         assert_eq!(im.read_at(0x000001EC), 10);
+    }
+
+    #[test]
+    fn test_write_timer_register() {
+        let mut im = InternalMemory::new();
+        let address = 0x04000100;
+
+        im.write_at(address, 10);
+        assert_eq!(im.timer_registers.tm0cnt_l.read(), 10);
+    }
+
+    #[test]
+    fn test_read_timer_register() {
+        let mut im = InternalMemory::new();
+        let address = 0x04000100;
+
+        im.timer_registers.tm0cnt_l.write((5 << 8) | 10);
+
+        assert_eq!(im.read_at(address), 10);
     }
 }
