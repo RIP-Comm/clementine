@@ -267,6 +267,7 @@ impl Arm7tdmi {
             ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Sub => self.sub(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Rsb => self.rsb(rd.try_into().unwrap(), rn, op2, s),
             _ => todo!("implement alu operation: {}", alu_op_code),
         }
     }
@@ -506,6 +507,10 @@ impl Arm7tdmi {
         }
     }
 
+    fn rsb(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+        self.sub(rd, op2, rn, s);
+    }
+    
     fn shift_operand(
         &mut self,
         alu_opcode: u32,
