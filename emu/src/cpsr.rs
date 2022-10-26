@@ -1,3 +1,4 @@
+use crate::arm7tdmi::ArithmeticOpResult;
 #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
 use crate::condition::ModeBits;
 use crate::{bitwise::Bits, condition::Condition};
@@ -108,6 +109,13 @@ impl Cpsr {
 
     pub fn set_carry_flag(&mut self, value: bool) {
         self.0.set_bit(29, value);
+    }
+
+    pub fn set_flags(&mut self, op_result: ArithmeticOpResult) {
+        self.set_carry_flag(op_result.carry);
+        self.set_zero_flag(op_result.zero);
+        self.set_sign_flag(op_result.sign);
+        self.set_overflow_flag(op_result.overflow);
     }
 
     #[allow(dead_code)] // TODO: remove allow when this API will be used at least one in prod code.

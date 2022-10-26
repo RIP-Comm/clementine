@@ -266,6 +266,7 @@ impl Arm7tdmi {
             }
             ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Sub => self.sub(rd.try_into().unwrap(), rn, op2, s),
             _ => todo!("implement alu operation: {}", alu_op_code),
         }
     }
@@ -471,10 +472,38 @@ impl Arm7tdmi {
         self.cpsr.set_zero_flag(value == 0);
     }
 
+    fn sub_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
+        let result = first_op.wrapping_sub(second_op);
+
+        let sign_op1: bool = first_op.get_bit(31);
+        let sign_op2: bool = second_op.get_bit(31);
+        let sign_r: bool = result.get_bit(31);
+
+        let different_sign = sign_op1 != sign_op2;
+
+        ArithmeticOpResult {
+            result,
+            carry: first_op < second_op,
+            overflow: different_sign && sign_op2 == sign_r,
+            sign: result.get_bit(31),
+            zero: result == 0,
+        }
+    }
+
     fn cmp(&mut self, rn: u32, op2: u32) {
         let value = rn - op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
         self.cpsr.set_zero_flag(value == 0);
+    }
+
+    fn sub(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+        let sub_result = Self::sub_inner_op(rn, op2);
+
+        self.registers.set_register_at(rd, sub_result.result);
+
+        if s {
+            self.cpsr.set_flags(sub_result);
+        }
     }
 
     fn shift_operand(
@@ -600,6 +629,14 @@ impl Arm7tdmi {
 
         result
     }
+}
+
+pub struct ArithmeticOpResult {
+    result: u32,
+    pub carry: bool,
+    pub overflow: bool,
+    pub sign: bool,
+    pub zero: bool,
 }
 
 enum SingleDataTransfer {
@@ -962,5 +999,49 @@ mod tests {
 
         assert_eq!(cpu.registers.register_at(1), (2_u32.pow(24) - 1) << 8);
         assert!(cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_sub() {
+        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 10);
+        cpu.registers.set_register_at(2, 5);
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 5);
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.sign_flag());
+
+        //Covers carry logic
+        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let op_code = cpu.decode(op_code);
+        cpu.registers.set_register_at(2, 15);
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1) as i32, -5);
+        assert!(cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
+
+        // Covers overflow logic
+        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 1);
+        cpu.registers.set_register_at(2, i32::MIN as u32);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), (i32::MIN + 1) as u32);
+        assert!(cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.overflow_flag());
+        assert!(cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
     }
 }
