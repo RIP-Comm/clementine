@@ -3,6 +3,9 @@ use crate::io_device::IoDevice;
 use crate::io_registers::LCDRegisters;
 
 pub struct InternalMemory {
+    /// From 0x00000000 to 0x00003FFF (16 KBytes)
+    bios_system_rom: [u8; 0x4000],
+
     /// From 0x03000000 to 0x03007FFF (32kb).
     internal_work_ram: [u8; 0x8000],
 
@@ -28,6 +31,7 @@ impl Default for InternalMemory {
 impl InternalMemory {
     pub const fn new() -> Self {
         Self {
+            bios_system_rom: [0; 0x4000],
             internal_work_ram: [0; 0x8000],
             bg_palette_ram: [0; 0x200],
             obj_palette_ram: [0; 0x200],
@@ -162,17 +166,19 @@ impl IoDevice for InternalMemory {
 
     fn read_at(&self, address: Self::Address) -> Self::Value {
         match address {
+            0x00000000..=0x00003FFF => self.bios_system_rom[(address) as usize],
             0x03000000..=0x03007FFF => self.internal_work_ram[(address - 0x03000000) as usize],
             0x04000000..=0x04000055 => self.read_address_lcd_register(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize],
             0x05000200..=0x050003FF => self.obj_palette_ram[(address - 0x05000200) as usize],
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize],
-            _ => unimplemented!("Unimplemented memory region."),
+            _ => unimplemented!("Unimplemented memory region. {address:x}"),
         }
     }
 
     fn write_at(&mut self, address: Self::Address, value: Self::Value) {
         match address {
+            0x00000000..=0x00003FFF => self.bios_system_rom[(address) as usize] = value,
             0x03000000..=0x03007FFF => {
                 self.internal_work_ram[(address - 0x03000000) as usize] = value
             }
@@ -338,5 +344,11 @@ mod tests {
         im.write_at(address, 5);
 
         assert_eq!(im.video_ram[0x17FFF], 5);
+    }
+    #[test]
+    fn test_read_write_bios_memory() {
+        let mut im = InternalMemory::new();
+        im.write_at(0x000001EC, 10);
+        assert_eq!(im.read_at(0x000001EC), 10);
     }
 }
