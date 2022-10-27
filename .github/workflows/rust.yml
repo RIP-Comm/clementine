@@ -25,8 +25,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - uses: extractions/setup-just@v1
     - name: Check fmt
-      run: cargo fmt --all --check
+      run: just check-fmt
 
   test:
     needs: fmt
@@ -34,8 +35,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - uses: extractions/setup-just@v1
     - name: Test
-      run: cargo test --verbose --workspace
+      run: just test
       
   lint:
     needs: [fmt, test]
@@ -43,5 +45,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - uses: extractions/setup-just@v1
     - name: Lint
-      run: cargo clippy --workspace -- -D warnings -W clippy::complexity -W clippy::correctness -W clippy::nursery -W clippy::perf -W clippy::style -W clippy::suspicious
+      run: just lint
