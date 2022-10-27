@@ -7,12 +7,14 @@ on:
       - 'src/**/*'
       - 'ui/**/*'
       - 'emu/**/*'
+      - '.github/workflows/**/*'
   pull_request:
     branches: [ "main" ]
     paths:
       - 'src/**/*'
       - 'ui/**/*'
       - 'emu/**/*'
+      - '.github/workflows/**/*'
 
 env:
   CARGO_TERM_COLOR: always
