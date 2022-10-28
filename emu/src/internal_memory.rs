@@ -4,16 +4,16 @@ use crate::io_registers::LCDRegisters;
 
 pub struct InternalMemory {
     /// From 0x03000000 to 0x03007FFF (32kb).
-    internal_work_ram: [u8; 0x7FFF],
+    internal_work_ram: [u8; 0x8000],
 
     /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors)
-    bg_palette_ram: [u8; 0x1FF],
+    bg_palette_ram: [u8; 0x200],
 
     /// From 0x05000200 to 0x050003FF (512 bytes, 256 colors)
-    obj_palette_ram: [u8; 0x1FF],
+    obj_palette_ram: [u8; 0x200],
 
     /// From 0x06000000 to 0x06017FFF (96 kb).
-    video_ram: [u8; 0x17FFF],
+    video_ram: [u8; 0x18000],
 
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
     lcd_registers: LCDRegisters,
@@ -28,10 +28,10 @@ impl Default for InternalMemory {
 impl InternalMemory {
     pub const fn new() -> Self {
         Self {
-            internal_work_ram: [0; 0x7FFF],
-            bg_palette_ram: [0; 0x1FF],
-            obj_palette_ram: [0; 0x1FF],
-            video_ram: [0; 0x17FFF],
+            internal_work_ram: [0; 0x8000],
+            bg_palette_ram: [0; 0x200],
+            obj_palette_ram: [0; 0x200],
+            video_ram: [0; 0x18000],
             lcd_registers: LCDRegisters::new(),
         }
     }
@@ -202,6 +202,16 @@ mod tests {
     }
 
     #[test]
+    fn test_last_byte_work_ram() {
+        let mut im = InternalMemory::new();
+
+        let address = 0x03007FFF;
+        im.write_at(address, 5);
+
+        assert_eq!(im.internal_work_ram[0x7FFF], 5);
+    }
+
+    #[test]
     fn test_read_work_ram() {
         let mut im = InternalMemory::new();
         im.internal_work_ram[5] = 10;
@@ -260,6 +270,16 @@ mod tests {
     }
 
     #[test]
+    fn test_last_byte_bg_palette_ram() {
+        let mut im = InternalMemory::new();
+
+        let address = 0x050001FF;
+        im.write_at(address, 5);
+
+        assert_eq!(im.bg_palette_ram[0x1FF], 5);
+    }
+
+    #[test]
     fn write_obj_palette_ram() {
         let mut im = InternalMemory::new();
         let address = 0x05000208;
@@ -281,6 +301,16 @@ mod tests {
     }
 
     #[test]
+    fn test_last_byte_obj_palette_ram() {
+        let mut im = InternalMemory::new();
+
+        let address = 0x050003FF;
+        im.write_at(address, 5);
+
+        assert_eq!(im.obj_palette_ram[0x1FF], 5);
+    }
+
+    #[test]
     fn write_vram() {
         let mut im = InternalMemory::new();
         let address = 0x06000004;
@@ -298,5 +328,15 @@ mod tests {
         let value = im.read_at(address);
 
         assert_eq!(value, 15);
+    }
+
+    #[test]
+    fn test_last_byte_vram() {
+        let mut im = InternalMemory::new();
+
+        let address = 0x06017FFF;
+        im.write_at(address, 5);
+
+        assert_eq!(im.video_ram[0x17FFF], 5);
     }
 }
