@@ -10,3 +10,4 @@ pub mod instruction;
 pub mod memory;
 pub mod opcode;
 pub mod ppu;
+mod single_data_transfer;
