@@ -13,8 +13,8 @@ enum SingleDataTransfer {
     Pld,
 }
 
-impl From<u32> for SingleDataTransfer {
-    fn from(op_code: u32) -> Self {
+impl From<ArmModeOpcode> for SingleDataTransfer {
+    fn from(op_code: ArmModeOpcode) -> Self {
         let must_for_pld = op_code.are_bits_on(28..=31);
         if op_code.get_bit(20) {
             if must_for_pld {
@@ -49,8 +49,8 @@ impl From<bool> for ReadWriteKind {
     }
 }
 
-impl From<u32> for ReadWriteKind {
-    fn from(op_code: u32) -> Self {
+impl From<&ArmModeOpcode> for ReadWriteKind {
+    fn from(op_code: &ArmModeOpcode) -> Self {
         op_code.get_bit(22).into()
     }
 }
@@ -59,7 +59,7 @@ impl Arm7tdmi {
     pub(crate) fn single_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
         let immediate = op_code.get_bit(25);
         let up_down = op_code.get_bit(23);
-        let byte_or_word: ReadWriteKind = op_code.raw.into();
+        let byte_or_word: ReadWriteKind = (&op_code).into();
 
         // bits [19-16] - Base register
         let rn = op_code.get_bits(16..=19);
@@ -81,7 +81,7 @@ impl Arm7tdmi {
             op_code.get_bits(0..=11)
         };
 
-        let load_store: SingleDataTransfer = op_code.raw.into();
+        let load_store: SingleDataTransfer = op_code.into();
 
         let address = if up_down {
             address.wrapping_sub(offset)
