@@ -276,8 +276,14 @@ impl Arm7tdmi {
             _ => todo!("implement alu operation: {}", alu_op_code),
         };
 
-        // We advance the PC only if Rd != R15
-        rd != 0xF
+        // If is a "test" ALU instruction we ever advance PC.
+        match ArmModeAluInstruction::from(alu_op_code) {
+            ArmModeAluInstruction::Teq
+            | ArmModeAluInstruction::Cmp
+            | ArmModeAluInstruction::Cmn
+            | ArmModeAluInstruction::Tst => true,
+            _ => rd != 0xF,
+        }
     }
 
     fn block_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
