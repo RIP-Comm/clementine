@@ -1,7 +1,6 @@
-use crate::arm7tdmi::ArithmeticOpResult;
 #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
 use crate::condition::ModeBits;
-use crate::{bitwise::Bits, condition::Condition};
+use crate::{bitwise::Bits, condition::Condition, data_processing::ArithmeticOpResult};
 
 /// Current Program Status Register.
 #[derive(Default)]
