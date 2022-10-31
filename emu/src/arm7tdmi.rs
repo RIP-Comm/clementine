@@ -1,10 +1,13 @@
+use std::cell::RefCell;
 use std::convert::TryInto;
+use std::rc::Rc;
 
 use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 use crate::opcode::ArmModeOpcode;
+use crate::ppu::PixelProcessUnit;
 use crate::{cpsr::Cpsr, cpu::Cpu};
 
 /// Contains the 16 registers for the CPU, latest (R15) is special because
@@ -46,7 +49,9 @@ pub struct Arm7tdmi {
     pub(crate) registers: Registers,
     pub(crate) cpsr: Cpsr,
 
-    pub(crate) memory: InternalMemory,
+    pub memory: Rc<RefCell<InternalMemory>>,
+
+    pub ppu: PixelProcessUnit,
 }
 
 const OPCODE_ARM_SIZE: usize = 4;
@@ -110,11 +115,13 @@ impl Cpu for Arm7tdmi {
 
 impl Arm7tdmi {
     pub fn new(rom: Vec<u8>) -> Self {
+        let internal_memory = Rc::new(RefCell::new(InternalMemory::new()));
         Self {
             rom,
             registers: Registers::default(),
             cpsr: Cpsr::default(),
-            memory: InternalMemory::new(),
+            memory: internal_memory.clone(),
+            ppu: PixelProcessUnit::new(internal_memory),
         }
     }
 
@@ -169,10 +176,30 @@ impl Arm7tdmi {
                         address = change_address(address);
                     }
 
-                    let part_0: u32 = self.memory.read_at(address).try_into().unwrap();
-                    let part_1: u32 = self.memory.read_at(address + 1).try_into().unwrap();
-                    let part_2: u32 = self.memory.read_at(address + 2).try_into().unwrap();
-                    let part_3: u32 = self.memory.read_at(address + 3).try_into().unwrap();
+                    let part_0: u32 = self
+                        .memory
+                        .borrow_mut()
+                        .read_at(address)
+                        .try_into()
+                        .unwrap();
+                    let part_1: u32 = self
+                        .memory
+                        .borrow_mut()
+                        .read_at(address + 1)
+                        .try_into()
+                        .unwrap();
+                    let part_2: u32 = self
+                        .memory
+                        .borrow_mut()
+                        .read_at(address + 2)
+                        .try_into()
+                        .unwrap();
+                    let part_3: u32 = self
+                        .memory
+                        .borrow_mut()
+                        .read_at(address + 3)
+                        .try_into()
+                        .unwrap();
                     let value: u32 = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
                     self.registers
                         .set_register_at(reg_destination.try_into().unwrap(), value);
@@ -249,10 +276,10 @@ mod tests {
         let op_code = cpu.decode(op_code);
 
         cpu.registers.set_register_at(13, 0x03000000); // fake mem address simulate dirty reg.
-        cpu.memory.write_at(0x03000000, 10);
-        cpu.memory.write_at(0x03000000 + 4, 11);
-        cpu.memory.write_at(0x03000000 + 8, 12);
-        cpu.memory.write_at(0x03000000 + 12, 13);
+        cpu.memory.borrow_mut().write_at(0x03000000, 10);
+        cpu.memory.borrow_mut().write_at(0x03000000 + 4, 11);
+        cpu.memory.borrow_mut().write_at(0x03000000 + 8, 12);
+        cpu.memory.borrow_mut().write_at(0x03000000 + 12, 13);
 
         assert_eq!(op_code.instruction, ArmModeInstruction::BlockDataTransfer);
         assert_eq!(op_code.condition, Condition::AL);

@@ -91,13 +91,14 @@ impl Arm7tdmi {
 
         match load_store {
             SingleDataTransfer::Ldr => match byte_or_word {
-                ReadWriteKind::Byte => self
-                    .registers
-                    .set_register_at(rd.try_into().unwrap(), self.memory.read_at(address) as u32),
+                ReadWriteKind::Byte => self.registers.set_register_at(
+                    rd.try_into().unwrap(),
+                    self.memory.borrow_mut().read_at(address) as u32,
+                ),
                 ReadWriteKind::Word => todo!(),
             },
             SingleDataTransfer::Str => match byte_or_word {
-                ReadWriteKind::Byte => self.memory.write_at(address, rd as u8),
+                ReadWriteKind::Byte => self.memory.borrow_mut().write_at(address, rd as u8),
                 ReadWriteKind::Word => todo!(),
             },
             _ => todo!("implement single data transfer operation"),
@@ -133,7 +134,7 @@ mod tests {
         cpu.registers.set_program_counter(0x03000050);
 
         // simulate mem already contains something.
-        cpu.memory.write_at(0x03000040, 99);
+        cpu.memory.borrow_mut().write_at(0x03000040, 99);
 
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 99);
@@ -159,7 +160,7 @@ mod tests {
         cpu.registers.set_program_counter(0x03000050);
 
         cpu.execute(op_code_type);
-        assert_eq!(cpu.memory.read_at(0x03000040), 13);
+        assert_eq!(cpu.memory.borrow_mut().read_at(0x03000040), 13);
         assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
 }
