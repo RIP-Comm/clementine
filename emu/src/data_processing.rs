@@ -242,14 +242,17 @@ impl Arm7tdmi {
         match ArmModeAluInstruction::from(alu_op_code) {
             ArmModeAluInstruction::And => self.and(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Eor => self.eor(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Bic => self.bic(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Mvn => self.mvn(rd.try_into().unwrap(), op2, s),
+            ArmModeAluInstruction::Sub => self.sub(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Rsb => self.rsb(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Adc => self.adc(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Sbc => self.sbc(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Rsc => self.rsc(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Tst => {
                 if s {
                     self.tst(rn, op2)
                 }
             }
-            ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2, s),
             ArmModeAluInstruction::Teq => {
                 if s {
                     self.teq(rn, op2)
@@ -265,13 +268,10 @@ impl Arm7tdmi {
                     self.cmn(rn, op2)
                 }
             }
-            ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Adc => self.adc(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Sbc => self.sbc(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Rsc => self.rsc(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Sub => self.sub(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Rsb => self.rsb(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2, s),
+            ArmModeAluInstruction::Bic => self.bic(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Mvn => self.mvn(rd.try_into().unwrap(), op2, s),
         };
 
         // If is a "test" ALU instruction we ever advance PC.
