@@ -1,56 +1,51 @@
+use std::fmt::Debug;
+use std::mem::size_of;
 use std::ops::RangeInclusive;
 
 /// Contains some helper methods to manipulate bits,
 /// the index (`bit_idk`) is supposed to be from lsb to msb (right to left)
-pub trait Bits {
-    fn is_bit_on(&self, bit_idx: u8) -> bool;
-    fn is_bit_off(&self, bit_idx: u8) -> bool;
-    fn set_bit_on(&mut self, bit_idx: u8);
-    fn set_bit_off(&mut self, bit_idx: u8);
-    fn toggle_bit(&mut self, bit_idx: u8);
-    fn set_bit(&mut self, bit_idx: u8, value: bool);
-    fn get_bit(&self, bit_idx: u8) -> bool;
-    fn get_bits(&self, bits_range: RangeInclusive<u8>) -> u32;
-    fn are_bits_on(&self, bits_range: RangeInclusive<u8>) -> bool;
-    fn get_byte(&self, byte_nth: u8) -> u8;
-    fn set_byte(&mut self, byte_nth: u8, value: u8);
-}
-
-impl Bits for u32 {
+pub trait Bits
+where
+    Self: Clone + Sized + Into<u128> + TryFrom<u128> + From<bool> + TryInto<u8> + From<u8>,
+    <Self as TryFrom<u128>>::Error: Debug,
+    <Self as TryInto<u8>>::Error: Debug,
+{
     fn is_bit_on(&self, bit_idx: u8) -> bool {
-        debug_assert!(bit_idx < 32);
-
-        let mask = 0b1 << bit_idx;
-        (self & mask) != 0
+        debug_assert!(bit_idx < (size_of::<Self>() * 8) as u8);
+        let bitwise: u128 = <Self as Into<u128>>::into(self.clone());
+        let mask: u128 = 0b1 << bit_idx;
+        (bitwise & mask) != 0
     }
 
     fn is_bit_off(&self, bit_idx: u8) -> bool {
-        debug_assert!(bit_idx < 32);
-
+        debug_assert!(bit_idx < (size_of::<Self>() * 8) as u8);
+        let bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         let mask = 0b1 << bit_idx;
-        (self & mask) == 0
+        (bitwise & mask) == 0
     }
 
     fn set_bit_on(&mut self, bit_idx: u8) {
-        debug_assert!(bit_idx < 32);
-
+        debug_assert!(bit_idx < (size_of::<Self>() * 8) as u8);
+        let mut bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         let mask = 0b1 << bit_idx;
-        *self |= mask;
+        bitwise |= mask;
+        *self = <Self as TryFrom<u128>>::try_from(bitwise).unwrap();
     }
 
     fn set_bit_off(&mut self, bit_idx: u8) {
-        debug_assert!(bit_idx < 32);
-
+        let mut bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         let mask = !(0b1 << bit_idx);
-        *self &= mask;
+        bitwise &= mask;
+        *self = <Self as TryFrom<u128>>::try_from(bitwise).unwrap();
     }
 
     /// Switches from 1 to 0, or conversely from 0 to 1
     fn toggle_bit(&mut self, bit_idx: u8) {
-        debug_assert!(bit_idx < 32);
-
+        debug_assert!(bit_idx < (size_of::<Self>() * 8) as u8);
+        let mut bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         let mask = 0b1 << bit_idx;
-        *self ^= mask;
+        bitwise ^= mask;
+        *self = <Self as TryFrom<u128>>::try_from(bitwise).unwrap();
     }
 
     fn set_bit(&mut self, bit_idx: u8, value: bool) {
@@ -64,13 +59,13 @@ impl Bits for u32 {
         self.is_bit_on(bit_idx)
     }
 
-    fn get_bits(&self, bits_range: RangeInclusive<u8>) -> u32 {
+    fn get_bits(&self, bits_range: RangeInclusive<u8>) -> Self {
         let mut bits = 0b0;
         for (shift_value, bit_index) in bits_range.enumerate() {
-            let bit_value: Self = self.get_bit(bit_index).into();
+            let bit_value: u128 = self.get_bit(bit_index).into();
             bits |= bit_value << shift_value;
         }
-        bits
+        bits.try_into().unwrap()
     }
 
     /// Checks if a certein sequence of bit is set to 1.
@@ -97,30 +92,28 @@ impl Bits for u32 {
     }
 
     fn set_byte(&mut self, byte_nth: u8, value: u8) {
-        debug_assert!(byte_nth < 4);
+        debug_assert!(byte_nth < size_of::<Self>() as u8);
+
+        let mut bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         // This mask is used to select the byte_nth octet and set it to 0.
-        let mask = !match byte_nth {
-            0 => 0xFF,
-            1 => 0xFF << 8,
-            2 => 0xFF << 16,
-            3 => 0xFF << 24,
-            _ => unreachable!(),
-        };
+        let mask: u128 = !(0xFF << (8 * byte_nth));
 
         // We shift the new octet in place.
-        let shifted_value: Self = match byte_nth {
-            0 => value as Self,
-            1 => (value as Self) << 8,
-            2 => (value as Self) << 16,
-            3 => (value as Self) << 24,
-            _ => unreachable!(),
-        };
+        let shifted_value: u128 = (value as u128) << (8 * byte_nth);
 
         // We set the byte_nth octet to 0 using the mask and we
         // do the OR with the new octet.
-        *self = (*self & mask) | shifted_value;
+        bitwise = (bitwise & mask) | shifted_value;
+        *self = <Self as TryFrom<u128>>::try_from(bitwise).unwrap();
     }
 }
+
+impl Bits for u128 {}
+impl Bits for u64 {}
+impl Bits for u32 {}
+impl Bits for u16 {}
+impl Bits for u8 {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,7 +219,7 @@ mod tests {
 
     #[test]
     fn get_byte() {
-        let b = 0b00000001_00100010_00000100_01001000;
+        let b: u32 = 0b00000001_00100010_00000100_01001000;
 
         assert_eq!(b.get_byte(0), 0b01001000_u8);
         assert_eq!(b.get_byte(1), 0b00000100_u8);
@@ -237,7 +230,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn get_byte_panic() {
-        let b = 0b00000001_00000010_00000100_00001000;
+        let b: u32 = 0b00000001_00000010_00000100_00001000;
 
         b.get_byte(4);
     }
@@ -269,7 +262,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn set_byte_panic() {
-        let mut b = 0b00000001_00000010_00000100_00001000;
+        let mut b: u32 = 0b00000001_00000010_00000100_00001000;
 
         b.set_byte(4, 0);
     }
