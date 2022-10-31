@@ -5,6 +5,12 @@ edition.workspace = true
 repository.workspace = true
 license.workspace = true
 
+[dependencies]
+rand = { version = "0.8.5", optional = true}
+
 [dev-dependencies]
 pretty_assertions = "1.3.0"
 rand = "0.8.5"
+
+[features]
+debug = ["rand"]

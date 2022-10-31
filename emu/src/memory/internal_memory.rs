@@ -11,13 +11,13 @@ pub struct InternalMemory {
     internal_work_ram: [u8; 0x8000],
 
     /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors)
-    bg_palette_ram: [u8; 0x200],
+    pub bg_palette_ram: [u8; 0x200],
 
     /// From 0x05000200 to 0x050003FF (512 bytes, 256 colors)
-    obj_palette_ram: [u8; 0x200],
+    pub obj_palette_ram: [u8; 0x200],
 
     /// From 0x06000000 to 0x06017FFF (96 kb).
-    video_ram: [u8; 0x18000],
+    pub video_ram: [u8; 0x18000],
 
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
     lcd_registers: LCDRegisters,
