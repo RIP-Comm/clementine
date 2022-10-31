@@ -20,7 +20,7 @@ fn main() {
 
     let options = eframe::NativeOptions {
         drag_and_drop_support: true,
-        initial_window_size: Some([1000.0, 600.0].into()),
+        initial_window_size: Some([1200.0, 800.0].into()),
         ..Default::default()
     };
 

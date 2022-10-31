@@ -10,6 +10,13 @@ build:
 test:
     @cargo test --workspace
 
+set positional-arguments
+
+# run clemente in DEBUG mode
+@debug *args='':
+    @cargo build --features debug
+    ./target/debug/clementine $1
+
 # run clippy with heavy config
 lint:
     @cargo clippy --workspace -- -D warnings    \
