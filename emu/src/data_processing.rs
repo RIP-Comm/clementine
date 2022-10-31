@@ -268,10 +268,10 @@ impl Arm7tdmi {
             ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Adc => self.adc(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Sbc => self.sbc(rd.try_into().unwrap(), rn, op2, s),
+            ArmModeAluInstruction::Rsc => self.rsc(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Sub => self.sub(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Rsb => self.rsb(rd.try_into().unwrap(), rn, op2, s),
-            _ => todo!("implement alu operation: {}", alu_op_code),
         };
 
         // If is a "test" ALU instruction we ever advance PC.
@@ -338,6 +338,10 @@ impl Arm7tdmi {
         if s {
             self.cpsr.set_flags(result);
         }
+    }
+
+    fn rsc(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+        self.sbc(rd, op2, rn, s);
     }
 
     fn eor(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
