@@ -435,3 +435,290 @@ impl Arm7tdmi {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        arm7tdmi::Arm7tdmi, condition::Condition, cpu::Cpu, instruction::ArmModeInstruction,
+    };
+
+    #[test]
+    fn check_teq() {
+        // This case cover S=0 then it will skip the execution of TEQ.
+        {
+            let op_code = 0b1110_0001_0010_1001_0011_0000_0000_0000;
+            let mut cpu = Arm7tdmi::new(vec![]);
+            let op_code = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+            let rn = 9_usize;
+            cpu.registers.set_register_at(rn, 100);
+            cpu.cpsr.set_sign_flag(true); // set for later verify.
+            cpu.execute(op_code);
+            assert!(cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+        }
+    }
+
+    #[test]
+    fn check_cmp_s1() {
+        let op_code: u32 = 0b1110_0001_0011_1010_0011_0000_0000_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+        let rn = 9_usize;
+        cpu.registers.set_register_at(rn, 1);
+        cpu.execute(op_code);
+        assert!(!cpu.cpsr.sign_flag());
+        assert!(cpu.cpsr.zero_flag());
+    }
+
+    #[test]
+    fn check_cmp_s0() {
+        let op_code: u32 = 0b1110_0001_0010_1010_0011_0000_0000_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+        let rn = 9_usize;
+        cpu.registers.set_register_at(rn, 1);
+        cpu.cpsr.set_sign_flag(true); // set for later verify.
+        cpu.execute(op_code);
+        assert!(cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
+    }
+
+    #[test]
+    fn check_add() {
+        let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
+        cpu.registers.set_register_at(15, 15);
+        cpu.execute(op_code);
+        assert_eq!(cpu.registers.register_at(0), 15 + 8 + 32);
+    }
+
+    #[test]
+    fn check_add_pc_operand_shift_register() {
+        // Case when R15 is used as operand and shift amount is taken from register:
+        // R2 = R1 + (R15 << R3)
+        let op_code = 0b1110_0000_1000_0001_0010_0011_0001_1111;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing2);
+
+        cpu.registers.set_register_at(2, 5);
+        cpu.registers.set_register_at(1, 10);
+        cpu.registers.set_register_at(15, 500);
+        cpu.registers.set_register_at(3, 0);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(2), 500 + 12 + 10);
+    }
+
+    #[test]
+    fn check_add_carry_bit() {
+        let op_code: u32 = 0b1110_0000_1001_1111_0000_0000_0000_1110;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+
+        cpu.registers.set_register_at(15, 1 << 31);
+        cpu.registers.set_register_at(14, 1 << 31);
+        cpu.execute(op_code);
+        assert_eq!(cpu.registers.register_at(0), 8);
+        assert!(cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.overflow_flag());
+        assert!(!cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
+    }
+
+    #[test]
+    fn check_mov_rx_immediate() {
+        // MOV R0, 0
+        let mut op_code: u32 = 0b1110_0011_1010_0000_0000_0000_0000_0000;
+
+        // bits [11-8] are ROR-Shift applied to nn
+        let is = op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000;
+
+        // MOV Rx,x
+        let mut cpu = Arm7tdmi::new(vec![]);
+        for rx in 0..=0xF {
+            let register_for_op = rx << 12;
+            let immediate_value = rx;
+
+            // Rd parameter
+            op_code = (op_code & 0b1111_1111_1111_1111_0000_1111_1111_1111) + register_for_op;
+            // Immediate parameter
+            op_code = (op_code & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
+
+            let op_code = cpu.decode(op_code);
+            assert_eq!(op_code.condition, Condition::AL);
+            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
+
+            cpu.execute(op_code);
+            let rotated = rx.rotate_right(is * 2);
+            assert_eq!(cpu.registers.register_at(rx.try_into().unwrap()), rotated);
+        }
+    }
+
+    #[test]
+    fn check_mov_cpsr() {
+        // Checks for Z flag
+        let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.execute(op_code);
+
+        assert!(cpu.cpsr.zero_flag());
+
+        // Checks for Z flag
+        let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(2, -5_i32 as u32);
+        cpu.execute(op_code);
+
+        assert!(cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn shift_from_register_is_0() {
+        let op_code = 0b1110_0000_1000_0000_0001_0011_0111_0010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 5);
+        cpu.registers.set_register_at(2, 11);
+        cpu.registers.set_register_at(3, 8 << 8);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 16);
+    }
+
+    #[test]
+    fn check_and() {
+        let op_code = 0b1110_00_1_0000_0_0000_0001_0000_10101010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        // All 1 except msb
+        cpu.registers.set_register_at(0, 2_u32.pow(31) - 1);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 0b10101010);
+    }
+
+    #[test]
+    fn check_eor() {
+        let op_code = 0b1110_00_1_0001_0_0000_0001_0000_10101010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 0b11111111);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 0b01010101);
+    }
+
+    #[test]
+    fn check_tst() {
+        // Covers S = 0
+        let op_code = 0b1110_00_1_1000_0_0000_0001_0000_10101010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 0b11111111);
+
+        cpu.execute(op_code);
+
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.sign_flag());
+
+        cpu.cpsr.set_sign_flag(true);
+        // Covers S = 1
+        let op_code = 0b1110_00_1_1000_1_0000_0001_0000_00000000;
+        let op_code = cpu.decode(op_code);
+
+        cpu.execute(op_code);
+
+        assert!(cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_bic() {
+        let op_code = 0b1110_00_1_1110_0_0000_0001_0000_10101010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 0b11111111);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 0b01010101);
+    }
+
+    #[test]
+    fn check_mvn() {
+        let op_code = 0b1110_00_1_1111_1_0000_0001_0000_11111111;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), (2_u32.pow(24) - 1) << 8);
+        assert!(cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_sub() {
+        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 10);
+        cpu.registers.set_register_at(2, 5);
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 5);
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.sign_flag());
+
+        //Covers carry logic
+        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let op_code = cpu.decode(op_code);
+        cpu.registers.set_register_at(2, 15);
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1) as i32, -5);
+        assert!(cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
+
+        // Covers overflow logic
+        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let op_code = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(0, 1);
+        cpu.registers.set_register_at(2, i32::MIN as u32);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), (i32::MIN + 1) as u32);
+        assert!(cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.overflow_flag());
+        assert!(cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
+    }
+}
