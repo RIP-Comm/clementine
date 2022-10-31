@@ -388,17 +388,17 @@ impl Arm7tdmi {
 
     fn add_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
         // we do the sum in 64bits so that the 32nd bit is the carry
-        let result_and_carry: u64 = (first_op as u64).wrapping_add(second_op as u64);
-        let result: u32 = result_and_carry as u32;
+        let result_and_carry = (first_op as u64).wrapping_add(second_op as u64);
+        let result = result_and_carry as u32;
 
-        let sign_op1: bool = first_op.get_bit(31);
-        let sign_op2: bool = second_op.get_bit(31);
-        let sign_r: bool = result.get_bit(31);
+        let sign_op1 = first_op.get_bit(31);
+        let sign_op2 = second_op.get_bit(31);
+        let sign_r = result.get_bit(31);
 
-        let carry: bool = (result_and_carry & 0x100000000) >> 32 == 1;
+        let carry = (result_and_carry & 0x100000000) >> 32 == 1;
 
         // overflow only occurs when operands have the same sign and result has the opposite one
-        let same_sign: bool = sign_op1 == sign_op2;
+        let same_sign = sign_op1 == sign_op2;
 
         ArithmeticOpResult {
             result,
@@ -420,7 +420,7 @@ impl Arm7tdmi {
     }
 
     fn orr(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
-        let result: u32 = rn | op2;
+        let result = rn | op2;
 
         self.registers.set_register_at(rd, result);
 
@@ -455,9 +455,9 @@ impl Arm7tdmi {
     fn sub_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
         let result = first_op.wrapping_sub(second_op);
 
-        let sign_op1: bool = first_op.get_bit(31);
-        let sign_op2: bool = second_op.get_bit(31);
-        let sign_r: bool = result.get_bit(31);
+        let sign_op1 = first_op.get_bit(31);
+        let sign_op2 = second_op.get_bit(31);
+        let sign_r = result.get_bit(31);
 
         let different_sign = sign_op1 != sign_op2;
 
