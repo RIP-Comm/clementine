@@ -225,6 +225,7 @@ impl IoDevice for InternalMemory {
                 self.obj_palette_ram[(address - 0x05000200) as usize] = value
             }
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize] = value,
+            0x10000000..=0xFFFFFFFF => println!("not use memory space"),
             _ => unimplemented!("Unimplemented memory region {address:x}."),
         }
     }
