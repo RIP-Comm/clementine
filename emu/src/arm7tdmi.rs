@@ -20,7 +20,6 @@ impl Registers {
         self.0[15].try_into().unwrap()
     }
 
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn set_program_counter(&mut self, new_value: u32) {
         self.0[15] = new_value
     }
@@ -84,8 +83,8 @@ impl Cpu for Arm7tdmi {
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
         let should_advance_pc = match op_code.instruction {
-            Branch => self.branch(op_code),
-            BranchLink => self.branch_link(op_code),
+            Branch => self.branch(op_code, false),
+            BranchLink => self.branch(op_code, true),
             DataProcessing1 | DataProcessing2 | DataProcessing3 => self.data_processing(op_code),
             TransImm9 => self.single_data_transfer(op_code),
             BlockDataTransfer => self.block_data_transfer(op_code),
@@ -125,24 +124,26 @@ impl Arm7tdmi {
         }
     }
 
-    fn branch(&mut self, op_code: ArmModeOpcode) -> bool {
-        let offset = op_code.get_bits(0..=23);
+    fn branch(&mut self, op_code: ArmModeOpcode, link: bool) -> bool {
+        let offset = op_code.get_bits(0..=23) << 2;
 
-        self.registers.advance_program_counter(8 + offset * 4);
+        // We need to sign-extend the 26 bit number into a 32 bit.
+        // We can't just do `offset as i32` since it would just do a
+        // zero extension.
+
+        let mask = 1 << 25;
+        let offset = (offset as i32 ^ mask) - mask;
+
+        let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
+        if link {
+            self.registers.set_register_at(14, old_pc.wrapping_add(4));
+        }
+
+        // 8 is for the prefetch
+        let new_pc = self.registers.program_counter() as i32 + offset + 8;
+        self.registers.set_program_counter(new_pc as u32);
 
         // Never advance PC after B
-        false
-    }
-
-    fn branch_link(&mut self, op_code: ArmModeOpcode) -> bool {
-        let pc: u32 = self.registers.program_counter().try_into().unwrap();
-        self.registers.set_register_at(14, pc.wrapping_add(4)); // R14 = LR
-
-        let offset = op_code.get_bits(0..=23);
-
-        self.registers.advance_program_counter(8 + offset * 4);
-
-        // Never advance PC after BL
         false
     }
 
@@ -248,12 +249,36 @@ mod tests {
     }
 
     #[test]
-    fn test_registers_14_after_branch_link() {
-        let mut cpu: Arm7tdmi = Arm7tdmi::new(vec![]);
-        cpu.registers = Registers([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
-        let pc: u32 = cpu.registers.program_counter().try_into().unwrap();
-        cpu.branch_link(0b0_u32.try_into().unwrap());
-        assert_eq!(cpu.registers.register_at(14), pc.wrapping_add(4));
+    fn test_branch() {
+        // Covers a positive offset
+
+        // 15(1111b) << 2 = 60 bytes
+        let op_code = 0b1110_1010_0000_0000_0000_0000_0000_1111;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code = cpu.decode(op_code);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.program_counter(), 68);
+
+        // Covers a negative offset
+
+        // -9 << 2 = -36 bytes
+        let op_code = 0b1110_1010_1111_1111_1111_1111_1111_0111;
+        let op_code = cpu.decode(op_code);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.program_counter(), 68 + 8 - 36);
+
+        // Covers link
+
+        let op_code = 0b1110_1011_0000_0000_0000_0000_0000_1111;
+        let op_code = cpu.decode(op_code);
+
+        cpu.execute(op_code);
+
+        assert_eq!(cpu.registers.register_at(14), 44);
     }
 
     #[test]
