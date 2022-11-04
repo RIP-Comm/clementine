@@ -1,4 +1,7 @@
-use crate::memory::io_registers::{IORegister, IORegisterAccessControl};
+use crate::{
+    bitwise::Bits,
+    memory::io_registers::{IORegister, IORegisterAccessControl},
+};
 
 pub struct LCDRegisters {
     /// LCD Control
@@ -129,5 +132,76 @@ impl LCDRegisters {
             bldalpha: IORegister::with_access_control(ReadWrite),
             bldy: IORegister::with_access_control(Write),
         }
+    }
+
+    /// Info about vram fields used to render display.
+    pub fn get_bg_mode(&self) -> u8 {
+        self.dispcnt.read().get_bits(0..=2) as u8
+    }
+
+    /// [false | true] = Gameboy Advance | Gameboy Color.
+    /// It is a reserverd bit: only BIOS opcodes can write it.
+    pub fn get_cgb_mode(&self) -> bool {
+        self.dispcnt.read().is_bit_on(3)
+    }
+
+    /// Selected frame = [0-1]. Other values are not allowed.
+    pub fn get_frame_select(&self) -> u8 {
+        self.dispcnt.read().is_bit_on(4).into()
+    }
+
+    /// True allows access to OAM during H-Blank.
+    pub fn h_blank_interval_free(&self) -> bool {
+        self.dispcnt.read().is_bit_on(5)
+    }
+
+    /// False means two dimensional
+    pub fn obj_char_mapping_one_dimensional(&self) -> bool {
+        self.dispcnt.read().is_bit_on(6)
+    }
+
+    /// True allows FAST access to VRAM, Palette, OAM
+    pub fn forced_blank(&self) -> bool {
+        self.dispcnt.read().is_bit_on(7)
+    }
+
+    // [false | true] = OFF | ON
+    pub fn display_bg0(&self) -> bool {
+        self.dispcnt.read().is_bit_on(8)
+    }
+
+    // [false | true] = OFF | ON
+    pub fn display_bg1(&self) -> bool {
+        self.dispcnt.read().is_bit_on(9)
+    }
+
+    // [false | true] = OFF | ON
+    pub fn display_bg2(&self) -> bool {
+        self.dispcnt.read().is_bit_on(10)
+    }
+
+    // [false | true] = OFF | ON
+    pub fn display_bg3(&self) -> bool {
+        self.dispcnt.read().is_bit_on(11)
+    }
+
+    // [false | true] = OFF | ON
+    pub fn display_obj(&self) -> bool {
+        self.dispcnt.read().is_bit_on(12)
+    }
+
+    // [false | true] = OFF | ON
+    pub fn window0_display_flag(&self) -> bool {
+        self.dispcnt.read().is_bit_on(13)
+    }
+
+    // [false | true] = OFF | ON
+    pub fn window1_display_flag(&self) -> bool {
+        self.dispcnt.read().is_bit_on(14)
+    }
+
+    // [false | true] = OFF | ON
+    pub fn obj_window_display_flag(&self) -> bool {
+        self.dispcnt.read().is_bit_on(15)
     }
 }
