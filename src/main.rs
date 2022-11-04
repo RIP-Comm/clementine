@@ -7,16 +7,16 @@ fn main() {
 
     let args = env::args().skip(1).collect::<Vec<String>>();
 
-    let cartridge_name = match args.first() {
-        Some(name) => {
-            println!("loading {name}");
-            name.clone()
-        }
-        None => {
+    let cartridge_name = args.first().map_or_else(
+        || {
             println!("no cartridge found :(");
             std::process::exit(1)
-        }
-    };
+        },
+        |name| {
+            println!("loading {name}");
+            name.clone()
+        },
+    );
 
     let options = eframe::NativeOptions {
         drag_and_drop_support: true,

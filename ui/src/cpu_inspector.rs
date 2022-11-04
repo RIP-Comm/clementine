@@ -58,10 +58,10 @@ impl<T: Cpu> View for CpuInspector<T> {
         ui.heading("Registers");
         ui.add_space(8.0);
 
-        let registers = match self.gba.lock() {
-            Ok(gba) => gba.cpu.registers(),
-            Err(_) => vec![],
-        };
+        let registers = self
+            .gba
+            .lock()
+            .map_or_else(|_| vec![], |gba| gba.cpu.registers());
 
         let mut index = 0;
 
