@@ -30,12 +30,17 @@ jobs:
       run: just check-fmt
 
   test:
-    needs: fmt
-    runs-on: ubuntu-latest
+    needs: [fmt]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v3
     - uses: extractions/setup-just@v1
+    - uses: dtolnay/rust-toolchain@stable
     - name: Test
       run: just test
       
