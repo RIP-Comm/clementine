@@ -81,7 +81,7 @@ where
     }
 
     fn get_byte(&self, byte_nth: u8) -> u8 {
-        debug_assert!(byte_nth < 4);
+        debug_assert!(byte_nth < size_of::<Self>() as u8);
 
         // We access the byte_nth octet:
         // from the byte_nth*8 bit to the byte_nth*8+7 bit (inclusive)
