@@ -1,19 +1,21 @@
+use std::collections::HashMap;
+
 use crate::bitwise::Bits;
 use crate::memory::io_device::IoDevice;
 use crate::memory::lcd_registers::LCDRegisters;
 use crate::memory::timer_registers::TimerRegisters;
 
 pub struct InternalMemory {
-    /// From 0x00000000 to 0x00003FFF (16 KBytes)
+    /// From 0x00000000 to 0x00003FFF (16 KBytes).
     bios_system_rom: [u8; 0x4000],
 
     /// From 0x03000000 to 0x03007FFF (32kb).
     internal_work_ram: [u8; 0x8000],
 
-    /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors)
+    /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors).
     pub bg_palette_ram: [u8; 0x200],
 
-    /// From 0x05000200 to 0x050003FF (512 bytes, 256 colors)
+    /// From 0x05000200 to 0x050003FF (512 bytes, 256 colors).
     pub obj_palette_ram: [u8; 0x200],
 
     /// From 0x06000000 to 0x06017FFF (96 kb).
@@ -22,8 +24,11 @@ pub struct InternalMemory {
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
     lcd_registers: LCDRegisters,
 
-    /// From 0x04000100 to 0x0400010E
+    /// From 0x04000100 to 0x0400010E.
     timer_registers: TimerRegisters,
+
+    // / From 0x10000000 to 0xFFFFFFFF.
+    unused_region: HashMap<usize, u8>,
 }
 
 impl Default for InternalMemory {
@@ -33,7 +38,7 @@ impl Default for InternalMemory {
 }
 
 impl InternalMemory {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             bios_system_rom: [0; 0x4000],
             internal_work_ram: [0; 0x8000],
@@ -42,6 +47,7 @@ impl InternalMemory {
             video_ram: [0; 0x18000],
             lcd_registers: LCDRegisters::new(),
             timer_registers: TimerRegisters::new(),
+            unused_region: HashMap::new(),
         }
     }
 
@@ -208,6 +214,10 @@ impl IoDevice for InternalMemory {
             0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize],
             0x05000200..=0x050003FF => self.obj_palette_ram[(address - 0x05000200) as usize],
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize],
+            0x10000000..=0xFFFFFFFF => self
+                .unused_region
+                .get(&((address - 0x10000000) as usize))
+                .map_or(0, |v| *v),
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
         }
     }
@@ -225,7 +235,14 @@ impl IoDevice for InternalMemory {
                 self.obj_palette_ram[(address - 0x05000200) as usize] = value
             }
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize] = value,
-            0x10000000..=0xFFFFFFFF => println!("not use memory space"),
+            0x10000000..=0xFFFFFFFF => {
+                if self
+                    .unused_region
+                    .insert((address - 0x10000000) as usize, value)
+                    .is_some()
+                {}
+            }
+
             _ => unimplemented!("Unimplemented memory region {address:x}."),
         }
     }
