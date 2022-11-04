@@ -93,7 +93,7 @@ impl Arm7tdmi {
             SingleDataTransfer::Ldr => match byte_or_word {
                 ReadWriteKind::Byte => self.registers.set_register_at(
                     rd.try_into().unwrap(),
-                    self.memory.borrow_mut().read_at(address) as u32,
+                    self.memory.borrow().read_at(address) as u32,
                 ),
                 ReadWriteKind::Word => todo!(),
             },
