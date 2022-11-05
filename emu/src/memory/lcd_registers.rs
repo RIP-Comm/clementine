@@ -136,7 +136,7 @@ impl LCDRegisters {
 
     /// Info about vram fields used to render display.
     pub fn get_bg_mode(&self) -> u8 {
-        self.dispcnt.read().get_bits(0..=2) as u8
+        self.dispcnt.read().get_bits(0..=2).try_into().unwrap()
     }
 
     /// [false | true] = Gameboy Advance | Gameboy Color.
@@ -203,5 +203,64 @@ impl LCDRegisters {
     // [false | true] = OFF | ON
     pub fn obj_window_display_flag(&self) -> bool {
         self.dispcnt.read().is_bit_on(15)
+    }
+
+    fn get_bg_index_cnt(&self, bg_index: usize) -> &IORegister {
+        match bg_index {
+            0 => &self.bg0cnt,
+            1 => &self.bg1cnt,
+            2 => &self.bg2cnt,
+            3 => &self.bg3cnt,
+            _ => panic!("Impossible BG index CNT!")
+        }
+    }
+
+    /// 0 = Highest
+    pub fn get_bg_priority(&self, bg_index: usize) -> u8 {
+        let reg = self.get_bg_index_cnt(bg_index);
+        reg.read().get_bits(0..=1).try_into().unwrap()
+    }
+
+    /// 0-3, in units of 16 KBytes.
+    pub fn character_base_block(&self, bg_index: usize) -> u8 {
+        let reg = self.get_bg_index_cnt(bg_index);
+        reg.read().get_bits(2..=3).try_into().unwrap()
+    }
+
+    /// [false | true]: Disabled | Enabled
+    pub fn mosaic(&self, bg_index: usize) -> bool {
+        let reg = self.get_bg_index_cnt(bg_index);
+        reg.read().is_bit_on(6)
+    }
+
+    /// Full means 1 palette/256 colors.
+    /// Otherwise means 16 palette/16 colors.
+    pub fn palette_full(&self, bg_index: usize) -> bool {
+        let reg = self.get_bg_index_cnt(bg_index);
+        reg.read().is_bit_on(7)
+    }
+
+    /// 0-31, in units of 2 Kbytes.
+    pub fn screen_base_block(&self, bg_index: usize) -> u8 {
+        let reg = self.get_bg_index_cnt(bg_index);
+        reg.read().get_bits(8..=12).try_into().unwrap()
+    }
+
+    /// BG0/B1 not used.
+    /// BG2/BG3: false = Wraparaound
+    pub fn display_area_overflow_transparent(&self, bg_index: usize) -> bool {
+        let reg = self.get_bg_index_cnt(bg_index);
+        reg.read().is_bit_on(13)
+    }
+
+    /// Screen size
+    /// Value    Text Mode      Rotation/Scaling Mode
+    ///   0      256x256 (2K)   128x128   (256 bytes)
+    ///   1      512x256 (4K)   256x256   (1K)
+    ///   2      256x512 (4K)   512x512   (4K)
+    ///   3      512x512 (8K)   1024x1024 (16K)
+    pub fn screen_size(&self, bg_index: usize) -> usize {
+        let reg = self.get_bg_index_cnt(bg_index);
+        reg.read().get_bits(14..=15).try_into().unwrap()
     }
 }
