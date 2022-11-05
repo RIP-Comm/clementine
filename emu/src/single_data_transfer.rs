@@ -122,7 +122,21 @@ impl Arm7tdmi {
             },
             SingleDataTransfer::Str => match byte_or_word {
                 ReadWriteKind::Byte => self.memory.borrow_mut().write_at(address, rd as u8),
-                ReadWriteKind::Word => todo!(),
+                ReadWriteKind::Word => {
+                    let v = self.registers.register_at(rd.try_into().unwrap());
+                    self.memory
+                        .borrow_mut()
+                        .write_at(address, v.get_bits(0..=7) as u8);
+                    self.memory
+                        .borrow_mut()
+                        .write_at(address + 1, v.get_bits(8..=15) as u8);
+                    self.memory
+                        .borrow_mut()
+                        .write_at(address + 2, v.get_bits(16..=23) as u8);
+                    self.memory
+                        .borrow_mut()
+                        .write_at(address + 3, v.get_bits(24..=31) as u8);
+                }
             },
             _ => todo!("implement single data transfer operation"),
         }
@@ -211,5 +225,31 @@ mod tests {
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 16843009);
         assert_eq!(cpu.registers.program_counter(), 4);
+    }
+
+    #[test]
+    fn check_str_word() {
+        let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
+        let mut cpu = Arm7tdmi::new(vec![]);
+        let op_code_type = cpu.decode(op_code);
+        assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
+
+        let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
+            .try_into()
+            .expect("conversion `rd` to u8");
+
+        assert_eq!(rd, 1);
+        cpu.registers.set_register_at(1, 16843009);
+
+        // because in this specific case address will be
+        // then will be 0x03000050 + 8 (.wrapping_sub(offset))
+        cpu.registers.set_program_counter(0x03000050);
+
+        cpu.execute(op_code_type);
+        assert_eq!(cpu.memory.borrow_mut().read_at(0x01010101), 1);
+        assert_eq!(cpu.memory.borrow_mut().read_at(0x01010101 + 1), 1);
+        assert_eq!(cpu.memory.borrow_mut().read_at(0x01010101 + 2), 1);
+        assert_eq!(cpu.memory.borrow_mut().read_at(0x01010101 + 3), 1);
+        assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
 }
