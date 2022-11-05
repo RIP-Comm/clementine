@@ -27,7 +27,8 @@ pub struct InternalMemory {
     /// From 0x04000100 to 0x0400010E.
     timer_registers: TimerRegisters,
 
-    // / From 0x10000000 to 0xFFFFFFFF.
+    /// From 0x00004000 to 0x01FFFFFF.
+    /// From 0x10000000 to 0xFFFFFFFF.
     unused_region: HashMap<usize, u8>,
 }
 
@@ -214,9 +215,9 @@ impl IoDevice for InternalMemory {
             0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize],
             0x05000200..=0x050003FF => self.obj_palette_ram[(address - 0x05000200) as usize],
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize],
-            0x10000000..=0xFFFFFFFF => self
+            0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => self
                 .unused_region
-                .get(&((address - 0x10000000) as usize))
+                .get(&(address as usize))
                 .map_or(0, |v| *v),
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
         }
@@ -235,12 +236,8 @@ impl IoDevice for InternalMemory {
                 self.obj_palette_ram[(address - 0x05000200) as usize] = value
             }
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize] = value,
-            0x10000000..=0xFFFFFFFF => {
-                if self
-                    .unused_region
-                    .insert((address - 0x10000000) as usize, value)
-                    .is_some()
-                {}
+            0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
+                if self.unused_region.insert(address as usize, value).is_some() {}
             }
 
             _ => unimplemented!("Unimplemented memory region {address:x}."),
