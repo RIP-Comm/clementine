@@ -28,3 +28,5 @@ rand = "0.8.5"
 debug = [
     "ui/debug"
 ]
+
+test_bitmap = ["ui/test_bitmap"]
