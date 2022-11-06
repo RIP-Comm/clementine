@@ -132,7 +132,7 @@ impl Display for ArmModeOpcode {
         };
 
         let mut raw_bits = String::new();
-        for i in format!("{:b}", self.raw).chars() {
+        for i in format!("{:#034b}", self.raw).chars().skip(2) {
             raw_bits.push(i);
             raw_bits.push('_');
         }
