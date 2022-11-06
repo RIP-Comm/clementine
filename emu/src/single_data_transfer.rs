@@ -123,7 +123,13 @@ impl Arm7tdmi {
             SingleDataTransfer::Str => match byte_or_word {
                 ReadWriteKind::Byte => self.memory.borrow_mut().write_at(address, rd as u8),
                 ReadWriteKind::Word => {
-                    let v = self.registers.register_at(rd.try_into().unwrap());
+                    let mut v = self.registers.register_at(rd.try_into().unwrap());
+
+                    // If R15 we get the value of the current instruction + 12
+                    if rd == 0xF {
+                        v += 12;
+                    }
+
                     self.memory
                         .borrow_mut()
                         .write_at(address, v.get_bits(0..=7) as u8);
