@@ -7,7 +7,9 @@ use crate::{
     memory::internal_memory::InternalMemory,
     render::{
         color::{Color, PaletteType},
-        MAX_COLORS_FULL_PALETTE, MAX_COLORS_SINGLE_PALETTE, MAX_PALETTES_BY_TYPE,
+        gba_display::GbaDisplay,
+        DISPLAY_HEIGHT, DISPLAY_WIDTH, MAX_COLORS_FULL_PALETTE, MAX_COLORS_SINGLE_PALETTE,
+        MAX_PALETTES_BY_TYPE,
     },
 };
 
@@ -18,6 +20,50 @@ pub struct PixelProcessUnit {
 impl PixelProcessUnit {
     pub fn new(internal_memory: Rc<RefCell<InternalMemory>>) -> Self {
         Self { internal_memory }
+    }
+
+    pub fn render(&self) -> GbaDisplay {
+        let mut gba_display = GbaDisplay::new();
+
+        // BG_MODE is forced to 3 to avoid crash on start
+        let bg_mode = 3;
+
+        //let bg_mode = self.internal_memory.borrow().lcd_registers.get_bg_mode();
+        match bg_mode {
+            0 => {
+                todo!("BG_MODE 0 not implemented yet")
+            }
+            1 => {
+                todo!("BG_MODE 1 not implemented yet")
+            }
+            2 => {
+                todo!("BG_MODE 2 not implemented yet")
+            }
+            3 => {
+                // Bitmap mode
+                for y in 0..DISPLAY_HEIGHT {
+                    for x in 0..DISPLAY_WIDTH {
+                        let color: Color = [
+                            self.internal_memory.borrow().video_ram[(y * DISPLAY_WIDTH + x) * 2],
+                            self.internal_memory.borrow().video_ram
+                                [(y * DISPLAY_WIDTH + x) * 2 + 1],
+                        ]
+                        .into();
+
+                        gba_display.set_pixel(x, y, color);
+                    }
+                }
+            }
+            4 => {
+                todo!("BG_MODE 4 not implemented yet")
+            }
+            5 => {
+                todo!("BG_MODE 5 not implemented yet")
+            }
+            _ => panic!("BG MODE doesn't exist."),
+        }
+
+        gba_display
     }
 
     fn get_array_color(&self, index: usize, palette_type: &PaletteType) -> [u8; 2] {
