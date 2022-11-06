@@ -211,7 +211,7 @@ impl LCDRegisters {
             1 => &self.bg1cnt,
             2 => &self.bg2cnt,
             3 => &self.bg3cnt,
-            _ => panic!("Impossible BG index CNT!")
+            _ => panic!("Impossible BG index CNT!"),
         }
     }
 

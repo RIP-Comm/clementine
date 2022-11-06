@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use emu::{
     cpu::Cpu,
     gba::Gba,
-    ppu::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
+    render::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
 };
 
 use crate::ui_traits::{UiTool, View};
