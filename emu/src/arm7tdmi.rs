@@ -168,7 +168,13 @@ impl Arm7tdmi {
             self.exec_data_trasfer(reg_list, pre_post, &mut address, up_down, transfer);
         } else {
             let transfer = |arm: &mut Self, address: u32, reg_source: usize| {
-                let value = arm.registers.register_at(reg_source);
+                let mut value = arm.registers.register_at(reg_source);
+
+                // If R15 we get the value of the current instruction + 12
+                if reg_source == 0xF {
+                    value += 12;
+                }
+
                 arm.memory
                     .borrow_mut()
                     .write_at(address, value.get_bits(0..=7) as u8);
