@@ -22,7 +22,7 @@ pub struct InternalMemory {
     pub video_ram: [u8; 0x18000],
 
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
-    lcd_registers: LCDRegisters,
+    pub lcd_registers: LCDRegisters,
 
     /// From 0x04000100 to 0x0400010E.
     timer_registers: TimerRegisters,

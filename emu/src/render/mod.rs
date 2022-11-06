@@ -1,5 +1,6 @@
 /// This module contains all the data structures used to render the GBA display.
 pub mod color;
+pub mod gba_display;
 
 /// GBA display width
 pub const DISPLAY_WIDTH: usize = 240;
