@@ -1,65 +1,120 @@
-use egui::{self, Color32, ColorImage};
+use egui::{self, Color32, ColorImage, Vec2};
 
-use std::sync::{Arc, Mutex};
+use std::{
+    borrow::BorrowMut,
+    sync::{Arc, Mutex},
+};
 
 use emu::{
-    cpu::Cpu,
+    arm7tdmi::Arm7tdmi,
     gba::Gba,
     render::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
 };
 
-use crate::ui_traits::{UiTool, View};
+use crate::{
+    gba_color::GbaColor,
+    ui_traits::{UiTool, View},
+};
 
-pub struct GbaDisplay<T: Cpu> {
+pub struct GbaDisplay {
     image: egui::ColorImage,
     texture: Option<egui::TextureHandle>,
-
-    pub gba: Arc<Mutex<Gba<T>>>,
+    gba: Arc<Mutex<Gba<Arm7tdmi>>>,
+    scale: f32,
 }
 
-impl<T: Cpu> GbaDisplay<T> {
-    pub(crate) fn new(gba: Arc<Mutex<Gba<T>>>) -> Self {
-        Self {
-            image: ColorImage::new([DISPLAY_WIDTH, DISPLAY_HEIGHT], Color32::BLACK),
-            texture: None,
-            gba,
+impl GbaDisplay {
+    pub(crate) fn new(gba: Arc<Mutex<Gba<Arm7tdmi>>>) -> Self {
+        #[cfg(not(feature = "test_bitmap"))]
+        {
+            Self {
+                image: ColorImage::new([DISPLAY_WIDTH, DISPLAY_HEIGHT], Color32::BLACK),
+                texture: None,
+                gba,
+                scale: 1.0,
+            }
+        }
+
+        #[cfg(feature = "test_bitmap")]
+        {
+            let mut res = Self {
+                image: ColorImage::new([DISPLAY_WIDTH, DISPLAY_HEIGHT], Color32::BLACK),
+                texture: None,
+                gba,
+                scale: 1.0,
+            };
+            res.load_test_bitmap();
+            return res;
+        }
+    }
+
+    #[cfg(feature = "test_bitmap")]
+    pub fn load_test_bitmap(&mut self) {
+        let image_data = include_bytes!("../../img/clementine_logo_test_bitmap.png");
+        let color_image: ColorImage =
+            egui_extras::image::load_image_bytes(image_data).expect("Failed to load image");
+
+        let size = color_image.size;
+        let bitmap_data = color_image
+            .clone()
+            .pixels
+            .into_iter()
+            .map(|pixel| {
+                let gba_color: GbaColor = pixel.into();
+                gba_color.0
+            })
+            .collect();
+
+        if let Ok(mut gba) = self.gba.lock() {
+            gba.cpu
+                .borrow_mut()
+                .ppu
+                .load_bitmap(bitmap_data, size[0], size[1]);
         }
     }
 }
 
-impl<T: Cpu> View for GbaDisplay<T> {
+impl View for GbaDisplay {
     fn ui(&mut self, ui: &mut egui::Ui) {
-        ui.set_width(DISPLAY_WIDTH as f32);
-        ui.set_height(DISPLAY_HEIGHT as f32);
+        ui.horizontal(|ui| {
+            if ui.button("x1").clicked() {
+                self.scale = 1.0;
+            }
+            if ui.button("x2").clicked() {
+                self.scale = 2.0;
+            }
+            if ui.button("x4").clicked() {
+                self.scale = 4.0;
+            }
+        });
 
-        for y in 0..DISPLAY_HEIGHT {
-            for x in 0..DISPLAY_WIDTH {
-                self.image[(x, y)] = Color32::from_rgb(15, 56, 15);
+        if let Ok(mut gba) = self.gba.lock() {
+            let gba_display = gba.cpu.borrow_mut().ppu.render();
+            for y in 0..DISPLAY_HEIGHT {
+                for x in 0..DISPLAY_WIDTH {
+                    self.image[(x, y)] = GbaColor(gba_display[(x, y)]).into();
+                }
             }
         }
 
-        match &mut self.texture {
-            Some(t) => t.set(self.image.clone(), egui::TextureFilter::Nearest),
-            None => {
-                self.texture = Some(ui.ctx().load_texture(
-                    "screen",
-                    self.image.clone(),
-                    egui::TextureFilter::Nearest,
-                ))
-            }
-        };
+        let texture: &egui::TextureHandle = self.texture.get_or_insert_with(|| {
+            // Load the texture only once.
+            ui.ctx().load_texture(
+                "gba_display",
+                self.image.clone(),
+                egui::TextureFilter::Linear,
+            )
+        });
 
-        let img = egui::Image::new(
-            self.texture.as_ref().unwrap(),
-            [DISPLAY_WIDTH as f32, DISPLAY_HEIGHT as f32],
+        let size = Vec2::new(
+            texture.size_vec2().x * self.scale,
+            texture.size_vec2().y * self.scale,
         );
-
-        let rect = ui.ctx().used_rect();
-        img.paint_at(ui, rect);
+        ui.image(texture, size);
     }
 }
 
-impl<T: Cpu> UiTool for GbaDisplay<T> {
+impl UiTool for GbaDisplay {
     fn name(&self) -> &'static str {
         "Gba Display"
     }
@@ -73,7 +128,6 @@ impl<T: Cpu> UiTool for GbaDisplay<T> {
             .default_height(DISPLAY_HEIGHT as f32)
             .resizable(false)
             .show(ctx, |ui| {
-                use View as _;
                 self.ui(ui);
             });
     }

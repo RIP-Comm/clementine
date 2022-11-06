@@ -1,9 +1,11 @@
 use crate::{
+    gba_color::GbaColor,
     ui_traits::{UiTool, View},
-    utilities::GbaColor,
 };
 use egui::Color32;
+
 use egui_extras::{Size, TableBuilder};
+
 use emu::{
     render::color::{Color, PaletteType},
     render::{BG_PALETTE_ADDRESS, MAX_COLORS_SINGLE_PALETTE, OBJ_PALETTE_ADDRESS},
