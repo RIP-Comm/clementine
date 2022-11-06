@@ -212,6 +212,7 @@ impl Arm7tdmi {
         F: Fn(&mut Self, u32, usize),
     {
         let alignment = 4; // Since are word, the alignment is 4.
+
         let change_address = |address: u32| {
             if up_down {
                 address.wrapping_add(alignment)
@@ -220,7 +221,15 @@ impl Arm7tdmi {
             }
         };
 
-        for reg_source in 0..16 {
+        // If we are decreasing we still want to store the lowest reg to the lowest
+        // memory address. For this reason we reverse the loop order.
+        let range_registers: Box<dyn Iterator<Item = u8>> = if up_down {
+            Box::new(0..=15)
+        } else {
+            Box::new((0..=15).rev())
+        };
+
+        for reg_source in range_registers {
             if reg_list.is_bit_on(reg_source) {
                 if pre_post {
                     *address = change_address(*address);
@@ -309,45 +318,156 @@ mod tests {
     #[test]
     fn check_block_data_transfer() {
         {
-            // STR
-            let op_code = 0b1110_1000_1011_1101_1000_0000_0000_0111;
+            // LDM with post-increment
+            let op_code = 0b1110_100_0_1_0_1_1_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
             let op_code = cpu.decode(op_code);
 
-            cpu.registers.set_register_at(13, 0x03000000); // fake mem address simulate dirty reg.
-            cpu.memory.borrow_mut().write_at(0x03000000, 10);
-            cpu.memory.borrow_mut().write_at(0x03000000 + 4, 11);
-            cpu.memory.borrow_mut().write_at(0x03000000 + 8, 12);
-            cpu.memory.borrow_mut().write_at(0x03000000 + 12, 13);
+            cpu.registers.set_register_at(13, 0x1000);
+            cpu.memory.borrow_mut().write_at(0x1000, 1);
+            cpu.memory.borrow_mut().write_at(0x1004, 5);
+            cpu.memory.borrow_mut().write_at(0x1008, 7);
 
-            assert_eq!(op_code.instruction, ArmModeInstruction::BlockDataTransfer);
-            assert_eq!(op_code.condition, Condition::AL);
             cpu.execute(op_code);
 
-            assert_eq!(cpu.registers.program_counter(), 13);
-            assert_eq!(cpu.registers.register_at(0), 10);
-            assert_eq!(cpu.registers.register_at(1), 11);
-            assert_eq!(cpu.registers.register_at(2), 12);
-
-            assert_eq!(cpu.registers.register_at(13), 0x3000010);
+            assert_eq!(cpu.registers.register_at(1), 1);
+            assert_eq!(cpu.registers.register_at(5), 5);
+            assert_eq!(cpu.registers.register_at(7), 7);
+            assert_eq!(cpu.registers.register_at(13), 0x100C);
         }
         {
-            // LDR
-            let op_code: u32 = 0b1110_1001_0010_1101_0100_0000_0000_0011;
+            // LDM with pre-increment
+            let op_code = 0b1110_100_1_1_0_1_1_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
             let op_code = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ArmModeInstruction::BlockDataTransfer);
-            assert_eq!(op_code.condition, Condition::AL);
 
-            // fake dirty status of registers.
+            cpu.registers.set_register_at(13, 0x1000);
+            cpu.memory.borrow_mut().write_at(0x1004, 1);
+            cpu.memory.borrow_mut().write_at(0x1008, 5);
+            cpu.memory.borrow_mut().write_at(0x100C, 7);
+
+            cpu.execute(op_code);
+
+            assert_eq!(cpu.registers.register_at(1), 1);
+            assert_eq!(cpu.registers.register_at(5), 5);
+            assert_eq!(cpu.registers.register_at(7), 7);
+            assert_eq!(cpu.registers.register_at(13), 0x100C);
+        }
+        {
+            // LDM with post-decrement
+            let op_code = 0b1110_100_0_0_0_1_1_1101_0000000010100010;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(13, 0x1000);
+            cpu.memory.borrow_mut().write_at(0x1000, 7);
+            cpu.memory.borrow_mut().write_at(0x0FFC, 5);
+            cpu.memory.borrow_mut().write_at(0x0FF8, 1);
+
+            cpu.execute(op_code);
+
+            assert_eq!(cpu.registers.register_at(1), 1);
+            assert_eq!(cpu.registers.register_at(5), 5);
+            assert_eq!(cpu.registers.register_at(7), 7);
+            assert_eq!(cpu.registers.register_at(13), 0x0FF4);
+        }
+        {
+            // LDM with pre-decrement
+            let op_code = 0b1110_100_1_0_0_1_1_1101_0000000010100010;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(13, 0x1000);
+            cpu.memory.borrow_mut().write_at(0x0FFC, 7);
+            cpu.memory.borrow_mut().write_at(0x0FF8, 5);
+            cpu.memory.borrow_mut().write_at(0x0FF4, 1);
+
+            cpu.execute(op_code);
+
+            assert_eq!(cpu.registers.register_at(1), 1);
+            assert_eq!(cpu.registers.register_at(5), 5);
+            assert_eq!(cpu.registers.register_at(7), 7);
+            assert_eq!(cpu.registers.register_at(13), 0x0FF4);
+        }
+        {
+            // STM with post-increment
+            let op_code = 0b1110_100_0_1_0_1_0_1101_0000000010100010;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode(op_code);
+
             for r in 0..16 {
                 cpu.registers.set_register_at(r, r as u32);
             }
 
+            cpu.registers.set_register_at(13, 0x1000);
+
             cpu.execute(op_code);
-            assert_eq!(0, cpu.memory.borrow().read_at(9));
-            assert_eq!(1, cpu.memory.borrow().read_at(5));
-            assert_eq!(14, cpu.memory.borrow().read_at(1));
+
+            assert_eq!(cpu.memory.borrow().read_at(0x1000), 1);
+            assert_eq!(cpu.memory.borrow().read_at(0x1004), 5);
+            assert_eq!(cpu.memory.borrow().read_at(0x1008), 7);
+            assert_eq!(cpu.registers.register_at(13), 0x100C);
+        }
+        {
+            // STM with pre-increment
+            let op_code = 0b1110_100_1_1_0_1_0_1101_0000000010100010;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode(op_code);
+
+            for r in 0..16 {
+                cpu.registers.set_register_at(r, r as u32);
+            }
+
+            cpu.registers.set_register_at(13, 0x1000);
+
+            cpu.execute(op_code);
+
+            assert_eq!(cpu.memory.borrow().read_at(0x1000), 0);
+            assert_eq!(cpu.memory.borrow().read_at(0x1004), 1);
+            assert_eq!(cpu.memory.borrow().read_at(0x1008), 5);
+            assert_eq!(cpu.memory.borrow().read_at(0x100C), 7);
+            assert_eq!(cpu.registers.register_at(13), 0x100C);
+        }
+        {
+            // STM with post-decrement
+            let op_code = 0b1110_100_0_0_0_1_0_1101_0000000010100010;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode(op_code);
+
+            for r in 0..16 {
+                cpu.registers.set_register_at(r, r as u32);
+            }
+
+            cpu.registers.set_register_at(13, 0x1000);
+
+            cpu.execute(op_code);
+
+            assert_eq!(cpu.memory.borrow().read_at(0x1000), 7);
+            assert_eq!(cpu.memory.borrow().read_at(0x0FFC), 5);
+            assert_eq!(cpu.memory.borrow().read_at(0x0FF8), 1);
+            assert_eq!(cpu.registers.register_at(13), 0x0FF4);
+        }
+        {
+            // STM with pre-decrement and storing R15
+
+            let op_code = 0b1110_100_1_0_0_1_0_1101_1000000010100010;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode(op_code);
+
+            for r in 0..16 {
+                cpu.registers.set_register_at(r, r as u32);
+            }
+
+            cpu.registers.set_register_at(13, 0x1000);
+
+            cpu.execute(op_code);
+
+            assert_eq!(cpu.memory.borrow().read_at(0x1000), 0);
+            assert_eq!(cpu.memory.borrow().read_at(0x0FFC), 15 + 12);
+            assert_eq!(cpu.memory.borrow().read_at(0x0FF8), 7);
+            assert_eq!(cpu.memory.borrow().read_at(0x0FF4), 5);
+            assert_eq!(cpu.memory.borrow().read_at(0x0FF0), 1);
+            assert_eq!(cpu.registers.register_at(13), 0x0FF0);
         }
     }
 }
