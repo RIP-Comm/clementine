@@ -3,7 +3,10 @@ use emu::{arm7tdmi::Arm7tdmi, cartridge_header::CartridgeHeader, gba::Gba};
 
 use super::about::About;
 use super::cpu_inspector::CpuInspector;
-use crate::{gba_display::GbaDisplay, palette_visualizer::PaletteVisualizer, ui_traits::UiTool};
+use crate::{
+    gba_display::GbaDisplay, memory_inspector::MemoryInspector,
+    palette_visualizer::PaletteVisualizer, ui_traits::UiTool,
+};
 
 use std::{
     collections::BTreeSet,
@@ -40,7 +43,8 @@ impl UiTools {
             Box::new(About::default()),
             Box::new(CpuInspector::new(arc_gba.clone())),
             Box::new(GbaDisplay::new(arc_gba.clone())),
-            Box::new(PaletteVisualizer::new(arc_gba)),
+            Box::new(PaletteVisualizer::new(arc_gba.clone())),
+            Box::new(MemoryInspector::new(arc_gba)),
         ])
     }
 
@@ -51,6 +55,7 @@ impl UiTools {
         open.insert(tools[1].name().to_owned());
         open.insert(tools[2].name().to_owned());
         open.insert(tools[3].name().to_owned());
+        open.insert(tools[4].name().to_owned());
 
         Self { tools, open }
     }

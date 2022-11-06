@@ -1,6 +1,11 @@
+use std::cell::Ref;
+
+use crate::memory::io_device::IoDevice;
+
 pub trait Cpu {
     /// Size of Opcode: it can be changed
     type OpCodeType;
+    type Memory: IoDevice<Address = u32, Value = u8>;
 
     /// It generally takes the next instruction from PC
     fn fetch(&self) -> u32;
@@ -17,4 +22,6 @@ pub trait Cpu {
 
     /// Get the value of all registers
     fn registers(&self) -> Vec<u32>;
+
+    fn get_memory(&self) -> Ref<'_, Self::Memory>;
 }
