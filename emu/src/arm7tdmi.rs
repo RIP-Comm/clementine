@@ -104,6 +104,8 @@ impl Cpu for Arm7tdmi {
         let op_code = self.decode(op_code);
         if self.cpsr.can_execute(op_code.condition) {
             self.execute(op_code)
+        } else {
+            self.registers.advance_program_counter(4);
         }
     }
 
