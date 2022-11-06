@@ -3,18 +3,11 @@ use std::{cell::RefCell, rc::Rc};
 #[cfg(feature = "debug")]
 use rand::Rng;
 
-pub const DISPLAY_WIDTH: usize = 240;
-pub const DISPLAY_HEIGHT: usize = 160;
-pub const PALETTE_SIZE: usize = 16;
-
-pub const BG_PALETTE_ADDRESS: i32 = 0x05000000;
-pub const OBJ_PALETTE_ADDRESS: i32 = 0x05000200;
-
 use crate::{
     memory::internal_memory::InternalMemory,
-    render::palette_color::{
-        PaletteColor, PaletteType, MAX_COLORS_FULL_PALETTE, MAX_COLORS_SINGLE_PALETTE,
-        MAX_PALETTES_BY_TYPE,
+    render::{
+        color::{Color, PaletteType},
+        MAX_COLORS_FULL_PALETTE, MAX_COLORS_SINGLE_PALETTE, MAX_PALETTES_BY_TYPE,
     },
 };
 
@@ -42,11 +35,7 @@ impl PixelProcessUnit {
         }
     }
 
-    fn get_color_from_full_palette(
-        &self,
-        color_index: usize,
-        palette_type: &PaletteType,
-    ) -> PaletteColor {
+    fn get_color_from_full_palette(&self, color_index: usize, palette_type: &PaletteType) -> Color {
         debug_assert!(color_index < MAX_COLORS_FULL_PALETTE);
         self.get_array_color(color_index * 2, palette_type).into()
     }
@@ -56,9 +45,9 @@ impl PixelProcessUnit {
         palette_index: usize,
         color_index: usize,
         palette_type: &PaletteType,
-    ) -> PaletteColor {
+    ) -> Color {
         debug_assert!(palette_index < MAX_PALETTES_BY_TYPE);
-        debug_assert!(color_index < MAX_COLORS_SINGLE_PALETTE);
+        debug_assert!(color_index < MAX_COLORS_FULL_PALETTE);
 
         self.get_color_from_full_palette(
             (palette_index * MAX_COLORS_SINGLE_PALETTE) + color_index,
@@ -66,7 +55,7 @@ impl PixelProcessUnit {
         )
     }
 
-    pub fn get_palettes(&self, palette_type: &PaletteType) -> Vec<Vec<PaletteColor>> {
+    pub fn get_palettes(&self, palette_type: &PaletteType) -> Vec<Vec<Color>> {
         let mut palettes = vec![];
 
         for palette_index in 0..MAX_PALETTES_BY_TYPE {
@@ -92,12 +81,28 @@ impl PixelProcessUnit {
             self.internal_memory.borrow_mut().obj_palette_ram[i] = value;
         }
     }
+
+    #[cfg(feature = "debug")]
+    pub fn load_bitmap(&mut self, data: Vec<Color>, width: usize, height: usize) {
+        let centered_width = (DISPLAY_WIDTH - width) / 2;
+        let mut row = (DISPLAY_HEIGHT - height) / 2;
+        for i in 0..data.len() {
+            let array_color: [u8; 2] = data[i].into();
+            if i % width == 0 {
+                row += 1;
+            }
+
+            let color_index = ((i % width + centered_width) + (row * DISPLAY_WIDTH)) * 2;
+            self.internal_memory.borrow_mut().video_ram[color_index] = array_color[0];
+            self.internal_memory.borrow_mut().video_ram[color_index + 1] = array_color[1];
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::PixelProcessUnit;
-    use crate::{memory::internal_memory::InternalMemory, render::palette_color::PaletteType};
+    use crate::{memory::internal_memory::InternalMemory, render::color::PaletteType};
     use std::{cell::RefCell, rc::Rc};
 
     #[test]

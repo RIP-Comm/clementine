@@ -1,9 +1,12 @@
-use crate::ui_traits::{UiTool, View};
+use crate::{
+    ui_traits::{UiTool, View},
+    utilities::GbaColor,
+};
 use egui::Color32;
 use egui_extras::{Size, TableBuilder};
 use emu::{
-    render::palette_color::{PaletteColor, PaletteType},
-    render::palette_color::{BG_PALETTE_ADDRESS, MAX_COLORS_SINGLE_PALETTE, OBJ_PALETTE_ADDRESS},
+    render::color::{Color, PaletteType},
+    render::{BG_PALETTE_ADDRESS, MAX_COLORS_SINGLE_PALETTE, OBJ_PALETTE_ADDRESS},
 };
 use std::sync::{Arc, Mutex};
 
@@ -11,7 +14,7 @@ use emu::{arm7tdmi::Arm7tdmi, gba::Gba};
 
 pub struct PaletteVisualizer {
     gba: Arc<Mutex<Gba<Arm7tdmi>>>,
-    palettes: Vec<Vec<PaletteColor>>,
+    palettes: Vec<Vec<Color>>,
     palette_type: PaletteType,
     start_address: u32,
 }
@@ -109,16 +112,10 @@ impl View for PaletteVisualizer {
                             ui.label(format!("0x{:08X}", current_row_address + offset));
                         });
 
-                        // factor scale is needed because in egui the colors have a more bits rappresentation
-                        // Not clear yet the real value
-                        let factor_scale = 8;
                         for color in palette {
+                            let color_u32: Color32 = GbaColor(*color).into();
                             row.col(|ui| {
-                                ui.add(egui::Button::new("    ").fill(Color32::from_rgb(
-                                    color.red * factor_scale,
-                                    color.green * factor_scale,
-                                    color.blue * factor_scale,
-                                )));
+                                ui.add(egui::Button::new("    ").fill(color_u32));
                             });
                         }
                     });

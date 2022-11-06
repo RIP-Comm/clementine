@@ -2,42 +2,32 @@ use std::fmt::Display;
 
 use crate::bitwise::Bits;
 
-/// Each palette can contains 16 colors
-pub const MAX_COLORS_SINGLE_PALETTE: usize = 16;
-
-/// BG palettes and OBJ palettes can be use as a single palette
-pub const MAX_COLORS_FULL_PALETTE: usize = 256;
-
-/// Number of max palettes both for BG and OBG
-pub const MAX_PALETTES_BY_TYPE: usize = 16;
-
-/// Memory info about BG palette
-pub const BG_PALETTE_ADDRESS: u32 = 0x05000000;
-pub const _BG_PALETTE_SIZE: usize = 0x200;
-
-/// Memory info about OBJ palette
-pub const OBJ_PALETTE_ADDRESS: u32 = 0x05000200;
-pub const _OBJ_PALETTE_SIZE: usize = 0x200;
-
 #[derive(PartialEq, Eq, Clone)]
 pub enum PaletteType {
     BG,
     OBJ,
 }
 
-pub struct PaletteColor {
+#[derive(Clone, Copy)]
+pub struct Color {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
 }
 
-impl Display for PaletteColor {
+impl Color {
+    pub const fn from_rgb(red: u8, green: u8, blue: u8) -> Self {
+        Self { red, green, blue }
+    }
+}
+
+impl Display for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({},{},{})", self.red, self.green, self.blue)
     }
 }
 
-impl From<u16> for PaletteColor {
+impl From<u16> for Color {
     fn from(color: u16) -> Self {
         // Color     Values     Bytes
         //-------------------------------
@@ -59,7 +49,7 @@ impl From<u16> for PaletteColor {
     }
 }
 
-impl From<[u8; 2]> for PaletteColor {
+impl From<[u8; 2]> for Color {
     fn from(color: [u8; 2]) -> Self {
         let mut upper: u16 = color[0].into();
         upper <<= 8;
@@ -70,15 +60,15 @@ impl From<[u8; 2]> for PaletteColor {
     }
 }
 
-impl From<PaletteColor> for [u8; 2] {
-    fn from(color: PaletteColor) -> Self {
+impl From<Color> for [u8; 2] {
+    fn from(color: Color) -> Self {
         let color_u16: u16 = color.into();
         [(color_u16 >> 8) as u8, color_u16 as u8]
     }
 }
 
-impl From<PaletteColor> for u16 {
-    fn from(color: PaletteColor) -> Self {
+impl From<Color> for u16 {
+    fn from(color: Color) -> Self {
         let red: Self = color.red.into();
         let green: Self = color.green.into();
         let blue: Self = color.blue.into();
@@ -87,14 +77,25 @@ impl From<PaletteColor> for u16 {
     }
 }
 
+pub mod colors {
+
+    use crate::render::color::Color;
+
+    pub const BLACK: Color = Color::from_rgb(0, 0, 0);
+    pub const RED: Color = Color::from_rgb(255, 0, 0);
+    pub const GREEN: Color = Color::from_rgb(0, 255, 0);
+    pub const BLUE: Color = Color::from_rgb(0, 0, 255);
+    pub const WHITE: Color = Color::from_rgb(255, 255, 255);
+}
+
 #[cfg(test)]
 mod test {
 
-    use crate::render::palette_color::PaletteColor;
+    use crate::render::color::Color;
 
     #[test]
-    fn palette_color_into_array_u8() {
-        let color = PaletteColor {
+    fn color_into_array_u8() {
+        let color = Color {
             red: 8,   // 0b01000
             green: 4, // 0b00100
             blue: 2,  // 0b00010
@@ -107,8 +108,8 @@ mod test {
     }
 
     #[test]
-    fn palette_color_into_u16() {
-        let color = PaletteColor {
+    fn color_into_u16() {
+        let color = Color {
             red: 8,   // 0b01000
             green: 4, // 0b00100
             blue: 2,  // 0b00010
@@ -119,23 +120,23 @@ mod test {
     }
 
     #[test]
-    fn palette_color_from_u16() {
+    fn color_from_u16() {
         // red: 8,     // 0b01000
         // green: 4,   // 0b00100
         // blue: 2     // 0b00010
         let color: u16 = 0b0000100010001000;
 
-        let palette_color: PaletteColor = color.into();
+        let palette_color: Color = color.into();
         assert_eq!(palette_color.red, 8);
         assert_eq!(palette_color.green, 4);
         assert_eq!(palette_color.blue, 2);
     }
 
     #[test]
-    fn palette_color_from_array_u8() {
+    fn color_from_array_u8() {
         let color_array: [u8; 2] = [0b00001000, 0b10001000];
 
-        let palette_color = PaletteColor::from(color_array);
+        let palette_color = Color::from(color_array);
         assert_eq!(palette_color.red, 8);
         assert_eq!(palette_color.green, 4);
         assert_eq!(palette_color.blue, 2);

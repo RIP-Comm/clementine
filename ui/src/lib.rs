@@ -5,3 +5,4 @@ pub mod dashboard;
 pub mod gba_display;
 pub mod palette_visualizer;
 pub mod ui_traits;
+pub mod utilities;
