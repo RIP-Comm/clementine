@@ -4,18 +4,18 @@ use crate::ui_traits::{UiTool, View};
 
 use std::sync::{Arc, Mutex};
 
-pub struct CpuInspector<T: Cpu> {
-    gba: Arc<Mutex<Gba<T>>>,
+pub struct CpuInspector {
+    gba: Arc<Mutex<Gba>>,
     play: bool,
 }
 
-impl<T: Cpu> CpuInspector<T> {
-    pub fn new(gba: Arc<Mutex<Gba<T>>>) -> Self {
+impl CpuInspector {
+    pub fn new(gba: Arc<Mutex<Gba>>) -> Self {
         Self { gba, play: false }
     }
 }
 
-impl<T: Cpu> UiTool for CpuInspector<T> {
+impl UiTool for CpuInspector {
     fn name(&self) -> &'static str {
         "Cpu Inspector"
     }
@@ -31,7 +31,7 @@ impl<T: Cpu> UiTool for CpuInspector<T> {
     }
 }
 
-impl<T: Cpu> View for CpuInspector<T> {
+impl View for CpuInspector {
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("MODE: Arm7tdmi");
         ui.add_space(12.0);
@@ -61,7 +61,7 @@ impl<T: Cpu> View for CpuInspector<T> {
         let registers = self
             .gba
             .lock()
-            .map_or_else(|_| vec![], |gba| gba.cpu.registers());
+            .map_or_else(|_| vec![], |gba| gba.cpu.registers.to_vec());
 
         let mut index = 0;
 

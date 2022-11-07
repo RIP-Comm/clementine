@@ -7,24 +7,30 @@ use crate::{
     memory::internal_memory::InternalMemory,
     render::{
         color::{Color, PaletteType},
-        gba_display::GbaDisplay,
+        gba_lcd::GbaLcd,
         DISPLAY_HEIGHT, DISPLAY_WIDTH, MAX_COLORS_FULL_PALETTE, MAX_COLORS_SINGLE_PALETTE,
         MAX_PALETTES_BY_TYPE,
     },
 };
 
+#[derive(Default)]
 pub struct PixelProcessUnit {
     internal_memory: Rc<RefCell<InternalMemory>>,
+    gba_lcd: Rc<RefCell<Box<GbaLcd>>>,
 }
 
 impl PixelProcessUnit {
-    pub fn new(internal_memory: Rc<RefCell<InternalMemory>>) -> Self {
-        Self { internal_memory }
+    pub fn new(
+        gba_lcd: Rc<RefCell<Box<GbaLcd>>>,
+        internal_memory: Rc<RefCell<InternalMemory>>,
+    ) -> Self {
+        Self {
+            gba_lcd,
+            internal_memory,
+        }
     }
 
-    pub fn render(&self) -> GbaDisplay {
-        let mut gba_display = GbaDisplay::new();
-
+    pub fn render(&self) {
         // BG_MODE is forced to 3 to avoid crash on start
         let bg_mode = 3;
 
@@ -50,7 +56,7 @@ impl PixelProcessUnit {
                         ]
                         .into();
 
-                        gba_display.set_pixel(x, y, color);
+                        self.gba_lcd.borrow_mut().set_pixel(x, y, color);
                     }
                 }
             }
@@ -62,8 +68,6 @@ impl PixelProcessUnit {
             }
             _ => panic!("BG MODE doesn't exist."),
         }
-
-        gba_display
     }
 
     fn get_array_color(&self, index: usize, palette_type: &PaletteType) -> [u8; 2] {
@@ -148,13 +152,11 @@ impl PixelProcessUnit {
 #[cfg(test)]
 mod tests {
     use super::PixelProcessUnit;
-    use crate::{memory::internal_memory::InternalMemory, render::color::PaletteType};
-    use std::{cell::RefCell, rc::Rc};
+    use crate::render::color::PaletteType;
 
     #[test]
     fn test_get_palettes_bg() {
-        let internal_memory = Rc::new(RefCell::new(InternalMemory::new()));
-        let ppu = PixelProcessUnit::new(internal_memory);
+        let ppu = PixelProcessUnit::default();
 
         let bg_palettes = ppu.get_palettes(&PaletteType::BG);
         assert_eq!(bg_palettes.len(), 16);
@@ -163,8 +165,7 @@ mod tests {
 
     #[test]
     fn test_get_palettes_obj() {
-        let internal_memory = Rc::new(RefCell::new(InternalMemory::new()));
-        let ppu = PixelProcessUnit::new(internal_memory);
+        let ppu = PixelProcessUnit::default();
 
         let obj_palettes = ppu.get_palettes(&PaletteType::OBJ);
         assert_eq!(obj_palettes.len(), 16);

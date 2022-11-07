@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn check_ldr_byte() {
         let op_code = 0b1110_0101_1101_1111_1101_0000_0001_1000;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
 
         let op_code_type = cpu.decode(op_code);
         assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn check_str_byte() {
         let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
 
         let op_code_type = cpu.decode(op_code);
         assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn check_ldr_word() {
         let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
 
         let op_code_type = cpu.decode(op_code);
         assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn check_str_word() {
         let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code_type = cpu.decode(op_code);
         assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
 

@@ -7,7 +7,6 @@ use crate::instruction::ArmModeInstruction;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 use crate::opcode::ArmModeOpcode;
-use crate::ppu::PixelProcessUnit;
 use crate::{cpsr::Cpsr, cpu::Cpu};
 
 /// Contains the 16 registers for the CPU, latest (R15) is special because
@@ -42,15 +41,13 @@ impl Registers {
     }
 }
 
+#[derive(Default)]
 pub struct Arm7tdmi {
-    rom: Vec<u8>,
+    pub(crate) rom: Rc<RefCell<Vec<u8>>>,
+    pub(crate) memory: Rc<RefCell<InternalMemory>>,
 
-    pub(crate) registers: Registers,
-    pub(crate) cpsr: Cpsr,
-
-    pub memory: Rc<RefCell<InternalMemory>>,
-
-    pub ppu: PixelProcessUnit,
+    pub cpsr: Cpsr,
+    pub registers: Registers,
 }
 
 const OPCODE_ARM_SIZE: usize = 4;
@@ -61,7 +58,7 @@ impl Cpu for Arm7tdmi {
     fn fetch(&self) -> u32 {
         let instruction_index = self.registers.program_counter();
         let end_instruction = instruction_index + OPCODE_ARM_SIZE;
-        let data_instruction: [u8; 4] = self.rom[instruction_index..end_instruction]
+        let data_instruction: [u8; 4] = self.rom.borrow()[instruction_index..end_instruction]
             .try_into()
             .expect("`istruction` conversion into [u8; 4]");
 
@@ -108,21 +105,15 @@ impl Cpu for Arm7tdmi {
             self.registers.advance_program_counter(4);
         }
     }
-
-    fn registers(&self) -> Vec<u32> {
-        self.registers.to_vec()
-    }
 }
 
 impl Arm7tdmi {
-    pub fn new(rom: Vec<u8>) -> Self {
-        let internal_memory = Rc::new(RefCell::new(InternalMemory::new()));
+    pub fn new(rom: Rc<RefCell<Vec<u8>>>, memory: Rc<RefCell<InternalMemory>>) -> Self {
         Self {
             rom,
             registers: Registers::default(),
             cpsr: Cpsr::default(),
-            memory: internal_memory.clone(),
-            ppu: PixelProcessUnit::new(internal_memory),
+            memory,
         }
     }
 
@@ -269,7 +260,7 @@ mod tests {
 
         // 15(1111b) << 2 = 60 bytes
         let op_code = 0b1110_1010_0000_0000_0000_0000_0000_1111;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.execute(op_code);
@@ -300,7 +291,7 @@ mod tests {
     #[should_panic]
     fn check_unknown_instruction() {
         let op_code = 0b1110_1111_1111_1111_1111_1111_1111_1111;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
 
         let op_code = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::Unknown);
@@ -314,7 +305,7 @@ mod tests {
         {
             // STR
             let op_code = 0b1110_1000_1011_1101_1000_0000_0000_0111;
-            let mut cpu = Arm7tdmi::new(vec![]);
+            let mut cpu = Arm7tdmi::default();
             let op_code = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x03000000); // fake mem address simulate dirty reg.
@@ -337,7 +328,7 @@ mod tests {
         {
             // LDR
             let op_code: u32 = 0b1110_1001_0010_1101_0100_0000_0000_0011;
-            let mut cpu = Arm7tdmi::new(vec![]);
+            let mut cpu = Arm7tdmi::default();
             let op_code = cpu.decode(op_code);
             assert_eq!(op_code.instruction, ArmModeInstruction::BlockDataTransfer);
             assert_eq!(op_code.condition, Condition::AL);

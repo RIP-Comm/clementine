@@ -12,17 +12,17 @@ use emu::{
 };
 use std::sync::{Arc, Mutex};
 
-use emu::{arm7tdmi::Arm7tdmi, gba::Gba};
+use emu::gba::Gba;
 
 pub struct PaletteVisualizer {
-    gba: Arc<Mutex<Gba<Arm7tdmi>>>,
+    gba: Arc<Mutex<Gba>>,
     palettes: Vec<Vec<Color>>,
     palette_type: PaletteType,
     start_address: u32,
 }
 
 impl PaletteVisualizer {
-    pub fn new(gba: Arc<Mutex<Gba<Arm7tdmi>>>) -> Self {
+    pub fn new(gba: Arc<Mutex<Gba>>) -> Self {
         Self {
             gba,
             palettes: vec![],
@@ -52,7 +52,7 @@ impl UiTool for PaletteVisualizer {
 impl View for PaletteVisualizer {
     fn ui(&mut self, ui: &mut egui::Ui) {
         if let Ok(gba) = self.gba.lock() {
-            self.palettes = gba.cpu.ppu.get_palettes(&self.palette_type);
+            self.palettes = gba.ppu.get_palettes(&self.palette_type);
             match self.palette_type {
                 PaletteType::BG => {
                     self.start_address = BG_PALETTE_ADDRESS;
@@ -69,7 +69,7 @@ impl View for PaletteVisualizer {
         if ui.button("RANDOM VALUES").clicked() {
             if let Ok(mut gba) = self.gba.lock() {
                 #[cfg(feature = "debug")]
-                gba.cpu.ppu.load_random_palettes();
+                gba.ppu.load_random_palettes();
             }
         }
 

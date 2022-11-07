@@ -1,12 +1,8 @@
 use egui::{self, Color32, ColorImage, Vec2};
 
-use std::{
-    borrow::BorrowMut,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use emu::{
-    arm7tdmi::Arm7tdmi,
     gba::Gba,
     render::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
 };
@@ -19,12 +15,12 @@ use crate::{
 pub struct GbaDisplay {
     image: egui::ColorImage,
     texture: Option<egui::TextureHandle>,
-    gba: Arc<Mutex<Gba<Arm7tdmi>>>,
+    gba: Arc<Mutex<Gba>>,
     scale: f32,
 }
 
 impl GbaDisplay {
-    pub(crate) fn new(gba: Arc<Mutex<Gba<Arm7tdmi>>>) -> Self {
+    pub(crate) fn new(gba: Arc<Mutex<Gba>>) -> Self {
         #[cfg(not(feature = "test_bitmap"))]
         {
             Self {
@@ -66,10 +62,7 @@ impl GbaDisplay {
             .collect();
 
         if let Ok(mut gba) = self.gba.lock() {
-            gba.cpu
-                .borrow_mut()
-                .ppu
-                .load_bitmap(bitmap_data, size[0], size[1]);
+            gba.ppu.load_bitmap(bitmap_data, size[0], size[1]);
         }
     }
 }
@@ -88,11 +81,11 @@ impl View for GbaDisplay {
             }
         });
 
-        if let Ok(mut gba) = self.gba.lock() {
-            let gba_display = gba.cpu.borrow_mut().ppu.render();
-            for y in 0..DISPLAY_HEIGHT {
-                for x in 0..DISPLAY_WIDTH {
-                    self.image[(x, y)] = GbaColor(gba_display[(x, y)]).into();
+        if let Ok(gba) = self.gba.lock() {
+            gba.ppu.render();
+            for row in 0..DISPLAY_HEIGHT {
+                for col in 0..DISPLAY_WIDTH {
+                    self.image[(col, row)] = GbaColor(gba.lcd.borrow()[(col, row)]).into();
                 }
             }
         }
