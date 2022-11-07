@@ -2,16 +2,23 @@ use emu::{cpu::Cpu, gba::Gba};
 
 use crate::ui_traits::{UiTool, View};
 
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 pub struct CpuInspector {
     gba: Arc<Mutex<Gba>>,
-    play: bool,
+    play: Arc<AtomicBool>,
+    thread_handle: Option<thread::JoinHandle<()>>,
 }
 
 impl CpuInspector {
     pub fn new(gba: Arc<Mutex<Gba>>) -> Self {
-        Self { gba, play: false }
+        Self {
+            gba,
+            play: Arc::new(AtomicBool::new(false)),
+            thread_handle: None,
+        }
     }
 }
 
@@ -42,11 +49,24 @@ impl View for CpuInspector {
             }
             ui.text_edit_singleline(&mut cartridge_name);
             if ui.button("▶").clicked() {
-                // Start a thread for gameboy execution
-                todo!("Start a thread for a background gameboy execution");
+                if self.thread_handle.is_some() {
+                    return;
+                }
+
+                let gba_clone = Arc::clone(&self.gba);
+                let play_clone = Arc::clone(&self.play);
+
+                self.play.swap(true, std::sync::atomic::Ordering::Relaxed);
+
+                self.thread_handle = Some(thread::spawn(move || {
+                    while play_clone.load(std::sync::atomic::Ordering::Relaxed) {
+                        gba_clone.lock().unwrap().cpu.step();
+                    }
+                }));
             }
             if ui.button("⏸ ").clicked() {
-                self.play = false;
+                self.play.swap(false, std::sync::atomic::Ordering::Relaxed);
+                self.thread_handle = None;
             }
             if ui.button("⏭").clicked() {
                 if let Ok(mut gba) = self.gba.lock() {
@@ -58,10 +78,12 @@ impl View for CpuInspector {
         ui.heading("Registers");
         ui.add_space(8.0);
 
-        let registers = self
-            .gba
-            .lock()
-            .map_or_else(|_| vec![], |gba| gba.cpu.registers.to_vec());
+        // If it's poisoned it means that the thread that executes instructions
+        // panicked, we still want access to registers to debug
+        let registers = self.gba.lock().map_or_else(
+            |poisoned| poisoned.into_inner().cpu.registers.to_vec(),
+            |gba| gba.cpu.registers.to_vec(),
+        );
 
         let mut index = 0;
 
