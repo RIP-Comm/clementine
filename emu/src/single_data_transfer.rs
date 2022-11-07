@@ -89,39 +89,25 @@ impl Arm7tdmi {
             address.wrapping_add(offset)
         };
 
+        let mut memory = self.memory.lock().unwrap();
+
         match load_store {
             SingleDataTransfer::Ldr => match byte_or_word {
-                ReadWriteKind::Byte => self.registers.set_register_at(
-                    rd.try_into().unwrap(),
-                    self.memory.borrow().read_at(address) as u32,
-                ),
+                ReadWriteKind::Byte => self
+                    .registers
+                    .set_register_at(rd.try_into().unwrap(), memory.read_at(address) as u32),
                 ReadWriteKind::Word => {
-                    let part_0: u32 = self.memory.borrow().read_at(address).try_into().unwrap();
-                    let part_1: u32 = self
-                        .memory
-                        .borrow()
-                        .read_at(address + 1)
-                        .try_into()
-                        .unwrap();
-                    let part_2: u32 = self
-                        .memory
-                        .borrow()
-                        .read_at(address + 2)
-                        .try_into()
-                        .unwrap();
-                    let part_3: u32 = self
-                        .memory
-                        .borrow()
-                        .read_at(address + 3)
-                        .try_into()
-                        .unwrap();
+                    let part_0: u32 = memory.read_at(address).try_into().unwrap();
+                    let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
+                    let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
+                    let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
 
                     let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
                     self.registers.set_register_at(rd.try_into().unwrap(), v);
                 }
             },
             SingleDataTransfer::Str => match byte_or_word {
-                ReadWriteKind::Byte => self.memory.borrow_mut().write_at(address, rd as u8),
+                ReadWriteKind::Byte => memory.write_at(address, rd as u8),
                 ReadWriteKind::Word => {
                     let mut v = self.registers.register_at(rd.try_into().unwrap());
 
@@ -130,18 +116,10 @@ impl Arm7tdmi {
                         v += 12;
                     }
 
-                    self.memory
-                        .borrow_mut()
-                        .write_at(address, v.get_bits(0..=7) as u8);
-                    self.memory
-                        .borrow_mut()
-                        .write_at(address + 1, v.get_bits(8..=15) as u8);
-                    self.memory
-                        .borrow_mut()
-                        .write_at(address + 2, v.get_bits(16..=23) as u8);
-                    self.memory
-                        .borrow_mut()
-                        .write_at(address + 3, v.get_bits(24..=31) as u8);
+                    memory.write_at(address, v.get_bits(0..=7) as u8);
+                    memory.write_at(address + 1, v.get_bits(8..=15) as u8);
+                    memory.write_at(address + 2, v.get_bits(16..=23) as u8);
+                    memory.write_at(address + 3, v.get_bits(24..=31) as u8);
                 }
             },
             _ => todo!("implement single data transfer operation"),
@@ -177,7 +155,7 @@ mod tests {
         cpu.registers.set_program_counter(0x03000050);
 
         // simulate mem already contains something.
-        cpu.memory.borrow_mut().write_at(0x03000040, 99);
+        cpu.memory.lock().unwrap().write_at(0x03000040, 99);
 
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 99);
@@ -203,7 +181,10 @@ mod tests {
         cpu.registers.set_program_counter(0x03000050);
 
         cpu.execute(op_code_type);
-        assert_eq!(cpu.memory.borrow_mut().read_at(0x03000040), 13);
+
+        let memory = cpu.memory.lock().unwrap();
+
+        assert_eq!(memory.read_at(0x03000040), 13);
         assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
 
@@ -221,13 +202,16 @@ mod tests {
 
         assert_eq!(rd, 13);
 
-        // simulate mem already contains something.
-        // in u32 this is 16843009 00000001_00000001_00000001_00000001.
-        cpu.memory.borrow_mut().write_at(0xFFFFFFE0, 1);
-        cpu.memory.borrow_mut().write_at(0xFFFFFFE0 + 1, 1);
-        cpu.memory.borrow_mut().write_at(0xFFFFFFE0 + 2, 1);
-        cpu.memory.borrow_mut().write_at(0xFFFFFFE0 + 3, 1);
+        {
+            let mut memory = cpu.memory.lock().unwrap();
 
+            // simulate mem already contains something.
+            // in u32 this is 16843009 00000001_00000001_00000001_00000001.
+            memory.write_at(0xFFFFFFE0, 1);
+            memory.write_at(0xFFFFFFE0 + 1, 1);
+            memory.write_at(0xFFFFFFE0 + 2, 1);
+            memory.write_at(0xFFFFFFE0 + 3, 1);
+        }
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 16843009);
         assert_eq!(cpu.registers.program_counter(), 4);
@@ -252,10 +236,13 @@ mod tests {
         cpu.registers.set_program_counter(0x03000050);
 
         cpu.execute(op_code_type);
-        assert_eq!(cpu.memory.borrow_mut().read_at(0x01010101), 1);
-        assert_eq!(cpu.memory.borrow_mut().read_at(0x01010101 + 1), 1);
-        assert_eq!(cpu.memory.borrow_mut().read_at(0x01010101 + 2), 1);
-        assert_eq!(cpu.memory.borrow_mut().read_at(0x01010101 + 3), 1);
+
+        let memory = cpu.memory.lock().unwrap();
+
+        assert_eq!(memory.read_at(0x01010101), 1);
+        assert_eq!(memory.read_at(0x01010101 + 1), 1);
+        assert_eq!(memory.read_at(0x01010101 + 2), 1);
+        assert_eq!(memory.read_at(0x01010101 + 3), 1);
         assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
 }

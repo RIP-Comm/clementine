@@ -1,6 +1,5 @@
-use std::cell::RefCell;
 use std::convert::TryInto;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
@@ -43,8 +42,8 @@ impl Registers {
 
 #[derive(Default)]
 pub struct Arm7tdmi {
-    pub(crate) rom: Rc<RefCell<Vec<u8>>>,
-    pub(crate) memory: Rc<RefCell<InternalMemory>>,
+    pub(crate) rom: Arc<Mutex<Vec<u8>>>,
+    pub(crate) memory: Arc<Mutex<InternalMemory>>,
 
     pub cpsr: Cpsr,
     pub registers: Registers,
@@ -58,7 +57,8 @@ impl Cpu for Arm7tdmi {
     fn fetch(&self) -> u32 {
         let instruction_index = self.registers.program_counter();
         let end_instruction = instruction_index + OPCODE_ARM_SIZE;
-        let data_instruction: [u8; 4] = self.rom.borrow()[instruction_index..end_instruction]
+        let data_instruction: [u8; 4] = self.rom.lock().unwrap()
+            [instruction_index..end_instruction]
             .try_into()
             .expect("`istruction` conversion into [u8; 4]");
 
@@ -108,7 +108,7 @@ impl Cpu for Arm7tdmi {
 }
 
 impl Arm7tdmi {
-    pub fn new(rom: Rc<RefCell<Vec<u8>>>, memory: Rc<RefCell<InternalMemory>>) -> Self {
+    pub fn new(rom: Arc<Mutex<Vec<u8>>>, memory: Arc<Mutex<InternalMemory>>) -> Self {
         Self {
             rom,
             registers: Registers::default(),
@@ -157,10 +157,12 @@ impl Arm7tdmi {
 
         if load_store {
             let transfer = |arm: &mut Self, address: u32, reg_destination: usize| {
-                let part_0: u32 = arm.memory.borrow().read_at(address).try_into().unwrap();
-                let part_1: u32 = arm.memory.borrow().read_at(address + 1).try_into().unwrap();
-                let part_2: u32 = arm.memory.borrow().read_at(address + 2).try_into().unwrap();
-                let part_3: u32 = arm.memory.borrow().read_at(address + 3).try_into().unwrap();
+                let memory = arm.memory.lock().unwrap();
+
+                let part_0: u32 = memory.read_at(address).try_into().unwrap();
+                let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
+                let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
+                let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
                 let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
                 arm.registers.set_register_at(reg_destination, v);
             };
@@ -174,19 +176,12 @@ impl Arm7tdmi {
                 if reg_source == 0xF {
                     value += 12;
                 }
+                let mut memory = arm.memory.lock().unwrap();
 
-                arm.memory
-                    .borrow_mut()
-                    .write_at(address, value.get_bits(0..=7) as u8);
-                arm.memory
-                    .borrow_mut()
-                    .write_at(address + 1, value.get_bits(8..=15) as u8);
-                arm.memory
-                    .borrow_mut()
-                    .write_at(address + 2, value.get_bits(16..=23) as u8);
-                arm.memory
-                    .borrow_mut()
-                    .write_at(address + 3, value.get_bits(24..=31) as u8);
+                memory.write_at(address, value.get_bits(0..=7) as u8);
+                memory.write_at(address + 1, value.get_bits(8..=15) as u8);
+                memory.write_at(address + 2, value.get_bits(16..=23) as u8);
+                memory.write_at(address + 3, value.get_bits(24..=31) as u8);
             };
 
             self.exec_data_trasfer(reg_list, pre_post, &mut address, up_down, transfer);
@@ -324,10 +319,13 @@ mod tests {
             let op_code = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
-            cpu.memory.borrow_mut().write_at(0x1000, 1);
-            cpu.memory.borrow_mut().write_at(0x1004, 5);
-            cpu.memory.borrow_mut().write_at(0x1008, 7);
+            {
+                let mut memory = cpu.memory.lock().unwrap();
 
+                memory.write_at(0x1000, 1);
+                memory.write_at(0x1004, 5);
+                memory.write_at(0x1008, 7);
+            }
             cpu.execute(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
@@ -342,10 +340,13 @@ mod tests {
             let op_code = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
-            cpu.memory.borrow_mut().write_at(0x1004, 1);
-            cpu.memory.borrow_mut().write_at(0x1008, 5);
-            cpu.memory.borrow_mut().write_at(0x100C, 7);
+            {
+                let mut memory = cpu.memory.lock().unwrap();
 
+                memory.write_at(0x1004, 1);
+                memory.write_at(0x1008, 5);
+                memory.write_at(0x100C, 7);
+            }
             cpu.execute(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
@@ -360,10 +361,13 @@ mod tests {
             let op_code = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
-            cpu.memory.borrow_mut().write_at(0x1000, 7);
-            cpu.memory.borrow_mut().write_at(0x0FFC, 5);
-            cpu.memory.borrow_mut().write_at(0x0FF8, 1);
+            {
+                let mut memory = cpu.memory.lock().unwrap();
 
+                memory.write_at(0x1000, 7);
+                memory.write_at(0x0FFC, 5);
+                memory.write_at(0x0FF8, 1);
+            }
             cpu.execute(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
@@ -378,10 +382,13 @@ mod tests {
             let op_code = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
-            cpu.memory.borrow_mut().write_at(0x0FFC, 7);
-            cpu.memory.borrow_mut().write_at(0x0FF8, 5);
-            cpu.memory.borrow_mut().write_at(0x0FF4, 1);
+            {
+                let mut memory = cpu.memory.lock().unwrap();
 
+                memory.write_at(0x0FFC, 7);
+                memory.write_at(0x0FF8, 5);
+                memory.write_at(0x0FF4, 1);
+            }
             cpu.execute(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
@@ -403,9 +410,11 @@ mod tests {
 
             cpu.execute(op_code);
 
-            assert_eq!(cpu.memory.borrow().read_at(0x1000), 1);
-            assert_eq!(cpu.memory.borrow().read_at(0x1004), 5);
-            assert_eq!(cpu.memory.borrow().read_at(0x1008), 7);
+            let memory = cpu.memory.lock().unwrap();
+
+            assert_eq!(memory.read_at(0x1000), 1);
+            assert_eq!(memory.read_at(0x1004), 5);
+            assert_eq!(memory.read_at(0x1008), 7);
             assert_eq!(cpu.registers.register_at(13), 0x100C);
         }
         {
@@ -422,10 +431,12 @@ mod tests {
 
             cpu.execute(op_code);
 
-            assert_eq!(cpu.memory.borrow().read_at(0x1000), 0);
-            assert_eq!(cpu.memory.borrow().read_at(0x1004), 1);
-            assert_eq!(cpu.memory.borrow().read_at(0x1008), 5);
-            assert_eq!(cpu.memory.borrow().read_at(0x100C), 7);
+            let memory = cpu.memory.lock().unwrap();
+
+            assert_eq!(memory.read_at(0x1000), 0);
+            assert_eq!(memory.read_at(0x1004), 1);
+            assert_eq!(memory.read_at(0x1008), 5);
+            assert_eq!(memory.read_at(0x100C), 7);
             assert_eq!(cpu.registers.register_at(13), 0x100C);
         }
         {
@@ -442,9 +453,11 @@ mod tests {
 
             cpu.execute(op_code);
 
-            assert_eq!(cpu.memory.borrow().read_at(0x1000), 7);
-            assert_eq!(cpu.memory.borrow().read_at(0x0FFC), 5);
-            assert_eq!(cpu.memory.borrow().read_at(0x0FF8), 1);
+            let memory = cpu.memory.lock().unwrap();
+
+            assert_eq!(memory.read_at(0x1000), 7);
+            assert_eq!(memory.read_at(0x0FFC), 5);
+            assert_eq!(memory.read_at(0x0FF8), 1);
             assert_eq!(cpu.registers.register_at(13), 0x0FF4);
         }
         {
@@ -462,11 +475,13 @@ mod tests {
 
             cpu.execute(op_code);
 
-            assert_eq!(cpu.memory.borrow().read_at(0x1000), 0);
-            assert_eq!(cpu.memory.borrow().read_at(0x0FFC), 15 + 12);
-            assert_eq!(cpu.memory.borrow().read_at(0x0FF8), 7);
-            assert_eq!(cpu.memory.borrow().read_at(0x0FF4), 5);
-            assert_eq!(cpu.memory.borrow().read_at(0x0FF0), 1);
+            let memory = cpu.memory.lock().unwrap();
+
+            assert_eq!(memory.read_at(0x1000), 0);
+            assert_eq!(memory.read_at(0x0FFC), 15 + 12);
+            assert_eq!(memory.read_at(0x0FF8), 7);
+            assert_eq!(memory.read_at(0x0FF4), 5);
+            assert_eq!(memory.read_at(0x0FF0), 1);
             assert_eq!(cpu.registers.register_at(13), 0x0FF0);
         }
     }

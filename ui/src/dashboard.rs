@@ -6,11 +6,9 @@ use super::cpu_inspector::CpuInspector;
 use crate::{gba_display::GbaDisplay, palette_visualizer::PaletteVisualizer, ui_traits::UiTool};
 
 use std::{
-    cell::RefCell,
     collections::BTreeSet,
     error, fs,
     io::Read,
-    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -35,13 +33,13 @@ impl UiTools {
             CartridgeHeader::new(data.as_slice()).expect("Cartridge must be opened");
         let arc_gba = Arc::new(Mutex::new(Gba::new(
             cartridge_header,
-            Rc::new(RefCell::new(data)),
+            Arc::new(Mutex::new(data)),
         )));
 
         Self::from_tools(vec![
             Box::new(About::default()),
-            Box::new(CpuInspector::new(arc_gba.clone())),
-            Box::new(GbaDisplay::new(arc_gba.clone())),
+            Box::new(CpuInspector::new(Arc::clone(&arc_gba))),
+            Box::new(GbaDisplay::new(Arc::clone(&arc_gba))),
             Box::new(PaletteVisualizer::new(arc_gba)),
         ])
     }

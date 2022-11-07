@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "debug")]
 use rand::Rng;
@@ -15,14 +15,14 @@ use crate::{
 
 #[derive(Default)]
 pub struct PixelProcessUnit {
-    internal_memory: Rc<RefCell<InternalMemory>>,
-    gba_lcd: Rc<RefCell<Box<GbaLcd>>>,
+    internal_memory: Arc<Mutex<InternalMemory>>,
+    gba_lcd: Arc<Mutex<Box<GbaLcd>>>,
 }
 
 impl PixelProcessUnit {
     pub fn new(
-        gba_lcd: Rc<RefCell<Box<GbaLcd>>>,
-        internal_memory: Rc<RefCell<InternalMemory>>,
+        gba_lcd: Arc<Mutex<Box<GbaLcd>>>,
+        internal_memory: Arc<Mutex<InternalMemory>>,
     ) -> Self {
         Self {
             gba_lcd,
@@ -47,16 +47,18 @@ impl PixelProcessUnit {
             }
             3 => {
                 // Bitmap mode
+                let memory = self.internal_memory.lock().unwrap();
+                let mut gba_lcd = self.gba_lcd.lock().unwrap();
+
                 for y in 0..DISPLAY_HEIGHT {
                     for x in 0..DISPLAY_WIDTH {
                         let color: Color = [
-                            self.internal_memory.borrow().video_ram[(y * DISPLAY_WIDTH + x) * 2],
-                            self.internal_memory.borrow().video_ram
-                                [(y * DISPLAY_WIDTH + x) * 2 + 1],
+                            memory.video_ram[(y * DISPLAY_WIDTH + x) * 2],
+                            memory.video_ram[(y * DISPLAY_WIDTH + x) * 2 + 1],
                         ]
                         .into();
 
-                        self.gba_lcd.borrow_mut().set_pixel(x, y, color);
+                        gba_lcd.set_pixel(x, y, color);
                     }
                 }
             }
@@ -72,15 +74,15 @@ impl PixelProcessUnit {
 
     fn get_array_color(&self, index: usize, palette_type: &PaletteType) -> [u8; 2] {
         debug_assert!(index % 2 == 0);
-
+        let memory = self.internal_memory.lock().unwrap();
         match palette_type {
             PaletteType::BG => [
-                self.internal_memory.borrow().bg_palette_ram[index],
-                self.internal_memory.borrow().bg_palette_ram[index + 1],
+                memory.bg_palette_ram[index],
+                memory.bg_palette_ram[index + 1],
             ],
             PaletteType::OBJ => [
-                self.internal_memory.borrow().obj_palette_ram[index],
-                self.internal_memory.borrow().obj_palette_ram[index + 1],
+                memory.obj_palette_ram[index],
+                memory.obj_palette_ram[index + 1],
             ],
         }
     }
