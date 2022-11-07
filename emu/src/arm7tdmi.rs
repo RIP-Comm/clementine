@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::convert::TryInto;
 use std::rc::Rc;
 
@@ -57,6 +57,7 @@ const OPCODE_ARM_SIZE: usize = 4;
 
 impl Cpu for Arm7tdmi {
     type OpCodeType = ArmModeOpcode;
+    type Memory = InternalMemory;
 
     fn fetch(&self) -> u32 {
         let instruction_index = self.registers.program_counter();
@@ -111,6 +112,10 @@ impl Cpu for Arm7tdmi {
 
     fn registers(&self) -> Vec<u32> {
         self.registers.to_vec()
+    }
+
+    fn get_memory(&self) -> Ref<'_, InternalMemory> {
+        self.memory.borrow()
     }
 }
 
