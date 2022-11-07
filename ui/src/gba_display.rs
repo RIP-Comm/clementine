@@ -21,26 +21,23 @@ pub struct GbaDisplay {
 
 impl GbaDisplay {
     pub(crate) fn new(gba: Arc<Mutex<Gba>>) -> Self {
+        #[allow(unused_mut)]
+        let mut res = Self {
+            image: ColorImage::new([DISPLAY_WIDTH, DISPLAY_HEIGHT], Color32::BLACK),
+            texture: None,
+            gba,
+            scale: 1.0,
+        };
+
         #[cfg(not(feature = "test_bitmap"))]
         {
-            Self {
-                image: ColorImage::new([DISPLAY_WIDTH, DISPLAY_HEIGHT], Color32::BLACK),
-                texture: None,
-                gba,
-                scale: 1.0,
-            }
+            res
         }
 
         #[cfg(feature = "test_bitmap")]
         {
-            let mut res = Self {
-                image: ColorImage::new([DISPLAY_WIDTH, DISPLAY_HEIGHT], Color32::BLACK),
-                texture: None,
-                gba,
-                scale: 1.0,
-            };
             res.load_test_bitmap();
-            return res;
+            res
         }
     }
 
