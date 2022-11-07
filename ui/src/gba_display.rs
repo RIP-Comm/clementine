@@ -79,11 +79,11 @@ impl View for GbaDisplay {
         });
 
         let gba = self.gba.lock().unwrap();
-        let gba_lcd = gba.lcd.lock().unwrap();
 
         gba.ppu.render();
         for row in 0..DISPLAY_HEIGHT {
             for col in 0..DISPLAY_WIDTH {
+                let gba_lcd = gba.lcd.lock().unwrap();
                 self.image[(col, row)] = GbaColor(gba_lcd[(col, row)]).into();
             }
         }
