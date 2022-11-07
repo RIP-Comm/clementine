@@ -14,7 +14,4 @@ pub trait Cpu {
 
     /// Abstraction of what happens for every instruction in the cpu
     fn step(&mut self);
-
-    /// Get the value of all registers
-    fn registers(&self) -> Vec<u32>;
 }

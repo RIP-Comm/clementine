@@ -498,7 +498,7 @@ mod tests {
         // This case cover S=0 then it will skip the execution of TEQ.
         {
             let op_code = 0b1110_0001_0010_1001_0011_0000_0000_0000;
-            let mut cpu = Arm7tdmi::new(vec![]);
+            let mut cpu = Arm7tdmi::default();
             let op_code = cpu.decode(op_code);
             assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
             let rn = 9_usize;
@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn check_cmp_s1() {
         let op_code: u32 = 0b1110_0001_0011_1010_0011_0000_0000_0000;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
         let rn = 9_usize;
@@ -526,7 +526,7 @@ mod tests {
     #[test]
     fn check_cmp_s0() {
         let op_code: u32 = 0b1110_0001_0010_1010_0011_0000_0000_0000;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
         let rn = 9_usize;
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     fn check_add() {
         let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
         cpu.registers.set_register_at(15, 15);
@@ -553,7 +553,7 @@ mod tests {
         // Case when R15 is used as operand and shift amount is taken from register:
         // R2 = R1 + (R15 << R3)
         let op_code = 0b1110_0000_1000_0001_0010_0011_0001_1111;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing2);
 
@@ -570,7 +570,7 @@ mod tests {
     #[test]
     fn check_add_carry_bit() {
         let op_code: u32 = 0b1110_0000_1001_1111_0000_0000_0000_1110;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
@@ -594,7 +594,7 @@ mod tests {
         let is = op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000;
 
         // MOV Rx,x
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         for rx in 0..=0xF {
             let register_for_op = rx << 12;
             let immediate_value = rx;
@@ -618,7 +618,7 @@ mod tests {
     fn check_mov_cpsr() {
         // Checks for Z flag
         let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.execute(op_code);
@@ -627,7 +627,7 @@ mod tests {
 
         // Checks for Z flag
         let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.registers.set_register_at(2, -5_i32 as u32);
@@ -639,7 +639,7 @@ mod tests {
     #[test]
     fn shift_from_register_is_0() {
         let op_code = 0b1110_0000_1000_0000_0001_0011_0111_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
 
         let op_code = cpu.decode(op_code);
 
@@ -655,7 +655,7 @@ mod tests {
     #[test]
     fn check_and() {
         let op_code = 0b1110_00_1_0000_0_0000_0001_0000_10101010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         // All 1 except msb
@@ -669,7 +669,7 @@ mod tests {
     #[test]
     fn check_eor() {
         let op_code = 0b1110_00_1_0001_0_0000_0001_0000_10101010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.registers.set_register_at(0, 0b11111111);
@@ -683,7 +683,7 @@ mod tests {
     fn check_tst() {
         // Covers S = 0
         let op_code = 0b1110_00_1_1000_0_0000_0001_0000_10101010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.registers.set_register_at(0, 0b11111111);
@@ -707,7 +707,7 @@ mod tests {
     #[test]
     fn check_bic() {
         let op_code = 0b1110_00_1_1110_0_0000_0001_0000_10101010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.registers.set_register_at(0, 0b11111111);
@@ -720,7 +720,7 @@ mod tests {
     #[test]
     fn check_mvn() {
         let op_code = 0b1110_00_1_1111_1_0000_0001_0000_11111111;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.execute(op_code);
@@ -732,7 +732,7 @@ mod tests {
     #[test]
     fn check_sub() {
         let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.registers.set_register_at(0, 10);
@@ -777,7 +777,7 @@ mod tests {
     fn check_adc() {
         // Covers all flags=0
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.registers.set_register_at(0, 1);
@@ -794,7 +794,7 @@ mod tests {
 
         // Covers carry during first sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -811,7 +811,7 @@ mod tests {
 
         // Covers carry during second sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -828,7 +828,7 @@ mod tests {
 
         // Covers overflow during first sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -847,7 +847,7 @@ mod tests {
 
         // Covers overflow during second sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -869,7 +869,7 @@ mod tests {
     fn check_sbc() {
         // Covers all flag=0
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -887,7 +887,7 @@ mod tests {
 
         // Covers carry during first diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -905,7 +905,7 @@ mod tests {
 
         // Covers carry during sum
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -923,7 +923,7 @@ mod tests {
 
         // Covers carry during second diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(false);
@@ -941,7 +941,7 @@ mod tests {
 
         // Covers overflow during first diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -959,7 +959,7 @@ mod tests {
 
         // Covers overflow during sum
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(true);
@@ -977,7 +977,7 @@ mod tests {
 
         // Covers overflow during second diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
-        let mut cpu = Arm7tdmi::new(vec![]);
+        let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
         cpu.cpsr.set_carry_flag(false);

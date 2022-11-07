@@ -1,14 +1,16 @@
 use egui::Context;
-use emu::{arm7tdmi::Arm7tdmi, cartridge_header::CartridgeHeader, gba::Gba};
+use emu::{cartridge_header::CartridgeHeader, gba::Gba};
 
 use super::about::About;
 use super::cpu_inspector::CpuInspector;
 use crate::{gba_display::GbaDisplay, palette_visualizer::PaletteVisualizer, ui_traits::UiTool};
 
 use std::{
+    cell::RefCell,
     collections::BTreeSet,
     error, fs,
     io::Read,
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -31,10 +33,10 @@ impl UiTools {
 
         let cartridge_header =
             CartridgeHeader::new(data.as_slice()).expect("Cartridge must be opened");
-        let cpu = Arm7tdmi::new(data);
-        let gba = Gba::new(cartridge_header, cpu);
-
-        let arc_gba = Arc::new(Mutex::new(gba));
+        let arc_gba = Arc::new(Mutex::new(Gba::new(
+            cartridge_header,
+            Rc::new(RefCell::new(data)),
+        )));
 
         Self::from_tools(vec![
             Box::new(About::default()),

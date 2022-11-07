@@ -10,6 +10,5 @@ pub mod gba;
 pub mod instruction;
 pub mod memory;
 pub mod opcode;
-pub mod ppu;
 pub mod render;
 mod single_data_transfer;
