@@ -48,7 +48,14 @@ impl View for CpuInspector {
                 cartridge_name = gba.cartridge_header.game_title.clone()
             }
             ui.text_edit_singleline(&mut cartridge_name);
-            if ui.button("▶").clicked() {
+
+            if ui
+                .add_enabled(
+                    !self.play.load(std::sync::atomic::Ordering::Relaxed),
+                    egui::Button::new("▶"),
+                )
+                .clicked()
+            {
                 if self.thread_handle.is_some() {
                     return;
                 }
@@ -64,7 +71,14 @@ impl View for CpuInspector {
                     }
                 }));
             }
-            if ui.button("⏸ ").clicked() {
+
+            if ui
+                .add_enabled(
+                    self.play.load(std::sync::atomic::Ordering::Relaxed),
+                    egui::Button::new("⏸ "),
+                )
+                .clicked()
+            {
                 self.play.swap(false, std::sync::atomic::Ordering::Relaxed);
                 self.thread_handle = None;
             }
