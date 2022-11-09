@@ -1,0 +1,10 @@
+[package]
+name = "logger"
+version = "0.1.0"
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono = "0.4.22"
+once_cell = "1.16.0"
