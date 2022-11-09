@@ -1,6 +1,8 @@
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
 
+use logger::log;
+
 use crate::bitwise::Bits;
 use crate::instruction::ArmModeInstruction;
 use crate::memory::internal_memory::InternalMemory;
@@ -67,7 +69,7 @@ impl Cpu for Arm7tdmi {
 
     fn decode(&self, op_code: u32) -> Self::OpCodeType {
         let op_code = ArmModeOpcode::try_from(op_code).unwrap();
-        println!("{}", op_code);
+        log(format!("{op_code}"));
         if op_code.instruction == ArmModeInstruction::Unknown {
             todo!("implement this instruction")
         }

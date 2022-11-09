@@ -1,5 +1,6 @@
 use egui::Context;
 use emu::{cartridge_header::CartridgeHeader, gba::Gba};
+use logger::log;
 
 use super::about::About;
 use super::cpu_inspector::CpuInspector;
@@ -24,7 +25,7 @@ impl UiTools {
         let data = match read_file(&cartridge_name) {
             Ok(d) => d,
             Err(e) => {
-                println!("{e}");
+                log(format!("{e}"));
                 std::process::exit(2);
             }
         };
