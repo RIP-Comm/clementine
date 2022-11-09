@@ -1,5 +1,7 @@
 use std::fmt::{Display, Formatter};
 
+use logger::log;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArmModeInstruction {
     DataProcessing1 = 0b0000_0000_0000_0000_0000_0000_0000_0000,
@@ -31,7 +33,7 @@ impl From<u32> for ArmModeInstruction {
         } else if Self::check(BlockDataTransfer, op_code) {
             BlockDataTransfer
         } else {
-            println!("{op_code:b}");
+            log(format!("{op_code:b}"));
             Unknown
         }
     }

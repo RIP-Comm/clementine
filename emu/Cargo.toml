@@ -6,6 +6,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
+logger = { path = "../logger" }
 rand = { version = "0.8.5", optional = true}
 
 [dev-dependencies]
