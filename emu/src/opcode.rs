@@ -38,97 +38,30 @@ impl Display for ArmModeOpcode {
         let bytes_pos1 = "POS: |..3 ..................2 ..................1 ..................0|\n";
         let bytes_pos2 = "     |1_0_9_8_7_6_5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0|\n";
 
-        let op_code_format: &str = match self.instruction {
-            ArmModeInstruction::DataProcessing1 => {
-                "FMT: |_Cond__|0_0_0|___Op__|S|__Rn___|__Rd___|__Shift__|Typ|0|__Rm___|\n"
+        let op_code_format: &str = match &self.instruction {
+            ArmModeInstruction::DataProcessing => {
+                "FMT: |_Cond__|0_0|I|_code__|S|__Rn___|__Rd___|_______operand2________|"
             }
-            ArmModeInstruction::DataProcessing2 => {
-                "FMT: |_Cond__|0_0_0|___Op__|S|__Rn___|__Rd___|__Rs___|0|Typ|1|__Rm___|\n"
+            ArmModeInstruction::Multiply => "FMT: |_Cond__|",
+            ArmModeInstruction::MultiplyLong => "FMT: |_Cond__|",
+            ArmModeInstruction::SingleDataSwap => "FMT: |_Cond__|",
+            ArmModeInstruction::BranchAndExchange => "FMT: |_Cond__|",
+            ArmModeInstruction::HalfwordDataTransferRegisterOffset => "FMT: |_Cond__|",
+            ArmModeInstruction::HalfwordDataTransferImmediateOffset => "FMT: |_Cond__|",
+            ArmModeInstruction::SingleDataTransfer => {
+                "FMT: |_Cond__|0_1|I|P|U|B|W|L|__Rn___|__Rd___|________Offset_________|"
             }
-            ArmModeInstruction::DataProcessing3 => {
-                "FMT: |_Cond__|0_0_1|___Op__|S|__Rn___|__Rd___|_Shift_|___Immediate___|\n"
-            }
-            ArmModeInstruction::TransImm9 => {
-                "FMT: |_Cond__|0_1_0|P|U|B|W|L|__Rn___|__Rd___|_________Offset________|\n"
-            }
-            ArmModeInstruction::Branch | ArmModeInstruction::BranchLink => {
-                "FMT: |_Cond__|1_0_1|L|___________________Offset______________________|\n"
-            }
+            ArmModeInstruction::Undefined => "FMT: |_Cond__|",
             ArmModeInstruction::BlockDataTransfer => {
-                "FMT: |_Cond__|1_0_0|P|U|S|W|L|__Rn___|__________Register_List________|\n"
+                "FMT: |_Cond__|1_0_0|P|U|S|W|L|__Rn___|_____________Reg_List__________|"
             }
-            ArmModeInstruction::Unknown => "",
-        };
-
-        // let cond = self.get_bits(28..=31);
-        // Nice way to disable this block of code
-        #[cfg(feature = "")]
-        let op_code_value: String = match self.instruction {
-            ArmModeInstruction::DataProcessing1 => {
-                let op = self.get_bits(21..=24);
-                let s = self.get_bit(20) as u8;
-                let rn = self.get_bits(16..=19);
-                let rd = self.get_bits(12..=15);
-                let shift_amount = self.get_bits(7..=11);
-                let shift_type = self.get_bits(5..=6);
-                let rm = self.get_bits(0..=3);
-
-                format!("HEX: |{cond:07X}|0_0_0|{op:07X}|{s:01X}|{rn:07X}|{rd:07X}|{shift_amount:09X}|{shift_type:03X}|0|{rm:07X}|\n\
-                         DEC: |{cond:07}|0_0_0|{op:07}|{s:01}|{rn:07}|{rd:07}|{shift_amount:09}|{shift_type:03}|0|{rm:07}|\n\
-                         BIN: |{cond:07b}|0_0_0|{op:07b}|{s:01b}|{rn:07b}|{rd:07b}|{shift_amount:09b}|{shift_type:03b}|0|{rm:07b}|\n")
+            ArmModeInstruction::Branch => {
+                "FMT: |_Cond__|1_0_1|L|______________________Offset___________________|"
             }
-            ArmModeInstruction::DataProcessing2 => {
-                let op = self.get_bits(21..=24);
-                let s = self.get_bit(20) as u8;
-                let rn = self.get_bits(16..=19);
-                let rd = self.get_bits(12..=15);
-                let rs = self.get_bits(8..=11);
-                let shift_type = self.get_bits(5..=6);
-                let rm = self.get_bits(0..=3);
-
-                format!("HEX: |{cond:07X}|0_0_0|{op:07X}|{s:01X}|{rn:07X}|{rd:07X}|{rs:07X}|0|{shift_type:03X}|1|{rm:07X}|\n\
-                         DEC: |{cond:07}|0_0_0|{op:07}|{s:01}|{rn:07}|{rd:07}|{rs:07}|0|{shift_type:03}|1|{rm:07}|\n\
-                         BIN: |{cond:07b}|0_0_0|{op:07b}|{s:01b}|{rn:07b}|{rd:07b}|{rs:07b}|0|{shift_type:03b}|1|{rm:07b}|\n")
-            }
-            ArmModeInstruction::DataProcessing3 => {
-                let op = self.get_bits(21..=24);
-                let s = self.get_bit(20) as u8;
-                let rn = self.get_bits(16..=19);
-                let rd = self.get_bits(12..=15);
-                let shift_amount = self.get_bits(8..=11);
-                let immediate = self.get_bits(0..=7);
-
-                format!("HEX: |{cond:07X}|0_0_1|{op:07X}|{s:01X}|{rn:07X}|{rd:07X}|{shift_amount:07X}|{immediate:015X}|\n\
-                         DEC: |{cond:07}|0_0_1|{op:07}|{s:01}|{rn:07}|{rd:07}|{shift_amount:07}|{immediate:015}|\n\
-                         BIN: |{cond:07b}|0_0_1|{op:07b}|{s:01b}|{rn:07b}|{rd:07b}|{shift_amount:07b}|{immediate:015b}|\n")
-            }
-            ArmModeInstruction::TransImm9 => {
-                let p = self.get_bit(24) as u8;
-                let u = self.get_bit(23) as u8;
-                let b = self.get_bit(22) as u8;
-                let w = self.get_bit(21) as u8;
-                let l = self.get_bit(20) as u8;
-                let rn = self.get_bits(16..=19);
-                let rd = self.get_bits(12..=15);
-                let offset = self.get_bits(0..=11);
-
-                format!("HEX: |{cond:07X}|0_1_0|{p:01X}|{u:01X}|{b:01X}|{w:01X}|{l:01X}|{rn:07X}|{rd:07X}|{offset:023X}|\n\
-                         DEC: |{cond:07}|0_1_0|{p:01}|{u:01}|{b:01}|{w:01}|{l:01}|{rn:07}|{rd:07}|{offset:023}|\n\
-                         BIN: |{cond:07b}|0_1_0|{p:01b}|{u:01b}|{b:01b}|{w:01b}|{l:01b}|{rn:07b}|{rd:07b}|{offset:023b}|\n")
-            }
-            ArmModeInstruction::Branch | ArmModeInstruction::BranchLink => {
-                let l = self.get_bit(24) as u8;
-                let offset = self.get_bits(0..=23);
-                format!(
-                    "HEX: |{cond:07X}|1_0_1|{l:01X}|{offset:047X}|\n\
-                     DEC: |{cond:07}|1_0_1|{l:01}|{offset:047}|\n\
-                     BIN: |{cond:07b}|1_0_1|{l:01b}|{offset:047b}|\n"
-                )
-            }
-            ArmModeInstruction::BlockDataTransfer => {
-                format!("just skip this for now")
-            }
-            ArmModeInstruction::Unknown => String::new(),
+            ArmModeInstruction::CoprocessorDataTransfer => "FMT: |_Cond__|",
+            ArmModeInstruction::CoprocessorDataOperation => "FMT: |_Cond__|",
+            ArmModeInstruction::CoprocessorRegisterTrasfer => "FMT: |_Cond__|",
+            ArmModeInstruction::SoftwareInterrupt => "FMT: |_Cond__|",
         };
 
         let mut raw_bits = String::new();
@@ -139,7 +72,7 @@ impl Display for ArmModeOpcode {
         raw_bits.pop();
         let raw_bits = format!("RAW: |{}|\n", raw_bits);
 
-        write!(
+        writeln!(
             f,
             "{instruction}{bytes_pos1}{bytes_pos2}{raw_bits}{op_code_format}"
         )

@@ -142,7 +142,10 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
 
         let op_code_type = cpu.decode(op_code);
-        assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
+        assert_eq!(
+            op_code_type.instruction,
+            ArmModeInstruction::SingleDataTransfer
+        );
 
         let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
             .try_into()
@@ -168,7 +171,10 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
 
         let op_code_type = cpu.decode(op_code);
-        assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
+        assert_eq!(
+            op_code_type.instruction,
+            ArmModeInstruction::SingleDataTransfer
+        );
 
         let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
             .try_into()
@@ -194,7 +200,10 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
 
         let op_code_type = cpu.decode(op_code);
-        assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
+        assert_eq!(
+            op_code_type.instruction,
+            ArmModeInstruction::SingleDataTransfer
+        );
 
         let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
             .try_into()
@@ -222,7 +231,10 @@ mod tests {
         let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
         let mut cpu = Arm7tdmi::default();
         let op_code_type = cpu.decode(op_code);
-        assert_eq!(op_code_type.instruction, ArmModeInstruction::TransImm9);
+        assert_eq!(
+            op_code_type.instruction,
+            ArmModeInstruction::SingleDataTransfer
+        );
 
         let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
             .try_into()

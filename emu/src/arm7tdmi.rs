@@ -70,10 +70,6 @@ impl Cpu for Arm7tdmi {
     fn decode(&self, op_code: u32) -> Self::OpCodeType {
         let op_code = ArmModeOpcode::try_from(op_code).unwrap();
         log(format!("{op_code}"));
-        if op_code.instruction == ArmModeInstruction::Unknown {
-            todo!("implement this instruction")
-        }
-
         op_code
     }
 
@@ -82,14 +78,21 @@ impl Cpu for Arm7tdmi {
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
         let should_advance_pc = match op_code.instruction {
-            Branch => self.branch(op_code, false),
-            BranchLink => self.branch(op_code, true),
-            DataProcessing1 | DataProcessing2 | DataProcessing3 => self.data_processing(op_code),
-            TransImm9 => self.single_data_transfer(op_code),
+            DataProcessing => self.data_processing(op_code),
+            Multiply => todo!(),
+            MultiplyLong => todo!(),
+            SingleDataSwap => todo!(),
+            BranchAndExchange => todo!(),
+            HalfwordDataTransferRegisterOffset => todo!(),
+            HalfwordDataTransferImmediateOffset => todo!(),
+            SingleDataTransfer => self.single_data_transfer(op_code),
+            Undefined => todo!(),
             BlockDataTransfer => self.block_data_transfer(op_code),
-            Unknown => {
-                todo!("implement this instruction")
-            }
+            Branch => self.branch(op_code, true), // FIXME: Handle link inside this function.
+            CoprocessorDataTransfer => todo!(),
+            CoprocessorDataOperation => todo!(),
+            CoprocessorRegisterTrasfer => todo!(),
+            SoftwareInterrupt => todo!(),
         };
 
         if should_advance_pc {
@@ -251,22 +254,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn decode_branch() {
-        let output: ArmModeOpcode = 0b1110_1010_0000_0000_0000_0000_0111_1111
-            .try_into()
-            .unwrap();
-        assert_eq!(output.instruction, ArmModeInstruction::Branch);
-    }
-
-    #[test]
-    fn decode_branch_link() {
-        let output: ArmModeOpcode = 0b1110_1011_0000_0000_0000_0000_0111_1111
-            .try_into()
-            .unwrap();
-        assert_eq!(output.instruction, ArmModeInstruction::BranchLink);
-    }
-
-    #[test]
     fn test_branch() {
         // Covers a positive offset
 
@@ -306,7 +293,6 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
 
         let op_code = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::Unknown);
         assert_eq!(op_code.condition, Condition::AL);
 
         cpu.execute(op_code);

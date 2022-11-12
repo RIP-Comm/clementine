@@ -500,7 +500,7 @@ mod tests {
             let op_code = 0b1110_0001_0010_1001_0011_0000_0000_0000;
             let mut cpu = Arm7tdmi::default();
             let op_code = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
             let rn = 9_usize;
             cpu.registers.set_register_at(rn, 100);
             cpu.cpsr.set_sign_flag(true); // set for later verify.
@@ -515,7 +515,7 @@ mod tests {
         let op_code: u32 = 0b1110_0001_0011_1010_0011_0000_0000_0000;
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
         let rn = 9_usize;
         cpu.registers.set_register_at(rn, 1);
         cpu.execute(op_code);
@@ -528,7 +528,7 @@ mod tests {
         let op_code: u32 = 0b1110_0001_0010_1010_0011_0000_0000_0000;
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
         let rn = 9_usize;
         cpu.registers.set_register_at(rn, 1);
         cpu.cpsr.set_sign_flag(true); // set for later verify.
@@ -542,7 +542,7 @@ mod tests {
         let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
         cpu.registers.set_register_at(15, 15);
         cpu.execute(op_code);
         assert_eq!(cpu.registers.register_at(0), 15 + 8 + 32);
@@ -555,7 +555,7 @@ mod tests {
         let op_code = 0b1110_0000_1000_0001_0010_0011_0001_1111;
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing2);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
 
         cpu.registers.set_register_at(2, 5);
         cpu.registers.set_register_at(1, 10);
@@ -573,7 +573,7 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing1);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
 
         cpu.registers.set_register_at(15, 1 << 31);
         cpu.registers.set_register_at(14, 1 << 31);
@@ -606,7 +606,7 @@ mod tests {
 
             let op_code = cpu.decode(op_code);
             assert_eq!(op_code.condition, Condition::AL);
-            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing3);
+            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
 
             cpu.execute(op_code);
             let rotated = rx.rotate_right(is * 2);
