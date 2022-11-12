@@ -38,8 +38,25 @@ lint:
 clean:
     @cargo clean
 
+# check code formatting.
 check-fmt:
     @cargo fmt --all --check
 
+# it performs format of code.
 fmt:
     @cargo fmt
+
+# runs a rebase on main and `just test`.
+check-after-rebase:
+    #! /bin/sh
+    BEFORE=$(git rev-parse HEAD)
+    git config pull.ff only 
+    echo "update remote..."
+    git remote update || exit 1
+    echo "fetch all..."
+    git fetch --all || exit 1
+    echo "pull main --rebase..."
+    git pull origin main --rebase || exit 1
+    AFTER=$(git rev-parse HEAD)
+    echo "check before and after commits..."
+    [[ $BEFORE != "$AFTER" ]] && echo "nothing to do, branch is already rebased" || just check-fmt test lint

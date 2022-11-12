@@ -20,17 +20,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fmt:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-    - uses: extractions/setup-just@v1
-    - name: Check fmt
-      run: just check-fmt
-
-  test:
-    needs: [fmt]
+  check:
     strategy:
       fail-fast: false
       matrix:
@@ -41,15 +31,16 @@ jobs:
     - uses: actions/checkout@v3
     - uses: extractions/setup-just@v1
     - uses: dtolnay/rust-toolchain@stable
-    - name: Test
-      run: just test
-      
-  lint:
-    needs: [fmt, test]
+    - name: Check
+      run: just check-fmt test lint
+
+  check_after_rebase:
+    needs: [check]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
     - uses: extractions/setup-just@v1
-    - name: Lint
-      run: just lint
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Check after rebase
+      run: just check-after-rebase
