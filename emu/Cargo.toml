@@ -15,3 +15,5 @@ rand = "0.8.5"
 
 [features]
 debug = ["rand"]
+mode_5 = ["debug"]
+mode_3 = ["debug"]

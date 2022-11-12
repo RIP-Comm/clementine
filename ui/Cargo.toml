@@ -15,9 +15,17 @@ image = { version = "0.24", features = ["png"], optional = true}
 
 [features]
 debug = ["emu/debug"]
-test_bitmap = [ 
+test_bitmap_3 = [ 
     "debug", 
-    "emu/debug" , 
+    "emu/mode_3" , 
     "egui_extras/image", 
     "image"
 ]
+
+test_bitmap_5 = [ 
+    "debug", 
+    "emu/mode_5" , 
+    "egui_extras/image", 
+    "image"
+]
+

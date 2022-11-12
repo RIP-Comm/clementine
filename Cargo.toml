@@ -30,4 +30,5 @@ debug = [
     "ui/debug"
 ]
 
-test_bitmap = ["ui/test_bitmap"]
+test_bitmap_3 = ["ui/test_bitmap_3"]
+test_bitmap_5 = ["ui/test_bitmap_5"]
