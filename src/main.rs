@@ -27,7 +27,7 @@ fn main() {
             std::process::exit(1)
         },
         |name| {
-            log("loading {name}");
+            log(format!("loading {name}"));
             name.clone()
         },
     );
