@@ -251,21 +251,29 @@ impl Arm7tdmi {
             ArmModeAluInstruction::Tst => {
                 if s {
                     self.tst(rn, op2)
+                } else {
+                    unimplemented!("Implement PSR transfer")
                 }
             }
             ArmModeAluInstruction::Teq => {
                 if s {
                     self.teq(rn, op2)
+                } else {
+                    unimplemented!("Implement PSR transfer")
                 }
             }
             ArmModeAluInstruction::Cmp => {
                 if s {
                     self.cmp(rn, op2)
+                } else {
+                    unimplemented!("Implement PSR transfer")
                 }
             }
             ArmModeAluInstruction::Cmn => {
                 if s {
                     self.cmn(rn, op2)
+                } else {
+                    unimplemented!("Implement PSR transfer")
                 }
             }
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
@@ -495,23 +503,20 @@ mod tests {
 
     #[test]
     fn check_teq() {
-        // This case cover S=0 then it will skip the execution of TEQ.
-        {
-            let op_code = 0b1110_0001_0010_1001_0011_0000_0000_0000;
-            let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
-            let rn = 9_usize;
-            cpu.registers.set_register_at(rn, 100);
-            cpu.cpsr.set_sign_flag(true); // set for later verify.
-            cpu.execute(op_code);
-            assert!(cpu.cpsr.sign_flag());
-            assert!(!cpu.cpsr.zero_flag());
-        }
+        let op_code = 0b1110_0001_0011_1001_0011_0000_0000_0000;
+        let mut cpu = Arm7tdmi::default();
+        let op_code = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
+        let rn = 9_usize;
+        cpu.registers.set_register_at(rn, 100);
+        cpu.cpsr.set_sign_flag(true); // set for later verify.
+        cpu.execute(op_code);
+        assert!(!cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
     }
 
     #[test]
-    fn check_cmp_s1() {
+    fn check_cmp() {
         let op_code: u32 = 0b1110_0001_0011_1010_0011_0000_0000_0000;
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
@@ -521,20 +526,6 @@ mod tests {
         cpu.execute(op_code);
         assert!(!cpu.cpsr.sign_flag());
         assert!(cpu.cpsr.zero_flag());
-    }
-
-    #[test]
-    fn check_cmp_s0() {
-        let op_code: u32 = 0b1110_0001_0010_1010_0011_0000_0000_0000;
-        let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
-        let rn = 9_usize;
-        cpu.registers.set_register_at(rn, 1);
-        cpu.cpsr.set_sign_flag(true); // set for later verify.
-        cpu.execute(op_code);
-        assert!(cpu.cpsr.sign_flag());
-        assert!(!cpu.cpsr.zero_flag());
     }
 
     #[test]
@@ -681,22 +672,11 @@ mod tests {
 
     #[test]
     fn check_tst() {
-        // Covers S = 0
-        let op_code = 0b1110_00_1_1000_0_0000_0001_0000_10101010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
-        cpu.registers.set_register_at(0, 0b11111111);
-
-        cpu.execute(op_code);
-
-        assert!(!cpu.cpsr.zero_flag());
-        assert!(!cpu.cpsr.sign_flag());
-
-        cpu.cpsr.set_sign_flag(true);
-        // Covers S = 1
         let op_code = 0b1110_00_1_1000_1_0000_0001_0000_00000000;
         let op_code = cpu.decode(op_code);
+
+        cpu.cpsr.set_sign_flag(true);
 
         cpu.execute(op_code);
 
