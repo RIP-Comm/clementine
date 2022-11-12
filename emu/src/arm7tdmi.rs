@@ -88,7 +88,7 @@ impl Cpu for Arm7tdmi {
             SingleDataTransfer => self.single_data_transfer(op_code),
             Undefined => todo!(),
             BlockDataTransfer => self.block_data_transfer(op_code),
-            Branch => self.branch(op_code, true), // FIXME: Handle link inside this function.
+            Branch => self.branch(op_code),
             CoprocessorDataTransfer => todo!(),
             CoprocessorDataOperation => todo!(),
             CoprocessorRegisterTrasfer => todo!(),
@@ -122,7 +122,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn branch(&mut self, op_code: ArmModeOpcode, link: bool) -> bool {
+    fn branch(&mut self, op_code: ArmModeOpcode) -> bool {
         let offset = op_code.get_bits(0..=23) << 2;
 
         // We need to sign-extend the 26 bit number into a 32 bit.
@@ -133,7 +133,8 @@ impl Arm7tdmi {
         let offset = (offset as i32 ^ mask) - mask;
 
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
-        if link {
+        let is_link = op_code.get_bit(24);
+        if is_link {
             self.registers.set_register_at(14, old_pc.wrapping_add(4));
         }
 
@@ -248,7 +249,6 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use crate::condition::Condition;
-    use crate::instruction::ArmModeInstruction;
     use pretty_assertions::assert_eq;
 
     use super::*;
