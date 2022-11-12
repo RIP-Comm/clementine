@@ -17,8 +17,12 @@ set positional-arguments
     @cargo run --features debug -- $1
 
 # run clemente in DEBUG mode
-@test_bitmap *args='':
-    @cargo run --features test_bitmap -- $1
+@test_mode_3 *args='':
+    @cargo run --features test_bitmap_3 -- $1
+
+# run clemente in DEBUG mode
+@test_mode_5 *args='':
+    @cargo run --features test_bitmap_5 -- $1
 
 # run clippy with heavy config
 lint:

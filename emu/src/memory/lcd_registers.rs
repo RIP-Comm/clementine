@@ -146,7 +146,7 @@ impl LCDRegisters {
     }
 
     /// Selected frame = [0-1]. Other values are not allowed.
-    pub fn get_frame_select(&self) -> u8 {
+    pub fn get_frame_select(&self) -> usize {
         self.dispcnt.read().is_bit_on(4).into()
     }
 

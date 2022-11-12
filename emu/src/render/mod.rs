@@ -4,10 +4,16 @@ pub mod gba_lcd;
 pub mod ppu;
 
 /// GBA display width
-pub const DISPLAY_WIDTH: usize = 240;
+pub const LCD_WIDTH: usize = 240;
 
 /// GBA display height
-pub const DISPLAY_HEIGHT: usize = 160;
+pub const LCD_HEIGHT: usize = 160;
+
+/// GBC display width
+pub const GBC_LCD_WIDTH: usize = 160;
+
+/// GBC display height
+pub const GBC_LCD_HEIGHT: usize = 128;
 
 /// Each palette can contains 16 colors
 pub const MAX_COLORS_SINGLE_PALETTE: usize = 16;
