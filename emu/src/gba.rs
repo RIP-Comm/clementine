@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     arm7tdmi::Arm7tdmi,
     cartridge_header::CartridgeHeader,
+    cpu::Cpu,
     memory::internal_memory::InternalMemory,
     render::{gba_lcd::GbaLcd, ppu::PixelProcessUnit},
 };
@@ -33,5 +34,10 @@ impl Gba {
             lcd,
             memory,
         }
+    }
+
+    pub fn step(&mut self) {
+        self.cpu.step();
+        self.ppu.render();
     }
 }

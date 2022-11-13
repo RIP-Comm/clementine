@@ -683,6 +683,7 @@ name = "emu"
 version = "0.1.0"
 dependencies = [
  "logger",
+ "macros",
  "pretty_assertions",
  "rand",
 ]
@@ -1191,6 +1192,10 @@ dependencies = [
  "chrono",
  "once_cell",
 ]
+
+[[package]]
+name = "macros"
+version = "0.1.0"
 
 [[package]]
 name = "malloc_buf"
@@ -2030,6 +2035,7 @@ dependencies = [
  "emu",
  "image",
  "logger",
+ "macros",
 ]
 
 [[package]]
