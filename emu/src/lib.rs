@@ -1,14 +1,7 @@
-mod alu_instruction;
-mod arm7tdmi;
+mod arm;
 mod bitwise;
 pub mod cartridge_header;
-mod condition;
-mod cpsr;
 pub mod cpu;
-mod data_processing;
 pub mod gba;
-mod instruction;
 mod memory;
-mod opcode;
 pub mod render;
-mod single_data_transfer;

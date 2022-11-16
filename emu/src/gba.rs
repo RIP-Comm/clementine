@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use crate::arm::arm7tdmi::Arm7tdmi;
 use crate::{
-    arm7tdmi::Arm7tdmi,
     cartridge_header::CartridgeHeader,
     memory::internal_memory::InternalMemory,
     render::{gba_lcd::GbaLcd, ppu::PixelProcessUnit},

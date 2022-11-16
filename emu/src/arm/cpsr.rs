@@ -1,6 +1,6 @@
 #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
-use crate::condition::ModeBits;
-use crate::{bitwise::Bits, condition::Condition, data_processing::ArithmeticOpResult};
+use crate::arm::condition::ModeBits;
+use crate::{arm::condition::Condition, arm::data_processing::ArithmeticOpResult, bitwise::Bits};
 
 /// Current Program Status Register.
 #[derive(Default)]

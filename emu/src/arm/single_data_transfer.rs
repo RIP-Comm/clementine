@@ -1,5 +1,5 @@
 use crate::{
-    arm7tdmi::Arm7tdmi, bitwise::Bits, memory::io_device::IoDevice, opcode::ArmModeOpcode,
+    arm::arm7tdmi::Arm7tdmi, arm::opcode::ArmModeOpcode, bitwise::Bits, memory::io_device::IoDevice,
 };
 
 /// Possible opeartion on transfer data.
@@ -133,7 +133,8 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use crate::{
-        arm7tdmi::Arm7tdmi, cpu::Cpu, instruction::ArmModeInstruction, memory::io_device::IoDevice,
+        arm::arm7tdmi::Arm7tdmi, arm::instruction::ArmModeInstruction, cpu::Cpu,
+        memory::io_device::IoDevice,
     };
 
     #[test]

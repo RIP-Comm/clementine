@@ -1,8 +1,8 @@
 use crate::{
-    alu_instruction::{AluInstructionKind, ArmModeAluInstruction, Kind},
-    arm7tdmi::Arm7tdmi,
+    arm::alu_instruction::{AluInstructionKind, ArmModeAluInstruction, Kind},
+    arm::arm7tdmi::Arm7tdmi,
+    arm::opcode::ArmModeOpcode,
     bitwise::Bits,
-    opcode::ArmModeOpcode,
 };
 
 pub struct ArithmeticOpResult {
@@ -498,7 +498,8 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use crate::{
-        arm7tdmi::Arm7tdmi, condition::Condition, cpu::Cpu, instruction::ArmModeInstruction,
+        arm::arm7tdmi::Arm7tdmi, arm::condition::Condition, arm::instruction::ArmModeInstruction,
+        cpu::Cpu,
     };
 
     #[test]

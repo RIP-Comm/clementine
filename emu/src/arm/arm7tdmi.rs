@@ -3,12 +3,13 @@ use std::sync::{Arc, Mutex};
 
 use logger::log;
 
+use crate::arm::cpsr::Cpsr;
+use crate::arm::instruction::ArmModeInstruction;
+use crate::arm::opcode::ArmModeOpcode;
 use crate::bitwise::Bits;
-use crate::instruction::ArmModeInstruction;
+use crate::cpu::Cpu;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
-use crate::opcode::ArmModeOpcode;
-use crate::{cpsr::Cpsr, cpu::Cpu};
 
 /// Contains the 16 registers for the CPU, latest (R15) is special because
 /// is the program counter.
@@ -325,7 +326,7 @@ impl From<u8> for HalfwordTransferType {
 
 #[cfg(test)]
 mod tests {
-    use crate::condition::Condition;
+    use crate::arm::condition::Condition;
     use pretty_assertions::assert_eq;
 
     use super::*;
