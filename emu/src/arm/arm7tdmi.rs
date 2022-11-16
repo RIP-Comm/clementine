@@ -3,9 +3,10 @@ use std::sync::{Arc, Mutex};
 
 use logger::log;
 
-use crate::arm::cpsr::Cpsr;
+use crate::arm::cpu_modes::Mode;
 use crate::arm::instruction::ArmModeInstruction;
 use crate::arm::opcode::ArmModeOpcode;
+use crate::arm::psr::Psr;
 use crate::bitwise::Bits;
 use crate::cpu::Cpu;
 use crate::memory::internal_memory::InternalMemory;
@@ -43,13 +44,23 @@ impl Registers {
     }
 }
 
-#[derive(Default)]
 pub struct Arm7tdmi {
     pub(crate) rom: Arc<Mutex<Vec<u8>>>,
     pub(crate) memory: Arc<Mutex<InternalMemory>>,
 
-    pub cpsr: Cpsr,
+    pub cpsr: Psr,
     pub registers: Registers,
+}
+
+impl Default for Arm7tdmi {
+    fn default() -> Self {
+        Self {
+            rom: Arc::new(Mutex::new(Vec::default())),
+            memory: Arc::new(Mutex::new(InternalMemory::default())),
+            cpsr: Psr::from(Mode::User), // FIXME: Starting as User? Not sure
+            registers: Registers::default(),
+        }
+    }
 }
 
 const OPCODE_ARM_SIZE: usize = 4;
@@ -116,10 +127,9 @@ impl Cpu for Arm7tdmi {
 impl Arm7tdmi {
     pub fn new(rom: Arc<Mutex<Vec<u8>>>, memory: Arc<Mutex<InternalMemory>>) -> Self {
         Self {
-            rom,
-            registers: Registers::default(),
-            cpsr: Cpsr::default(),
             memory,
+            rom,
+            ..Default::default()
         }
     }
 

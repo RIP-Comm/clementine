@@ -1,12 +1,11 @@
-#[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
-use crate::arm::condition::ModeBits;
-use crate::{arm::condition::Condition, arm::data_processing::ArithmeticOpResult, bitwise::Bits};
+use crate::arm::{condition::Condition, cpu_modes::Mode, data_processing::ArithmeticOpResult};
+use crate::bitwise::Bits;
 
-/// Current Program Status Register.
+/// Program Status Register.
 #[derive(Default)]
-pub struct Cpsr(u32);
+pub struct Psr(u32);
 
-impl Cpsr {
+impl Psr {
     pub(crate) fn can_execute(&self, cond: Condition) -> bool {
         use Condition::*;
         match cond {
@@ -83,19 +82,8 @@ impl Cpsr {
     }
 
     /// M4-M0 => Bits 4-0
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
-    pub fn mode_bits(&self) -> bool {
-        self.0 == 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0000_0001 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0000_0010 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0000_0011 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0001_0000 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0001_0001 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0001_0010 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0001_0011 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0001_0111 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0001_1011 != 0
-            || self.0 & 0b0000_0000_0000_0000_0000_0000_0001_1111 != 0
+    pub fn mode(&self) -> Mode {
+        Mode::try_from(self.0 & 0b11111).unwrap()
     }
 
     pub fn set_sign_flag(&mut self, value: bool) {
@@ -157,21 +145,30 @@ impl Cpsr {
     }
 
     /// The Mode Bits M4-M0 contain the current operating mode.
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
-    pub fn set_mode_bits(&mut self, control_bits: ModeBits) {
-        match control_bits {
-            ModeBits::OldUser => self.0 |= 0b0000_0000_0000_0000_0000_0000_0000_0000,
-            ModeBits::OldFiq => self.0 |= 0b0000_0000_0000_0000_0000_0000_0000_0001,
-            ModeBits::OldIrq => self.0 |= 0b0000_0000_0000_0000_0000_0000_0000_0010,
-            ModeBits::OldSupervisor => self.0 |= 0b0000_0000_0000_0000_0000_0000_0000_0011,
-            ModeBits::User => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0000,
-            ModeBits::Fiq => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0001,
-            ModeBits::Irq => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0010,
-            ModeBits::Supervisor => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0011,
-            ModeBits::Abort => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0111,
-            ModeBits::Undefined => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_1011,
-            ModeBits::System => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_1111,
+    pub fn set_mode(&mut self, m: Mode) {
+        // Setting mode bits to 0
+        self.0 &= 0b1111_1111_1111_1111_1111_1111_1110_0000;
+
+        // Setting mode bits according to the chosen mode
+        match m {
+            Mode::User => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0000,
+            Mode::Fiq => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0001,
+            Mode::Irq => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0010,
+            Mode::Supervisor => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0011,
+            Mode::Abort => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0111,
+            Mode::Undefined => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_1011,
+            Mode::System => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_1111,
         }
+    }
+}
+
+impl From<Mode> for Psr {
+    fn from(m: Mode) -> Self {
+        let mut s = Self(0);
+
+        s.set_mode(m);
+
+        s
     }
 }
 
@@ -181,95 +178,154 @@ mod tests {
 
     #[test]
     fn check_sign_flag() {
-        let mut cpsr: Cpsr = Cpsr(0);
+        let mut cpsr: Psr = Psr(0);
         cpsr.set_sign_flag(true);
         assert!(cpsr.sign_flag());
     }
 
     #[test]
     fn check_zero_flag() {
-        let mut cpsr: Cpsr = Cpsr(0);
+        let mut cpsr: Psr = Psr(0);
         cpsr.set_zero_flag(true);
         assert!(cpsr.zero_flag());
     }
 
     #[test]
     fn check_carry_flag() {
-        let mut cpsr: Cpsr = Cpsr(0);
+        let mut cpsr: Psr = Psr(0);
         cpsr.set_carry_flag(true);
         assert!(cpsr.carry_flag());
     }
 
     #[test]
     fn check_overflow_flag() {
-        let mut cpsr: Cpsr = Cpsr(0);
+        let mut cpsr: Psr = Psr(0);
         cpsr.0 = 0b0001_0000_0000_0000_0000_0000_0000_0000;
         assert!(cpsr.overflow_flag());
     }
 
     #[test]
     fn check_sticky_overflow() {
-        let mut cpsr: Cpsr = Cpsr(0);
+        let mut cpsr: Psr = Psr(0);
         cpsr.set_sticky_overflow(true);
         assert!(cpsr.sticky_overflow());
     }
 
     #[test]
     fn check_reserved_bits() {
-        let cpsr: Cpsr = Cpsr(0);
+        let cpsr: Psr = Psr(0);
         assert!(cpsr.reserved_bits());
     }
 
     #[test]
     fn check_irq_disable() {
-        let mut cpsr: Cpsr = Cpsr(0);
+        let mut cpsr: Psr = Psr(0);
         cpsr.set_irq_disable(true);
         assert!(cpsr.irq_disable());
     }
 
     #[test]
     fn check_fiq_disable() {
-        let mut cpsr: Cpsr = Cpsr(0);
+        let mut cpsr: Psr = Psr(0);
         cpsr.set_fiq_disable(true);
         assert!(cpsr.fiq_disable());
     }
 
     #[test]
     fn check_state_bit() {
-        let mut cpsr: Cpsr = Cpsr(0);
+        let mut cpsr: Psr = Psr(0);
         cpsr.set_state_bit(true);
         assert!(cpsr.state_bit());
     }
 
     #[test]
-    fn check_old_user() {
-        let mut cpsr: Cpsr = Cpsr(0);
-        let mode_bits = ModeBits::OldUser;
-        cpsr.set_mode_bits(mode_bits);
-        assert!(cpsr.mode_bits())
-    }
-
-    #[test]
-    fn check_old_fiq() {
-        let mut cpsr: Cpsr = Cpsr(0);
-        let mode_bits = ModeBits::OldFiq;
-        cpsr.set_mode_bits(mode_bits);
-        assert!(cpsr.mode_bits())
-    }
-
-    #[test]
     fn check_user() {
-        let mut cpsr: Cpsr = Cpsr(0);
-        let mode_bits = ModeBits::User;
-        cpsr.set_mode_bits(mode_bits);
-        assert!(cpsr.mode_bits())
+        let mut cpsr: Psr = Psr(0);
+        let mode = Mode::User;
+        cpsr.set_mode(mode);
+        assert_eq!(cpsr.0 & 0b11111, 0b10000);
+
+        let cpsr = Psr(0b10000);
+        let mode = cpsr.mode();
+
+        assert_eq!(mode, Mode::User);
+    }
+
+    #[test]
+    fn check_fiq() {
+        let mut cpsr: Psr = Psr(0);
+        let mode = Mode::Fiq;
+        cpsr.set_mode(mode);
+        assert_eq!(cpsr.0 & 0b11111, 0b10001);
+
+        let cpsr = Psr(0b10001);
+        let mode = cpsr.mode();
+
+        assert_eq!(mode, Mode::Fiq);
+    }
+
+    #[test]
+    fn check_irq() {
+        let mut cpsr: Psr = Psr(0);
+        let mode = Mode::Irq;
+        cpsr.set_mode(mode);
+        assert_eq!(cpsr.0 & 0b11111, 0b10010);
+
+        let cpsr = Psr(0b10010);
+        let mode = cpsr.mode();
+
+        assert_eq!(mode, Mode::Irq);
     }
 
     #[test]
     fn check_supervisor() {
-        let mut cpsr: Cpsr = Cpsr(0);
-        let mode_bits = ModeBits::Supervisor;
-        cpsr.set_mode_bits(mode_bits);
-        assert!(cpsr.mode_bits())
+        let mut cpsr: Psr = Psr(0);
+        let mode = Mode::Supervisor;
+        cpsr.set_mode(mode);
+        assert_eq!(cpsr.0 & 0b11111, 0b10011);
+
+        let cpsr = Psr(0b10011);
+        let mode = cpsr.mode();
+
+        assert_eq!(mode, Mode::Supervisor);
+    }
+
+    #[test]
+    fn check_abort() {
+        let mut cpsr: Psr = Psr(0);
+        let mode = Mode::Abort;
+        cpsr.set_mode(mode);
+        assert_eq!(cpsr.0 & 0b11111, 0b10111);
+
+        let cpsr = Psr(0b10111);
+        let mode = cpsr.mode();
+
+        assert_eq!(mode, Mode::Abort);
+    }
+
+    #[test]
+    fn check_undefined() {
+        let mut cpsr: Psr = Psr(0);
+        let mode = Mode::Undefined;
+        cpsr.set_mode(mode);
+        assert_eq!(cpsr.0 & 0b11111, 0b11011);
+
+        let cpsr = Psr(0b11011);
+        let mode = cpsr.mode();
+
+        assert_eq!(mode, Mode::Undefined);
+    }
+
+    #[test]
+    fn check_system() {
+        let mut cpsr: Psr = Psr(0);
+        let mode = Mode::System;
+        cpsr.set_mode(mode);
+        assert_eq!(cpsr.0 & 0b11111, 0b11111);
+
+        let cpsr = Psr(0b11111);
+        let mode = cpsr.mode();
+
+        assert_eq!(mode, Mode::System);
     }
 }
