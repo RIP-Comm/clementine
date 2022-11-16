@@ -16,6 +16,8 @@ We love collaborating with others, so feel free to interact with us however you 
 
 [Contributing doc](./CONTRIBUTING.md)
 
+[Resources](https://github.com/RIP-Comm/clementine/wiki/Resources)
+
 ## Build and quick start
 
 - clone the repository :)
