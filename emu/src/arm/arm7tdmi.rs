@@ -7,6 +7,7 @@ use crate::arm::cpu_modes::Mode;
 use crate::arm::instruction::ArmModeInstruction;
 use crate::arm::opcode::ArmModeOpcode;
 use crate::arm::psr::Psr;
+use crate::arm::register_bank::RegisterBank;
 use crate::bitwise::Bits;
 use crate::cpu::Cpu;
 use crate::memory::internal_memory::InternalMemory;
@@ -50,6 +51,8 @@ pub struct Arm7tdmi {
 
     pub cpsr: Psr,
     pub registers: Registers,
+
+    pub register_bank: RegisterBank,
 }
 
 impl Default for Arm7tdmi {
@@ -59,6 +62,7 @@ impl Default for Arm7tdmi {
             memory: Arc::new(Mutex::new(InternalMemory::default())),
             cpsr: Psr::from(Mode::User), // FIXME: Starting as User? Not sure
             registers: Registers::default(),
+            register_bank: RegisterBank::default(),
         }
     }
 }
@@ -191,6 +195,97 @@ impl Arm7tdmi {
         }
 
         !(load_store && rd_source_destination_register == 0xF)
+    }
+
+    /// Stores the banked registers of the current mode to the register bank.
+    /// It should be used before leaving the current mode.
+    pub fn store_registers_in_bank(&mut self) {
+        match self.cpsr.mode() {
+            Mode::User | Mode::System => {}
+            Mode::Fiq => {
+                self.register_bank.r8_fiq = self.registers.register_at(8);
+                self.register_bank.r9_fiq = self.registers.register_at(9);
+                self.register_bank.r10_fiq = self.registers.register_at(10);
+                self.register_bank.r11_fiq = self.registers.register_at(11);
+                self.register_bank.r12_fiq = self.registers.register_at(12);
+                self.register_bank.r13_fiq = self.registers.register_at(13);
+                self.register_bank.r14_fiq = self.registers.register_at(14);
+                self.register_bank.spsr_fiq = self.cpsr;
+            }
+            Mode::Supervisor => {
+                self.register_bank.r13_svc = self.registers.register_at(13);
+                self.register_bank.r14_svc = self.registers.register_at(14);
+                self.register_bank.spsr_svc = self.cpsr;
+            }
+            Mode::Abort => {
+                self.register_bank.r13_abt = self.registers.register_at(13);
+                self.register_bank.r14_abt = self.registers.register_at(14);
+                self.register_bank.spsr_abt = self.cpsr;
+            }
+            Mode::Irq => {
+                self.register_bank.r13_irq = self.registers.register_at(13);
+                self.register_bank.r14_irq = self.registers.register_at(14);
+                self.register_bank.spsr_irq = self.cpsr;
+            }
+            Mode::Undefined => {
+                self.register_bank.r13_und = self.registers.register_at(13);
+                self.register_bank.r14_und = self.registers.register_at(14);
+                self.register_bank.spsr_und = self.cpsr;
+            }
+        }
+    }
+
+    /// Restore the banked registers of the current mode from the register bank.
+    /// It should be used after changing the mode.
+    pub fn restore_registers_from_bank(&mut self) {
+        match self.cpsr.mode() {
+            Mode::User | Mode::System => {}
+            Mode::Fiq => {
+                self.registers.set_register_at(8, self.register_bank.r8_fiq);
+                self.registers.set_register_at(8, self.register_bank.r8_fiq);
+                self.registers.set_register_at(8, self.register_bank.r8_fiq);
+                self.registers.set_register_at(9, self.register_bank.r9_fiq);
+                self.registers
+                    .set_register_at(10, self.register_bank.r10_fiq);
+                self.registers
+                    .set_register_at(11, self.register_bank.r11_fiq);
+                self.registers
+                    .set_register_at(12, self.register_bank.r12_fiq);
+                self.registers
+                    .set_register_at(13, self.register_bank.r13_fiq);
+                self.registers
+                    .set_register_at(14, self.register_bank.r14_fiq);
+                self.cpsr = self.register_bank.spsr_fiq;
+            }
+            Mode::Supervisor => {
+                self.registers
+                    .set_register_at(13, self.register_bank.r13_svc);
+                self.registers
+                    .set_register_at(14, self.register_bank.r14_svc);
+                self.cpsr = self.register_bank.spsr_svc;
+            }
+            Mode::Abort => {
+                self.registers
+                    .set_register_at(13, self.register_bank.r13_abt);
+                self.registers
+                    .set_register_at(14, self.register_bank.r14_abt);
+                self.cpsr = self.register_bank.spsr_abt;
+            }
+            Mode::Irq => {
+                self.registers
+                    .set_register_at(13, self.register_bank.r13_irq);
+                self.registers
+                    .set_register_at(14, self.register_bank.r14_irq);
+                self.cpsr = self.register_bank.spsr_irq;
+            }
+            Mode::Undefined => {
+                self.registers
+                    .set_register_at(13, self.register_bank.r13_und);
+                self.registers
+                    .set_register_at(14, self.register_bank.r14_und);
+                self.cpsr = self.register_bank.spsr_und;
+            }
+        }
     }
 
     fn branch(&mut self, op_code: ArmModeOpcode) -> bool {
@@ -585,5 +680,48 @@ mod tests {
             assert_eq!(memory.read_at(2), 0);
             assert_eq!(memory.read_at(3), 0);
         }
+    }
+
+    #[test]
+    fn check_store_in_bank() {
+        let mut cpu = Arm7tdmi::default();
+        cpu.cpsr.set_mode(Mode::Fiq);
+
+        for i in 0..=15 {
+            cpu.registers.set_register_at(i, i.try_into().unwrap());
+        }
+
+        cpu.store_registers_in_bank();
+
+        assert_eq!(cpu.register_bank.r8_fiq, 8);
+        assert_eq!(cpu.register_bank.r9_fiq, 9);
+        assert_eq!(cpu.register_bank.r10_fiq, 10);
+        assert_eq!(cpu.register_bank.r11_fiq, 11);
+        assert_eq!(cpu.register_bank.r12_fiq, 12);
+        assert_eq!(cpu.register_bank.r13_fiq, 13);
+        assert_eq!(cpu.register_bank.r14_fiq, 14);
+    }
+
+    #[test]
+    fn check_restore_registers() {
+        let mut cpu = Arm7tdmi::default();
+        cpu.register_bank.r8_fiq = 8;
+        cpu.register_bank.r9_fiq = 9;
+        cpu.register_bank.r10_fiq = 10;
+        cpu.register_bank.r11_fiq = 11;
+        cpu.register_bank.r12_fiq = 12;
+        cpu.register_bank.r13_fiq = 13;
+        cpu.register_bank.r14_fiq = 14;
+
+        cpu.cpsr.set_mode(Mode::Fiq);
+        cpu.restore_registers_from_bank();
+
+        assert_eq!(cpu.registers.register_at(8), 8);
+        assert_eq!(cpu.registers.register_at(9), 9);
+        assert_eq!(cpu.registers.register_at(10), 10);
+        assert_eq!(cpu.registers.register_at(11), 11);
+        assert_eq!(cpu.registers.register_at(12), 12);
+        assert_eq!(cpu.registers.register_at(13), 13);
+        assert_eq!(cpu.registers.register_at(14), 14);
     }
 }
