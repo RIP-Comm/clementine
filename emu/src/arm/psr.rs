@@ -2,7 +2,7 @@ use crate::arm::{condition::Condition, cpu_modes::Mode, data_processing::Arithme
 use crate::bitwise::Bits;
 
 /// Program Status Register.
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct Psr(u32);
 
 impl Psr {

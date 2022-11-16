@@ -6,4 +6,5 @@ mod data_processing;
 mod instruction;
 mod opcode;
 mod psr;
+mod register_bank;
 mod single_data_transfer;
