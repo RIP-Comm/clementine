@@ -105,7 +105,6 @@ impl Psr {
         self.set_overflow_flag(op_result.overflow);
     }
 
-    #[allow(dead_code)] // TODO: remove allow when this API will be used at least one in prod code.
     pub fn set_overflow_flag(&mut self, value: bool) {
         self.0.set_bit(28, value);
     }
@@ -124,21 +123,18 @@ impl Psr {
     /// In privileged modes (non-user modes) they may be also changed manually.
 
     /// The interrupt bit I is used to disable/enable IRQ interrupts respectively (1 means disabled and 0 means enabled).
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn set_irq_disable(&mut self, value: bool) {
         // TODO: Should we check we are in privileged modes or it occurred an exeption?
         self.0.set_bit(7, value);
     }
 
     /// The interrupt bit F is used to disable/enable FIQ interrupts respectively (1 means disabled and 0 means enabled).
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn set_fiq_disable(&mut self, value: bool) {
         // TODO: Should we check we are in privileged modes or it occurred an exeption?
         self.0.set_bit(6, value);
     }
 
     /// The T Bit is used to set the current state of the CPU on ARM/THUMB mode (1 means ARM and 0 means THUMB).
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn set_state_bit(&mut self, value: bool) {
         // TODO: Must be changeed by BX instructions
         self.0.set_bit(5, value);
