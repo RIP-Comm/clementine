@@ -13,6 +13,8 @@ use crate::cpu::Cpu;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
+use super::psr::CpuState;
+
 /// Contains the 16 registers for the CPU, latest (R15) is special because
 /// is the program counter.
 #[derive(Default)]
@@ -57,13 +59,18 @@ pub struct Arm7tdmi {
 
 impl Default for Arm7tdmi {
     fn default() -> Self {
-        Self {
+        let mut s = Self {
             rom: Arc::new(Mutex::new(Vec::default())),
             memory: Arc::new(Mutex::new(InternalMemory::default())),
             cpsr: Psr::from(Mode::User), // FIXME: Starting as User? Not sure
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
-        }
+        };
+
+        // Setting ARM mode at startup
+        s.cpsr.set_cpu_state(CpuState::Arm);
+
+        s
     }
 }
 
