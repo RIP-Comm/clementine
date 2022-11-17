@@ -160,6 +160,10 @@ impl Psr {
             Mode::System => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_1111,
         }
     }
+
+    pub fn set_cpu_state(&mut self, state: CpuState) {
+        self.set_state_bit(state.into());
+    }
 }
 
 impl From<Mode> for Psr {
@@ -169,6 +173,27 @@ impl From<Mode> for Psr {
         s.set_mode(m);
 
         s
+    }
+}
+
+impl From<Psr> for u32 {
+    fn from(p: Psr) -> Self {
+        p.0
+    }
+}
+
+/// Represents the CPU state (ARM/THUMB)
+pub enum CpuState {
+    Thumb,
+    Arm,
+}
+
+impl From<CpuState> for bool {
+    fn from(state: CpuState) -> Self {
+        match state {
+            CpuState::Arm => true,
+            CpuState::Thumb => false,
+        }
     }
 }
 
