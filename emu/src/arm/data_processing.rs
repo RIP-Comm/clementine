@@ -5,12 +5,24 @@ use crate::{
     bitwise::Bits,
 };
 
+use super::cpu_modes::Mode;
+
 pub struct ArithmeticOpResult {
     result: u32,
     pub carry: bool,
     pub overflow: bool,
     pub sign: bool,
     pub zero: bool,
+}
+
+/// Represents the kind of PSR operation
+enum PsrOpKind {
+    /// MSR operation (transfer PSR contents to a register)
+    Mrs,
+    /// MSR operation (transfer register contents to PSR)
+    Msr,
+    /// MSR flags operation (transfer register contents or immediate value to PSR flag bits only)
+    MsrFlg,
 }
 
 impl Arm7tdmi {
@@ -211,6 +223,112 @@ impl Arm7tdmi {
         }
     }
 
+    fn psr_transfer(&mut self, op_code: ArmModeOpcode) {
+        let psr_kind = if op_code.get_bits(23..=27) == 0b00010
+            && op_code.get_bits(16..=21) == 0b001111
+            && op_code.get_bits(0..=11) == 0b0000_0000_0000
+        {
+            PsrOpKind::Mrs
+        } else if op_code.get_bits(23..=27) == 0b00010
+            && op_code.get_bits(12..=21) == 0b10_1001_1111
+            && op_code.get_bits(4..=11) == 0b0000_0000
+        {
+            PsrOpKind::Msr
+        } else if op_code.get_bits(26..=27) == 0b00
+            && op_code.get_bits(23..=24) == 0b10
+            && op_code.get_bits(12..=21) == 0b10_1000_1111
+        {
+            PsrOpKind::MsrFlg
+        } else {
+            unreachable!()
+        };
+
+        // P = 0 means CPSR, P = 1 means SPSR_mode
+        let p = op_code.get_bit(22);
+
+        match psr_kind {
+            PsrOpKind::Mrs => {
+                let rd = op_code.get_bits(12..=15);
+
+                if rd == 0xF {
+                    panic!("PSR transfer should not use R15 as source/destination");
+                }
+
+                let psr = match p {
+                    false => self.cpsr,
+                    true => self.get_spsr(),
+                };
+
+                self.registers
+                    .set_register_at(rd.try_into().unwrap(), psr.into());
+            }
+            PsrOpKind::Msr => {
+                let rm = op_code.get_bits(0..=3);
+                if rm == 0xF {
+                    panic!("PSR transfer should not use R15 as source/destination");
+                }
+
+                let rm = self.registers.register_at(rm.try_into().unwrap());
+
+                let current_mode = self.cpsr.mode();
+
+                let psr = match p {
+                    false => &mut self.cpsr,
+                    true => self.get_spsr_as_ref_mut(),
+                };
+
+                // Setting flags
+                psr.set_sign_flag(rm.get_bit(31));
+                psr.set_zero_flag(rm.get_bit(30));
+                psr.set_carry_flag(rm.get_bit(29));
+                psr.set_overflow_flag(rm.get_bit(28));
+
+                // In User mode we can only set the flags so we don't touch the Mode bits
+                if current_mode != Mode::User {
+                    psr.set_irq_disable(rm.get_bit(7));
+                    psr.set_fiq_disable(rm.get_bit(6));
+
+                    // Documentation says that software should never touch T (state) bit
+                    // Should we set it? I guess software are written in order to not switch this bit
+                    // but who knows?
+                    // psr.set_state_bit(rm.get_bit(5));
+
+                    psr.set_mode(Mode::try_from(rm.get_bits(0..=4)).unwrap())
+                }
+            }
+            PsrOpKind::MsrFlg => {
+                // Immediate: 0 register, 1 immediate
+                let i = op_code.get_bit(25);
+
+                let op = match i {
+                    false => {
+                        let rm = op_code.get_bits(0..=3);
+                        self.registers.register_at(rm.try_into().unwrap())
+                    }
+                    true => {
+                        let imm = op_code.get_bits(0..=7);
+                        let rotate = op_code.get_bits(8..=11);
+
+                        // FIXME: Is the *2 correct? Documentation doesn't specify it but
+                        // GBATEK says: 11-8    Shift applied to Imm   (ROR in steps of two 0-30)
+                        imm.rotate_right(rotate * 2)
+                    }
+                };
+
+                let psr = match p {
+                    false => &mut self.cpsr,
+                    true => self.get_spsr_as_ref_mut(),
+                };
+
+                // Setting flags
+                psr.set_sign_flag(op.get_bit(31));
+                psr.set_zero_flag(op.get_bit(30));
+                psr.set_carry_flag(op.get_bit(29));
+                psr.set_overflow_flag(op.get_bit(28));
+            }
+        }
+    }
+
     pub fn data_processing(&mut self, op_code: ArmModeOpcode) -> bool {
         // bit [25] is I = Immediate Flag
         let i: bool = op_code.get_bit(25);
@@ -252,28 +370,36 @@ impl Arm7tdmi {
                 if s {
                     self.tst(rn, op2)
                 } else {
-                    unimplemented!("Implement PSR transfer")
+                    self.psr_transfer(op_code);
+
+                    return true;
                 }
             }
             ArmModeAluInstruction::Teq => {
                 if s {
                     self.teq(rn, op2)
                 } else {
-                    unimplemented!("Implement PSR transfer")
+                    self.psr_transfer(op_code);
+
+                    return true;
                 }
             }
             ArmModeAluInstruction::Cmp => {
                 if s {
                     self.cmp(rn, op2)
                 } else {
-                    unimplemented!("Implement PSR transfer")
+                    self.psr_transfer(op_code);
+
+                    return true;
                 }
             }
             ArmModeAluInstruction::Cmn => {
                 if s {
                     self.cmn(rn, op2)
                 } else {
-                    unimplemented!("Implement PSR transfer")
+                    self.psr_transfer(op_code);
+
+                    return true;
                 }
             }
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
@@ -498,7 +624,9 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use crate::{
-        arm::arm7tdmi::Arm7tdmi, arm::condition::Condition, arm::instruction::ArmModeInstruction,
+        arm::arm7tdmi::Arm7tdmi,
+        arm::condition::Condition,
+        arm::{cpu_modes::Mode, instruction::ArmModeInstruction},
         cpu::Cpu,
     };
 
@@ -973,5 +1101,106 @@ mod tests {
         assert!(!cpu.cpsr.zero_flag());
         assert!(cpu.cpsr.overflow_flag());
         assert!(!cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_psr_transfer() {
+        {
+            // Covers MRS with CPSR and User mode
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1110_00010_0_001111_0000_000000000000;
+            let op_code = cpu.decode(op_code);
+
+            cpu.cpsr.set_carry_flag(true);
+            cpu.cpsr.set_overflow_flag(true);
+            cpu.cpsr.set_zero_flag(true);
+            cpu.cpsr.set_sign_flag(true);
+
+            cpu.execute(op_code);
+
+            assert_eq!(
+                cpu.registers.register_at(0),
+                0b1111_00000000000000000000_001_10000
+            );
+        }
+        {
+            // Covers MRS with SPSR_fiq
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1110_00010_1_001111_0000_000000000000;
+            let op_code = cpu.decode(op_code);
+            cpu.cpsr.set_mode(Mode::Fiq);
+
+            cpu.register_bank.spsr_fiq.set_state_bit(true);
+            cpu.register_bank.spsr_fiq.set_mode(Mode::Fiq);
+            cpu.register_bank.spsr_fiq.set_carry_flag(true);
+            cpu.register_bank.spsr_fiq.set_overflow_flag(true);
+            cpu.register_bank.spsr_fiq.set_zero_flag(true);
+            cpu.register_bank.spsr_fiq.set_sign_flag(true);
+
+            cpu.execute(op_code);
+
+            assert_eq!(
+                cpu.registers.register_at(0),
+                0b1111_00000000000000000000_001_10001
+            );
+        }
+        {
+            // Covers MSR with CPSR and User Mode
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1110_00010_0_1010011111_00000000_0000;
+            let op_code = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(0, 0b1111 << 28);
+
+            cpu.execute(op_code);
+
+            // All flags set and User mode
+            assert_eq!(u32::from(cpu.cpsr), 0b1111 << 28 | (0b110000));
+        }
+        {
+            // Covers MSR with SPSR_fiq
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1110_00010_1_1010011111_00000000_0000;
+            let op_code = cpu.decode(op_code);
+            cpu.cpsr.set_mode(Mode::Fiq);
+
+            cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10001));
+
+            cpu.execute(op_code);
+
+            // All flags set and Fiq mode
+            assert_eq!(
+                u32::from(cpu.register_bank.spsr_fiq),
+                0b1111 << 28 | (0b10001)
+            );
+        }
+        {
+            // Covers MSR-flags with CPSR and User mode
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1110_00_0_10_0_1010001111_00000000_0000;
+            let op_code = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(0, 0b1111 << 28);
+
+            cpu.execute(op_code);
+
+            // All flags set and User mode
+            assert_eq!(u32::from(cpu.cpsr), 0b1111 << 28 | (0b110000));
+        }
+        {
+            // Covers MSR-flags with SPSR_fiq
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1110_00_0_10_1_1010001111_00000000_0000;
+            let op_code = cpu.decode(op_code);
+            cpu.cpsr.set_mode(Mode::Fiq);
+
+            // Trying to change MODE bits to a User mode
+            cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10000));
+
+            cpu.execute(op_code);
+
+            // All flags set
+            assert_eq!(u32::from(cpu.register_bank.spsr_fiq), 0b1111 << 28);
+        }
     }
 }
