@@ -40,3 +40,13 @@ Nobody is perfect, and sometimes we mess things up. That said, here are some goo
 * End commit message subject lines with a period.
 * Include commented-out code.
 * Engage in excessive "feng shui programming" by moving code around without quantifiable benefit.
+
+### Pre-commit hooks
+
+We use the the `pre-commit` git hook to enforce that every commit passes fmt/lint/test checks.
+To activate it:
+
+```sh
+$ mkdir -p .git/hooks
+$ cp extra/pre-commit .git/hooks
+```
