@@ -170,7 +170,7 @@ impl Arm7tdmi {
         let pre_post = op_code.get_bit(24);
         let up_down = op_code.get_bit(23);
         let _write_back = op_code.get_bit(21);
-        let load_store = op_code.get_bit(19);
+        let load_store = op_code.get_bit(20);
         let rn_base_register = op_code.get_bits(16..=19);
         let rd_source_destination_register = op_code.get_bits(12..=15);
         let transfer_type = HalfwordTransferType::from(op_code.get_bits(5..=6) as u8);
