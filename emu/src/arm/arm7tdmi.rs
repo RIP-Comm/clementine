@@ -106,7 +106,7 @@ impl Cpu for Arm7tdmi {
             MultiplyLong => todo!(),
             SingleDataSwap => todo!(),
             BranchAndExchange => todo!(),
-            HalfwordDataTransferRegisterOffset => todo!(),
+            HalfwordDataTransferRegisterOffset => self.data_transfer_register_offset(op_code),
             HalfwordDataTransferImmediateOffset => self.data_transfer_immediate_offset(op_code),
             SingleDataTransfer => self.single_data_transfer(op_code),
             Undefined => todo!(),
@@ -164,6 +164,64 @@ impl Arm7tdmi {
             Mode::Supervisor => &mut self.register_bank.spsr_svc,
             Mode::Undefined => &mut self.register_bank.spsr_und
         }
+    }
+
+    fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) -> bool {
+        let pre_post = op_code.get_bit(24);
+        let up_down = op_code.get_bit(23);
+        let _write_back = op_code.get_bit(21);
+        let load_store = op_code.get_bit(20);
+        let rn_base_register = op_code.get_bits(16..=19);
+        let rd_source_destination_register = op_code.get_bits(12..=15);
+        let transfer_type = HalfwordTransferType::from(op_code.get_bits(5..=6) as u8);
+        let offset_register = op_code.get_bits(0..=3);
+
+        let offset = self.registers.register_at(offset_register as usize);
+        let mut address = self
+            .registers
+            .register_at(rn_base_register.try_into().unwrap());
+
+        if rn_base_register == 0xF {
+            // prefetching
+            let v: u32 = self.registers.program_counter().try_into().unwrap();
+            address = address.wrapping_add(v + 8);
+        }
+
+        if pre_post {
+            if up_down {
+                address = address.wrapping_add(offset);
+            } else {
+                address = address.wrapping_sub(offset);
+            }
+        }
+
+        if load_store {
+            todo!()
+        } else {
+            let value = if rd_source_destination_register == 0xF {
+                let v: u32 = self.registers.program_counter().try_into().unwrap();
+                v + 12
+            } else {
+                self.registers
+                    .register_at(rd_source_destination_register.try_into().unwrap())
+            };
+
+            match transfer_type {
+                HalfwordTransferType::UnsignedHalfwords => {
+                    if let Ok(mut mem) = self.memory.lock() {
+                        mem.write_at(address, value.get_bits(0..=7) as u8);
+                        mem.write_at(address + 1, value.get_bits(8..=15) as u8);
+                    }
+                }
+                _ => unreachable!("HS flags invalid for STORE (L=0)"),
+            };
+        }
+
+        if !pre_post {
+            todo!()
+        }
+
+        !(load_store && rd_source_destination_register == 0xF)
     }
 
     fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) -> bool {
@@ -683,6 +741,29 @@ mod tests {
             assert_eq!(memory.read_at(0x0FF4), 5);
             assert_eq!(memory.read_at(0x0FF0), 1);
             assert_eq!(cpu.registers.register_at(13), 0x0FF0);
+        }
+    }
+
+    #[test]
+    fn check_data_transfer_register_offset() {
+        {
+            let op_code = 0b1110_0001_1000_0010_0000_0000_1011_0001;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::HalfwordDataTransferRegisterOffset
+            );
+
+            cpu.registers.set_register_at(0, 16843009);
+            cpu.execute(op_code);
+
+            let memory = cpu.memory.lock().unwrap();
+            assert_eq!(memory.read_at(0), 1);
+            assert_eq!(memory.read_at(1), 1);
+            // because we store halfword = 16bit
+            assert_eq!(memory.read_at(2), 0);
+            assert_eq!(memory.read_at(3), 0);
         }
     }
 
