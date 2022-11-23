@@ -5,7 +5,7 @@ use crate::{
     bitwise::Bits,
 };
 
-use super::cpu_modes::Mode;
+use super::{arm7tdmi::REG_PROGRAM_COUNTER, cpu_modes::Mode};
 
 pub struct ArithmeticOpResult {
     result: u32,
@@ -161,7 +161,7 @@ impl Arm7tdmi {
                 let offset = match rm {
                     // if Rm is R15(PC) we need to offset its value because of
                     // instruction pipelining
-                    0xF => self.get_pc_offset_alu(i, r),
+                    REG_PROGRAM_COUNTER => self.get_pc_offset_alu(i, r),
                     _ => 0,
                 };
                 let rm = self.registers.register_at(rm.try_into().unwrap()) + offset;
@@ -250,7 +250,7 @@ impl Arm7tdmi {
             PsrOpKind::Mrs => {
                 let rd = op_code.get_bits(12..=15);
 
-                if rd == 0xF {
+                if rd == REG_PROGRAM_COUNTER {
                     panic!("PSR transfer should not use R15 as source/destination");
                 }
 
@@ -264,7 +264,7 @@ impl Arm7tdmi {
             }
             PsrOpKind::Msr => {
                 let rm = op_code.get_bits(0..=3);
-                if rm == 0xF {
+                if rm == REG_PROGRAM_COUNTER {
                     panic!("PSR transfer should not use R15 as source/destination");
                 }
 
@@ -343,7 +343,7 @@ impl Arm7tdmi {
         let offset = match rn {
             // if Rn is R15(PC) we need to offset its value because of
             // instruction pipelining
-            0xF => self.get_pc_offset_alu(i, op_code.get_bit(4)),
+            REG_PROGRAM_COUNTER => self.get_pc_offset_alu(i, op_code.get_bit(4)),
             _ => 0,
         };
 
@@ -353,7 +353,7 @@ impl Arm7tdmi {
 
         // S = 1 and Rd = 0xF should not be allowed in User Mode.
         // TODO: When in other modes it should load SPSR_<current_mode> into CPSR
-        if s && rd == 0xF {
+        if s && rd == REG_PROGRAM_COUNTER {
             unimplemented!("Implement cases when S=1 and Rd=0xF");
         }
 

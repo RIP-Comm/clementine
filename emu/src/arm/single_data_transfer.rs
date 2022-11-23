@@ -2,6 +2,8 @@ use crate::{
     arm::arm7tdmi::Arm7tdmi, arm::opcode::ArmModeOpcode, bitwise::Bits, memory::io_device::IoDevice,
 };
 
+use super::arm7tdmi::REG_PROGRAM_COUNTER;
+
 /// Possible opeartion on transfer data.
 #[derive(PartialEq)]
 enum SingleDataTransfer {
@@ -64,8 +66,7 @@ impl Arm7tdmi {
         // bits [19-16] - Base register
         let rn = op_code.get_bits(16..=19);
 
-        // 0xF is register of PC
-        let address = if rn == 0xF {
+        let address = if rn == REG_PROGRAM_COUNTER {
             let pc: u32 = self.registers.program_counter().try_into().unwrap();
             pc + 8_u32
         } else {
@@ -112,7 +113,7 @@ impl Arm7tdmi {
                     let mut v = self.registers.register_at(rd.try_into().unwrap());
 
                     // If R15 we get the value of the current instruction + 12
-                    if rd == 0xF {
+                    if rd == REG_PROGRAM_COUNTER {
                         v += 12;
                     }
 
@@ -126,7 +127,7 @@ impl Arm7tdmi {
         }
 
         // If LDR and Rd == R15 we don't increase the PC
-        !(load_store == SingleDataTransfer::Ldr && rd == 0xF)
+        !(load_store == SingleDataTransfer::Ldr && rd == REG_PROGRAM_COUNTER)
     }
 }
 
