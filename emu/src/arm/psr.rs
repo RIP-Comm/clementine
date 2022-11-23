@@ -173,9 +173,13 @@ impl From<Psr> for u32 {
     }
 }
 
-/// Represents the CPU state (ARM/THUMB)
+/// Represents the CPU state (ARM/THUMB).
 pub enum CpuState {
+    /// Which operates with 16-bit, halfword-aligned THUMB instructions.
+    /// In this state, the PC uses bit 1 to select between alternate halfwords.
     Thumb,
+
+    /// Which executes 32-bit, word-aligned ARM instructions.
     Arm,
 }
 
