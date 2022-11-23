@@ -15,6 +15,8 @@ use crate::memory::io_device::IoDevice;
 
 use super::psr::CpuState;
 
+pub const REG_PROGRAM_COUNTER: u32 = 0xF;
+
 /// Contains the 16 registers for the CPU, latest (R15) is special because
 /// is the program counter.
 #[derive(Default)]
@@ -181,7 +183,7 @@ impl Arm7tdmi {
             .registers
             .register_at(rn_base_register.try_into().unwrap());
 
-        if rn_base_register == 0xF {
+        if rn_base_register == REG_PROGRAM_COUNTER {
             // prefetching
             let v: u32 = self.registers.program_counter().try_into().unwrap();
             address = address.wrapping_add(v + 8);
@@ -221,7 +223,7 @@ impl Arm7tdmi {
             todo!()
         }
 
-        !(load_store && rd_source_destination_register == 0xF)
+        !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER)
     }
 
     fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) -> bool {
@@ -240,7 +242,7 @@ impl Arm7tdmi {
             .registers
             .register_at(rn_base_register.try_into().unwrap());
 
-        if rn_base_register == 0xF {
+        if rn_base_register == REG_PROGRAM_COUNTER {
             // prefetching
             let v: u32 = self.registers.program_counter().try_into().unwrap();
             address = address.wrapping_add(v + 8);
@@ -257,7 +259,7 @@ impl Arm7tdmi {
         if load_store {
             todo!("load from mem")
         } else {
-            let value = if rd_source_destination_register == 0xF {
+            let value = if rd_source_destination_register == REG_PROGRAM_COUNTER {
                 let pc: u32 = self.registers.program_counter().try_into().unwrap();
                 pc + 12
             } else {
@@ -281,7 +283,7 @@ impl Arm7tdmi {
             todo!()
         }
 
-        !(load_store && rd_source_destination_register == 0xF)
+        !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER)
     }
 
     /// Stores the banked registers of the current mode to the register bank.
@@ -432,7 +434,7 @@ impl Arm7tdmi {
                 let mut value = arm.registers.register_at(reg_source);
 
                 // If R15 we get the value of the current instruction + 12
-                if reg_source == 0xF {
+                if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
                     value += 12;
                 }
                 let mut memory = arm.memory.lock().unwrap();
