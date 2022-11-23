@@ -49,14 +49,12 @@ impl Psr {
     }
 
     /// Q => Bit 27, (1=Sticky Overflow, ARMv5TE and up only)
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn sticky_overflow(&self) -> bool {
         self.0.get_bit(27)
     }
 
     /// Reserved => Bits 26-8, (For future use) - Do not change manually!
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
-    pub fn reserved_bits(&self) -> bool {
+    pub const fn reserved_bits(&self) -> bool {
         // These bits are reserved for possible future implementations.
         // For best forwards compatibility, the user should never change the state of these bits,
         // and should not expect these bits to be set to a specific value.
@@ -64,19 +62,16 @@ impl Psr {
     }
 
     /// I => Bit 7, (0=Enable, 1=Disable)
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn irq_disable(&self) -> bool {
         self.0.get_bit(7)
     }
 
     /// F => Bit 6, (0=Enable, 1=Disable)
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn fiq_disable(&self) -> bool {
         self.0.get_bit(6)
     }
 
     /// T => Bit 5, (0=ARM, 1=THUMB) - Do not change manually!
-    #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.
     pub fn state_bit(&self) -> bool {
         self.0.get_bit(5)
     }
