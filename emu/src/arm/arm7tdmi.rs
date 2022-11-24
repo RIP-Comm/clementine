@@ -17,7 +17,7 @@ use super::psr::CpuState;
 use super::registers::Registers;
 
 pub const REG_PROGRAM_COUNTER: u32 = 0xF;
-
+const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
 
 pub struct Arm7tdmi {
     pub(crate) rom: Arc<Mutex<Vec<u8>>>,
@@ -69,10 +69,14 @@ impl Cpu for Arm7tdmi {
     }
 
     fn execute(&mut self, op_code: Self::OpCodeType) {
+        if !self.cpsr.can_execute(op_code.condition) {
+            return;
+        }
+
         use ArmModeInstruction::*;
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
-        let should_advance_pc = match op_code.instruction {
+        match op_code.instruction {
             DataProcessing => self.data_processing(op_code),
             Multiply => todo!(),
             MultiplyLong => todo!(),
@@ -89,21 +93,15 @@ impl Cpu for Arm7tdmi {
             CoprocessorRegisterTrasfer => todo!(),
             SoftwareInterrupt => todo!(),
         };
-
-        if should_advance_pc {
-            self.registers.advance_program_counter(4); // FIXME: don't sure of this
-        }
     }
 
     fn step(&mut self) {
         let op_code = self.fetch();
+        self.registers
+            .advance_program_counter(SIZE_OF_ARM_INSTRUCTION);
 
         let op_code = self.decode(op_code);
-        if self.cpsr.can_execute(op_code.condition) {
-            self.execute(op_code)
-        } else {
-            self.registers.advance_program_counter(4);
-        }
+        self.execute(op_code);
     }
 }
 
@@ -138,7 +136,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) {
         let pre_post = op_code.get_bit(24);
         let up_down = op_code.get_bit(23);
         let _write_back = op_code.get_bit(21);
@@ -192,11 +190,9 @@ impl Arm7tdmi {
         if !pre_post {
             todo!()
         }
-
-        !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER)
     }
 
-    fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) {
         let pre_post = op_code.get_bit(24);
         let up_down = op_code.get_bit(23);
         let _write_back = op_code.get_bit(21);
@@ -252,8 +248,6 @@ impl Arm7tdmi {
             // TODO: ignore write back (should be 0 in this case but...)
             todo!()
         }
-
-        !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER)
     }
 
     /// Stores the banked registers of the current mode to the register bank.
@@ -347,7 +341,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn branch(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn branch(&mut self, op_code: ArmModeOpcode) {
         let offset = op_code.get_bits(0..=23) << 2;
 
         // We need to sign-extend the 26 bit number into a 32 bit.
@@ -366,12 +360,9 @@ impl Arm7tdmi {
         // 8 is for the prefetch
         let new_pc = self.registers.program_counter() as i32 + offset + 8;
         self.registers.set_program_counter(new_pc as u32);
-
-        // Never advance PC after B
-        false
     }
 
-    fn block_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn block_data_transfer(&mut self, op_code: ArmModeOpcode) {
         let pre_post = op_code.get_bit(24);
         let up_down = op_code.get_bit(23);
         let s = op_code.get_bit(22);
@@ -422,9 +413,6 @@ impl Arm7tdmi {
             self.registers
                 .set_register_at(rn.try_into().unwrap(), address);
         };
-
-        // If LDM and R15 is in register list we don't advance PC
-        !(load_store && reg_list.is_bit_on(15))
     }
 
     fn exec_data_trasfer<F>(
