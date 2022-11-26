@@ -192,6 +192,15 @@ impl From<CpuState> for bool {
     }
 }
 
+impl From<bool> for CpuState {
+    fn from(state: bool) -> Self {
+        match state {
+            false => Self::Thumb,
+            true => Self::Arm,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

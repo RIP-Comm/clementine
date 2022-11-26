@@ -81,7 +81,7 @@ impl Cpu for Arm7tdmi {
             Multiply => todo!(),
             MultiplyLong => todo!(),
             SingleDataSwap => todo!(),
-            BranchAndExchange => todo!(),
+            BranchAndExchange => self.branch_and_exchange(op_code),
             HalfwordDataTransferRegisterOffset => self.data_transfer_register_offset(op_code),
             HalfwordDataTransferImmediateOffset => self.data_transfer_immediate_offset(op_code),
             SingleDataTransfer => self.single_data_transfer(op_code),
@@ -134,6 +134,13 @@ impl Arm7tdmi {
             Mode::Supervisor => &mut self.register_bank.spsr_svc,
             Mode::Undefined => &mut self.register_bank.spsr_und
         }
+    }
+
+    fn branch_and_exchange(&mut self, op_code: ArmModeOpcode) {
+        let rn = op_code.get_bits(0..=3);
+        let state: CpuState = rn.get_bit(0).into();
+        self.cpsr.set_cpu_state(state);
+        self.registers.set_program_counter(rn);
     }
 
     fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) {

@@ -613,6 +613,8 @@ mod tests {
         cpu::Cpu,
     };
 
+    use pretty_assertions::assert_eq;
+
     #[test]
     fn check_teq() {
         let op_code = 0b1110_0001_0011_1001_0011_0000_0000_0000;
