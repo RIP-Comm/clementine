@@ -88,7 +88,7 @@ impl Cpu for Arm7tdmi {
             Undefined => todo!(),
             BlockDataTransfer => self.block_data_transfer(op_code),
             Branch => self.branch(op_code),
-            CoprocessorDataTransfer => todo!(),
+            CoprocessorDataTransfer => self.coprocessor_data_transfer(op_code),
             CoprocessorDataOperation => todo!(),
             CoprocessorRegisterTrasfer => todo!(),
             SoftwareInterrupt => todo!(),
@@ -219,7 +219,7 @@ impl Arm7tdmi {
     fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) {
         let indexing: Indexing = op_code.get_bit(24).into();
         let up_down = op_code.get_bit(23);
-        let _write_back = op_code.get_bit(21);
+        let _write_back = op_code.get_bit(21); // TODO: Handle write back.
         let load_store = op_code.get_bit(20);
         let rn_base_register = op_code.get_bits(16..=19);
         let rd_source_destination_register = op_code.get_bits(12..=15);
@@ -434,6 +434,33 @@ impl Arm7tdmi {
         if write_back {
             self.registers
                 .set_register_at(rn.try_into().unwrap(), address);
+        };
+    }
+
+    fn coprocessor_data_transfer(&mut self, op_code: ArmModeOpcode) {
+        let indexing: Indexing = op_code.get_bit(24).into();
+        let up_down = op_code.get_bit(23);
+        let _transfer_len = op_code.get_bit(22);
+        let _write_back = op_code.get_bit(21);
+        let _load_store = op_code.get_bit(20);
+
+        let rn_base_register = op_code.get_bits(16..=19);
+        let _crd = op_code.get_bits(12..=15);
+        let _cp_number = op_code.get_bits(8..=11);
+        let offset = op_code.get_bits(0..=7);
+
+        let mut _address = self
+            .registers
+            .register_at(rn_base_register.try_into().unwrap());
+        let effective = if up_down {
+            _address.wrapping_add(offset)
+        } else {
+            _address.wrapping_sub(offset)
+        };
+
+        let _address = match indexing {
+            Indexing::Pre => effective,
+            Indexing::Post => _address,
         };
     }
 
