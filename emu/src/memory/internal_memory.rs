@@ -7,10 +7,16 @@ use crate::memory::timer_registers::TimerRegisters;
 
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 KBytes).
-    bios_system_rom: [u8; 0x4000],
+    bios_system_rom: [u8; 0x00004000],
+
+    /// From 0x02000000 to 0x0203FFFF (256 KBytes).
+    working_ram: [u8; 0x00040000],
 
     /// From 0x03000000 to 0x03007FFF (32kb).
-    internal_work_ram: [u8; 0x8000],
+    working_iram: [u8; 0x00008000],
+
+    /// From 0x04000000 to 0x04000055 (0x56 bytes).
+    pub lcd_registers: LCDRegisters,
 
     /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors).
     pub bg_palette_ram: [u8; 0x200],
@@ -19,10 +25,7 @@ pub struct InternalMemory {
     pub obj_palette_ram: [u8; 0x200],
 
     /// From 0x06000000 to 0x06017FFF (96 kb).
-    pub video_ram: [u8; 0x18000],
-
-    /// From 0x04000000 to 0x04000055 (0x56 bytes).
-    pub lcd_registers: LCDRegisters,
+    pub video_ram: [u8; 0x00018000],
 
     /// From 0x04000100 to 0x0400010E.
     timer_registers: TimerRegisters,
@@ -41,11 +44,12 @@ impl Default for InternalMemory {
 impl InternalMemory {
     pub fn new() -> Self {
         Self {
-            bios_system_rom: [0; 0x4000],
-            internal_work_ram: [0; 0x8000],
+            bios_system_rom: [0; 0x00004000],
+            working_ram: [0; 0x00040000],
+            working_iram: [0; 0x00008000],
             bg_palette_ram: [0; 0x200],
             obj_palette_ram: [0; 0x200],
-            video_ram: [0; 0x18000],
+            video_ram: [0; 0x00018000],
             lcd_registers: LCDRegisters::new(),
             timer_registers: TimerRegisters::new(),
             unused_region: HashMap::new(),
@@ -209,7 +213,8 @@ impl IoDevice for InternalMemory {
     fn read_at(&self, address: Self::Address) -> Self::Value {
         match address {
             0x00000000..=0x00003FFF => self.bios_system_rom[(address) as usize],
-            0x03000000..=0x03007FFF => self.internal_work_ram[(address - 0x03000000) as usize],
+            0x02000000..=0x0203FFFF => self.working_ram[(address - 0x02000000) as usize],
+            0x03000000..=0x03007FFF => self.working_iram[(address - 0x03000000) as usize],
             0x04000000..=0x04000055 => self.read_address_lcd_register(address),
             0x04000100..=0x0400010E => self.read_address_timer_register(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize],
@@ -226,9 +231,8 @@ impl IoDevice for InternalMemory {
     fn write_at(&mut self, address: Self::Address, value: Self::Value) {
         match address {
             0x00000000..=0x00003FFF => self.bios_system_rom[(address) as usize] = value,
-            0x03000000..=0x03007FFF => {
-                self.internal_work_ram[(address - 0x03000000) as usize] = value
-            }
+            0x02000000..=0x0203FFFF => self.working_ram[(address - 0x02000000) as usize] = value,
+            0x03000000..=0x03007FFF => self.working_iram[(address - 0x03000000) as usize] = value,
             0x04000000..=0x04000055 => self.write_address_lcd_register(address, value),
             0x04000100..=0x0400010E => self.write_address_timer_register(address, value),
             0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize] = value,
@@ -256,7 +260,7 @@ mod tests {
         let address = 0x03000005;
         im.write_at(address, 5);
 
-        assert_eq!(im.internal_work_ram[5], 5);
+        assert_eq!(im.working_iram[5], 5);
     }
 
     #[test]
@@ -266,13 +270,13 @@ mod tests {
         let address = 0x03007FFF;
         im.write_at(address, 5);
 
-        assert_eq!(im.internal_work_ram[0x7FFF], 5);
+        assert_eq!(im.working_iram[0x7FFF], 5);
     }
 
     #[test]
     fn test_read_work_ram() {
         let mut im = InternalMemory::new();
-        im.internal_work_ram[5] = 10;
+        im.working_iram[5] = 10;
 
         let address = 0x03000005;
         assert_eq!(im.read_at(address), 10);
