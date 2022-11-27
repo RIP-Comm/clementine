@@ -105,6 +105,24 @@ impl Cpu for Arm7tdmi {
     }
 }
 
+#[derive(PartialEq)]
+enum Indexing {
+    /// Add offset after transfer.
+    Post,
+
+    /// Add offset before transfer.
+    Pre,
+}
+
+impl From<bool> for Indexing {
+    fn from(state: bool) -> Self {
+        match state {
+            false => Self::Post,
+            true => Self::Pre,
+        }
+    }
+}
+
 impl Arm7tdmi {
     pub fn new(rom: Arc<Mutex<Vec<u8>>>, memory: Arc<Mutex<InternalMemory>>) -> Self {
         Self {
@@ -144,7 +162,7 @@ impl Arm7tdmi {
     }
 
     fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) {
-        let pre_post = op_code.get_bit(24);
+        let indexing: Indexing = op_code.get_bit(24).into();
         let up_down = op_code.get_bit(23);
         let _write_back = op_code.get_bit(21);
         let load_store = op_code.get_bit(20);
@@ -164,13 +182,16 @@ impl Arm7tdmi {
             address = address.wrapping_add(v + 8);
         }
 
-        if pre_post {
-            if up_down {
-                address = address.wrapping_add(offset);
-            } else {
-                address = address.wrapping_sub(offset);
-            }
-        }
+        let effective = if up_down {
+            address.wrapping_add(offset)
+        } else {
+            address.wrapping_sub(offset)
+        };
+
+        let address = match indexing {
+            Indexing::Pre => effective,
+            Indexing::Post => address,
+        };
 
         if load_store {
             todo!()
@@ -193,14 +214,10 @@ impl Arm7tdmi {
                 _ => unreachable!("HS flags invalid for STORE (L=0)"),
             };
         }
-
-        if !pre_post {
-            todo!()
-        }
     }
 
     fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) {
-        let pre_post = op_code.get_bit(24);
+        let indexing: Indexing = op_code.get_bit(24).into();
         let up_down = op_code.get_bit(23);
         let _write_back = op_code.get_bit(21);
         let load_store = op_code.get_bit(20);
@@ -221,13 +238,16 @@ impl Arm7tdmi {
             address = address.wrapping_add(v + 8);
         }
 
-        if pre_post {
-            if up_down {
-                address = address.wrapping_add(offset);
-            } else {
-                address = address.wrapping_sub(offset);
-            }
-        }
+        let effective = if up_down {
+            address.wrapping_add(offset)
+        } else {
+            address.wrapping_sub(offset)
+        };
+
+        let address = match indexing {
+            Indexing::Pre => effective,
+            Indexing::Post => address, // TODO: ignore write back (should be 0 in this case but...)
+        };
 
         if load_store {
             todo!("load from mem")
@@ -249,11 +269,6 @@ impl Arm7tdmi {
                 }
                 _ => unreachable!("HS flags can't be != from 01 for STORE (L=0)"),
             };
-        }
-
-        if !pre_post {
-            // TODO: ignore write back (should be 0 in this case but...)
-            todo!()
         }
     }
 
@@ -370,7 +385,7 @@ impl Arm7tdmi {
     }
 
     fn block_data_transfer(&mut self, op_code: ArmModeOpcode) {
-        let pre_post = op_code.get_bit(24);
+        let indexing: Indexing = op_code.get_bit(24).into();
         let up_down = op_code.get_bit(23);
         let s = op_code.get_bit(22);
         if s {
@@ -396,7 +411,7 @@ impl Arm7tdmi {
                 arm.registers.set_register_at(reg_destination, v);
             };
 
-            self.exec_data_trasfer(reg_list, pre_post, &mut address, up_down, transfer);
+            self.exec_data_trasfer(reg_list, indexing, &mut address, up_down, transfer);
         } else {
             let transfer = |arm: &mut Self, address: u32, reg_source: usize| {
                 let mut value = arm.registers.register_at(reg_source);
@@ -413,7 +428,7 @@ impl Arm7tdmi {
                 memory.write_at(address + 3, value.get_bits(24..=31) as u8);
             };
 
-            self.exec_data_trasfer(reg_list, pre_post, &mut address, up_down, transfer);
+            self.exec_data_trasfer(reg_list, indexing, &mut address, up_down, transfer);
         }
 
         if write_back {
@@ -425,7 +440,7 @@ impl Arm7tdmi {
     fn exec_data_trasfer<F>(
         &mut self,
         reg_list: u32,
-        pre_post: bool,
+        indexing: Indexing,
         address: &mut u32,
         up_down: bool,
         trasfer: F,
@@ -452,13 +467,13 @@ impl Arm7tdmi {
 
         for reg_source in range_registers {
             if reg_list.is_bit_on(reg_source) {
-                if pre_post {
+                if indexing == Indexing::Pre {
                     *address = change_address(*address);
                 }
 
                 trasfer(self, *address, reg_source.into());
 
-                if !pre_post {
+                if indexing == Indexing::Post {
                     *address = change_address(*address);
                 }
             }
