@@ -7,25 +7,25 @@ use crate::memory::timer_registers::TimerRegisters;
 
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 KBytes).
-    bios_system_rom: [u8; 0x00004000],
+    bios_system_rom: Vec<u8>,
 
     /// From 0x02000000 to 0x0203FFFF (256 KBytes).
-    working_ram: [u8; 0x00040000],
+    working_ram: Vec<u8>,
 
     /// From 0x03000000 to 0x03007FFF (32kb).
-    working_iram: [u8; 0x00008000],
+    working_iram: Vec<u8>,
 
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
     pub lcd_registers: LCDRegisters,
 
     /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors).
-    pub bg_palette_ram: [u8; 0x200],
+    pub bg_palette_ram: Vec<u8>,
 
     /// From 0x05000200 to 0x050003FF (512 bytes, 256 colors).
-    pub obj_palette_ram: [u8; 0x200],
+    pub obj_palette_ram: Vec<u8>,
 
     /// From 0x06000000 to 0x06017FFF (96 kb).
-    pub video_ram: [u8; 0x00018000],
+    pub video_ram: Vec<u8>,
 
     /// From 0x04000100 to 0x0400010E.
     timer_registers: TimerRegisters,
@@ -44,12 +44,12 @@ impl Default for InternalMemory {
 impl InternalMemory {
     pub fn new() -> Self {
         Self {
-            bios_system_rom: [0; 0x00004000],
-            working_ram: [0; 0x00040000],
-            working_iram: [0; 0x00008000],
-            bg_palette_ram: [0; 0x200],
-            obj_palette_ram: [0; 0x200],
-            video_ram: [0; 0x00018000],
+            bios_system_rom: vec![0; 0x00004000],
+            working_ram: vec![0; 0x00040000],
+            working_iram: vec![0; 0x00008000],
+            bg_palette_ram: vec![0; 0x200],
+            obj_palette_ram: vec![0; 0x200],
+            video_ram: vec![0; 0x00018000],
             lcd_registers: LCDRegisters::new(),
             timer_registers: TimerRegisters::new(),
             unused_region: HashMap::new(),
