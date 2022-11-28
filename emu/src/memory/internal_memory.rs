@@ -37,14 +37,14 @@ pub struct InternalMemory {
 
 impl Default for InternalMemory {
     fn default() -> Self {
-        Self::new()
+        Self::new([0_u8; 0x00004000])
     }
 }
 
 impl InternalMemory {
-    pub fn new() -> Self {
+    pub fn new(bios: [u8; 0x00004000]) -> Self {
         Self {
-            bios_system_rom: vec![0; 0x00004000],
+            bios_system_rom: bios.into(),
             working_ram: vec![0; 0x00040000],
             working_iram: vec![0; 0x00008000],
             bg_palette_ram: vec![0; 0x200],
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_write_work_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
 
         let address = 0x03000005;
         im.write_at(address, 5);
@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_last_byte_work_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
 
         let address = 0x03007FFF;
         im.write_at(address, 5);
@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_read_work_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         im.working_iram[5] = 10;
 
         let address = 0x03000005;
@@ -284,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_write_lcd_reg() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         let address = 0x04000048; // WININ lower byte
 
         im.write_at(address, 10);
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_read_lcd_reg() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         let address = 0x04000048; // WININ lower byte
 
         im.lcd_registers.winin.write((5 << 8) | 10);
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn write_bg_palette_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         let address = 0x05000008;
 
         im.write_at(address, 10);
@@ -322,7 +322,7 @@ mod tests {
 
     #[test]
     fn read_bg_palette_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         im.bg_palette_ram[8] = 15;
 
         let address = 0x05000008;
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_last_byte_bg_palette_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
 
         let address = 0x050001FF;
         im.write_at(address, 5);
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn write_obj_palette_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         let address = 0x05000208;
 
         im.write_at(address, 10);
@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     fn read_obj_palette_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         im.obj_palette_ram[8] = 15;
 
         let address = 0x05000208;
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_last_byte_obj_palette_ram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
 
         let address = 0x050003FF;
         im.write_at(address, 5);
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn write_vram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         let address = 0x06000004;
 
         im.write_at(address, 23);
@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn read_vram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         im.video_ram[4] = 15;
 
         let address = 0x06000004;
@@ -394,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_last_byte_vram() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
 
         let address = 0x06017FFF;
         im.write_at(address, 5);
@@ -404,14 +404,14 @@ mod tests {
 
     #[test]
     fn test_read_write_bios_memory() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         im.write_at(0x000001EC, 10);
         assert_eq!(im.read_at(0x000001EC), 10);
     }
 
     #[test]
     fn test_write_timer_register() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         let address = 0x04000100;
 
         im.write_at(address, 10);
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_read_timer_register() {
-        let mut im = InternalMemory::new();
+        let mut im = InternalMemory::default();
         let address = 0x04000100;
 
         im.timer_registers.tm0cnt_l.write((5 << 8) | 10);

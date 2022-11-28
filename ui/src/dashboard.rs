@@ -8,7 +8,7 @@ use crate::{gba_display::GbaDisplay, palette_visualizer::PaletteVisualizer, ui_t
 
 use std::{
     collections::BTreeSet,
-    error, fs,
+    env, error, fs,
     io::Read,
     sync::{Arc, Mutex},
 };
@@ -30,10 +30,20 @@ impl UiTools {
             }
         };
 
+        let bios_file = env::current_dir().unwrap().join("gba_bios.bin");
+        let bios = match std::fs::read(bios_file) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("can't open bios file: {e}");
+                std::process::exit(3);
+            }
+        };
+
         let cartridge_header =
             CartridgeHeader::new(data.as_slice()).expect("Cartridge must be opened");
         let arc_gba = Arc::new(Mutex::new(Gba::new(
             cartridge_header,
+            bios[0..0x00004000].try_into().unwrap(),
             Arc::new(Mutex::new(data)),
         )));
 
