@@ -97,6 +97,7 @@ impl Cpu for Arm7tdmi {
 
     fn step(&mut self) {
         let op_code = self.fetch();
+        log(format!("opcode hex -> {op_code:x}"));
         self.registers
             .advance_program_counter(SIZE_OF_ARM_INSTRUCTION);
 

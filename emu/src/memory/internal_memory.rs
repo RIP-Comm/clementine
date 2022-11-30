@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use logger::log;
+
 use crate::bitwise::Bits;
 use crate::memory::io_device::IoDevice;
 use crate::memory::lcd_registers::LCDRegisters;
@@ -220,10 +222,12 @@ impl IoDevice for InternalMemory {
             0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize],
             0x05000200..=0x050003FF => self.obj_palette_ram[(address - 0x05000200) as usize],
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize],
-            0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => self
-                .unused_region
-                .get(&(address as usize))
-                .map_or(0, |v| *v),
+            0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
+                log("read on unused memory");
+                self.unused_region
+                    .get(&(address as usize))
+                    .map_or(0, |v| *v)
+            }
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
         }
     }
@@ -241,6 +245,7 @@ impl IoDevice for InternalMemory {
             }
             0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize] = value,
             0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
+                log("write on unused memory");
                 if self.unused_region.insert(address as usize, value).is_some() {}
             }
 
