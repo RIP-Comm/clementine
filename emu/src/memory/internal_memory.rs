@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use logger::log;
 
@@ -20,6 +21,9 @@ pub struct InternalMemory {
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
     pub lcd_registers: LCDRegisters,
 
+    /// From 0x04000100 to 0x0400010E.
+    timer_registers: TimerRegisters,
+
     /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors).
     pub bg_palette_ram: Vec<u8>,
 
@@ -29,8 +33,9 @@ pub struct InternalMemory {
     /// From 0x06000000 to 0x06017FFF (96 kb).
     pub video_ram: Vec<u8>,
 
-    /// From 0x04000100 to 0x0400010E.
-    timer_registers: TimerRegisters,
+    /// From 0x08000000 to 0x0FFFFFFF.
+    /// Basically here you can find different kind of rom loaded.
+    pub rom: Arc<Mutex<Vec<u8>>>,
 
     /// From 0x00004000 to 0x01FFFFFF.
     /// From 0x10000000 to 0xFFFFFFFF.
@@ -39,12 +44,12 @@ pub struct InternalMemory {
 
 impl Default for InternalMemory {
     fn default() -> Self {
-        Self::new([0_u8; 0x00004000])
+        Self::new([0_u8; 0x00004000], Arc::new(Mutex::new(vec![])))
     }
 }
 
 impl InternalMemory {
-    pub fn new(bios: [u8; 0x00004000]) -> Self {
+    pub fn new(bios: [u8; 0x00004000], rom: Arc<Mutex<Vec<u8>>>) -> Self {
         Self {
             bios_system_rom: bios.into(),
             working_ram: vec![0; 0x00040000],
@@ -54,6 +59,7 @@ impl InternalMemory {
             video_ram: vec![0; 0x00018000],
             lcd_registers: LCDRegisters::new(),
             timer_registers: TimerRegisters::new(),
+            rom,
             unused_region: HashMap::new(),
         }
     }
@@ -442,5 +448,13 @@ mod tests {
         im.timer_registers.tm0cnt_l.write((5 << 8) | 10);
 
         assert_eq!(im.read_at(address), 10);
+    }
+
+    #[test]
+    fn test_read_rom() {
+        let mut im = InternalMemory::default();
+        im.rom = vec![1, 1, 1, 1];
+        let address = 0x08000000;
+        assert_eq!(im.read_at(address), 1);
     }
 }
