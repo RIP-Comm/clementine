@@ -58,7 +58,7 @@ impl InternalMemory {
         }
     }
 
-    fn write_address_lcd_register(&mut self, address: u32, value: u8) {
+    fn write_address_lcd_register(&mut self, address: usize, value: u8) {
         match address {
             0x04000000 => self.lcd_registers.dispcnt.set_byte(0, value),
             0x04000001 => self.lcd_registers.dispcnt.set_byte(1, value),
@@ -147,7 +147,7 @@ impl InternalMemory {
         }
     }
 
-    fn read_address_lcd_register(&self, address: u32) -> u8 {
+    fn read_address_lcd_register(&self, address: usize) -> u8 {
         match address {
             0x04000000 => self.lcd_registers.dispcnt.read().get_byte(0),
             0x04000001 => self.lcd_registers.dispcnt.read().get_byte(1),
@@ -178,7 +178,7 @@ impl InternalMemory {
     }
 
     // There is no need to set the second byte because bits `8-15` are not used
-    fn write_address_timer_register(&mut self, address: u32, value: u8) {
+    fn write_address_timer_register(&mut self, address: usize, value: u8) {
         match address {
             0x04000100 => self.timer_registers.tm0cnt_l.set_byte(0, value),
             0x04000102 => self.timer_registers.tm0cnt_h.set_byte(0, value),
@@ -193,7 +193,7 @@ impl InternalMemory {
     }
 
     // There is no need to read the second byte because bits `8-15` are not used
-    fn read_address_timer_register(&self, address: u32) -> u8 {
+    fn read_address_timer_register(&self, address: usize) -> u8 {
         match address {
             0x04000100 => self.timer_registers.tm0cnt_l.read().get_byte(0),
             0x04000102 => self.timer_registers.tm0cnt_h.read().get_byte(0),
@@ -209,7 +209,7 @@ impl InternalMemory {
 }
 
 impl IoDevice for InternalMemory {
-    type Address = u32;
+    type Address = usize;
     type Value = u8;
 
     fn read_at(&self, address: Self::Address) -> Self::Value {
@@ -251,6 +251,17 @@ impl IoDevice for InternalMemory {
 
             _ => unimplemented!("Unimplemented memory region {address:x}."),
         }
+    }
+}
+
+impl InternalMemory {
+    pub fn read_word(&self, address: usize) -> u32 {
+        let part_0: u32 = self.read_at(address).try_into().unwrap();
+        let part_1: u32 = self.read_at(address + 1).try_into().unwrap();
+        let part_2: u32 = self.read_at(address + 2).try_into().unwrap();
+        let part_3: u32 = self.read_at(address + 3).try_into().unwrap();
+
+        part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0
     }
 }
 

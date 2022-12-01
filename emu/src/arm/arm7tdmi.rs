@@ -189,9 +189,9 @@ impl Arm7tdmi {
             address.wrapping_sub(offset)
         };
 
-        let address = match indexing {
-            Indexing::Pre => effective,
-            Indexing::Post => address,
+        let address: usize = match indexing {
+            Indexing::Pre => effective.try_into().unwrap(),
+            Indexing::Post => address.try_into().unwrap(),
         };
 
         if load_store {
@@ -245,9 +245,9 @@ impl Arm7tdmi {
             address.wrapping_sub(offset)
         };
 
-        let address = match indexing {
-            Indexing::Pre => effective,
-            Indexing::Post => address, // TODO: ignore write back (should be 0 in this case but...)
+        let address: usize = match indexing {
+            Indexing::Pre => effective.try_into().unwrap(),
+            Indexing::Post => address.try_into().unwrap(), // TODO: ignore write back (should be 0 in this case but...)
         };
 
         if load_store {
@@ -398,10 +398,10 @@ impl Arm7tdmi {
         let reg_list = op_code.get_bits(0..=15);
 
         let memory_base = self.registers.register_at(rn.try_into().unwrap());
-        let mut address = memory_base;
+        let mut address = memory_base.try_into().unwrap();
 
         if load_store {
-            let transfer = |arm: &mut Self, address: u32, reg_destination: usize| {
+            let transfer = |arm: &mut Self, address: usize, reg_destination: usize| {
                 let memory = arm.memory.lock().unwrap();
 
                 let part_0: u32 = memory.read_at(address).try_into().unwrap();
@@ -414,7 +414,7 @@ impl Arm7tdmi {
 
             self.exec_data_trasfer(reg_list, indexing, &mut address, up_down, transfer);
         } else {
-            let transfer = |arm: &mut Self, address: u32, reg_source: usize| {
+            let transfer = |arm: &mut Self, address: usize, reg_source: usize| {
                 let mut value = arm.registers.register_at(reg_source);
 
                 // If R15 we get the value of the current instruction + 12
@@ -434,7 +434,7 @@ impl Arm7tdmi {
 
         if write_back {
             self.registers
-                .set_register_at(rn.try_into().unwrap(), address);
+                .set_register_at(rn.try_into().unwrap(), address.try_into().unwrap());
         };
     }
 
@@ -469,15 +469,15 @@ impl Arm7tdmi {
         &mut self,
         reg_list: u32,
         indexing: Indexing,
-        address: &mut u32,
+        address: &mut usize,
         up_down: bool,
         trasfer: F,
     ) where
-        F: Fn(&mut Self, u32, usize),
+        F: Fn(&mut Self, usize, usize),
     {
         let alignment = 4; // Since are word, the alignment is 4.
 
-        let change_address = |address: u32| {
+        let change_address = |address: usize| {
             if up_down {
                 address.wrapping_add(alignment)
             } else {
