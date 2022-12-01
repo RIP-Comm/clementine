@@ -1,10 +1,14 @@
 use emu::{cpu::Cpu, gba::Gba};
+use macros::acquire_lock;
 
 use crate::ui_traits::{UiTool, View};
 
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
+
+const FPS: u64 = 24;
 
 pub struct CpuInspector {
     gba: Arc<Mutex<Gba>>,
@@ -67,7 +71,8 @@ impl View for CpuInspector {
 
                 self.thread_handle = Some(thread::spawn(move || {
                     while play_clone.load(std::sync::atomic::Ordering::Relaxed) {
-                        gba_clone.lock().unwrap().cpu.step();
+                        thread::sleep(Duration::from_millis(1000 / FPS));
+                        acquire_lock!(gba_clone, gba => {gba.step()});
                     }
                 }));
             }

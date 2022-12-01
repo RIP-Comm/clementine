@@ -1,7 +1,11 @@
+use macros::acquire_lock;
 use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "debug")]
 use rand::Rng;
+
+#[cfg(feature = "debug")]
+use crate::render::color::colors;
 
 use crate::{
     memory::internal_memory::InternalMemory,
@@ -31,11 +35,9 @@ impl PixelProcessUnit {
     }
 
     pub fn render(&self) {
-        let memory = self.internal_memory.lock().unwrap();
-        let mut gba_lcd = self.gba_lcd.lock().unwrap();
-
         #[allow(unused_assignments)]
-        let mut bg_mode = memory.lcd_registers.get_bg_mode();
+        let mut bg_mode =
+            acquire_lock!(self.internal_memory, memory => { memory.lcd_registers.get_bg_mode() });
 
         // BG_MODE_3 forced for now.
         bg_mode = 3;
@@ -43,6 +45,11 @@ impl PixelProcessUnit {
         #[cfg(feature = "mode_3")]
         {
             bg_mode = 3;
+        }
+
+        #[cfg(feature = "mode_4")]
+        {
+            bg_mode = 4;
         }
 
         #[cfg(feature = "mode_5")]
@@ -61,42 +68,74 @@ impl PixelProcessUnit {
                 todo!("BG_MODE 2 not implemented yet")
             }
             3 => {
-                // Bitmap mode
-                for y in 0..LCD_HEIGHT {
-                    for x in 0..LCD_WIDTH {
-                        let index_color = (y * LCD_WIDTH + x) * 2;
-                        let color: Color = [
-                            memory.video_ram[index_color],
-                            memory.video_ram[index_color + 1],
-                        ]
-                        .into();
+                acquire_lock!(self.internal_memory, memory => {
+                    // Bitmap mode
+                    for y in 0..LCD_HEIGHT {
+                        for x in 0..LCD_WIDTH {
+                            let index_color = (y * LCD_WIDTH + x) * 2;
 
-                        gba_lcd.set_pixel(x, y, color);
+                            let color_array = [
+                                memory.video_ram[index_color],
+                                memory.video_ram[index_color + 1],
+                            ];
+
+                            let color: Color = [color_array[0], color_array[1]].into();
+
+                            acquire_lock!(self.gba_lcd, gba_lcd => { gba_lcd.set_pixel(x, y, color); })
+                        }
                     }
-                }
+                });
             }
             4 => {
-                todo!("BG_MODE 4 not implemented yet")
+                // 06000000-06009FFF for Frame 0
+                // 0600A000-06013FFF for Frame 1
+                let selected_frame = acquire_lock!(self.internal_memory, memory => {
+                    memory.lcd_registers.get_frame_select()
+                });
+
+                for y in 0..LCD_HEIGHT {
+                    for x in 0..LCD_WIDTH {
+                        let index_mem =
+                            (y * LCD_WIDTH + x) + (selected_frame * LCD_HEIGHT * LCD_WIDTH);
+
+                        let index_palette = acquire_lock!(self.internal_memory, memory => {
+                            memory.video_ram[index_mem]
+                        });
+
+                        let color: Color = self
+                            .get_color_from_full_palette(index_palette.into(), &PaletteType::BG);
+
+                        acquire_lock!(self.gba_lcd, gba_lcd => { gba_lcd.set_pixel(x, y, color); })
+                    }
+                }
             }
             5 => {
                 // 06000000-06009FFF for Frame 0
                 // 0600A000-06013FFF for Frame 1
-                let selected_frame = memory.lcd_registers.get_frame_select();
+                let selected_frame = match self.internal_memory.lock() {
+                    Ok(memory) => memory.lcd_registers.get_frame_select(),
+                    _ => 0,
+                };
 
+                acquire_lock!(self.internal_memory, memory => {
                 // Bitmap mode
-                for y in 0..GBC_LCD_HEIGHT {
-                    for x in 0..GBC_LCD_WIDTH {
-                        let index_color = (y * GBC_LCD_WIDTH + x) * 2
-                            + (selected_frame * GBC_LCD_HEIGHT * GBC_LCD_WIDTH);
-                        let color: Color = [
-                            memory.video_ram[index_color],
-                            memory.video_ram[index_color + 1],
-                        ]
-                        .into();
+                    for y in 0..GBC_LCD_HEIGHT {
+                        for x in 0..GBC_LCD_WIDTH {
+                            let index_color = (y * GBC_LCD_WIDTH + x) * 2
+                                + (selected_frame * GBC_LCD_HEIGHT * GBC_LCD_WIDTH);
 
-                        gba_lcd.set_gbc_pixel(x, y, color);
+                            let color_array =
+                                [
+                                    memory.video_ram[index_color],
+                                    memory.video_ram[index_color + 1],
+                                ];
+
+                            let color: Color = [color_array[0], color_array[1]].into();
+
+                            acquire_lock!(self.gba_lcd, gba_lcd => { gba_lcd.set_gbc_pixel(x, y, color); })
+                        }
                     }
-                }
+                });
             }
             _ => panic!("BG MODE doesn't exist."),
         }
@@ -199,6 +238,35 @@ impl PixelProcessUnit {
             memory.video_ram[color_index] = array_color[0];
             memory.video_ram[color_index + 1] = array_color[1];
         }
+    }
+
+    #[cfg(feature = "debug")]
+    pub fn load_default_palette(&mut self) {
+        acquire_lock!(self.internal_memory, memory => {
+
+            let red_array: [u8; 2] = colors::RED.into();
+            let green_array: [u8; 2] = colors::GREEN.into();
+
+            let palette_index_top_half: u8 = 10;
+            let palette_index_bottom_half: u8 = 5;
+
+            memory.bg_palette_ram[palette_index_top_half as usize * 2] = red_array[0];
+            memory.bg_palette_ram[palette_index_top_half as usize * 2 + 1] = red_array[1];
+
+            memory.bg_palette_ram[palette_index_bottom_half as usize * 2] = green_array[0];
+            memory.bg_palette_ram[palette_index_bottom_half as usize * 2 + 1] = green_array[1];
+
+            let mut counter = 0;
+            for _i in 0..LCD_WIDTH * LCD_HEIGHT / 2 {
+                memory.video_ram[counter] = palette_index_top_half;
+                counter += 1;
+            }
+
+            for _i in 0..LCD_WIDTH * LCD_HEIGHT / 2 {
+                memory.video_ram[counter] = palette_index_bottom_half;
+                counter += 1;
+            }
+        });
     }
 }
 
