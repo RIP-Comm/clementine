@@ -85,9 +85,9 @@ impl Arm7tdmi {
         let load_store: SingleDataTransfer = op_code.into();
 
         let address = if up_down {
-            address.wrapping_sub(offset)
+            address.wrapping_sub(offset).try_into().unwrap()
         } else {
-            address.wrapping_add(offset)
+            address.wrapping_add(offset).try_into().unwrap()
         };
 
         let mut memory = self.memory.lock().unwrap();
