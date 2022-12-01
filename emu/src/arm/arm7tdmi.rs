@@ -20,7 +20,6 @@ pub const REG_PROGRAM_COUNTER: u32 = 0xF;
 const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
 
 pub struct Arm7tdmi {
-    pub(crate) rom: Arc<Mutex<Vec<u8>>>,
     pub(crate) memory: Arc<Mutex<InternalMemory>>,
 
     pub cpsr: Psr,
@@ -32,7 +31,6 @@ pub struct Arm7tdmi {
 impl Default for Arm7tdmi {
     fn default() -> Self {
         let mut s = Self {
-            rom: Arc::new(Mutex::new(Vec::default())),
             memory: Arc::new(Mutex::new(InternalMemory::default())),
             cpsr: Psr::from(Mode::User), // FIXME: Starting as User? Not sure
             registers: Registers::default(),
@@ -46,20 +44,14 @@ impl Default for Arm7tdmi {
     }
 }
 
-const OPCODE_ARM_SIZE: usize = 4;
-
 impl Cpu for Arm7tdmi {
     type OpCodeType = ArmModeOpcode;
 
     fn fetch(&self) -> u32 {
-        let instruction_index = self.registers.program_counter();
-        let end_instruction = instruction_index + OPCODE_ARM_SIZE;
-        let data_instruction: [u8; 4] = self.rom.lock().unwrap()
-            [instruction_index..end_instruction]
-            .try_into()
-            .expect("`istruction` conversion into [u8; 4]");
-
-        u32::from_le_bytes(data_instruction)
+        self.memory
+            .lock()
+            .unwrap()
+            .read_word(self.registers.program_counter())
     }
 
     fn decode(&self, op_code: u32) -> Self::OpCodeType {
@@ -125,10 +117,9 @@ impl From<bool> for Indexing {
 }
 
 impl Arm7tdmi {
-    pub fn new(rom: Arc<Mutex<Vec<u8>>>, memory: Arc<Mutex<InternalMemory>>) -> Self {
+    pub fn new(memory: Arc<Mutex<InternalMemory>>) -> Self {
         Self {
             memory,
-            rom,
             ..Default::default()
         }
     }
