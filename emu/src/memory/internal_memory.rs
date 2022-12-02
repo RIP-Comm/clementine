@@ -220,14 +220,15 @@ impl IoDevice for InternalMemory {
 
     fn read_at(&self, address: Self::Address) -> Self::Value {
         match address {
-            0x00000000..=0x00003FFF => self.bios_system_rom[(address) as usize],
-            0x02000000..=0x0203FFFF => self.working_ram[(address - 0x02000000) as usize],
-            0x03000000..=0x03007FFF => self.working_iram[(address - 0x03000000) as usize],
+            0x00000000..=0x00003FFF => self.bios_system_rom[address],
+            0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000],
+            0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000],
             0x04000000..=0x04000055 => self.read_address_lcd_register(address),
             0x04000100..=0x0400010E => self.read_address_timer_register(address),
-            0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize],
-            0x05000200..=0x050003FF => self.obj_palette_ram[(address - 0x05000200) as usize],
-            0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize],
+            0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000],
+            0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200],
+            0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000],
+            0x08000000..=0x0FFFFFFF => self.rom[address - 0x08000000],
             0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
                 log("read on unused memory");
                 self.unused_region
@@ -240,19 +241,20 @@ impl IoDevice for InternalMemory {
 
     fn write_at(&mut self, address: Self::Address, value: Self::Value) {
         match address {
-            0x00000000..=0x00003FFF => self.bios_system_rom[(address) as usize] = value,
-            0x02000000..=0x0203FFFF => self.working_ram[(address - 0x02000000) as usize] = value,
-            0x03000000..=0x03007FFF => self.working_iram[(address - 0x03000000) as usize] = value,
+            0x00000000..=0x00003FFF => self.bios_system_rom[address] = value,
+            0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000] = value,
+            0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
             0x04000000..=0x04000055 => self.write_address_lcd_register(address, value),
             0x04000100..=0x0400010E => self.write_address_timer_register(address, value),
-            0x05000000..=0x050001FF => self.bg_palette_ram[(address - 0x05000000) as usize] = value,
-            0x05000200..=0x050003FF => {
-                self.obj_palette_ram[(address - 0x05000200) as usize] = value
-            }
-            0x06000000..=0x06017FFF => self.video_ram[(address - 0x06000000) as usize] = value,
+            0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000] = value,
+            0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200] = value,
+            0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000] = value,
             0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
                 log("write on unused memory");
-                if self.unused_region.insert(address as usize, value).is_some() {}
+                if self.unused_region.insert(address, value).is_some() {}
+            }
+            0x08000000..=0x0FFFFFFF => {
+                self.rom[address - 0x08000000] = value;
             }
 
             _ => unimplemented!("Unimplemented memory region {address:x}."),
