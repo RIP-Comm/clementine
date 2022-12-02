@@ -60,6 +60,8 @@ impl From<&ArmModeOpcode> for ReadWriteKind {
 impl Arm7tdmi {
     pub(crate) fn single_data_transfer(&mut self, op_code: ArmModeOpcode) {
         let immediate = op_code.get_bit(25);
+
+        // U == 0 down, U == 1 up
         let up_down = op_code.get_bit(23);
         let byte_or_word: ReadWriteKind = (&op_code).into();
 
@@ -85,9 +87,9 @@ impl Arm7tdmi {
         let load_store: SingleDataTransfer = op_code.into();
 
         let address = if up_down {
-            address.wrapping_sub(offset).try_into().unwrap()
-        } else {
             address.wrapping_add(offset).try_into().unwrap()
+        } else {
+            address.wrapping_sub(offset).try_into().unwrap()
         };
 
         let mut memory = self.memory.lock().unwrap();
@@ -155,11 +157,11 @@ mod tests {
         assert_eq!(rd, 13);
 
         // because in this specific case address will be
-        // then will be 0x03000050 + 8 (.wrapping_sub(offset))
+        // then will be 0x03000050 + 8 (.wrapping_add(offset))
         cpu.registers.set_program_counter(0x03000050);
 
         // simulate mem already contains something.
-        cpu.memory.lock().unwrap().write_at(0x03000040, 99);
+        cpu.memory.lock().unwrap().write_at(0x03000070, 99);
 
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 99);
@@ -183,14 +185,14 @@ mod tests {
         assert_eq!(rd, 13);
 
         // because in this specific case address will be
-        // then will be 0x03000050 + 8 (.wrapping_sub(offset))
+        // then will be 0x03000050 + 8 (.wrapping_add(offset))
         cpu.registers.set_program_counter(0x03000050);
 
         cpu.execute(op_code_type);
 
         let memory = cpu.memory.lock().unwrap();
 
-        assert_eq!(memory.read_at(0x03000040), 13);
+        assert_eq!(memory.read_at(0x03000070), 13);
     }
 
     #[test]
@@ -215,10 +217,10 @@ mod tests {
 
             // simulate mem already contains something.
             // in u32 this is 16843009 00000001_00000001_00000001_00000001.
-            memory.write_at(0xFFFFFFE0, 1);
-            memory.write_at(0xFFFFFFE0 + 1, 1);
-            memory.write_at(0xFFFFFFE0 + 2, 1);
-            memory.write_at(0xFFFFFFE0 + 3, 1);
+            memory.write_at(0x30, 1);
+            memory.write_at(0x30 + 1, 1);
+            memory.write_at(0x30 + 2, 1);
+            memory.write_at(0x30 + 3, 1);
         }
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 16843009);
