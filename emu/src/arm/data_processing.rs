@@ -1095,6 +1095,7 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_0_001111_0000_000000000000;
             let op_code = cpu.decode(op_code);
+            cpu.cpsr.set_mode(Mode::User);
 
             cpu.cpsr.set_carry_flag(true);
             cpu.cpsr.set_overflow_flag(true);
@@ -1134,6 +1135,7 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_0_1010011111_00000000_0000;
             let op_code = cpu.decode(op_code);
+            cpu.cpsr.set_mode(Mode::User);
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
 
@@ -1164,6 +1166,7 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00_0_10_0_1010001111_00000000_0000;
             let op_code = cpu.decode(op_code);
+            cpu.cpsr.set_mode(Mode::User);
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
 

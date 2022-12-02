@@ -32,7 +32,7 @@ impl Default for Arm7tdmi {
     fn default() -> Self {
         let mut s = Self {
             memory: Arc::new(Mutex::new(InternalMemory::default())),
-            cpsr: Psr::from(Mode::User), // FIXME: Starting as User? Not sure
+            cpsr: Psr::from(Mode::Supervisor), // FIXME: Starting as Supervisor? Not sure
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
         };
