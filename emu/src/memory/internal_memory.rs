@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 use logger::log;
 
@@ -35,7 +34,13 @@ pub struct InternalMemory {
 
     /// From 0x08000000 to 0x0FFFFFFF.
     /// Basically here you can find different kind of rom loaded.
-    pub rom: Arc<Mutex<Vec<u8>>>,
+    // TODO: Not sure if we should split this into
+    // 08000000-09FFFFFF Game Pak ROM/FlashROM (max 32MB) - Wait State 0
+    // 0A000000-0BFFFFFF Game Pak ROM/FlashROM (max 32MB) - Wait State 1
+    // 0C000000-0DFFFFFF Game Pak ROM/FlashROM (max 32MB) - Wait State 2
+    // 0E000000-0E00FFFF Game Pak SRAM (max 64 KBytes) - 8bit Bus width
+    // 0E010000-0FFFFFFF Not used
+    pub rom: Vec<u8>,
 
     /// From 0x00004000 to 0x01FFFFFF.
     /// From 0x10000000 to 0xFFFFFFFF.
@@ -44,12 +49,12 @@ pub struct InternalMemory {
 
 impl Default for InternalMemory {
     fn default() -> Self {
-        Self::new([0_u8; 0x00004000], Arc::new(Mutex::new(vec![])))
+        Self::new([0_u8; 0x00004000], vec![])
     }
 }
 
 impl InternalMemory {
-    pub fn new(bios: [u8; 0x00004000], rom: Arc<Mutex<Vec<u8>>>) -> Self {
+    pub fn new(bios: [u8; 0x00004000], rom: Vec<u8>) -> Self {
         Self {
             bios_system_rom: bios.into(),
             working_ram: vec![0; 0x00040000],

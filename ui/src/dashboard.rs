@@ -44,7 +44,7 @@ impl UiTools {
         let arc_gba = Arc::new(Mutex::new(Gba::new(
             cartridge_header,
             bios[0..0x00004000].try_into().unwrap(),
-            Arc::new(Mutex::new(data)),
+            data,
         )));
 
         Self::from_tools(vec![
