@@ -1,5 +1,6 @@
 pub mod internal_memory;
+mod interrupts;
 pub mod io_device;
-pub mod io_registers;
-pub mod lcd_registers;
-pub mod timer_registers;
+mod io_registers;
+mod lcd_registers;
+mod timer_registers;
