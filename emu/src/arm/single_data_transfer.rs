@@ -2,7 +2,7 @@ use crate::{
     arm::arm7tdmi::Arm7tdmi, arm::opcode::ArmModeOpcode, bitwise::Bits, memory::io_device::IoDevice,
 };
 
-use super::arm7tdmi::REG_PROGRAM_COUNTER;
+use super::arm7tdmi::{Offsetting, REG_PROGRAM_COUNTER};
 
 /// Possible opeartion on transfer data.
 #[derive(PartialEq)]
@@ -61,8 +61,7 @@ impl Arm7tdmi {
     pub(crate) fn single_data_transfer(&mut self, op_code: ArmModeOpcode) {
         let immediate = op_code.get_bit(25);
 
-        // U == 0 down, U == 1 up
-        let up_down = op_code.get_bit(23);
+        let offsetting: Offsetting = op_code.get_bit(23).into();
         let byte_or_word: ReadWriteKind = (&op_code).into();
 
         // bits [19-16] - Base register
@@ -86,10 +85,9 @@ impl Arm7tdmi {
 
         let load_store: SingleDataTransfer = op_code.into();
 
-        let address = if up_down {
-            address.wrapping_add(offset).try_into().unwrap()
-        } else {
-            address.wrapping_sub(offset).try_into().unwrap()
+        let address = match offsetting {
+            Offsetting::Down => address.wrapping_sub(offset).try_into().unwrap(),
+            Offsetting::Up => address.wrapping_add(offset).try_into().unwrap(),
         };
 
         let mut memory = self.memory.lock().unwrap();
