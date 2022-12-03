@@ -6,6 +6,8 @@ use crate::memory::io_device::IoDevice;
 use crate::memory::lcd_registers::LCDRegisters;
 use crate::memory::timer_registers::TimerRegisters;
 
+use super::interrupts::Interrupts;
+
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 KBytes).
     bios_system_rom: Vec<u8>,
@@ -21,6 +23,9 @@ pub struct InternalMemory {
 
     /// From 0x04000100 to 0x0400010E.
     timer_registers: TimerRegisters,
+
+    /// From 0x04000200 to 040003FE
+    interrupts: Interrupts,
 
     /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors).
     pub bg_palette_ram: Vec<u8>,
@@ -58,11 +63,12 @@ impl InternalMemory {
             bios_system_rom: bios.into(),
             working_ram: vec![0; 0x00040000],
             working_iram: vec![0; 0x00008000],
+            lcd_registers: LCDRegisters::default(),
+            timer_registers: TimerRegisters::default(),
+            interrupts: Interrupts::default(),
             bg_palette_ram: vec![0; 0x200],
             obj_palette_ram: vec![0; 0x200],
             video_ram: vec![0; 0x00018000],
-            lcd_registers: LCDRegisters::new(),
-            timer_registers: TimerRegisters::new(),
             rom,
             unused_region: HashMap::new(),
         }
@@ -80,6 +86,7 @@ impl IoDevice for InternalMemory {
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000],
             0x04000000..=0x04000055 => self.lcd_registers.read_at(address),
             0x04000100..=0x0400010E => self.timer_registers.read_at(address),
+            0x04000200..=0x040003FE => self.interrupts.read_at(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000],
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200],
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000],
@@ -101,6 +108,7 @@ impl IoDevice for InternalMemory {
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
             0x04000000..=0x04000055 => self.lcd_registers.write_at(address, value),
             0x04000100..=0x0400010E => self.timer_registers.write_at(address, value),
+            0x04000200..=0x040003FE => self.interrupts.write_at(address, value),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000] = value,
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200] = value,
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000] = value,
