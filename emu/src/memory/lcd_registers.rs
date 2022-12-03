@@ -3,6 +3,8 @@ use crate::{
     memory::io_registers::{IORegister, IORegisterAccessControl},
 };
 
+use super::io_device::IoDevice;
+
 pub struct LCDRegisters {
     /// LCD Control
     pub dispcnt: IORegister,
@@ -262,5 +264,129 @@ impl LCDRegisters {
     pub fn screen_size(&self, bg_index: usize) -> usize {
         let reg = self.get_bg_index_cnt(bg_index);
         reg.read().get_bits(14..=15).try_into().unwrap()
+    }
+}
+
+impl IoDevice for LCDRegisters {
+    type Address = usize;
+    type Value = u8;
+
+    fn read_at(&self, address: usize) -> u8 {
+        match address {
+            0x04000000 => self.dispcnt.read().get_byte(0),
+            0x04000001 => self.dispcnt.read().get_byte(1),
+            0x04000002 => self.green_swap.read().get_byte(0),
+            0x04000003 => self.green_swap.read().get_byte(1),
+            0x04000004 => self.dispstat.read().get_byte(0),
+            0x04000005 => self.dispstat.read().get_byte(1),
+            0x04000006 => self.vcount.read().get_byte(0),
+            0x04000007 => self.vcount.read().get_byte(1),
+            0x04000008 => self.bg0cnt.read().get_byte(0),
+            0x04000009 => self.bg0cnt.read().get_byte(1),
+            0x0400000A => self.bg1cnt.read().get_byte(0),
+            0x0400000B => self.bg1cnt.read().get_byte(1),
+            0x0400000C => self.bg2cnt.read().get_byte(0),
+            0x0400000D => self.bg2cnt.read().get_byte(1),
+            0x0400000E => self.bg3cnt.read().get_byte(0),
+            0x0400000F => self.bg3cnt.read().get_byte(1),
+            0x04000048 => self.winin.read().get_byte(0),
+            0x04000049 => self.winin.read().get_byte(1),
+            0x0400004A => self.winout.read().get_byte(0),
+            0x0400004B => self.winout.read().get_byte(1),
+            0x04000050 => self.bldcnt.read().get_byte(0),
+            0x04000051 => self.bldcnt.read().get_byte(1),
+            0x04000052 => self.bldalpha.read().get_byte(0),
+            0x04000053 => self.bldalpha.read().get_byte(1),
+            _ => panic!("Reading an write-only memory address: {address:b}"),
+        }
+    }
+
+    fn write_at(&mut self, address: usize, value: u8) {
+        match address {
+            0x04000000 => self.dispcnt.set_byte(0, value),
+            0x04000001 => self.dispcnt.set_byte(1, value),
+            0x04000002 => self.green_swap.set_byte(0, value),
+            0x04000003 => self.green_swap.set_byte(1, value),
+            0x04000004 => self.dispstat.set_byte(0, value),
+            0x04000005 => self.dispstat.set_byte(1, value),
+            0x04000008 => self.bg0cnt.set_byte(0, value),
+            0x04000009 => self.bg0cnt.set_byte(1, value),
+            0x0400000A => self.bg1cnt.set_byte(0, value),
+            0x0400000B => self.bg1cnt.set_byte(1, value),
+            0x0400000C => self.bg2cnt.set_byte(0, value),
+            0x0400000D => self.bg2cnt.set_byte(1, value),
+            0x0400000E => self.bg3cnt.set_byte(0, value),
+            0x0400000F => self.bg3cnt.set_byte(1, value),
+            0x04000010 => self.bg0hofs.set_byte(0, value),
+            0x04000011 => self.bg0hofs.set_byte(1, value),
+            0x04000012 => self.bg0vofs.set_byte(0, value),
+            0x04000013 => self.bg0vofs.set_byte(1, value),
+            0x04000014 => self.bg1hofs.set_byte(0, value),
+            0x04000015 => self.bg1hofs.set_byte(1, value),
+            0x04000016 => self.bg1vofs.set_byte(0, value),
+            0x04000017 => self.bg1vofs.set_byte(1, value),
+            0x04000018 => self.bg2hofs.set_byte(0, value),
+            0x04000019 => self.bg2hofs.set_byte(1, value),
+            0x0400001A => self.bg2vofs.set_byte(0, value),
+            0x0400001B => self.bg2vofs.set_byte(1, value),
+            0x0400001C => self.bg3hofs.set_byte(0, value),
+            0x0400001D => self.bg3hofs.set_byte(1, value),
+            0x0400001E => self.bg3vofs.set_byte(0, value),
+            0x0400001F => self.bg3vofs.set_byte(1, value),
+            0x04000020 => self.bg2pa.set_byte(0, value),
+            0x04000021 => self.bg2pa.set_byte(1, value),
+            0x04000022 => self.bg2pb.set_byte(0, value),
+            0x04000023 => self.bg2pb.set_byte(1, value),
+            0x04000024 => self.bg2pc.set_byte(0, value),
+            0x04000025 => self.bg2pc.set_byte(1, value),
+            0x04000026 => self.bg2pd.set_byte(0, value),
+            0x04000039 => self.bg3x.set_byte(1, value),
+            0x04000027 => self.bg2pd.set_byte(1, value),
+            0x04000028 => self.bg2x.set_byte(0, value),
+            0x04000029 => self.bg2x.set_byte(1, value),
+            0x0400002A => self.bg2x.set_byte(2, value),
+            0x0400002B => self.bg2x.set_byte(3, value),
+            0x0400002C => self.bg2y.set_byte(0, value),
+            0x0400002D => self.bg2y.set_byte(1, value),
+            0x0400002E => self.bg2y.set_byte(2, value),
+            0x0400002F => self.bg2y.set_byte(3, value),
+            0x04000030 => self.bg3pa.set_byte(0, value),
+            0x04000031 => self.bg3pa.set_byte(1, value),
+            0x04000032 => self.bg3pb.set_byte(0, value),
+            0x04000033 => self.bg3pb.set_byte(1, value),
+            0x04000034 => self.bg3pc.set_byte(0, value),
+            0x04000035 => self.bg3pc.set_byte(1, value),
+            0x04000036 => self.bg3pd.set_byte(0, value),
+            0x04000037 => self.bg3pd.set_byte(1, value),
+            0x04000038 => self.bg3x.set_byte(0, value),
+            0x0400003A => self.bg3x.set_byte(2, value),
+            0x0400003B => self.bg3x.set_byte(3, value),
+            0x0400003C => self.bg3y.set_byte(0, value),
+            0x0400003D => self.bg3y.set_byte(1, value),
+            0x0400003E => self.bg3y.set_byte(2, value),
+            0x0400003F => self.bg3y.set_byte(3, value),
+            0x04000040 => self.win0h.set_byte(0, value),
+            0x04000041 => self.win0h.set_byte(1, value),
+            0x04000042 => self.win1h.set_byte(0, value),
+            0x04000043 => self.win1h.set_byte(1, value),
+            0x04000044 => self.win0v.set_byte(0, value),
+            0x04000045 => self.win0v.set_byte(1, value),
+            0x04000046 => self.win1v.set_byte(0, value),
+            0x04000047 => self.win1v.set_byte(1, value),
+            0x04000048 => self.winin.set_byte(0, value),
+            0x04000049 => self.winin.set_byte(1, value),
+            0x0400004A => self.winout.set_byte(0, value),
+            0x0400004B => self.winout.set_byte(1, value),
+            0x0400004C => self.mosaic.set_byte(0, value),
+            0x0400004D => self.mosaic.set_byte(1, value),
+            // 0x0400004E, 0x0400004F are not used
+            0x04000050 => self.bldcnt.set_byte(0, value),
+            0x04000051 => self.bldcnt.set_byte(1, value),
+            0x04000052 => self.bldalpha.set_byte(0, value),
+            0x04000053 => self.bldalpha.set_byte(1, value),
+            0x04000054 => self.bldy.set_byte(0, value),
+            0x04000055 => self.bldy.set_byte(1, value),
+            _ => panic!("Writing an read-only memory address: {address:b}"),
+        }
     }
 }
