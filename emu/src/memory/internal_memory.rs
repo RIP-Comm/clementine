@@ -187,36 +187,6 @@ impl InternalMemory {
             _ => panic!("Reading an write-only memory address: {address:b}"),
         }
     }
-
-    // There is no need to set the second byte because bits `8-15` are not used
-    fn write_address_timer_register(&mut self, address: usize, value: u8) {
-        match address {
-            0x04000100 => self.timer_registers.tm0cnt_l.set_byte(0, value),
-            0x04000102 => self.timer_registers.tm0cnt_h.set_byte(0, value),
-            0x04000104 => self.timer_registers.tm1cnt_l.set_byte(0, value),
-            0x04000106 => self.timer_registers.tm1cnt_h.set_byte(0, value),
-            0x04000108 => self.timer_registers.tm2cnt_l.set_byte(0, value),
-            0x0400010A => self.timer_registers.tm2cnt_h.set_byte(0, value),
-            0x0400010C => self.timer_registers.tm3cnt_l.set_byte(0, value),
-            0x0400010E => self.timer_registers.tm3cnt_h.set_byte(0, value),
-            _ => panic!("Reading an write-only memory address: {address:b}"),
-        }
-    }
-
-    // There is no need to read the second byte because bits `8-15` are not used
-    fn read_address_timer_register(&self, address: usize) -> u8 {
-        match address {
-            0x04000100 => self.timer_registers.tm0cnt_l.read().get_byte(0),
-            0x04000102 => self.timer_registers.tm0cnt_h.read().get_byte(0),
-            0x04000104 => self.timer_registers.tm1cnt_l.read().get_byte(0),
-            0x04000106 => self.timer_registers.tm1cnt_h.read().get_byte(0),
-            0x04000108 => self.timer_registers.tm2cnt_l.read().get_byte(0),
-            0x0400010A => self.timer_registers.tm2cnt_h.read().get_byte(0),
-            0x0400010C => self.timer_registers.tm3cnt_l.read().get_byte(0),
-            0x0400010E => self.timer_registers.tm3cnt_h.read().get_byte(0),
-            _ => panic!("Reading an write-only memory address: {address:b}"),
-        }
-    }
 }
 
 impl IoDevice for InternalMemory {
@@ -229,7 +199,7 @@ impl IoDevice for InternalMemory {
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000],
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000],
             0x04000000..=0x04000055 => self.read_address_lcd_register(address),
-            0x04000100..=0x0400010E => self.read_address_timer_register(address),
+            0x04000100..=0x0400010E => self.timer_registers.read_at(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000],
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200],
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000],
@@ -250,7 +220,7 @@ impl IoDevice for InternalMemory {
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000] = value,
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
             0x04000000..=0x04000055 => self.write_address_lcd_register(address, value),
-            0x04000100..=0x0400010E => self.write_address_timer_register(address, value),
+            0x04000100..=0x0400010E => self.timer_registers.write_at(address, value),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000] = value,
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200] = value,
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000] = value,
