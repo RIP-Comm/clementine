@@ -116,6 +116,23 @@ impl From<bool> for Indexing {
     }
 }
 
+pub enum Offsetting {
+    /// Substract the offset from base.
+    Down,
+
+    /// Add the offset to base.
+    Up,
+}
+
+impl From<bool> for Offsetting {
+    fn from(state: bool) -> Self {
+        match state {
+            false => Self::Down,
+            true => Self::Up,
+        }
+    }
+}
+
 impl Arm7tdmi {
     pub fn new(memory: Arc<Mutex<InternalMemory>>) -> Self {
         Self {
@@ -155,7 +172,7 @@ impl Arm7tdmi {
 
     fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) {
         let indexing: Indexing = op_code.get_bit(24).into();
-        let up_down = op_code.get_bit(23);
+        let offsetting: Offsetting = op_code.get_bit(23).into();
         let _write_back = op_code.get_bit(21);
         let load_store = op_code.get_bit(20);
         let rn_base_register = op_code.get_bits(16..=19);
@@ -174,10 +191,9 @@ impl Arm7tdmi {
             address = address.wrapping_add(v + 8);
         }
 
-        let effective = if up_down {
-            address.wrapping_add(offset)
-        } else {
-            address.wrapping_sub(offset)
+        let effective = match offsetting {
+            Offsetting::Down => address.wrapping_sub(offset),
+            Offsetting::Up => address.wrapping_add(offset),
         };
 
         let address: usize = match indexing {
@@ -210,7 +226,7 @@ impl Arm7tdmi {
 
     fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) {
         let indexing: Indexing = op_code.get_bit(24).into();
-        let up_down = op_code.get_bit(23);
+        let offsetting: Offsetting = op_code.get_bit(23).into();
         let _write_back = op_code.get_bit(21); // TODO: Handle write back.
         let load_store = op_code.get_bit(20);
         let rn_base_register = op_code.get_bits(16..=19);
@@ -230,10 +246,9 @@ impl Arm7tdmi {
             address = address.wrapping_add(v + 8);
         }
 
-        let effective = if up_down {
-            address.wrapping_add(offset)
-        } else {
-            address.wrapping_sub(offset)
+        let effective = match offsetting {
+            Offsetting::Down => address.wrapping_sub(offset),
+            Offsetting::Up => address.wrapping_add(offset),
         };
 
         let address: usize = match indexing {
@@ -378,7 +393,7 @@ impl Arm7tdmi {
 
     fn block_data_transfer(&mut self, op_code: ArmModeOpcode) {
         let indexing: Indexing = op_code.get_bit(24).into();
-        let up_down = op_code.get_bit(23);
+        let offsetting: Offsetting = op_code.get_bit(23).into();
         let s = op_code.get_bit(22);
         if s {
             todo!()
@@ -403,7 +418,7 @@ impl Arm7tdmi {
                 arm.registers.set_register_at(reg_destination, v);
             };
 
-            self.exec_data_trasfer(reg_list, indexing, &mut address, up_down, transfer);
+            self.exec_data_trasfer(reg_list, indexing, &mut address, offsetting, transfer);
         } else {
             let transfer = |arm: &mut Self, address: usize, reg_source: usize| {
                 let mut value = arm.registers.register_at(reg_source);
@@ -420,7 +435,7 @@ impl Arm7tdmi {
                 memory.write_at(address + 3, value.get_bits(24..=31) as u8);
             };
 
-            self.exec_data_trasfer(reg_list, indexing, &mut address, up_down, transfer);
+            self.exec_data_trasfer(reg_list, indexing, &mut address, offsetting, transfer);
         }
 
         if write_back {
@@ -431,7 +446,7 @@ impl Arm7tdmi {
 
     fn coprocessor_data_transfer(&mut self, op_code: ArmModeOpcode) {
         let indexing: Indexing = op_code.get_bit(24).into();
-        let up_down = op_code.get_bit(23);
+        let offsetting: Offsetting = op_code.get_bit(23).into();
         let _transfer_len = op_code.get_bit(22);
         let _write_back = op_code.get_bit(21);
         let _load_store = op_code.get_bit(20);
@@ -444,16 +459,18 @@ impl Arm7tdmi {
         let mut _address = self
             .registers
             .register_at(rn_base_register.try_into().unwrap());
-        let effective = if up_down {
-            _address.wrapping_add(offset)
-        } else {
-            _address.wrapping_sub(offset)
+
+        let effective = match offsetting {
+            Offsetting::Down => _address.wrapping_sub(offset),
+            Offsetting::Up => _address.wrapping_add(offset),
         };
 
         let _address = match indexing {
             Indexing::Pre => effective,
             Indexing::Post => _address,
         };
+
+        // TODO: take a look if we need to finish this for real.
     }
 
     fn exec_data_trasfer<F>(
@@ -461,27 +478,23 @@ impl Arm7tdmi {
         reg_list: u32,
         indexing: Indexing,
         address: &mut usize,
-        up_down: bool,
+        offsetting: Offsetting,
         trasfer: F,
     ) where
         F: Fn(&mut Self, usize, usize),
     {
         let alignment = 4; // Since are word, the alignment is 4.
 
-        let change_address = |address: usize| {
-            if up_down {
-                address.wrapping_add(alignment)
-            } else {
-                address.wrapping_sub(alignment)
-            }
+        let change_address = |address: usize| match offsetting {
+            Offsetting::Down => address.wrapping_sub(alignment),
+            Offsetting::Up => address.wrapping_add(alignment),
         };
 
         // If we are decreasing we still want to store the lowest reg to the lowest
         // memory address. For this reason we reverse the loop order.
-        let range_registers: Box<dyn Iterator<Item = u8>> = if up_down {
-            Box::new(0..=15)
-        } else {
-            Box::new((0..=15).rev())
+        let range_registers: Box<dyn Iterator<Item = u8>> = match offsetting {
+            Offsetting::Down => Box::new((0..=15).rev()),
+            Offsetting::Up => Box::new(0..=15),
         };
 
         for reg_source in range_registers {
