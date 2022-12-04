@@ -135,6 +135,14 @@ impl Psr {
         self.0.set_bit(5, value);
     }
 
+    pub fn set_mode_raw(&mut self, m: u32) {
+        self.0 &= 0b1111_1111_1111_1111_1111_1111_1110_0000;
+
+        let mode_raw = m & 0b0001_1111;
+
+        self.0 |= mode_raw;
+    }
+
     /// The Mode Bits M4-M0 contain the current operating mode.
     pub fn set_mode(&mut self, m: Mode) {
         // Setting mode bits to 0

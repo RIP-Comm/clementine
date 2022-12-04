@@ -292,8 +292,7 @@ impl Arm7tdmi {
                     // Should we set it? I guess software are written in order to not switch this bit
                     // but who knows?
                     // psr.set_state_bit(rm.get_bit(5));
-
-                    psr.set_mode(Mode::try_from(rm.get_bits(0..=4)).unwrap())
+                    psr.set_mode_raw(rm.get_bits(0..=4));
                 }
             }
             PsrOpKind::MsrFlg => {
