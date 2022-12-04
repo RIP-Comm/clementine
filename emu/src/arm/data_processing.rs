@@ -329,7 +329,7 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn data_processing(&mut self, op_code: ArmModeOpcode) {
+    pub fn data_processing(&mut self, op_code: ArmModeOpcode) -> bool {
         // bit [25] is I = Immediate Flag
         let i: bool = op_code.get_bit(25);
         // bits [24-21]
@@ -371,6 +371,8 @@ impl Arm7tdmi {
                     self.tst(rn, op2)
                 } else {
                     self.psr_transfer(op_code);
+
+                    return true;
                 }
             }
             ArmModeAluInstruction::Teq => {
@@ -378,6 +380,8 @@ impl Arm7tdmi {
                     self.teq(rn, op2)
                 } else {
                     self.psr_transfer(op_code);
+
+                    return true;
                 }
             }
             ArmModeAluInstruction::Cmp => {
@@ -385,6 +389,8 @@ impl Arm7tdmi {
                     self.cmp(rn, op2)
                 } else {
                     self.psr_transfer(op_code);
+
+                    return true;
                 }
             }
             ArmModeAluInstruction::Cmn => {
@@ -392,6 +398,8 @@ impl Arm7tdmi {
                     self.cmn(rn, op2)
                 } else {
                     self.psr_transfer(op_code);
+
+                    return true;
                 }
             }
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
@@ -399,6 +407,15 @@ impl Arm7tdmi {
             ArmModeAluInstruction::Bic => self.bic(rd.try_into().unwrap(), rn, op2, s),
             ArmModeAluInstruction::Mvn => self.mvn(rd.try_into().unwrap(), op2, s),
         };
+
+        // If is a "test" ALU instruction we ever advance PC.
+        match ArmModeAluInstruction::from(alu_op_code) {
+            ArmModeAluInstruction::Teq
+            | ArmModeAluInstruction::Cmp
+            | ArmModeAluInstruction::Cmn
+            | ArmModeAluInstruction::Tst => true,
+            _ => rd != 0xF,
+        }
     }
 
     fn and(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
