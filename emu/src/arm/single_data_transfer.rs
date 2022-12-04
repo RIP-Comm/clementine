@@ -58,7 +58,7 @@ impl From<&ArmModeOpcode> for ReadWriteKind {
 }
 
 impl Arm7tdmi {
-    pub(crate) fn single_data_transfer(&mut self, op_code: ArmModeOpcode) {
+    pub(crate) fn single_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
         let immediate = op_code.get_bit(25);
 
         let offsetting: Offsetting = op_code.get_bit(23).into();
@@ -125,6 +125,9 @@ impl Arm7tdmi {
             },
             _ => todo!("implement single data transfer operation"),
         }
+
+        // If LDR and Rd == R15 we don't increase the PC
+        !(load_store == SingleDataTransfer::Ldr && rd == REG_PROGRAM_COUNTER)
     }
 }
 
@@ -134,8 +137,6 @@ mod tests {
         arm::arm7tdmi::Arm7tdmi, arm::instruction::ArmModeInstruction, cpu::Cpu,
         memory::io_device::IoDevice,
     };
-
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn check_ldr_byte() {
@@ -163,6 +164,7 @@ mod tests {
 
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 99);
+        assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
 
     #[test]
@@ -191,6 +193,7 @@ mod tests {
         let memory = cpu.memory.lock().unwrap();
 
         assert_eq!(memory.read_at(0x03000070), 13);
+        assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
 
     #[test]
@@ -222,6 +225,7 @@ mod tests {
         }
         cpu.execute(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 16843009);
+        assert_eq!(cpu.registers.program_counter(), 4);
     }
 
     #[test]
@@ -253,5 +257,6 @@ mod tests {
         assert_eq!(memory.read_at(0x01010101 + 1), 1);
         assert_eq!(memory.read_at(0x01010101 + 2), 1);
         assert_eq!(memory.read_at(0x01010101 + 3), 1);
+        assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
 }
