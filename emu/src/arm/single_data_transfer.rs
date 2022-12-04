@@ -2,7 +2,7 @@ use crate::{
     arm::arm7tdmi::Arm7tdmi, arm::opcode::ArmModeOpcode, bitwise::Bits, memory::io_device::IoDevice,
 };
 
-use super::arm7tdmi::{Offsetting, REG_PROGRAM_COUNTER};
+use super::arm7tdmi::{Offsetting, REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION};
 
 /// Possible opeartion on transfer data.
 #[derive(PartialEq)]
@@ -58,7 +58,7 @@ impl From<&ArmModeOpcode> for ReadWriteKind {
 }
 
 impl Arm7tdmi {
-    pub(crate) fn single_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
+    pub(crate) fn single_data_transfer(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let immediate = op_code.get_bit(25);
 
         let offsetting: Offsetting = op_code.get_bit(23).into();
@@ -127,7 +127,11 @@ impl Arm7tdmi {
         }
 
         // If LDR and Rd == R15 we don't increase the PC
-        !(load_store == SingleDataTransfer::Ldr && rd == REG_PROGRAM_COUNTER)
+        if !(load_store == SingleDataTransfer::Ldr && rd == REG_PROGRAM_COUNTER) {
+            Some(SIZE_OF_ARM_INSTRUCTION)
+        } else {
+            None
+        }
     }
 }
 

@@ -17,7 +17,7 @@ use super::psr::CpuState;
 use super::registers::Registers;
 
 pub const REG_PROGRAM_COUNTER: u32 = 0xF;
-const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
+pub const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
 
 pub struct Arm7tdmi {
     pub(crate) memory: Arc<Mutex<InternalMemory>>,
@@ -64,7 +64,7 @@ impl Cpu for Arm7tdmi {
         use ArmModeInstruction::*;
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
-        let should_advance_pc = match op_code.instruction {
+        let bytes_to_advance = match op_code.instruction {
             DataProcessing => self.data_processing(op_code),
             Multiply => todo!(),
             MultiplyLong => todo!(),
@@ -82,10 +82,8 @@ impl Cpu for Arm7tdmi {
             SoftwareInterrupt => todo!(),
         };
 
-        if should_advance_pc {
-            self.registers
-                .advance_program_counter(SIZE_OF_ARM_INSTRUCTION); // FIXME: don't sure of this
-        }
+        self.registers
+            .advance_program_counter(bytes_to_advance.unwrap_or(0));
     }
 
     fn step(&mut self) {
@@ -167,7 +165,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn branch_and_exchange(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn branch_and_exchange(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let rn = op_code.get_bits(0..=3);
         let state: CpuState = rn.get_bit(0).into();
         self.cpsr.set_cpu_state(state);
@@ -176,7 +174,7 @@ impl Arm7tdmi {
         unimplemented!("We should implement THUMB mode first!");
     }
 
-    fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let indexing: Indexing = op_code.get_bit(24).into();
         let offsetting: Offsetting = op_code.get_bit(23).into();
         let _write_back = op_code.get_bit(21);
@@ -233,10 +231,14 @@ impl Arm7tdmi {
             todo!()
         }
 
-        !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER)
+        if !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER) {
+            Some(SIZE_OF_ARM_INSTRUCTION)
+        } else {
+            None
+        }
     }
 
-    fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn data_transfer_immediate_offset(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let indexing: Indexing = op_code.get_bit(24).into();
         let offsetting: Offsetting = op_code.get_bit(23).into();
         let _write_back = op_code.get_bit(21); // TODO: Handle write back.
@@ -295,7 +297,11 @@ impl Arm7tdmi {
             todo!()
         }
 
-        !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER)
+        if !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER) {
+            Some(SIZE_OF_ARM_INSTRUCTION)
+        } else {
+            None
+        }
     }
 
     /// Stores the banked registers of the current mode to the register bank.
@@ -389,7 +395,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn branch(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn branch(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let offset = op_code.get_bits(0..=23) << 2;
 
         // We need to sign-extend the 26 bit number into a 32 bit.
@@ -411,10 +417,10 @@ impl Arm7tdmi {
         self.registers.set_program_counter(new_pc as u32);
 
         // Never advance PC after B
-        false
+        None
     }
 
-    fn block_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn block_data_transfer(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let indexing: Indexing = op_code.get_bit(24).into();
         let offsetting: Offsetting = op_code.get_bit(23).into();
         let s = op_code.get_bit(22);
@@ -467,10 +473,14 @@ impl Arm7tdmi {
         };
 
         // If LDM and R15 is in register list we don't advance PC
-        !(load_store && reg_list.is_bit_on(15))
+        if !(load_store && reg_list.is_bit_on(15)) {
+            Some(SIZE_OF_ARM_INSTRUCTION)
+        } else {
+            None
+        }
     }
 
-    fn coprocessor_data_transfer(&mut self, op_code: ArmModeOpcode) -> bool {
+    fn coprocessor_data_transfer(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let indexing: Indexing = op_code.get_bit(24).into();
         let offsetting: Offsetting = op_code.get_bit(23).into();
         let _transfer_len = op_code.get_bit(22);
@@ -497,7 +507,7 @@ impl Arm7tdmi {
         };
 
         // TODO: take a look if we need to finish this for real.
-        true
+        Some(SIZE_OF_ARM_INSTRUCTION)
     }
 
     fn exec_data_trasfer<F>(
