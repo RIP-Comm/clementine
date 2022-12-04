@@ -5,7 +5,10 @@ use crate::{
     bitwise::Bits,
 };
 
-use super::{arm7tdmi::REG_PROGRAM_COUNTER, cpu_modes::Mode};
+use super::{
+    arm7tdmi::{REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION},
+    cpu_modes::Mode,
+};
 
 pub struct ArithmeticOpResult {
     result: u32,
@@ -328,7 +331,7 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn data_processing(&mut self, op_code: ArmModeOpcode) -> bool {
+    pub fn data_processing(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         // bit [25] is I = Immediate Flag
         let i: bool = op_code.get_bit(25);
         // bits [24-21]
@@ -371,7 +374,7 @@ impl Arm7tdmi {
                 } else {
                     self.psr_transfer(op_code);
 
-                    return true;
+                    return Some(SIZE_OF_ARM_INSTRUCTION);
                 }
             }
             ArmModeAluInstruction::Teq => {
@@ -380,7 +383,7 @@ impl Arm7tdmi {
                 } else {
                     self.psr_transfer(op_code);
 
-                    return true;
+                    return Some(SIZE_OF_ARM_INSTRUCTION);
                 }
             }
             ArmModeAluInstruction::Cmp => {
@@ -389,7 +392,7 @@ impl Arm7tdmi {
                 } else {
                     self.psr_transfer(op_code);
 
-                    return true;
+                    return Some(SIZE_OF_ARM_INSTRUCTION);
                 }
             }
             ArmModeAluInstruction::Cmn => {
@@ -398,7 +401,7 @@ impl Arm7tdmi {
                 } else {
                     self.psr_transfer(op_code);
 
-                    return true;
+                    return Some(SIZE_OF_ARM_INSTRUCTION);
                 }
             }
             ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
@@ -412,8 +415,9 @@ impl Arm7tdmi {
             ArmModeAluInstruction::Teq
             | ArmModeAluInstruction::Cmp
             | ArmModeAluInstruction::Cmn
-            | ArmModeAluInstruction::Tst => true,
-            _ => rd != 0xF,
+            | ArmModeAluInstruction::Tst => Some(SIZE_OF_ARM_INSTRUCTION),
+            _ if rd != 0xF => Some(SIZE_OF_ARM_INSTRUCTION),
+            _ => None,
         }
     }
 
