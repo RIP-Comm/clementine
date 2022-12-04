@@ -173,7 +173,7 @@ impl Arm7tdmi {
         self.cpsr.set_cpu_state(state);
         self.registers.set_program_counter(rn);
 
-        false
+        unimplemented!("We should implement THUMB mode first!");
     }
 
     fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) -> bool {
