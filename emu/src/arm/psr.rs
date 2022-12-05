@@ -160,6 +160,10 @@ impl Psr {
         }
     }
 
+    pub fn cpu_state(&self) -> CpuState {
+        self.state_bit().into()
+    }
+
     pub fn set_cpu_state(&mut self, state: CpuState) {
         self.set_state_bit(state.into());
     }
