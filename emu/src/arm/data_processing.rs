@@ -628,9 +628,8 @@ impl Arm7tdmi {
 mod tests {
     use crate::{
         arm::arm7tdmi::Arm7tdmi,
-        arm::condition::Condition,
+        arm::{condition::Condition, opcode::ArmModeOpcode},
         arm::{cpu_modes::Mode, instruction::ArmModeInstruction},
-        cpu::Cpu,
     };
 
     use pretty_assertions::assert_eq;
@@ -639,12 +638,12 @@ mod tests {
     fn check_teq() {
         let op_code = 0b1110_0001_0011_1001_0011_0000_0000_0000;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
         let rn = 9_usize;
         cpu.registers.set_register_at(rn, 100);
         cpu.cpsr.set_sign_flag(true); // set for later verify.
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
     }
@@ -653,11 +652,11 @@ mod tests {
     fn check_cmp() {
         let op_code: u32 = 0b1110_0001_0011_1010_0011_0000_0000_0000;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
         let rn = 9_usize;
         cpu.registers.set_register_at(rn, 1);
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
         assert!(!cpu.cpsr.sign_flag());
         assert!(cpu.cpsr.zero_flag());
     }
@@ -666,10 +665,10 @@ mod tests {
     fn check_add() {
         let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
         cpu.registers.set_register_at(15, 15);
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(0), 15 + 8 + 32);
     }
 
@@ -679,7 +678,7 @@ mod tests {
         // R2 = R1 + (R15 << R3)
         let op_code = 0b1110_0000_1000_0001_0010_0011_0001_1111;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
 
         cpu.registers.set_register_at(2, 5);
@@ -687,7 +686,7 @@ mod tests {
         cpu.registers.set_register_at(15, 500);
         cpu.registers.set_register_at(3, 0);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(2), 500 + 12 + 10);
     }
@@ -696,13 +695,13 @@ mod tests {
     fn check_add_carry_bit() {
         let op_code: u32 = 0b1110_0000_1001_1111_0000_0000_0000_1110;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
 
         assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
 
         cpu.registers.set_register_at(15, 1 << 31);
         cpu.registers.set_register_at(14, 1 << 31);
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(0), 8);
         assert!(cpu.cpsr.carry_flag());
         assert!(cpu.cpsr.overflow_flag());
@@ -729,11 +728,11 @@ mod tests {
             // Immediate parameter
             op_code = (op_code & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
 
-            let op_code = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(op_code.condition, Condition::AL);
             assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
             let rotated = rx.rotate_right(is * 2);
             assert_eq!(cpu.registers.register_at(rx.try_into().unwrap()), rotated);
         }
@@ -746,7 +745,7 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert!(cpu.cpsr.zero_flag());
 
@@ -756,7 +755,7 @@ mod tests {
         let op_code = cpu.decode(op_code);
 
         cpu.registers.set_register_at(2, -5_i32 as u32);
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert!(cpu.cpsr.sign_flag());
     }
@@ -772,7 +771,7 @@ mod tests {
         cpu.registers.set_register_at(2, 11);
         cpu.registers.set_register_at(3, 8 << 8);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 16);
     }
@@ -786,7 +785,7 @@ mod tests {
         // All 1 except msb
         cpu.registers.set_register_at(0, 2_u32.pow(31) - 1);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 0b10101010);
     }
@@ -799,7 +798,7 @@ mod tests {
 
         cpu.registers.set_register_at(0, 0b11111111);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 0b01010101);
     }
@@ -812,7 +811,7 @@ mod tests {
 
         cpu.cpsr.set_sign_flag(true);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert!(cpu.cpsr.zero_flag());
         assert!(!cpu.cpsr.sign_flag());
@@ -826,7 +825,7 @@ mod tests {
 
         cpu.registers.set_register_at(0, 0b11111111);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 0b01010101);
     }
@@ -837,7 +836,7 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), (2_u32.pow(24) - 1) << 8);
         assert!(cpu.cpsr.sign_flag());
@@ -851,7 +850,7 @@ mod tests {
 
         cpu.registers.set_register_at(0, 10);
         cpu.registers.set_register_at(2, 5);
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 5);
         assert!(!cpu.cpsr.carry_flag());
@@ -863,7 +862,7 @@ mod tests {
         let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
         let op_code = cpu.decode(op_code);
         cpu.registers.set_register_at(2, 15);
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1) as i32, -5);
         assert!(cpu.cpsr.carry_flag());
@@ -878,7 +877,7 @@ mod tests {
         cpu.registers.set_register_at(0, 1);
         cpu.registers.set_register_at(2, i32::MIN as u32);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), (i32::MIN + 1) as u32);
         assert!(cpu.cpsr.carry_flag());
@@ -898,7 +897,7 @@ mod tests {
         cpu.registers.set_register_at(2, 1);
         cpu.cpsr.set_carry_flag(true);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 3);
         assert!(!cpu.cpsr.carry_flag());
@@ -915,7 +914,7 @@ mod tests {
         cpu.registers.set_register_at(0, u32::MAX);
         cpu.registers.set_register_at(2, 1);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 1);
         assert!(cpu.cpsr.carry_flag());
@@ -932,7 +931,7 @@ mod tests {
         cpu.registers.set_register_at(0, u32::MAX - 1);
         cpu.registers.set_register_at(2, 1);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 0);
         assert!(cpu.cpsr.carry_flag());
@@ -951,7 +950,7 @@ mod tests {
         cpu.registers.set_register_at(0, i32::MAX as u32);
         cpu.registers.set_register_at(2, 1);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), (1 << 31) + 1);
         assert!(!cpu.cpsr.carry_flag());
@@ -970,7 +969,7 @@ mod tests {
         cpu.registers.set_register_at(0, i32::MAX as u32 - 1);
         cpu.registers.set_register_at(2, 1);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 1 << 31);
         assert!(!cpu.cpsr.carry_flag());
@@ -991,7 +990,7 @@ mod tests {
         cpu.registers.set_register_at(0, 10);
         cpu.registers.set_register_at(2, 5);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 5);
         assert!(!cpu.cpsr.carry_flag());
@@ -1009,7 +1008,7 @@ mod tests {
         cpu.registers.set_register_at(0, 0);
         cpu.registers.set_register_at(2, 1);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), -1_i32 as u32);
         assert!(cpu.cpsr.carry_flag());
@@ -1027,7 +1026,7 @@ mod tests {
         cpu.registers.set_register_at(0, u32::MAX);
         cpu.registers.set_register_at(2, 0);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), -1_i32 as u32);
         assert!(cpu.cpsr.carry_flag());
@@ -1045,7 +1044,7 @@ mod tests {
         cpu.registers.set_register_at(0, 0);
         cpu.registers.set_register_at(2, 0);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), -1_i32 as u32);
         assert!(cpu.cpsr.carry_flag());
@@ -1063,7 +1062,7 @@ mod tests {
         cpu.registers.set_register_at(0, i32::MAX as u32);
         cpu.registers.set_register_at(2, -1_i32 as u32);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 1 << 31);
         assert!(cpu.cpsr.carry_flag());
@@ -1081,7 +1080,7 @@ mod tests {
         cpu.registers.set_register_at(0, i32::MAX as u32);
         cpu.registers.set_register_at(2, 0);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), i32::MAX as u32);
         assert!(!cpu.cpsr.carry_flag());
@@ -1099,7 +1098,7 @@ mod tests {
         cpu.registers.set_register_at(0, i32::MIN as u32);
         cpu.registers.set_register_at(2, 0);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), i32::MAX as u32);
         assert!(!cpu.cpsr.carry_flag());
@@ -1122,7 +1121,7 @@ mod tests {
             cpu.cpsr.set_zero_flag(true);
             cpu.cpsr.set_sign_flag(true);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             assert_eq!(
                 cpu.registers.register_at(0),
@@ -1143,7 +1142,7 @@ mod tests {
             cpu.register_bank.spsr_fiq.set_zero_flag(true);
             cpu.register_bank.spsr_fiq.set_sign_flag(true);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             assert_eq!(
                 cpu.registers.register_at(0),
@@ -1159,7 +1158,7 @@ mod tests {
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             // All flags set and User mode
             assert_eq!(u32::from(cpu.cpsr), 0b1111 << 28 | (0b110000));
@@ -1173,7 +1172,7 @@ mod tests {
 
             cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10001));
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             // All flags set and Fiq mode
             assert_eq!(
@@ -1190,7 +1189,7 @@ mod tests {
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             // All flags set and User mode
             assert_eq!(u32::from(cpu.cpsr), 0b1111 << 28 | (0b110000));
@@ -1205,7 +1204,7 @@ mod tests {
             // Trying to change MODE bits to a User mode
             cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10000));
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             // All flags set
             assert_eq!(u32::from(cpu.register_bank.spsr_fiq), 0b1111 << 28);

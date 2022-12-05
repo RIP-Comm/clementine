@@ -9,10 +9,10 @@ use crate::arm::opcode::ArmModeOpcode;
 use crate::arm::psr::Psr;
 use crate::arm::register_bank::RegisterBank;
 use crate::bitwise::Bits;
-use crate::cpu::Cpu;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
+use super::opcode::ThumbModeOpcode;
 use super::psr::CpuState;
 use super::registers::Registers;
 
@@ -44,58 +44,83 @@ impl Default for Arm7tdmi {
     }
 }
 
-impl Cpu for Arm7tdmi {
-    type OpCodeType = ArmModeOpcode;
-
-    fn fetch(&self) -> u32 {
+impl Arm7tdmi {
+    pub fn fetch_arm(&self) -> u32 {
         self.memory
             .lock()
             .unwrap()
             .read_word(self.registers.program_counter())
     }
 
-    fn decode(&self, op_code: u32) -> Self::OpCodeType {
-        let op_code = ArmModeOpcode::try_from(op_code).unwrap();
-        log(format!("{op_code}"));
-        op_code
+    pub fn fetch_thumb(&self) -> u16 {
+        self.memory
+            .lock()
+            .unwrap()
+            .read_half_word(self.registers.program_counter())
     }
 
-    fn execute(&mut self, op_code: Self::OpCodeType) {
+    pub fn decode<T, V>(&self, op_code: V) -> T
+    where
+        T: std::fmt::Display + std::fmt::Debug + TryFrom<V>,
+        <T as TryFrom<V>>::Error: std::fmt::Debug,
+    {
+        let code = T::try_from(op_code).unwrap();
+        log(format!("{code:?}"));
+        code
+    }
+
+    pub fn execute_arm(&mut self, op_code: ArmModeOpcode) {
         use ArmModeInstruction::*;
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
-        let bytes_to_advance = match op_code.instruction {
-            DataProcessing => self.data_processing(op_code),
-            Multiply => todo!(),
-            MultiplyLong => todo!(),
-            SingleDataSwap => todo!(),
-            BranchAndExchange => self.branch_and_exchange(op_code),
-            HalfwordDataTransferRegisterOffset => self.data_transfer_register_offset(op_code),
-            HalfwordDataTransferImmediateOffset => self.data_transfer_immediate_offset(op_code),
-            SingleDataTransfer => self.single_data_transfer(op_code),
-            Undefined => todo!(),
-            BlockDataTransfer => self.block_data_transfer(op_code),
-            Branch => self.branch(op_code),
-            CoprocessorDataTransfer => self.coprocessor_data_transfer(op_code),
-            CoprocessorDataOperation => todo!(),
-            CoprocessorRegisterTrasfer => todo!(),
-            SoftwareInterrupt => todo!(),
+        let bytes_to_advance = if !self.cpsr.can_execute(op_code.condition) {
+            Some(SIZE_OF_ARM_INSTRUCTION)
+        } else {
+            match op_code.instruction {
+                DataProcessing => self.data_processing(op_code),
+                Multiply => todo!(),
+                MultiplyLong => todo!(),
+                SingleDataSwap => todo!(),
+                BranchAndExchange => self.branch_and_exchange(op_code),
+                HalfwordDataTransferRegisterOffset => self.data_transfer_register_offset(op_code),
+                HalfwordDataTransferImmediateOffset => self.data_transfer_immediate_offset(op_code),
+                SingleDataTransfer => self.single_data_transfer(op_code),
+                Undefined => todo!(),
+                BlockDataTransfer => self.block_data_transfer(op_code),
+                Branch => self.branch(op_code),
+                CoprocessorDataTransfer => self.coprocessor_data_transfer(op_code),
+                CoprocessorDataOperation => todo!(),
+                CoprocessorRegisterTrasfer => todo!(),
+                SoftwareInterrupt => todo!(),
+            }
         };
 
         self.registers
             .advance_program_counter(bytes_to_advance.unwrap_or(0));
     }
 
-    fn step(&mut self) {
-        let op_code = self.fetch();
-        log(format!("opcode hex -> {op_code:x}"));
+    #[allow(clippy::match_single_binding)]
+    pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
+        let bytes_to_advance = match op_code.instruction {
+            // TODO: implement instructions
+            _ => 2,
+        };
 
-        let op_code = self.decode(op_code);
-        if self.cpsr.can_execute(op_code.condition) {
-            self.execute(op_code)
-        } else {
-            self.registers
-                .advance_program_counter(SIZE_OF_ARM_INSTRUCTION);
+        self.registers.advance_program_counter(bytes_to_advance);
+    }
+
+    pub fn step(&mut self) {
+        match self.cpsr.cpu_state() {
+            CpuState::Thumb => {
+                let op = self.fetch_thumb();
+                let op = self.decode(op);
+                self.execute_thumb(op);
+            }
+            CpuState::Arm => {
+                let op = self.fetch_arm();
+                let op = self.decode(op);
+                self.execute_arm(op);
+            }
         }
     }
 }
@@ -583,7 +608,7 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
         let op_code = cpu.decode(op_code);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.program_counter(), 68);
 
@@ -593,7 +618,7 @@ mod tests {
         let op_code = 0b1110_1010_1111_1111_1111_1111_1111_0111;
         let op_code = cpu.decode(op_code);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.program_counter(), 68 + 8 - 36);
 
@@ -602,7 +627,7 @@ mod tests {
         let op_code = 0b1110_1011_0000_0000_0000_0000_0000_1111;
         let op_code = cpu.decode(op_code);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(14), 44);
     }
@@ -613,10 +638,10 @@ mod tests {
         let op_code = 0b1110_1111_1111_1111_1111_1111_1111_1111;
         let mut cpu = Arm7tdmi::default();
 
-        let op_code = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(op_code.condition, Condition::AL);
 
-        cpu.execute(op_code);
+        cpu.execute_arm(op_code);
     }
 
     #[test]
@@ -635,7 +660,7 @@ mod tests {
                 memory.write_at(0x1004, 5);
                 memory.write_at(0x1008, 7);
             }
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
             assert_eq!(cpu.registers.register_at(5), 5);
@@ -656,7 +681,7 @@ mod tests {
                 memory.write_at(0x1008, 5);
                 memory.write_at(0x100C, 7);
             }
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
             assert_eq!(cpu.registers.register_at(5), 5);
@@ -677,7 +702,7 @@ mod tests {
                 memory.write_at(0x0FFC, 5);
                 memory.write_at(0x0FF8, 1);
             }
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
             assert_eq!(cpu.registers.register_at(5), 5);
@@ -698,7 +723,7 @@ mod tests {
                 memory.write_at(0x0FF8, 5);
                 memory.write_at(0x0FF4, 1);
             }
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
             assert_eq!(cpu.registers.register_at(5), 5);
@@ -717,7 +742,7 @@ mod tests {
 
             cpu.registers.set_register_at(13, 0x1000);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             let memory = cpu.memory.lock().unwrap();
 
@@ -738,7 +763,7 @@ mod tests {
 
             cpu.registers.set_register_at(13, 0x1000);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             let memory = cpu.memory.lock().unwrap();
 
@@ -760,7 +785,7 @@ mod tests {
 
             cpu.registers.set_register_at(13, 0x1000);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             let memory = cpu.memory.lock().unwrap();
 
@@ -782,7 +807,7 @@ mod tests {
 
             cpu.registers.set_register_at(13, 0x1000);
 
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             let memory = cpu.memory.lock().unwrap();
 
@@ -800,14 +825,14 @@ mod tests {
         {
             let op_code = 0b1110_0001_1000_0010_0000_0000_1011_0001;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::HalfwordDataTransferRegisterOffset
             );
 
             cpu.registers.set_register_at(0, 16843009);
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             let memory = cpu.memory.lock().unwrap();
             assert_eq!(memory.read_at(0), 1);
@@ -824,7 +849,7 @@ mod tests {
             // Store halfword
             let op_code = 0b1110_0001_1100_0001_0000_0000_1011_0000;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             assert_eq!(
                 op_code.instruction,
@@ -832,7 +857,7 @@ mod tests {
             );
 
             cpu.registers.set_register_at(0, 16843009);
-            cpu.execute(op_code);
+            cpu.execute_arm(op_code);
 
             let memory = cpu.memory.lock().unwrap();
             assert_eq!(memory.read_at(0), 1);

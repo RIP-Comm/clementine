@@ -138,7 +138,8 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use crate::{
-        arm::arm7tdmi::Arm7tdmi, arm::instruction::ArmModeInstruction, cpu::Cpu,
+        arm::arm7tdmi::Arm7tdmi,
+        arm::{instruction::ArmModeInstruction, opcode::ArmModeOpcode},
         memory::io_device::IoDevice,
     };
 
@@ -147,7 +148,7 @@ mod tests {
         let op_code = 0b1110_0101_1101_1111_1101_0000_0001_1000;
         let mut cpu = Arm7tdmi::default();
 
-        let op_code_type = cpu.decode(op_code);
+        let op_code_type: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(
             op_code_type.instruction,
             ArmModeInstruction::SingleDataTransfer
@@ -166,7 +167,7 @@ mod tests {
         // simulate mem already contains something.
         cpu.memory.lock().unwrap().write_at(0x03000070, 99);
 
-        cpu.execute(op_code_type);
+        cpu.execute_arm(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 99);
         assert_eq!(cpu.registers.program_counter(), 0x03000054);
     }
@@ -176,7 +177,7 @@ mod tests {
         let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
         let mut cpu = Arm7tdmi::default();
 
-        let op_code_type = cpu.decode(op_code);
+        let op_code_type: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(
             op_code_type.instruction,
             ArmModeInstruction::SingleDataTransfer
@@ -192,7 +193,7 @@ mod tests {
         // then will be 0x03000050 + 8 (.wrapping_add(offset))
         cpu.registers.set_program_counter(0x03000050);
 
-        cpu.execute(op_code_type);
+        cpu.execute_arm(op_code_type);
 
         let memory = cpu.memory.lock().unwrap();
 
@@ -205,7 +206,7 @@ mod tests {
         let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
         let mut cpu = Arm7tdmi::default();
 
-        let op_code_type = cpu.decode(op_code);
+        let op_code_type: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(
             op_code_type.instruction,
             ArmModeInstruction::SingleDataTransfer
@@ -227,7 +228,7 @@ mod tests {
             memory.write_at(0x30 + 2, 1);
             memory.write_at(0x30 + 3, 1);
         }
-        cpu.execute(op_code_type);
+        cpu.execute_arm(op_code_type);
         assert_eq!(cpu.registers.register_at(13), 16843009);
         assert_eq!(cpu.registers.program_counter(), 4);
     }
@@ -236,7 +237,7 @@ mod tests {
     fn check_str_word() {
         let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
         let mut cpu = Arm7tdmi::default();
-        let op_code_type = cpu.decode(op_code);
+        let op_code_type: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(
             op_code_type.instruction,
             ArmModeInstruction::SingleDataTransfer
@@ -253,7 +254,7 @@ mod tests {
         // then will be 0x03000050 + 8 (.wrapping_sub(offset))
         cpu.registers.set_program_counter(0x03000050);
 
-        cpu.execute(op_code_type);
+        cpu.execute_arm(op_code_type);
 
         let memory = cpu.memory.lock().unwrap();
 

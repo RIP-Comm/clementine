@@ -1,9 +1,10 @@
 use crate::arm::condition::Condition;
-use crate::arm::instruction::ArmModeInstruction;
+use crate::arm::instruction::{ArmModeInstruction, ThumbModeInstruction};
 use crate::bitwise::Bits;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
+#[derive(Debug)]
 pub struct ArmModeOpcode {
     pub instruction: ArmModeInstruction,
     pub condition: Condition,
@@ -70,6 +71,51 @@ impl Display for ArmModeOpcode {
             ArmModeInstruction::CoprocessorDataOperation => "FMT: |_Cond__|",
             ArmModeInstruction::CoprocessorRegisterTrasfer => "FMT: |_Cond__|",
             ArmModeInstruction::SoftwareInterrupt => "FMT: |_Cond__|",
+        };
+
+        let mut raw_bits = String::new();
+        for i in format!("{:#034b}", self.raw).chars().skip(2) {
+            raw_bits.push(i);
+            raw_bits.push('_');
+        }
+        raw_bits.pop();
+        let raw_bits = format!("RAW: |{}|\n", raw_bits);
+
+        writeln!(
+            f,
+            "{instruction}{bytes_pos1}{bytes_pos2}{raw_bits}{op_code_format}"
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct ThumbModeOpcode {
+    pub instruction: ThumbModeInstruction,
+    pub raw: u16,
+}
+
+impl TryFrom<u16> for ThumbModeOpcode {
+    type Error = String;
+
+    fn try_from(op_code: u16) -> Result<Self, Self::Error> {
+        Ok(Self {
+            instruction: ThumbModeInstruction::from(op_code),
+            raw: op_code,
+        })
+    }
+}
+
+impl Display for ThumbModeOpcode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let instruction = self.instruction.to_string();
+        let instruction = format!("INS: {}\n", instruction);
+
+        let bytes_pos1 = "POS: |..........1 ..................0|\n";
+        let bytes_pos2 = "     |5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0|\n";
+
+        #[allow(clippy::match_single_binding)]
+        let op_code_format: &str = match &self.instruction {
+            _ => "",
         };
 
         let mut raw_bits = String::new();
