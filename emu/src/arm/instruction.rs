@@ -85,6 +85,24 @@ impl Display for ArmModeInstruction {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum ThumbModeInstruction {
+    Dummy,
+}
+
+impl From<u16> for ThumbModeInstruction {
+    fn from(_: u16) -> Self {
+        // TODO: Implement instructions
+        Self::Dummy
+    }
+}
+
+impl Display for ThumbModeInstruction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{arm::instruction::ArmModeInstruction, arm::opcode::ArmModeOpcode};

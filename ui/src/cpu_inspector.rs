@@ -1,4 +1,4 @@
-use emu::{cpu::Cpu, gba::Gba};
+use emu::gba::Gba;
 
 use crate::ui_traits::{UiTool, View};
 
