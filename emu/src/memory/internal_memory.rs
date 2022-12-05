@@ -134,6 +134,13 @@ impl InternalMemory {
 
         part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0
     }
+
+    pub fn read_half_word(&self, address: usize) -> u16 {
+        let part_0: u16 = self.read_at(address).try_into().unwrap();
+        let part_1: u16 = self.read_at(address + 1).try_into().unwrap();
+
+        part_1 << 8 | part_0
+    }
 }
 
 #[cfg(test)]
