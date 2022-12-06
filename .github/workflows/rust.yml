@@ -2,19 +2,19 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
-      - 'src/**/*'
-      - 'ui/**/*'
-      - 'emu/**/*'
-      - '.github/workflows/**/*'
+      - "src/**/*"
+      - "ui/**/*"
+      - "emu/**/*"
+      - ".github/workflows/**/*"
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
-      - 'src/**/*'
-      - 'ui/**/*'
-      - 'emu/**/*'
-      - '.github/workflows/**/*'
+      - "src/**/*"
+      - "ui/**/*"
+      - "emu/**/*"
+      - ".github/workflows/**/*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -24,10 +24,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: extractions/setup-just@v1
-    - name: Check fmt
-      run: just check-fmt
+      - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v1
+      - name: Check fmt
+        run: just check-fmt
 
   test:
     needs: [fmt]
@@ -38,18 +38,36 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: extractions/setup-just@v1
-    - uses: dtolnay/rust-toolchain@stable
-    - name: Test
-      run: just test
-      
+      - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test
+        run: just test
+
   lint:
     needs: [fmt, test]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: extractions/setup-just@v1
-    - name: Lint
-      run: just lint
+      - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v1
+      - name: Lint
+        run: just lint
+
+  coverage:
+    needs: [fmt, test, lint]
+    name: coverage
+    runs-on: ubuntu-latest
+    container:
+      image: xd009642/tarpaulin:develop-nightly
+      options: --security-opt seccomp=unconfined
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Generate code coverage
+        run: |
+          cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v3.1.1
+        with:
+          fail_ci_if_error: true
