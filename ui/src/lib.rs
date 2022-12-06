@@ -1,8 +1,8 @@
-pub mod about;
+mod about;
 pub mod app;
-pub mod cpu_inspector;
-pub mod dashboard;
-pub mod gba_color;
-pub mod gba_display;
-pub mod palette_visualizer;
-pub mod ui_traits;
+mod cpu_inspector;
+mod dashboard;
+mod gba_color;
+mod gba_display;
+mod palette_visualizer;
+mod ui_traits;
