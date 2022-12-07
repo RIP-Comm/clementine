@@ -116,7 +116,7 @@ impl View for GbaDisplay {
             ui.ctx().load_texture(
                 "gba_display",
                 self.image.clone(),
-                egui::TextureFilter::Linear,
+                egui::TextureOptions::LINEAR,
             )
         });
 

@@ -4,7 +4,7 @@ use crate::{
 };
 use egui::Color32;
 
-use egui_extras::{Size, TableBuilder};
+use egui_extras::{Column, TableBuilder};
 
 use emu::{
     render::color::{Color, PaletteType},
@@ -84,10 +84,10 @@ impl View for PaletteVisualizer {
         let mut table = TableBuilder::new(ui)
             .striped(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Size::initial(80.0).at_least(80.0));
+            .column(Column::initial(80.0).at_least(80.0));
 
         for _n_col in 0..self.palettes.len() {
-            table = table.column(Size::initial(20.0).at_least(20.0))
+            table = table.column(Column::initial(20.0).at_least(20.0))
         }
 
         table = table.resizable(true);
