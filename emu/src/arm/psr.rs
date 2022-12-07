@@ -198,8 +198,8 @@ pub enum CpuState {
 impl From<CpuState> for bool {
     fn from(state: CpuState) -> Self {
         match state {
-            CpuState::Arm => true,
-            CpuState::Thumb => false,
+            CpuState::Arm => false,
+            CpuState::Thumb => true,
         }
     }
 }
@@ -207,8 +207,8 @@ impl From<CpuState> for bool {
 impl From<bool> for CpuState {
     fn from(state: bool) -> Self {
         match state {
-            false => Self::Thumb,
-            true => Self::Arm,
+            true => Self::Thumb,
+            false => Self::Arm,
         }
     }
 }
