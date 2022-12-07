@@ -192,11 +192,12 @@ impl Arm7tdmi {
 
     fn branch_and_exchange(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let rn = op_code.get_bits(0..=3);
+        let rn = self.registers.register_at(rn.try_into().unwrap());
         let state: CpuState = rn.get_bit(0).into();
         self.cpsr.set_cpu_state(state);
         self.registers.set_program_counter(rn);
 
-        unimplemented!("We should implement THUMB mode first!");
+        None
     }
 
     fn data_transfer_register_offset(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
