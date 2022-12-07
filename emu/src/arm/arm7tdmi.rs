@@ -61,11 +61,11 @@ impl Arm7tdmi {
 
     pub fn decode<T, V>(&self, op_code: V) -> T
     where
-        T: std::fmt::Display + std::fmt::Debug + TryFrom<V>,
+        T: std::fmt::Display + TryFrom<V>,
         <T as TryFrom<V>>::Error: std::fmt::Debug,
     {
         let code = T::try_from(op_code).unwrap();
-        log(format!("{code:?}"));
+        log(format!("{code}"));
         code
     }
 

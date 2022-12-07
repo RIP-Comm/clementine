@@ -4,7 +4,6 @@ use crate::bitwise::Bits;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
-#[derive(Debug)]
 pub struct ArmModeOpcode {
     pub instruction: ArmModeInstruction,
     pub condition: Condition,
@@ -88,7 +87,6 @@ impl Display for ArmModeOpcode {
     }
 }
 
-#[derive(Debug)]
 pub struct ThumbModeOpcode {
     pub instruction: ThumbModeInstruction,
     pub raw: u16,
