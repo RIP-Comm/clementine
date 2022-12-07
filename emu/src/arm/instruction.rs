@@ -87,13 +87,73 @@ impl Display for ArmModeInstruction {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ThumbModeInstruction {
-    Dummy,
+    MoveShiftedRegister,
+    AddSubtract,
+    MoveCompareAddSubtractImm,
+    AluOp,
+    HiRegisterOpBX,
+    PCRelativeLoad,
+    LoadStoreRegisterOffset,
+    LoadStoreSignExtByteHalfword,
+    LoadStoreImmOffset,
+    LoadStoreHalfword,
+    SPRelativeLoadStore,
+    LoadAddress,
+    AddOffsetSP,
+    PushPopReg,
+    MultipleLoadStore,
+    CondBranch,
+    Swi,
+    UncondBranch,
+    LongBranchLink,
 }
 
 impl From<u16> for ThumbModeInstruction {
-    fn from(_: u16) -> Self {
-        // TODO: Implement instructions
-        Self::Dummy
+    fn from(op_code: u16) -> Self {
+        use ThumbModeInstruction::*;
+
+        if op_code.get_bits(8..=15) == 0b11011111 {
+            Swi
+        } else if op_code.get_bits(8..=15) == 0b10110000 {
+            AddOffsetSP
+        } else if op_code.get_bits(10..=15) == 0b010000 {
+            AluOp
+        } else if op_code.get_bits(10..=15) == 0b010001 {
+            HiRegisterOpBX
+        } else if op_code.get_bits(12..=15) == 0b1011 && op_code.get_bits(9..=10) == 0b10 {
+            PushPopReg
+        } else if op_code.get_bits(11..=15) == 0b00011 {
+            AddSubtract
+        } else if op_code.get_bits(11..=15) == 0b01001 {
+            PCRelativeLoad
+        } else if op_code.get_bits(12..=15) == 0b0101 && !op_code.get_bit(9) {
+            LoadStoreRegisterOffset
+        } else if op_code.get_bits(12..=15) == 0b0101 && op_code.get_bit(9) {
+            LoadStoreSignExtByteHalfword
+        } else if op_code.get_bits(11..=15) == 0b11100 {
+            UncondBranch
+        } else if op_code.get_bits(12..=15) == 0b1000 {
+            LoadStoreHalfword
+        } else if op_code.get_bits(12..=15) == 0b1001 {
+            SPRelativeLoadStore
+        } else if op_code.get_bits(12..=15) == 0b1010 {
+            LoadAddress
+        } else if op_code.get_bits(12..=15) == 0b1100 {
+            MultipleLoadStore
+        } else if op_code.get_bits(12..=15) == 0b1101 {
+            CondBranch
+        } else if op_code.get_bits(12..=15) == 0b1111 {
+            LongBranchLink
+        } else if op_code.get_bits(13..=15) == 0b000 {
+            MoveShiftedRegister
+        } else if op_code.get_bits(13..=15) == 0b001 {
+            MoveCompareAddSubtractImm
+        } else if op_code.get_bits(13..=15) == 0b011 {
+            LoadStoreImmOffset
+        } else {
+            log("not identified instruction");
+            unimplemented!()
+        }
     }
 }
 

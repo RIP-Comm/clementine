@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use logger::log;
 
 use crate::arm::cpu_modes::Mode;
-use crate::arm::instruction::ArmModeInstruction;
+use crate::arm::instruction::{ArmModeInstruction, ThumbModeInstruction};
 use crate::arm::opcode::ArmModeOpcode;
 use crate::arm::psr::Psr;
 use crate::arm::register_bank::RegisterBank;
@@ -99,14 +99,35 @@ impl Arm7tdmi {
             .advance_program_counter(bytes_to_advance.unwrap_or(0));
     }
 
-    #[allow(clippy::match_single_binding)]
+    #[allow(unreachable_code)]
+    #[allow(unused_variables)]
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
-        let bytes_to_advance = match op_code.instruction {
-            // TODO: implement instructions
-            _ => 2,
+        use ThumbModeInstruction::*;
+
+        let bytes_to_advance: Option<u32> = match op_code.instruction {
+            MoveShiftedRegister => unimplemented!(),
+            AddSubtract => unimplemented!(),
+            MoveCompareAddSubtractImm => unimplemented!(),
+            AluOp => unimplemented!(),
+            HiRegisterOpBX => unimplemented!(),
+            PCRelativeLoad => unimplemented!(),
+            LoadStoreRegisterOffset => unimplemented!(),
+            LoadStoreSignExtByteHalfword => unimplemented!(),
+            LoadStoreImmOffset => unimplemented!(),
+            LoadStoreHalfword => unimplemented!(),
+            SPRelativeLoadStore => unimplemented!(),
+            LoadAddress => unimplemented!(),
+            AddOffsetSP => unimplemented!(),
+            PushPopReg => unimplemented!(),
+            MultipleLoadStore => unimplemented!(),
+            CondBranch => unimplemented!(),
+            Swi => unimplemented!(),
+            UncondBranch => unimplemented!(),
+            LongBranchLink => unimplemented!(),
         };
 
-        self.registers.advance_program_counter(bytes_to_advance);
+        self.registers
+            .advance_program_counter(bytes_to_advance.unwrap_or(0));
     }
 
     pub fn step(&mut self) {

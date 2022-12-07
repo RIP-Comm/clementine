@@ -117,7 +117,7 @@ impl Display for ThumbModeOpcode {
         };
 
         let mut raw_bits = String::new();
-        for i in format!("{:#034b}", self.raw).chars().skip(2) {
+        for i in format!("{:#018b}", self.raw).chars().skip(2) {
             raw_bits.push(i);
             raw_bits.push('_');
         }
