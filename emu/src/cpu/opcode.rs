@@ -103,6 +103,14 @@ impl TryFrom<u16> for ThumbModeOpcode {
     }
 }
 
+impl Deref for ThumbModeOpcode {
+    type Target = u16;
+
+    fn deref(&self) -> &Self::Target {
+        &self.raw
+    }
+}
+
 impl Display for ThumbModeOpcode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let instruction = self.instruction.to_string();

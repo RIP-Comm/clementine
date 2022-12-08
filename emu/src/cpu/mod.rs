@@ -4,6 +4,7 @@ mod condition;
 mod cpu_modes;
 mod data_processing;
 mod instruction;
+mod move_compare_add_sub;
 mod opcode;
 mod psr;
 mod register_bank;

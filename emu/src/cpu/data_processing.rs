@@ -11,7 +11,7 @@ use super::{
 };
 
 pub struct ArithmeticOpResult {
-    result: u32,
+    pub result: u32,
     pub carry: bool,
     pub overflow: bool,
     pub sign: bool,
@@ -506,7 +506,7 @@ impl Arm7tdmi {
         self.sub(rd, op2, rn, s);
     }
 
-    fn add_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
+    pub fn add_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
         // we do the sum in 64bits so that the 32nd bit is the carry
         let result_and_carry = (first_op as u64).wrapping_add(second_op as u64);
         let result = result_and_carry as u32;
@@ -528,7 +528,8 @@ impl Arm7tdmi {
             zero: result == 0,
         }
     }
-    fn sub_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
+
+    pub fn sub_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
         let result = first_op.wrapping_sub(second_op);
 
         let sign_op1 = first_op.get_bit(31);
