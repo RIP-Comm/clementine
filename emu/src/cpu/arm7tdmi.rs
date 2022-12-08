@@ -18,6 +18,7 @@ use super::registers::Registers;
 
 pub const REG_PROGRAM_COUNTER: u32 = 0xF;
 pub const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
+pub const SIZE_OF_THUMB_INSTRUCTION: u32 = 2;
 
 pub struct Arm7tdmi {
     pub(crate) memory: Arc<Mutex<InternalMemory>>,
@@ -107,7 +108,7 @@ impl Arm7tdmi {
         let bytes_to_advance: Option<u32> = match op_code.instruction {
             MoveShiftedRegister => unimplemented!(),
             AddSubtract => unimplemented!(),
-            MoveCompareAddSubtractImm => unimplemented!(),
+            MoveCompareAddSubtractImm => self.move_compare_add_sub_imm(op_code),
             AluOp => unimplemented!(),
             HiRegisterOpBX => unimplemented!(),
             PCRelativeLoad => unimplemented!(),
