@@ -1,5 +1,5 @@
-use crate::arm::{condition::Condition, cpu_modes::Mode, data_processing::ArithmeticOpResult};
 use crate::bitwise::Bits;
+use crate::cpu::{condition::Condition, cpu_modes::Mode, data_processing::ArithmeticOpResult};
 
 /// Program Status Register.
 #[derive(Default, Clone, Copy)]

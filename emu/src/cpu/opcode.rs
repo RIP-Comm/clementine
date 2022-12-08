@@ -1,6 +1,6 @@
-use crate::arm::condition::Condition;
-use crate::arm::instruction::{ArmModeInstruction, ThumbModeInstruction};
 use crate::bitwise::Bits;
+use crate::cpu::condition::Condition;
+use crate::cpu::instruction::{ArmModeInstruction, ThumbModeInstruction};
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 

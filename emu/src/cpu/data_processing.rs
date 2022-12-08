@@ -1,8 +1,8 @@
 use crate::{
-    arm::alu_instruction::{AluInstructionKind, ArmModeAluInstruction, Kind},
-    arm::arm7tdmi::Arm7tdmi,
-    arm::opcode::ArmModeOpcode,
     bitwise::Bits,
+    cpu::alu_instruction::{AluInstructionKind, ArmModeAluInstruction, Kind},
+    cpu::arm7tdmi::Arm7tdmi,
+    cpu::opcode::ArmModeOpcode,
 };
 
 use super::{
@@ -627,9 +627,9 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use crate::{
-        arm::arm7tdmi::Arm7tdmi,
-        arm::{condition::Condition, opcode::ArmModeOpcode},
-        arm::{cpu_modes::Mode, instruction::ArmModeInstruction},
+        cpu::arm7tdmi::Arm7tdmi,
+        cpu::{condition::Condition, opcode::ArmModeOpcode},
+        cpu::{cpu_modes::Mode, instruction::ArmModeInstruction},
     };
 
     use pretty_assertions::assert_eq;
