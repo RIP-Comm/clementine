@@ -131,13 +131,25 @@ impl Arm7tdmi {
     }
 
     pub fn step(&mut self) {
+        // We set pc lowest bits to 0. In ARM we set the 2 lsb to 0 because instructions are word aligned.
+        // In THUMB we set only the lsb to 0 because instructions are halfword aligned.
+
         match self.cpsr.cpu_state() {
             CpuState::Thumb => {
+                let mut pc = self.registers.program_counter() as u32;
+                pc.set_bit_off(0);
+                self.registers.set_program_counter(pc);
+
                 let op = self.fetch_thumb();
                 let op = self.decode(op);
                 self.execute_thumb(op);
             }
             CpuState::Arm => {
+                let mut pc = self.registers.program_counter() as u32;
+                pc.set_bit_off(0);
+                pc.set_bit_off(1);
+                self.registers.set_program_counter(pc);
+
                 let op = self.fetch_arm();
                 let op = self.decode(op);
                 self.execute_arm(op);
