@@ -1,4 +1,4 @@
-use crate::arm::psr::Psr;
+use crate::cpu::psr::Psr;
 
 #[derive(Default)]
 pub struct RegisterBank {

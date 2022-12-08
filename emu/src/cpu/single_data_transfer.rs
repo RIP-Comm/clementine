@@ -1,5 +1,5 @@
 use crate::{
-    arm::arm7tdmi::Arm7tdmi, arm::opcode::ArmModeOpcode, bitwise::Bits, memory::io_device::IoDevice,
+    bitwise::Bits, cpu::arm7tdmi::Arm7tdmi, cpu::opcode::ArmModeOpcode, memory::io_device::IoDevice,
 };
 
 use super::arm7tdmi::{Offsetting, REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION};
@@ -138,8 +138,8 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use crate::{
-        arm::arm7tdmi::Arm7tdmi,
-        arm::{instruction::ArmModeInstruction, opcode::ArmModeOpcode},
+        cpu::arm7tdmi::Arm7tdmi,
+        cpu::{instruction::ArmModeInstruction, opcode::ArmModeOpcode},
         memory::io_device::IoDevice,
     };
 

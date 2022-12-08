@@ -165,7 +165,7 @@ impl Display for ThumbModeInstruction {
 
 #[cfg(test)]
 mod tests {
-    use crate::{arm::instruction::ArmModeInstruction, arm::opcode::ArmModeOpcode};
+    use crate::{cpu::instruction::ArmModeInstruction, cpu::opcode::ArmModeOpcode};
 
     #[test]
     fn decode_half_word_data_transfer_immediate_offset() {

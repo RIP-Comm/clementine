@@ -3,12 +3,12 @@ use std::sync::{Arc, Mutex};
 
 use logger::log;
 
-use crate::arm::cpu_modes::Mode;
-use crate::arm::instruction::{ArmModeInstruction, ThumbModeInstruction};
-use crate::arm::opcode::ArmModeOpcode;
-use crate::arm::psr::Psr;
-use crate::arm::register_bank::RegisterBank;
 use crate::bitwise::Bits;
+use crate::cpu::cpu_modes::Mode;
+use crate::cpu::instruction::{ArmModeInstruction, ThumbModeInstruction};
+use crate::cpu::opcode::ArmModeOpcode;
+use crate::cpu::psr::Psr;
+use crate::cpu::register_bank::RegisterBank;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
@@ -628,7 +628,7 @@ impl From<u8> for HalfwordTransferType {
 
 #[cfg(test)]
 mod tests {
-    use crate::arm::condition::Condition;
+    use crate::cpu::condition::Condition;
     use pretty_assertions::assert_eq;
 
     use super::*;
