@@ -119,9 +119,28 @@ impl Display for ThumbModeOpcode {
         let bytes_pos1 = "POS: |..........1 ..................0|\n";
         let bytes_pos2 = "     |5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0|\n";
 
-        #[allow(clippy::match_single_binding)]
         let op_code_format: &str = match &self.instruction {
-            _ => "",
+            ThumbModeInstruction::MoveShiftedRegister => "FMT: |0_0_1|Op_|__Offset_|_Rs__|_Rd__|",
+            ThumbModeInstruction::AddSubtract => todo!(),
+            ThumbModeInstruction::MoveCompareAddSubtractImm => {
+                "FMT: |0_0_1|Op_|_Rn__|____Offset_____|"
+            }
+            ThumbModeInstruction::AluOp => todo!(),
+            ThumbModeInstruction::HiRegisterOpBX => todo!(),
+            ThumbModeInstruction::PCRelativeLoad => "FMT: |0_1_0_0_1|_Rn__|_____Word8_____|",
+            ThumbModeInstruction::LoadStoreRegisterOffset => todo!(),
+            ThumbModeInstruction::LoadStoreSignExtByteHalfword => todo!(),
+            ThumbModeInstruction::LoadStoreImmOffset => todo!(),
+            ThumbModeInstruction::LoadStoreHalfword => todo!(),
+            ThumbModeInstruction::SPRelativeLoadStore => todo!(),
+            ThumbModeInstruction::LoadAddress => todo!(),
+            ThumbModeInstruction::AddOffsetSP => todo!(),
+            ThumbModeInstruction::PushPopReg => todo!(),
+            ThumbModeInstruction::MultipleLoadStore => todo!(),
+            ThumbModeInstruction::CondBranch => todo!(),
+            ThumbModeInstruction::Swi => todo!(),
+            ThumbModeInstruction::UncondBranch => todo!(),
+            ThumbModeInstruction::LongBranchLink => todo!(),
         };
 
         let mut raw_bits = String::new();
