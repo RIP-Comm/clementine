@@ -111,7 +111,7 @@ impl Arm7tdmi {
             MoveCompareAddSubtractImm => self.move_compare_add_sub_imm(op_code),
             AluOp => unimplemented!(),
             HiRegisterOpBX => unimplemented!(),
-            PCRelativeLoad => unimplemented!(),
+            PCRelativeLoad => self.pc_relative_load(op_code),
             LoadStoreRegisterOffset => unimplemented!(),
             LoadStoreSignExtByteHalfword => unimplemented!(),
             LoadStoreImmOffset => unimplemented!(),
@@ -608,6 +608,15 @@ impl Arm7tdmi {
             }
         }
     }
+
+    pub fn pc_relative_load(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let rd = op_code.get_bits(8..=10);
+        let value = op_code.get_bits(0..=7);
+        self.registers
+            .set_register_at(rd.try_into().unwrap(), value as u32);
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
 }
 
 pub enum HalfwordTransferType {
@@ -944,5 +953,18 @@ mod tests {
         assert_eq!(cpu.registers.register_at(12), 12);
         assert_eq!(cpu.registers.register_at(13), 13);
         assert_eq!(cpu.registers.register_at(14), 14);
+    }
+
+    #[test]
+    fn check_pc_relative_load() {
+        let mut cpu = Arm7tdmi::default();
+        let op_code = 0b0100_1001_0101_1000_u16;
+        let op_code: ThumbModeOpcode = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ThumbModeInstruction::PCRelativeLoad);
+
+        cpu.registers.set_register_at(1, 10);
+        cpu.execute_thumb(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 88);
     }
 }
