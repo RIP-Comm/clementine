@@ -611,9 +611,13 @@ impl Arm7tdmi {
 
     pub fn pc_relative_load(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
         let rd = op_code.get_bits(8..=10);
-        let value = op_code.get_bits(0..=7);
+        let address = op_code.get_bits(0..=7) as usize;
+        let mut pc = self.registers.program_counter() as u32;
+        pc.set_bit_off(1);
+        let address = pc as usize + 4_usize + (address << 2);
+        let value = self.memory.lock().unwrap().read_word(address);
         self.registers
-            .set_register_at(rd.try_into().unwrap(), value as u32);
+            .set_register_at(rd.try_into().unwrap(), value);
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
@@ -963,8 +967,9 @@ mod tests {
         assert_eq!(op_code.instruction, ThumbModeInstruction::PCRelativeLoad);
 
         cpu.registers.set_register_at(1, 10);
+        cpu.memory.lock().unwrap().write_at(356, 1);
         cpu.execute_thumb(op_code);
 
-        assert_eq!(cpu.registers.register_at(1), 88);
+        assert_eq!(cpu.registers.register_at(1), 1);
     }
 }
