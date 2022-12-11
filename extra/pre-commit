@@ -2,7 +2,7 @@
 
 set -e
 
-cargo fmt --all --check
+cargo fmt --all --check || exit 1
 
 cargo clippy --workspace -- -D warnings         \
     -W clippy::complexity                       \
