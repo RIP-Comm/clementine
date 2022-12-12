@@ -2,7 +2,10 @@ use crate::{
     bitwise::Bits, cpu::arm7tdmi::Arm7tdmi, cpu::opcode::ArmModeOpcode, memory::io_device::IoDevice,
 };
 
-use super::arm7tdmi::{Offsetting, REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION};
+use super::{
+    arm7tdmi::{REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION},
+    flags::{Offsetting, ReadWriteKind},
+};
 
 /// Possible opeartion on transfer data.
 #[derive(PartialEq)]
@@ -27,33 +30,6 @@ impl From<ArmModeOpcode> for SingleDataTransfer {
         } else {
             Self::Str
         }
-    }
-}
-
-/// There two different kind of write or read for memory.
-#[derive(Default)]
-pub enum ReadWriteKind {
-    /// Word is a u32 value for ARM mode and u16 for Thumb mode.
-    #[default]
-    Word,
-
-    /// Byte is a u8 value.
-    Byte,
-}
-
-impl From<bool> for ReadWriteKind {
-    fn from(value: bool) -> Self {
-        if value {
-            Self::Byte
-        } else {
-            Self::Word
-        }
-    }
-}
-
-impl From<&ArmModeOpcode> for ReadWriteKind {
-    fn from(op_code: &ArmModeOpcode) -> Self {
-        op_code.get_bit(22).into()
     }
 }
 

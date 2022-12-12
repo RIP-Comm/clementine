@@ -12,28 +12,14 @@ use crate::cpu::register_bank::RegisterBank;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
+use super::flags::{Indexing, LoadStoreKind, Offsetting, ReadWriteKind};
 use super::opcode::ThumbModeOpcode;
 use super::psr::CpuState;
 use super::registers::Registers;
-use super::single_data_transfer::ReadWriteKind;
 
 pub const REG_PROGRAM_COUNTER: u32 = 0xF;
 pub const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
 pub const SIZE_OF_THUMB_INSTRUCTION: u32 = 2;
-
-enum LoadStoreKind {
-    Store,
-    Load,
-}
-
-impl From<bool> for LoadStoreKind {
-    fn from(b: bool) -> Self {
-        match b {
-            false => Self::Store,
-            true => Self::Load,
-        }
-    }
-}
 
 pub struct Arm7tdmi {
     pub(crate) memory: Arc<Mutex<InternalMemory>>,
@@ -169,41 +155,6 @@ impl Arm7tdmi {
                 let op = self.decode(op);
                 self.execute_arm(op);
             }
-        }
-    }
-}
-
-#[derive(PartialEq)]
-enum Indexing {
-    /// Add offset after transfer.
-    Post,
-
-    /// Add offset before transfer.
-    Pre,
-}
-
-impl From<bool> for Indexing {
-    fn from(state: bool) -> Self {
-        match state {
-            false => Self::Post,
-            true => Self::Pre,
-        }
-    }
-}
-
-pub enum Offsetting {
-    /// Substract the offset from base.
-    Down,
-
-    /// Add the offset to base.
-    Up,
-}
-
-impl From<bool> for Offsetting {
-    fn from(state: bool) -> Self {
-        match state {
-            false => Self::Down,
-            true => Self::Up,
         }
     }
 }
