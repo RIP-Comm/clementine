@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use logger::log;
 
+use crate::bitwise::Bits;
 use crate::memory::io_device::IoDevice;
 use crate::memory::lcd_registers::LCDRegisters;
 use crate::memory::timer_registers::TimerRegisters;
@@ -133,6 +134,18 @@ impl InternalMemory {
         let part_3: u32 = self.read_at(address + 3).try_into().unwrap();
 
         part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0
+    }
+
+    pub fn write_word(&mut self, address: usize, value: u32) {
+        let part_0: u8 = value.get_bits(0..=7).try_into().unwrap();
+        let part_1: u8 = value.get_bits(8..=15).try_into().unwrap();
+        let part_2: u8 = value.get_bits(16..=23).try_into().unwrap();
+        let part_3: u8 = value.get_bits(24..=31).try_into().unwrap();
+
+        self.write_at(address, part_0);
+        self.write_at(address + 1, part_1);
+        self.write_at(address + 2, part_2);
+        self.write_at(address + 3, part_3);
     }
 
     pub fn read_half_word(&self, address: usize) -> u16 {
@@ -328,5 +341,16 @@ mod tests {
         im.rom = vec![1, 1, 1, 1];
         let address = 0x08000000;
         assert_eq!(im.read_at(address), 1);
+    }
+
+    #[test]
+    fn check_write_word() {
+        let mut im = InternalMemory::default();
+        im.write_word(0, 0x12345678);
+
+        assert_eq!(im.bios_system_rom[0], 0x78);
+        assert_eq!(im.bios_system_rom[1], 0x56);
+        assert_eq!(im.bios_system_rom[2], 0x34);
+        assert_eq!(im.bios_system_rom[3], 0x12);
     }
 }
