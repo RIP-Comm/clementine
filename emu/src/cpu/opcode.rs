@@ -128,7 +128,9 @@ impl Display for ThumbModeOpcode {
             ThumbModeInstruction::AluOp => todo!(),
             ThumbModeInstruction::HiRegisterOpBX => todo!(),
             ThumbModeInstruction::PCRelativeLoad => "FMT: |0_1_0_0_1|_Rn__|_____Word8_____|",
-            ThumbModeInstruction::LoadStoreRegisterOffset => todo!(),
+            ThumbModeInstruction::LoadStoreRegisterOffset => {
+                "FMT: |0_1_0_1|L|B|0|_Ro__|_Rb__|_Rd__|"
+            }
             ThumbModeInstruction::LoadStoreSignExtByteHalfword => todo!(),
             ThumbModeInstruction::LoadStoreImmOffset => todo!(),
             ThumbModeInstruction::LoadStoreHalfword => todo!(),

@@ -32,7 +32,7 @@ impl From<ArmModeOpcode> for SingleDataTransfer {
 
 /// There two different kind of write or read for memory.
 #[derive(Default)]
-enum ReadWriteKind {
+pub enum ReadWriteKind {
     /// Word is a u32 value for ARM mode and u16 for Thumb mode.
     #[default]
     Word,
