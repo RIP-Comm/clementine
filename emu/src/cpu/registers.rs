@@ -16,7 +16,6 @@ impl Registers {
         self.0[15] = self.0[15].wrapping_add(bytes);
     }
 
-    #[allow(clippy::only_used_in_recursion)] // FIXME: Possible bug of clippy?
     pub fn set_register_at(&mut self, reg: usize, new_value: u32) {
         self.0[reg] = new_value;
     }
