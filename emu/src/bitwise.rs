@@ -60,12 +60,23 @@ where
     }
 
     fn get_bits(&self, bits_range: RangeInclusive<u8>) -> Self {
-        let mut bits = 0b0;
-        for (shift_value, bit_index) in bits_range.enumerate() {
-            let bit_value: u128 = self.get_bit(bit_index).into();
-            bits |= bit_value << shift_value;
-        }
-        bits.try_into().unwrap()
+        let start = bits_range.start();
+        let length = bits_range.len() as u32;
+
+        // Gets a value with `length` number of ones.
+        // If bits_range is 1..=10 then length is 10 and we want
+        // 10 ones.
+        let mut mask = (2_u128.pow(length)) - 1;
+
+        // Moves the mask to the correct place.
+        // If `bits_range` is 1..=10 then we should move the mask
+        // 1 bit to the left in order to get from the first bit on.
+        mask <<= start;
+
+        let value: u128 = <Self as Into<u128>>::into(self.clone());
+
+        // We apply the mask and then move the value back to the 0 position.
+        <Self as TryFrom<u128>>::try_from((value & mask) >> start).unwrap()
     }
 
     /// Checks if a certein sequence of bit is set to 1.
