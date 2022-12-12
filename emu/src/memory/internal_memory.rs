@@ -344,6 +344,14 @@ mod tests {
     }
 
     #[test]
+    fn check_read_word() {
+        let mut im = InternalMemory::default();
+        im.bios_system_rom = vec![0x12, 0x34, 0x56, 0x78];
+
+        assert_eq!(im.read_word(0), 0x78563412);
+    }
+
+    #[test]
     fn check_write_word() {
         let mut im = InternalMemory::default();
         im.write_word(0, 0x12345678);
