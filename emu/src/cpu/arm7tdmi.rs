@@ -12,7 +12,7 @@ use crate::cpu::register_bank::RegisterBank;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
-use super::flags::{Indexing, LoadStoreKind, Offsetting, ReadWriteKind};
+use super::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
 use super::opcode::ThumbModeOpcode;
 use super::psr::CpuState;
 use super::registers::Registers;
@@ -107,7 +107,7 @@ impl Arm7tdmi {
         use ThumbModeInstruction::*;
         let bytes_to_advance: Option<u32> = match op_code.instruction {
             MoveShiftedRegister => unimplemented!(),
-            AddSubtract => unimplemented!(),
+            AddSubtract => self.add_subtract(op_code),
             MoveCompareAddSubtractImm => self.move_compare_add_sub_imm(op_code),
             AluOp => unimplemented!(),
             HiRegisterOpBX => unimplemented!(),
@@ -187,6 +187,41 @@ impl Arm7tdmi {
             Mode::Supervisor => &mut self.register_bank.spsr_svc,
             Mode::Undefined => &mut self.register_bank.spsr_und
         }
+    }
+
+    fn add_subtract(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let i: OperandKind = op_code.get_bit(10).into();
+
+        // 0 - Add, 1 - Sub
+        let op = op_code.get_bit(9);
+
+        let rn_offset3 = op_code.get_bits(6..=8);
+        let rs = op_code.get_bits(3..=5);
+        let rs = self.registers.register_at(rs.try_into().unwrap());
+
+        let rd: usize = op_code.get_bits(0..=2).try_into().unwrap();
+
+        let offset = match i {
+            OperandKind::Immediate => rn_offset3 as u32,
+            OperandKind::Register => self.registers.register_at(rn_offset3.try_into().unwrap()),
+        };
+
+        match op {
+            // Add
+            false => {
+                let add_result = Self::add_inner_op(rs, offset);
+                self.registers.set_register_at(rd, add_result.result);
+                self.cpsr.set_flags(add_result);
+            }
+            // Sub
+            true => {
+                let sub_result = Self::sub_inner_op(rs, offset);
+                self.registers.set_register_at(rd, sub_result.result);
+                self.cpsr.set_flags(sub_result);
+            }
+        };
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
     fn load_store_register_offset(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
@@ -1035,6 +1070,43 @@ mod tests {
             cpu.execute_thumb(op_code);
 
             assert_eq!(cpu.registers.register_at(2), 0x1F);
+        }
+    }
+
+    #[test]
+    fn check_add_subtract() {
+        // Check sub
+        {
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b00011_1_1_111_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(0, 0b110);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(1), -1_i32 as u32);
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(cpu.cpsr.carry_flag());
+            assert!(cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+        }
+
+        // Check add
+        {
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b00011_1_0_001_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(0, u32::MAX);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(1), 0);
+            assert!(cpu.cpsr.zero_flag());
+            assert!(cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.overflow_flag());
         }
     }
 }
