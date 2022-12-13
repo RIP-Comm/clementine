@@ -77,3 +77,18 @@ impl From<bool> for Offsetting {
         }
     }
 }
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum OperandKind {
+    Immediate,
+    Register,
+}
+
+impl From<bool> for OperandKind {
+    fn from(b: bool) -> Self {
+        match b {
+            false => Self::Register,
+            true => Self::Immediate,
+        }
+    }
+}
