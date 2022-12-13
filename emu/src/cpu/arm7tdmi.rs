@@ -121,7 +121,7 @@ impl Arm7tdmi {
             AddOffsetSP => unimplemented!(),
             PushPopReg => unimplemented!(),
             MultipleLoadStore => unimplemented!(),
-            CondBranch => unimplemented!(),
+            CondBranch => self.cond_branch(op_code),
             Swi => unimplemented!(),
             UncondBranch => unimplemented!(),
             LongBranchLink => unimplemented!(),
@@ -186,6 +186,28 @@ impl Arm7tdmi {
             Mode::Abort => &mut self.register_bank.spsr_abt,
             Mode::Supervisor => &mut self.register_bank.spsr_svc,
             Mode::Undefined => &mut self.register_bank.spsr_und
+        }
+    }
+
+    fn cond_branch(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        // Encodes the condition
+        let cond = op_code.get_bits(8..=11) as u8;
+
+        // 9 bits signed offset (assembler puts `label` >> 1 in this field so we should <<1)
+        let offset = op_code.get_bits(0..=7) << 1;
+
+        let mask = 1 << 8;
+        let offset = (offset as i32 ^ mask) - mask;
+
+        if self.cpsr.can_execute(cond.into()) {
+            let pc = self.registers.program_counter() as i32;
+            let new_pc = pc + 4 + offset;
+
+            self.registers.set_program_counter(new_pc as u32);
+
+            None
+        } else {
+            Some(SIZE_OF_THUMB_INSTRUCTION)
         }
     }
 
@@ -1108,5 +1130,28 @@ mod tests {
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.overflow_flag());
         }
+    }
+
+    #[test]
+    fn check_cond_branch() {
+        let mut cpu = Arm7tdmi::default();
+        let op_code = 0b1101_1011_11111100;
+        let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+        cpu.registers.set_program_counter(1000);
+
+        cpu.execute_thumb(op_code);
+
+        // Asserting no branch since condition is not satisfied
+        assert_eq!(cpu.registers.program_counter(), 1002);
+
+        cpu.cpsr.set_sign_flag(true);
+
+        let op_code = 0b1101_1011_11111100;
+        let op_code: ThumbModeOpcode = cpu.decode(op_code);
+        cpu.execute_thumb(op_code);
+
+        // Asserting branch now that we set the condition
+        assert_eq!(cpu.registers.program_counter(), 1002 + 4 - 8);
     }
 }
