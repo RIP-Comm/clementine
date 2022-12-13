@@ -126,7 +126,7 @@ impl Display for ThumbModeOpcode {
                 "FMT: |0_0_1|Op_|_Rn__|____Offset_____|"
             }
             ThumbModeInstruction::AluOp => todo!(),
-            ThumbModeInstruction::HiRegisterOpBX => "FMT: |0_1_0_0_0_1|Op_|h|H|_Rs__|_Rd__|",
+            ThumbModeInstruction::HiRegisterOpBX => "FMT: |0_1_0_0_0_1|_Op|H|H|Rs/Hs|Rd/Hd|",
             ThumbModeInstruction::PCRelativeLoad => "FMT: |0_1_0_0_1|_Rn__|_____Word8_____|",
             ThumbModeInstruction::LoadStoreRegisterOffset => {
                 "FMT: |0_1_0_1|L|B|0|_Ro__|_Rb__|_Rd__|"
