@@ -686,29 +686,63 @@ impl Arm7tdmi {
         let rs_hs = op_code.get_bits(3..=5);
         let rd_hd = op_code.get_bits(0..=2);
 
-        let _destination_register: usize = (h1 as u16 * 8 + rd_hd).try_into().unwrap();
+        if !h1 && !h2 && (op == 0b00 || op == 0b01 || op == 0b10) {
+            panic!("H1=0 H2=0 is not supported with ADD, CMP, MOV");
+        } else if h1 && op == 0b11 {
+            panic!("H1=1 is not supported with BX")
+        }
+
+        let destination_register: usize = (h1 as u16 * 8 + rd_hd).try_into().unwrap();
         let source_register: usize = (h2 as u16 * 8 + rs_hs).try_into().unwrap();
+
+        let first_op = self.registers.register_at(destination_register)
+            + match destination_register as u32 {
+                REG_PROGRAM_COUNTER => 4,
+                _ => 0,
+            };
+
+        let second_op = self.registers.register_at(source_register)
+            + match source_register as u32 {
+                REG_PROGRAM_COUNTER => 4,
+                _ => 0,
+            };
 
         match op {
             // Add
-            0b00 => todo!(), //Some(SIZE_OF_THUMB_INSTRUCTION)
+            0b00 => {
+                self.registers
+                    .set_register_at(destination_register, first_op + second_op);
+
+                if destination_register == REG_PROGRAM_COUNTER as usize {
+                    None
+                } else {
+                    Some(SIZE_OF_THUMB_INSTRUCTION)
+                }
+            }
             // Cmp
-            0b01 => todo!(), // Some(SIZE_OF_THUMB_INSTRUCTION)
+            0b01 => {
+                let sub_result = Self::sub_inner_op(first_op, second_op);
+
+                self.cpsr.set_flags(sub_result);
+
+                Some(SIZE_OF_THUMB_INSTRUCTION)
+            }
             // Mov
-            0b10 => todo!(), // Some(SIZE_OF_THUMB_INSTRUCTION)
+            0b10 => {
+                self.registers
+                    .set_register_at(destination_register, second_op);
+
+                if destination_register == REG_PROGRAM_COUNTER as usize {
+                    None
+                } else {
+                    Some(SIZE_OF_THUMB_INSTRUCTION)
+                }
+            }
             // Bx
             0b11 => {
-                let v = self.registers.register_at(source_register);
-                if !v.get_bit(0) {
-                    self.cpsr.set_cpu_state(CpuState::Arm);
-                } else {
-                    self.cpsr.set_cpu_state(CpuState::Thumb);
-                }
-                if rs_hs as u32 == REG_PROGRAM_COUNTER {
-                    todo!()
-                }
+                self.cpsr.set_cpu_state(second_op.get_bit(0).into());
 
-                self.registers.set_program_counter(v);
+                self.registers.set_program_counter(second_op);
 
                 None
             }
@@ -1203,6 +1237,132 @@ mod tests {
             cpu.execute_thumb(op_code);
 
             assert_eq!(cpu.registers.program_counter(), 123);
+        }
+        {
+            // Add Rd, Hs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_00_0_1_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(8, 10);
+            cpu.registers.set_register_at(1, 10);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(1), 20);
+        }
+        {
+            // Add Hd, Rs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_00_1_0_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(0, 10);
+            cpu.registers.set_register_at(9, 10);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(9), 20);
+        }
+        {
+            // Add Hd, Hs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_00_1_1_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(8, 10);
+            cpu.registers.set_register_at(9, 10);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(9), 20);
+        }
+        {
+            // Cmp Rd, Hs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_01_0_1_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(8, 10);
+            cpu.registers.set_register_at(1, 10);
+
+            cpu.execute_thumb(op_code);
+
+            assert!(cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+            assert!(!cpu.cpsr.carry_flag());
+        }
+        {
+            // Cmp Hd, Rs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_01_1_0_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(0, 11);
+            cpu.registers.set_register_at(9, 10);
+
+            cpu.execute_thumb(op_code);
+
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(cpu.cpsr.sign_flag());
+            assert!(cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+        }
+        {
+            // Cmp Hd, Hs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_01_1_1_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(8, 10);
+            cpu.registers.set_register_at(9, 11);
+
+            cpu.execute_thumb(op_code);
+
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+        }
+        {
+            // Mov Rd, Hs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_10_0_1_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(8, 10);
+            cpu.registers.set_register_at(1, 11);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(1), 10);
+        }
+        {
+            // Mov Hd, Rs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_10_1_0_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(0, 10);
+            cpu.registers.set_register_at(9, 11);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(9), 10);
+        }
+        {
+            // Mov Hd, Hs
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b010001_10_1_1_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(8, 10);
+            cpu.registers.set_register_at(9, 11);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(9), 10);
         }
     }
 }
