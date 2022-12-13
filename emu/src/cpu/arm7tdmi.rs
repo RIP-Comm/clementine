@@ -101,8 +101,6 @@ impl Arm7tdmi {
             .advance_program_counter(bytes_to_advance.unwrap_or(0));
     }
 
-    #[allow(unreachable_code)]
-    #[allow(unused_variables)]
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
         use ThumbModeInstruction::*;
         let bytes_to_advance: Option<u32> = match op_code.instruction {
@@ -110,7 +108,7 @@ impl Arm7tdmi {
             AddSubtract => self.add_subtract(op_code),
             MoveCompareAddSubtractImm => self.move_compare_add_sub_imm(op_code),
             AluOp => unimplemented!(),
-            HiRegisterOpBX => unimplemented!(),
+            HiRegisterOpBX => self.hi_reg_operation_branch_ex(op_code),
             PCRelativeLoad => self.pc_relative_load(op_code),
             LoadStoreRegisterOffset => self.load_store_register_offset(op_code),
             LoadStoreSignExtByteHalfword => unimplemented!(),
@@ -680,6 +678,43 @@ impl Arm7tdmi {
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
+
+    pub(crate) fn hi_reg_operation_branch_ex(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let op = op_code.get_bits(8..=9);
+        let h1 = op_code.get_bit(7);
+        let h2 = op_code.get_bit(6);
+        let rs_hs = op_code.get_bits(3..=5);
+        let rd_hd = op_code.get_bits(0..=2);
+
+        let _destination_register: usize = (h1 as u16 * 8 + rd_hd).try_into().unwrap();
+        let source_register: usize = (h2 as u16 * 8 + rs_hs).try_into().unwrap();
+
+        match op {
+            // Add
+            0b00 => todo!(), //Some(SIZE_OF_THUMB_INSTRUCTION)
+            // Cmp
+            0b01 => todo!(), // Some(SIZE_OF_THUMB_INSTRUCTION)
+            // Mov
+            0b10 => todo!(), // Some(SIZE_OF_THUMB_INSTRUCTION)
+            // Bx
+            0b11 => {
+                let v = self.registers.register_at(source_register);
+                if !v.get_bit(0) {
+                    self.cpsr.set_cpu_state(CpuState::Arm);
+                } else {
+                    self.cpsr.set_cpu_state(CpuState::Thumb);
+                }
+                if rs_hs as u32 == REG_PROGRAM_COUNTER {
+                    todo!()
+                }
+
+                self.registers.set_program_counter(v);
+
+                None
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 pub enum HalfwordTransferType {
@@ -1153,5 +1188,21 @@ mod tests {
 
         // Asserting branch now that we set the condition
         assert_eq!(cpu.registers.program_counter(), 1002 + 4 - 8);
+    }
+
+    #[test]
+    fn check_hi_reg_operation_branch_ex() {
+        {
+            // BX Hs
+            let mut cpu = Arm7tdmi::default();
+            let op_code: u16 = 0b0100_0111_0111_0000;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::HiRegisterOpBX);
+
+            cpu.registers.set_register_at(14, 123);
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.program_counter(), 123);
+        }
     }
 }
