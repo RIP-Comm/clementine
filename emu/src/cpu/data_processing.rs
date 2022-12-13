@@ -8,6 +8,7 @@ use crate::{
 use super::{
     arm7tdmi::{REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION},
     cpu_modes::Mode,
+    flags::OperandKind,
 };
 
 pub struct ArithmeticOpResult {
@@ -153,10 +154,10 @@ impl Arm7tdmi {
         result
     }
 
-    fn get_operand(&mut self, alu_opcode: u32, s: bool, i: bool, op2: u32) -> u32 {
+    fn get_operand(&mut self, alu_opcode: u32, s: bool, i: OperandKind, op2: u32) -> u32 {
         match i {
             // we get the operand from a register and then we shift it
-            false => {
+            OperandKind::Register => {
                 // bits [0-3] 2nd Operand Register (R0..R15) (including PC=R15)
                 let rm = op2.get_bits(0..=3);
                 // bit [4] - is Shift by Register Flag (0=Immediate, 1=Register)
@@ -195,7 +196,7 @@ impl Arm7tdmi {
 
                 self.shift_operand(alu_opcode, s, shift_type, shift_amount, rm)
             }
-            true => {
+            OperandKind::Immediate => {
                 // bits [7-0] are the immediate value
                 let imm = op2.get_bits(0..=7);
                 // bit [11-8] are the rotate amount
@@ -218,8 +219,8 @@ impl Arm7tdmi {
     ///
     /// * `i` - A boolean value representing whether the 2nd operand is immediate or not
     /// * `r` - A boolean value representing whether the shift amount is to be taken from register or not
-    const fn get_pc_offset_alu(&self, i: bool, r: bool) -> u32 {
-        if !i && r {
+    fn get_pc_offset_alu(&self, i: OperandKind, r: bool) -> u32 {
+        if i == OperandKind::Register && r {
             12
         } else {
             8
@@ -300,14 +301,14 @@ impl Arm7tdmi {
             }
             PsrOpKind::MsrFlg => {
                 // Immediate: 0 register, 1 immediate
-                let i = op_code.get_bit(25);
+                let i: OperandKind = op_code.get_bit(25).into();
 
                 let op = match i {
-                    false => {
+                    OperandKind::Register => {
                         let rm = op_code.get_bits(0..=3);
                         self.registers.register_at(rm.try_into().unwrap())
                     }
-                    true => {
+                    OperandKind::Immediate => {
                         let imm = op_code.get_bits(0..=7);
                         let rotate = op_code.get_bits(8..=11);
 
@@ -333,7 +334,7 @@ impl Arm7tdmi {
 
     pub fn data_processing(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         // bit [25] is I = Immediate Flag
-        let i: bool = op_code.get_bit(25);
+        let i: OperandKind = op_code.get_bit(25).into();
         // bits [24-21]
         let alu_op_code = op_code.get_bits(21..=24);
         // bit [20] is sets condition codes
