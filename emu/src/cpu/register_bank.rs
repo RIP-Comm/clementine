@@ -2,6 +2,13 @@ use crate::cpu::psr::Psr;
 
 #[derive(Default)]
 pub struct RegisterBank {
+    pub r8_old: u32,
+    pub r9_old: u32,
+    pub r10_old: u32,
+    pub r11_old: u32,
+    pub r12_old: u32,
+    pub r13_old: u32,
+    pub r14_old: u32,
     pub r8_fiq: u32,
     pub r9_fiq: u32,
     pub r10_fiq: u32,
