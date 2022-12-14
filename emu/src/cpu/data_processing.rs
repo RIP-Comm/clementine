@@ -1,3 +1,5 @@
+use logger::log;
+
 use crate::{
     bitwise::Bits,
     cpu::alu_instruction::{AluInstructionKind, ArmModeAluInstruction, Kind},
@@ -276,27 +278,44 @@ impl Arm7tdmi {
 
                 let current_mode = self.cpsr.mode();
 
-                let psr = match p {
-                    false => &mut self.cpsr,
-                    true => self.get_spsr_as_ref_mut(),
-                };
+                if matches!(self.cpsr.mode(), Mode::System | Mode::User) && p {
+                    panic!("Can't access SPSR in System/User mode")
+                }
 
-                // Setting flags
-                psr.set_sign_flag(rm.get_bit(31));
-                psr.set_zero_flag(rm.get_bit(30));
-                psr.set_carry_flag(rm.get_bit(29));
-                psr.set_overflow_flag(rm.get_bit(28));
+                {
+                    let psr = match p {
+                        false => &mut self.cpsr,
+                        true => &mut self.spsr,
+                    };
+                    // Setting flags
+                    psr.set_sign_flag(rm.get_bit(31));
+                    psr.set_zero_flag(rm.get_bit(30));
+                    psr.set_carry_flag(rm.get_bit(29));
+                    psr.set_overflow_flag(rm.get_bit(28));
 
-                // In User mode we can only set the flags so we don't touch the Mode bits
-                if current_mode != Mode::User {
-                    psr.set_irq_disable(rm.get_bit(7));
-                    psr.set_fiq_disable(rm.get_bit(6));
+                    // In User mode we can only set the flags so we don't touch the other bits
+                    if current_mode != Mode::User {
+                        psr.set_irq_disable(rm.get_bit(7));
+                        psr.set_fiq_disable(rm.get_bit(6));
 
-                    // Documentation says that software should never touch T (state) bit
-                    // Should we set it? I guess software are written in order to not switch this bit
-                    // but who knows?
-                    // psr.set_state_bit(rm.get_bit(5));
-                    psr.set_mode_raw(rm.get_bits(0..=4));
+                        // Documentation says that software should never touch T (state) bit
+                        // Should we set it? I guess software are written in order to not switch this bit
+                        // but who knows?
+                        if psr.state_bit() != rm.get_bit(5) {
+                            log("WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.")
+                        }
+                        psr.set_state_bit(rm.get_bit(5));
+                    }
+                }
+
+                // If we're modifying CPSR we need to be sure we're not in User mode.
+                // Since in User mode we can only modify flags.
+                if !p && self.cpsr.mode() != Mode::User {
+                    self.swap_mode(rm.get_bits(0..=4).try_into().unwrap());
+                } else if p {
+                    // If we're modifying SPSR we're sure we're not in System|User (checked before)
+                    // We use `set_mode_raw` since the BIOS sometimes writes 0 in the SPSR.
+                    self.spsr.set_mode_raw(rm.get_bits(0..=4));
                 }
             }
             PsrOpKind::MsrFlg => {
@@ -320,7 +339,7 @@ impl Arm7tdmi {
 
                 let psr = match p {
                     false => &mut self.cpsr,
-                    true => self.get_spsr_as_ref_mut(),
+                    true => &mut self.spsr,
                 };
 
                 // Setting flags
@@ -1177,10 +1196,7 @@ mod tests {
             cpu.execute_arm(op_code);
 
             // All flags set and Fiq mode
-            assert_eq!(
-                u32::from(cpu.register_bank.spsr_fiq),
-                0b1111 << 28 | (0b10001)
-            );
+            assert_eq!(u32::from(cpu.spsr), 0b1111 << 28 | (0b10001));
         }
         {
             // Covers MSR-flags with CPSR and User mode
@@ -1209,7 +1225,7 @@ mod tests {
             cpu.execute_arm(op_code);
 
             // All flags set
-            assert_eq!(u32::from(cpu.register_bank.spsr_fiq), 0b1111 << 28);
+            assert_eq!(u32::from(cpu.spsr), 0b1111 << 28);
         }
     }
 }
