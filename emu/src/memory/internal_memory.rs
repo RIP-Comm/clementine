@@ -126,6 +126,10 @@ impl IoDevice for InternalMemory {
 
 impl InternalMemory {
     pub fn read_word(&self, address: usize) -> u32 {
+        if address & 3 != 0 {
+            log("warning, read_word has address not word aligned");
+        }
+
         let part_0: u32 = self.read_at(address).try_into().unwrap();
         let part_1: u32 = self.read_at(address + 1).try_into().unwrap();
         let part_2: u32 = self.read_at(address + 2).try_into().unwrap();
@@ -135,6 +139,9 @@ impl InternalMemory {
     }
 
     pub fn write_word(&mut self, address: usize, value: u32) {
+        if address & 3 != 0 {
+            log("warning, write_word has address not word aligned");
+        }
         let part_0: u8 = value.get_bits(0..=7).try_into().unwrap();
         let part_1: u8 = value.get_bits(8..=15).try_into().unwrap();
         let part_2: u8 = value.get_bits(16..=23).try_into().unwrap();
