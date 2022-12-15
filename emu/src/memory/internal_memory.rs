@@ -94,9 +94,7 @@ impl IoDevice for InternalMemory {
             0x08000000..=0x0FFFFFFF => self.rom[address - 0x08000000],
             0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
                 log("read on unused memory");
-                self.unused_region
-                    .get(&(address as usize))
-                    .map_or(0, |v| *v)
+                self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
         }

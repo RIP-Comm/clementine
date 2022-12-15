@@ -143,7 +143,7 @@ impl PixelProcessUnit {
         for palette_index in 0..MAX_PALETTES_BY_TYPE {
             palettes.push(vec![]);
             for color_index in 0..MAX_COLORS_SINGLE_PALETTE {
-                palettes[palette_index as usize].push(self.get_color_from_single_palette(
+                palettes[palette_index].push(self.get_color_from_single_palette(
                     palette_index,
                     color_index,
                     palette_type,
