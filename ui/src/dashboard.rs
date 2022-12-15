@@ -2,9 +2,10 @@ use egui::Context;
 use emu::{cartridge_header::CartridgeHeader, gba::Gba};
 use logger::log;
 
-use super::about::About;
 use super::cpu_inspector::CpuInspector;
-use crate::{gba_display::GbaDisplay, palette_visualizer::PaletteVisualizer, ui_traits::UiTool};
+use crate::{
+    about, gba_display::GbaDisplay, palette_visualizer::PaletteVisualizer, ui_traits::UiTool,
+};
 
 use std::{
     collections::BTreeSet,
@@ -48,7 +49,7 @@ impl UiTools {
         )));
 
         Self::from_tools(vec![
-            Box::new(About::default()),
+            Box::<about::About>::default(),
             Box::new(CpuInspector::new(Arc::clone(&arc_gba))),
             Box::new(GbaDisplay::new(Arc::clone(&arc_gba))),
             Box::new(PaletteVisualizer::new(arc_gba)),
