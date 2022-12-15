@@ -137,7 +137,7 @@ impl Display for ThumbModeOpcode {
             ThumbModeInstruction::SPRelativeLoadStore => todo!(),
             ThumbModeInstruction::LoadAddress => todo!(),
             ThumbModeInstruction::AddOffsetSP => todo!(),
-            ThumbModeInstruction::PushPopReg => todo!(),
+            ThumbModeInstruction::PushPopReg => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
             ThumbModeInstruction::MultipleLoadStore => todo!(),
             ThumbModeInstruction::CondBranch => "FMT: |1_1_0_1|_Cond__|_____Offset____|",
             ThumbModeInstruction::Swi => todo!(),

@@ -17,6 +17,8 @@ use super::opcode::ThumbModeOpcode;
 use super::psr::CpuState;
 use super::registers::Registers;
 
+pub const REG_SP: usize = 0xD;
+pub const REG_LR: usize = 0xE;
 pub const REG_PROGRAM_COUNTER: u32 = 0xF;
 pub const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
 pub const SIZE_OF_THUMB_INSTRUCTION: u32 = 2;
@@ -119,7 +121,7 @@ impl Arm7tdmi {
             SPRelativeLoadStore => unimplemented!(),
             LoadAddress => unimplemented!(),
             AddOffsetSP => unimplemented!(),
-            PushPopReg => unimplemented!(),
+            PushPopReg => self.push_pop_register(op_code),
             MultipleLoadStore => unimplemented!(),
             CondBranch => self.cond_branch(op_code),
             Swi => unimplemented!(),
@@ -770,6 +772,39 @@ impl Arm7tdmi {
             _ => unreachable!(),
         }
     }
+
+    pub(crate) fn push_pop_register(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let load_store: LoadStoreKind = op_code.get_bit(11).into();
+        let store_or_not_reg_lr = op_code.get_bit(8);
+        let rlist = op_code.get_bits(0..=7);
+
+        match load_store {
+            LoadStoreKind::Store => {
+                let mut reg_sp = self.registers.register_at(REG_SP);
+                if store_or_not_reg_lr {
+                    reg_sp -= 4;
+                    self.memory.lock().unwrap().write_word(
+                        reg_sp.try_into().unwrap(),
+                        self.registers.register_at(REG_LR),
+                    );
+                }
+
+                for r in (0..8).rev() {
+                    if rlist.get_bit(r) {
+                        reg_sp -= 4;
+                        self.memory.lock().unwrap().write_word(
+                            reg_sp.try_into().unwrap(),
+                            self.registers.register_at(r.into()),
+                        );
+                    }
+                }
+                self.registers.set_register_at(REG_SP, reg_sp);
+            }
+            LoadStoreKind::Load => todo!(),
+        }
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
 }
 
 pub enum HalfwordTransferType {
@@ -1398,5 +1433,41 @@ mod tests {
         assert_eq!(cpu.registers.register_at(12), 12);
         assert_eq!(cpu.registers.register_at(13), 100);
         assert_eq!(cpu.registers.register_at(14), 200);
+    }
+
+    #[test]
+    fn check_push_pop_register() {
+        {
+            // Store + save LR
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1011_0101_1111_0000;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::PushPopReg);
+
+            cpu.registers.set_program_counter(1000);
+            cpu.registers.set_register_at(REG_LR, 1000);
+            cpu.registers.set_register_at(REG_SP, 1000);
+
+            for r in 0..8 {
+                cpu.registers.set_register_at(r, r.try_into().unwrap());
+            }
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.memory.lock().unwrap().read_word(1000 - 4), 1000);
+            assert_eq!(cpu.memory.lock().unwrap().read_word(1000 - 4 - 4), 7);
+            assert_eq!(cpu.memory.lock().unwrap().read_word(1000 - 4 - 4 - 4), 6);
+            assert_eq!(
+                cpu.memory.lock().unwrap().read_word(1000 - 4 - 4 - 4 - 4),
+                5
+            );
+            assert_eq!(
+                cpu.memory
+                    .lock()
+                    .unwrap()
+                    .read_word(1000 - 4 - 4 - 4 - 4 - 4),
+                4
+            );
+        }
     }
 }
