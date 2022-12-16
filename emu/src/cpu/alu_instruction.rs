@@ -61,6 +61,52 @@ impl From<u32> for ArmModeAluInstruction {
         }
     }
 }
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ThumbModeAluInstruction {
+    And = 0x0,
+    Eor = 0x1,
+    Lsl = 0x2,
+    Lsr = 0x3,
+    Asr = 0x4,
+    Adc = 0x5,
+    Sbc = 0x6,
+    Ror = 0x7,
+    Tst = 0x8,
+    Neg = 0x9,
+    Cmp = 0xA,
+    Cmn = 0xB,
+    Orr = 0xC,
+    Mul = 0xD,
+    Bic = 0xE,
+    Mvn = 0xF,
+}
+
+impl From<u16> for ThumbModeAluInstruction {
+    fn from(alu_op_code: u16) -> Self {
+        use ThumbModeAluInstruction::*;
+        match alu_op_code {
+            0x0 => And,
+            0x1 => Eor,
+            0x2 => Lsl,
+            0x3 => Lsr,
+            0x4 => Asr,
+            0x5 => Adc,
+            0x6 => Sbc,
+            0x7 => Ror,
+            0x8 => Tst,
+            0x9 => Neg,
+            0xA => Cmp,
+            0xB => Cmn,
+            0xC => Orr,
+            0xD => Mul,
+            0xE => Bic,
+            0xF => Mvn,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,5 +126,17 @@ mod tests {
         let instruction_kind = ArmModeAluInstruction::from(alu_op_code).kind();
 
         assert_eq!(instruction_kind, AluInstructionKind::Arithmetic);
+    }
+
+    #[test]
+    fn test_conversion_thumb_alu_op() {
+        let op: ThumbModeAluInstruction = 0b0000.into();
+        assert_eq!(op, ThumbModeAluInstruction::And);
+        let op: ThumbModeAluInstruction = 0b0001.into();
+        assert_eq!(op, ThumbModeAluInstruction::Eor);
+        let op: ThumbModeAluInstruction = 0b1110.into();
+        assert_eq!(op, ThumbModeAluInstruction::Bic);
+        let op: ThumbModeAluInstruction = 0b1111.into();
+        assert_eq!(op, ThumbModeAluInstruction::Mvn);
     }
 }
