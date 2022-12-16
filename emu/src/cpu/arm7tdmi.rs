@@ -777,33 +777,58 @@ impl Arm7tdmi {
         let load_store: LoadStoreKind = op_code.get_bit(11).into();
         let store_or_not_reg_lr = op_code.get_bit(8);
         let rlist = op_code.get_bits(0..=7);
+        let mut reg_sp = self.registers.register_at(REG_SP);
+
+        let mut memory = self.memory.lock().unwrap();
 
         match load_store {
             LoadStoreKind::Store => {
-                let mut reg_sp = self.registers.register_at(REG_SP);
                 if store_or_not_reg_lr {
                     reg_sp -= 4;
-                    self.memory.lock().unwrap().write_word(
+                    memory.write_word(
                         reg_sp.try_into().unwrap(),
                         self.registers.register_at(REG_LR),
                     );
                 }
 
-                for r in (0..8).rev() {
+                for r in (0..=7).rev() {
                     if rlist.get_bit(r) {
                         reg_sp -= 4;
-                        self.memory.lock().unwrap().write_word(
+                        memory.write_word(
                             reg_sp.try_into().unwrap(),
                             self.registers.register_at(r.into()),
                         );
                     }
                 }
-                self.registers.set_register_at(REG_SP, reg_sp);
             }
-            LoadStoreKind::Load => todo!(),
+            LoadStoreKind::Load => {
+                for r in 0..=7 {
+                    if rlist.get_bit(r) {
+                        self.registers.set_register_at(
+                            r.try_into().unwrap(),
+                            memory.read_word(reg_sp.try_into().unwrap()),
+                        );
+
+                        reg_sp += 4;
+                    }
+                }
+
+                if store_or_not_reg_lr {
+                    self.registers
+                        .set_program_counter(memory.read_word(reg_sp.try_into().unwrap()));
+
+                    reg_sp += 4;
+                }
+            }
         }
 
-        Some(SIZE_OF_THUMB_INSTRUCTION)
+        self.registers.set_register_at(REG_SP, reg_sp);
+
+        if load_store == LoadStoreKind::Load && store_or_not_reg_lr {
+            None
+        } else {
+            Some(SIZE_OF_THUMB_INSTRUCTION)
+        }
     }
 }
 
@@ -1468,6 +1493,33 @@ mod tests {
                     .read_word(1000 - 4 - 4 - 4 - 4 - 4),
                 4
             );
+        }
+        {
+            // Load + restore PC
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1011_1_10_1_1111_0000;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(REG_SP, 1000);
+
+            cpu.memory.lock().unwrap().write_word(1000, 100);
+            cpu.memory.lock().unwrap().write_word(1004, 200);
+            cpu.memory.lock().unwrap().write_word(1008, 300);
+            cpu.memory.lock().unwrap().write_word(1012, 400);
+            cpu.memory.lock().unwrap().write_word(1016, 500);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(4), 100);
+            assert_eq!(cpu.registers.register_at(5), 200);
+            assert_eq!(cpu.registers.register_at(6), 300);
+            assert_eq!(cpu.registers.register_at(7), 400);
+            assert_eq!(
+                cpu.registers
+                    .register_at(REG_PROGRAM_COUNTER.try_into().unwrap()),
+                500
+            );
+            assert_eq!(cpu.registers.register_at(REG_SP), 1020);
         }
     }
 }
