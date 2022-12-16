@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::ops::Mul;
 use std::sync::{Arc, Mutex};
 
 use logger::log;
@@ -120,7 +121,7 @@ impl Arm7tdmi {
             LoadStoreHalfword => unimplemented!(),
             SPRelativeLoadStore => unimplemented!(),
             LoadAddress => unimplemented!(),
-            AddOffsetSP => unimplemented!(),
+            AddOffsetSP => self.add_offset_sp(op_code),
             PushPopReg => self.push_pop_register(op_code),
             MultipleLoadStore => unimplemented!(),
             CondBranch => self.cond_branch(op_code),
@@ -830,6 +831,20 @@ impl Arm7tdmi {
             Some(SIZE_OF_THUMB_INSTRUCTION)
         }
     }
+
+    fn add_offset_sp(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        // 0 - positive, 1 - negative
+        let s = op_code.get_bit(7);
+        let word7 = op_code.get_bits(0..=6);
+
+        let value = ((word7 as i32) << 2).mul(if s { -1 } else { 1 });
+        let old_sp = self.registers.register_at(REG_SP) as i32;
+        let new_sp = old_sp + value;
+
+        self.registers.set_register_at(REG_SP, new_sp as u32);
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
 }
 
 pub enum HalfwordTransferType {
@@ -1521,5 +1536,31 @@ mod tests {
             );
             assert_eq!(cpu.registers.register_at(REG_SP), 1020);
         }
+    }
+
+    #[test]
+    fn check_add_offset_sp() {
+        {
+            // Positive offset
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b10110000_0_0000111;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(REG_SP, 1000);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(REG_SP), 1000 + (7 << 2));
+        }
+        // Negative offset
+        let mut cpu = Arm7tdmi::default();
+        let op_code = 0b10110000_1_0000111;
+        let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+        cpu.registers.set_register_at(REG_SP, 1000);
+
+        cpu.execute_thumb(op_code);
+
+        assert_eq!(cpu.registers.register_at(REG_SP), 1000 - (7 << 2));
     }
 }
