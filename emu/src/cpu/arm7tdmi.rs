@@ -119,7 +119,7 @@ impl Arm7tdmi {
             LoadStoreSignExtByteHalfword => unimplemented!(),
             LoadStoreImmOffset => unimplemented!(),
             LoadStoreHalfword => unimplemented!(),
-            SPRelativeLoadStore => unimplemented!(),
+            SPRelativeLoadStore => self.sp_relative_load_store(op_code),
             LoadAddress => unimplemented!(),
             AddOffsetSP => self.add_offset_sp(op_code),
             PushPopReg => self.push_pop_register(op_code),
@@ -845,6 +845,34 @@ impl Arm7tdmi {
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
+
+    fn sp_relative_load_store(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let load_store: LoadStoreKind = op_code.get_bit(11).into();
+        let rd: usize = op_code.get_bits(8..=10).try_into().unwrap();
+        let word8 = op_code.get_bits(0..=7);
+
+        let address = self.registers.register_at(REG_SP) + ((word8 as u32) << 2);
+
+        match load_store {
+            LoadStoreKind::Load => {
+                self.registers.set_register_at(
+                    rd,
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .read_word(address.try_into().unwrap()),
+                );
+            }
+            LoadStoreKind::Store => {
+                self.memory
+                    .lock()
+                    .unwrap()
+                    .write_word(address.try_into().unwrap(), self.registers.register_at(rd));
+            }
+        }
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
 }
 
 pub enum HalfwordTransferType {
@@ -1562,5 +1590,35 @@ mod tests {
         cpu.execute_thumb(op_code);
 
         assert_eq!(cpu.registers.register_at(REG_SP), 1000 - (7 << 2));
+    }
+
+    #[test]
+    fn check_sp_relative_load() {
+        {
+            // Load
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1001_1_000_00000111;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(REG_SP, 100);
+            cpu.memory.lock().unwrap().write_word(100 + 0b11100, 999);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(0), 999);
+        }
+        {
+            // Store
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1001_0_000_00000111;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+
+            cpu.registers.set_register_at(REG_SP, 100);
+            cpu.registers.set_register_at(0, 999);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.memory.lock().unwrap().read_word(100 + 0b11100), 999);
+        }
     }
 }
