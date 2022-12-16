@@ -134,7 +134,7 @@ impl Display for ThumbModeOpcode {
             ThumbModeInstruction::LoadStoreSignExtByteHalfword => todo!(),
             ThumbModeInstruction::LoadStoreImmOffset => todo!(),
             ThumbModeInstruction::LoadStoreHalfword => todo!(),
-            ThumbModeInstruction::SPRelativeLoadStore => todo!(),
+            ThumbModeInstruction::SPRelativeLoadStore => "FMT: |1_0_0_1|L|_Rd__|_____Word8_____|",
             ThumbModeInstruction::LoadAddress => todo!(),
             ThumbModeInstruction::AddOffsetSP => "FMT: |1_0_1_1_0_0_0_0|S|____Word7____|",
             ThumbModeInstruction::PushPopReg => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
