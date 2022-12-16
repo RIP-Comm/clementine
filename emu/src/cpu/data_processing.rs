@@ -633,7 +633,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn mvn(&mut self, rd: usize, op2: u32, s: bool) {
+    pub fn mvn(&mut self, rd: usize, op2: u32, s: bool) {
         let result = !op2;
 
         self.registers.set_register_at(rd, result);

@@ -13,6 +13,7 @@ use crate::cpu::register_bank::RegisterBank;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
+use super::alu_instruction::ThumbModeAluInstruction;
 use super::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
 use super::opcode::ThumbModeOpcode;
 use super::psr::CpuState;
@@ -112,7 +113,7 @@ impl Arm7tdmi {
             MoveShiftedRegister => unimplemented!(),
             AddSubtract => self.add_subtract(op_code),
             MoveCompareAddSubtractImm => self.move_compare_add_sub_imm(op_code),
-            AluOp => unimplemented!(),
+            AluOp => self.alu_op(op_code),
             HiRegisterOpBX => self.hi_reg_operation_branch_ex(op_code),
             PCRelativeLoad => self.pc_relative_load(op_code),
             LoadStoreRegisterOffset => self.load_store_register_offset(op_code),
@@ -873,6 +874,35 @@ impl Arm7tdmi {
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
+
+    fn alu_op(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let op: ThumbModeAluInstruction = op_code.get_bits(6..=9).into();
+        let rs = op_code.get_bits(3..=5);
+        let rd = op_code.get_bits(0..=2);
+
+        match op {
+            ThumbModeAluInstruction::And => todo!(),
+            ThumbModeAluInstruction::Eor => todo!(),
+            ThumbModeAluInstruction::Lsl => todo!(),
+            ThumbModeAluInstruction::Lsr => todo!(),
+            ThumbModeAluInstruction::Asr => todo!(),
+            ThumbModeAluInstruction::Adc => todo!(),
+            ThumbModeAluInstruction::Sbc => todo!(),
+            ThumbModeAluInstruction::Ror => todo!(),
+            ThumbModeAluInstruction::Tst => todo!(),
+            ThumbModeAluInstruction::Neg => todo!(),
+            ThumbModeAluInstruction::Cmp => todo!(),
+            ThumbModeAluInstruction::Cmn => todo!(),
+            ThumbModeAluInstruction::Orr => todo!(),
+            ThumbModeAluInstruction::Mul => todo!(),
+            ThumbModeAluInstruction::Bic => todo!(),
+            ThumbModeAluInstruction::Mvn => {
+                self.mvn(rd.try_into().unwrap(), rs.try_into().unwrap(), true);
+            }
+        }
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
 }
 
 pub enum HalfwordTransferType {
@@ -1620,5 +1650,19 @@ mod tests {
 
             assert_eq!(cpu.memory.lock().unwrap().read_word(100 + 0b11100), 999);
         }
+    }
+
+    #[test]
+    fn check_alu_op() {
+        let mut cpu = Arm7tdmi::default();
+        let op_code = 0b0100_0011_1100_1111;
+        let op_code: ThumbModeOpcode = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+
+        cpu.execute_thumb(op_code);
+
+        assert_eq!(cpu.registers.register_at(7), !1);
+        assert!(cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
     }
 }
