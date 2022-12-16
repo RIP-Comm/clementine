@@ -29,6 +29,7 @@ impl From<&ArmModeOpcode> for ReadWriteKind {
     }
 }
 
+#[derive(PartialEq, Eq)]
 pub enum LoadStoreKind {
     Store,
     Load,
