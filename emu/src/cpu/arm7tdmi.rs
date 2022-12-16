@@ -128,7 +128,7 @@ impl Arm7tdmi {
             CondBranch => self.cond_branch(op_code),
             Swi => unimplemented!(),
             UncondBranch => unimplemented!(),
-            LongBranchLink => unimplemented!(),
+            LongBranchLink => self.long_branch_link(op_code),
         };
 
         self.registers
@@ -903,6 +903,29 @@ impl Arm7tdmi {
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
+
+    fn long_branch_link(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let h = op_code.get_bit(11);
+        let offset = op_code.get_bits(0..=10);
+
+        if h {
+            let next_instruction =
+                self.registers.program_counter() as u32 + SIZE_OF_THUMB_INSTRUCTION;
+            let lr = self.registers.register_at(REG_LR);
+            let offset = (offset << 1) as u32;
+            self.registers.set_program_counter(lr.wrapping_add(offset));
+            self.registers.set_register_at(REG_LR, next_instruction | 1);
+        } else {
+            let offset = (offset << 12) as u32;
+            let pc = self.registers.program_counter() as u32
+                + SIZE_OF_THUMB_INSTRUCTION
+                + SIZE_OF_THUMB_INSTRUCTION;
+            self.registers
+                .set_register_at(REG_LR, pc.wrapping_add(offset));
+        }
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
 }
 
 pub enum HalfwordTransferType {
@@ -1664,5 +1687,20 @@ mod tests {
         assert_eq!(cpu.registers.register_at(7), !1);
         assert!(cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
+    }
+
+    #[test]
+    fn check_long_branch_link() {
+        let mut cpu = Arm7tdmi::default();
+        let op_code = 0b1111_1000_0100_0000;
+        let op_code: ThumbModeOpcode = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ThumbModeInstruction::LongBranchLink);
+
+        cpu.registers.set_program_counter(100);
+        cpu.registers.set_register_at(REG_LR, 200);
+        cpu.execute_thumb(op_code);
+
+        assert_eq!(cpu.registers.register_at(REG_LR), 103);
+        assert_eq!(cpu.registers.program_counter(), 330);
     }
 }
