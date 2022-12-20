@@ -107,6 +107,37 @@ impl From<u16> for ThumbModeAluInstruction {
     }
 }
 
+pub enum ShiftKind {
+    Lsl,
+    Lsr,
+    Asr,
+    Ror,
+}
+
+impl From<u16> for ShiftKind {
+    fn from(op: u16) -> Self {
+        match op {
+            0 => Self::Lsl,
+            1 => Self::Lsr,
+            2 => Self::Asr,
+            3 => Self::Ror,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<u32> for ShiftKind {
+    fn from(op: u32) -> Self {
+        match op {
+            0 => Self::Lsl,
+            1 => Self::Lsr,
+            2 => Self::Asr,
+            3 => Self::Ror,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
