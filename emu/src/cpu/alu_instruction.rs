@@ -138,6 +138,15 @@ impl From<u32> for ShiftKind {
     }
 }
 
+#[derive(Default)]
+pub struct ArithmeticOpResult {
+    pub result: u32,
+    pub carry: bool,
+    pub overflow: bool,
+    pub sign: bool,
+    pub zero: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
