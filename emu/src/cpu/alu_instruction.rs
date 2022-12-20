@@ -1,3 +1,5 @@
+use crate::bitwise::Bits;
+
 pub enum ArmModeAluInstruction {
     And = 0x0,
     Eor = 0x1,
@@ -145,6 +147,35 @@ pub struct ArithmeticOpResult {
     pub overflow: bool,
     pub sign: bool,
     pub zero: bool,
+}
+
+pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> ArithmeticOpResult {
+    match kind {
+        ShiftKind::Lsl => {
+            match shift_amount {
+                // LSL#0: No shift performed, ie. directly value=Rm, the C flag is NOT affected.
+                0 => ArithmeticOpResult {
+                    result: rm,
+                    carry,
+                    ..Default::default()
+                },
+                // LSL#1..32: Normal left logical shift
+                1..=32 => ArithmeticOpResult {
+                    result: rm << shift_amount,
+                    carry: rm.get_bit((32 - shift_amount).try_into().unwrap()),
+                    ..Default::default()
+                },
+                // LSL#33...: Result is 0 and carry is 0
+                _ => ArithmeticOpResult {
+                    carry: false,
+                    ..Default::default()
+                },
+            }
+        }
+        ShiftKind::Lsr => todo!(),
+        ShiftKind::Asr => todo!(),
+        ShiftKind::Ror => todo!(),
+    }
 }
 
 #[cfg(test)]

@@ -25,7 +25,7 @@ enum PsrOpKind {
 }
 
 impl Arm7tdmi {
-    fn shift_operand(
+    pub fn shift_operand(
         &mut self,
         alu_opcode: u32,
         s: bool,
@@ -34,65 +34,44 @@ impl Arm7tdmi {
         rm: u32,
     ) -> u32 {
         // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
-        let mut carry: bool = self.cpsr.carry_flag();
 
-        let result = match shift_type {
+        let (result, carry) = match shift_type {
             // LSL
             0 => {
-                match shift_amount {
-                    // LSL#0: No shift performed, ie. directly value=Rm, the C flag is NOT affected.
-                    0 => rm,
-                    // LSL#1..32: Normal left logical shift
-                    1..=32 => {
-                        carry = rm.get_bit((32 - shift_amount).try_into().unwrap());
-
-                        rm << shift_amount
-                    }
-                    // LSL#33...: Result is 0 and carry is 0
-                    _ => {
-                        carry = false;
-
-                        0
-                    }
-                }
+                let a = alu_instruction::shift(
+                    shift_amount.into(),
+                    shift_amount,
+                    rm,
+                    self.cpsr.carry_flag(),
+                );
+                (a.result, a.carry)
             }
             // LSR
             1 => {
                 match shift_amount {
                     // LSR#0 is used to encode LSR#32, it has 0 result and carry equal to bit 31 of Rm
-                    0 => {
-                        carry = rm.get_bit(31);
-
-                        0
-                    }
+                    0 => (0, rm.get_bit(31)),
                     // LSR#1..32: Normal right logical shift
-                    1..=32 => {
-                        carry = rm.get_bit((shift_amount - 1).try_into().unwrap());
-
-                        rm >> shift_amount
-                    }
+                    1..=32 => (
+                        rm >> shift_amount,
+                        rm.get_bit((shift_amount - 1).try_into().unwrap()),
+                    ),
                     // LSR#33...: result is 0 and carry is 0
-                    _ => {
-                        carry = false;
-
-                        0
-                    }
+                    _ => (0, false),
                 }
             }
             //ASR
             2 => {
                 match shift_amount {
                     // ASR#1..31: normal arithmetic right shift
-                    1..=31 => {
-                        carry = rm.get_bit((shift_amount - 1).try_into().unwrap());
-
-                        ((rm as i32) >> shift_amount) as u32
-                    }
+                    1..=31 => (
+                        ((rm as i32) >> shift_amount) as u32,
+                        rm.get_bit((shift_amount - 1).try_into().unwrap()),
+                    ),
                     // ASR#0 (which is used to encode ASR#32), ASR#32 and above all have the same result
                     _ => {
-                        carry = rm.get_bit(31);
                         // arithmetically shifting by 31 is the same as shifting by 32, but with 32 rust complains
-                        ((rm as i32) >> 31) as u32
+                        (((rm as i32) >> 31) as u32, rm.get_bit(31))
                     }
                 }
             }
@@ -118,22 +97,15 @@ impl Arm7tdmi {
                     0 => {
                         let old_carry = self.cpsr.carry_flag() as u32;
 
-                        carry = rm.get_bit(0);
-
-                        (rm >> 1) | (old_carry << 31)
+                        ((rm >> 1) | (old_carry << 31), rm.get_bit(0))
                     }
                     // ROR#1..31: normal rotate right
-                    1..=31 => {
-                        carry = rm.get_bit((shift_amount - 1).try_into().unwrap());
-
-                        rm.rotate_right(shift_amount)
-                    }
+                    1..=31 => (
+                        rm.rotate_right(shift_amount),
+                        rm.get_bit((shift_amount - 1).try_into().unwrap()),
+                    ),
                     // ROR#32 doesn't change rm but sets carry to bit 31 of rm
-                    32 => {
-                        carry = rm.get_bit(31);
-
-                        rm
-                    }
+                    32 => (rm, rm.get_bit(31)),
                     // ROR#i with i > 32 is the same of ROR#n where n = i % 32
                     _ => unreachable!(),
                 }
