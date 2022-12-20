@@ -8,18 +8,11 @@ use crate::{
 };
 
 use super::{
+    alu_instruction::{self, ArithmeticOpResult},
     arm7tdmi::{REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION},
     cpu_modes::Mode,
     flags::OperandKind,
 };
-
-pub struct ArithmeticOpResult {
-    pub result: u32,
-    pub carry: bool,
-    pub overflow: bool,
-    pub sign: bool,
-    pub zero: bool,
-}
 
 /// Represents the kind of PSR operation
 enum PsrOpKind {
