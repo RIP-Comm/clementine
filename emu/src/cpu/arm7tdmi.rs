@@ -13,7 +13,7 @@ use crate::cpu::register_bank::RegisterBank;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
-use super::alu_instruction::ThumbModeAluInstruction;
+use super::alu_instruction::{self, ThumbModeAluInstruction};
 use super::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
 use super::opcode::ThumbModeOpcode;
 use super::psr::CpuState;
@@ -110,7 +110,7 @@ impl Arm7tdmi {
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
         use ThumbModeInstruction::*;
         let bytes_to_advance: Option<u32> = match op_code.instruction {
-            MoveShiftedRegister => unimplemented!(),
+            MoveShiftedRegister => self.move_shifted_reg(op_code),
             AddSubtract => self.add_subtract(op_code),
             MoveCompareAddSubtractImm => self.move_compare_add_sub_imm(op_code),
             AluOp => self.alu_op(op_code),
@@ -923,6 +923,21 @@ impl Arm7tdmi {
             self.registers
                 .set_register_at(REG_LR, pc.wrapping_add(offset));
         }
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
+
+    pub(crate) fn move_shifted_reg(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let op = op_code.get_bits(11..=12);
+        let offset = op_code.get_bits(6..=10);
+        let rs = op_code.get_bits(3..=5);
+        let rd = op_code.get_bits(0..=2);
+        let source = self.registers.register_at(rs.try_into().unwrap());
+
+        let r = alu_instruction::shift(op.into(), offset.into(), source, self.cpsr.carry_flag());
+        self.registers
+            .set_register_at(rd.try_into().unwrap(), r.result);
+        self.cpsr.set_flags(r);
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
