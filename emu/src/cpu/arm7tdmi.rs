@@ -34,7 +34,7 @@ pub struct Arm7tdmi {
 
     pub register_bank: RegisterBank,
 
-    pub current_instruction: Vec<String>,
+    pub disassembler_buffer: Vec<String>,
 }
 
 impl Default for Arm7tdmi {
@@ -45,7 +45,7 @@ impl Default for Arm7tdmi {
             spsr: Psr::default(),
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
-            current_instruction: vec![],
+            disassembler_buffer: vec![],
         };
 
         // Setting ARM mode at startup
@@ -89,7 +89,7 @@ impl Arm7tdmi {
         let bytes_to_advance = if !self.cpsr.can_execute(op_code.condition) {
             Some(SIZE_OF_ARM_INSTRUCTION)
         } else {
-            self.current_instruction
+            self.disassembler_buffer
                 .push(op_code.instruction.disassembler());
             match op_code.instruction {
                 DataProcessing => self.data_processing(op_code),
