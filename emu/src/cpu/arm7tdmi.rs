@@ -603,7 +603,11 @@ impl Arm7tdmi {
         let new_pc = self.registers.program_counter() as i32 + offset + 8;
         self.registers.set_program_counter(new_pc as u32);
 
-        let disassembler = format!("B {} {} <{}>", is_link, op_code.condition, offset);
+        let disassembler = if is_link {
+            format!("b{} 0x{:08X}", op_code.condition, offset)
+        } else {
+            format!("bl{} 0x{:08X}", op_code.condition, offset)
+        };
         self.current_instruction.push(disassembler);
 
         // Never advance PC after B
