@@ -94,7 +94,7 @@ impl Arm7tdmi {
                 Multiply => todo!(),
                 MultiplyLong => todo!(),
                 SingleDataSwap => todo!(),
-                BranchAndExchange => self.branch_and_exchange(op_code),
+                BranchAndExchange(_, register) => self.branch_and_exchange(register),
                 HalfwordDataTransferRegisterOffset => self.data_transfer_register_offset(op_code),
                 HalfwordDataTransferImmediateOffset => self.data_transfer_immediate_offset(op_code),
                 SingleDataTransfer => self.single_data_transfer(op_code),
@@ -281,9 +281,8 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
-    fn branch_and_exchange(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
-        let rn = op_code.get_bits(0..=3);
-        let rn = self.registers.register_at(rn.try_into().unwrap());
+    fn branch_and_exchange(&mut self, register: usize) -> Option<u32> {
+        let rn = self.registers.register_at(register);
         let state: CpuState = rn.get_bit(0).into();
         self.cpsr.set_cpu_state(state);
         self.registers.set_program_counter(rn);

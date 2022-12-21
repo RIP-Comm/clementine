@@ -12,7 +12,7 @@ pub enum ArmModeInstruction {
     Multiply,
     MultiplyLong,
     SingleDataSwap,
-    BranchAndExchange,
+    BranchAndExchange(Condition, usize),
     HalfwordDataTransferRegisterOffset,
     HalfwordDataTransferImmediateOffset,
     SingleDataTransfer,
@@ -31,7 +31,7 @@ impl ArmModeInstruction {
             Self::Multiply => "".to_owned(),
             Self::MultiplyLong => "".to_owned(),
             Self::SingleDataSwap => "".to_owned(),
-            Self::BranchAndExchange => "".to_owned(),
+            Self::BranchAndExchange(_, reg) => format!("bx R{}", reg),
             Self::HalfwordDataTransferRegisterOffset => "".to_owned(),
             Self::HalfwordDataTransferImmediateOffset => "".to_owned(),
             Self::SingleDataTransfer => "".to_owned(),
@@ -56,11 +56,14 @@ impl From<u32> for ArmModeInstruction {
     fn from(op_code: u32) -> Self {
         use ArmModeInstruction::*;
 
+        let condition = Condition::from(op_code.get_bits(28..=31) as u8);
+
         // NOTE: The order is based on how many bits are already know at decoding time.
         // It can happen `op_code` coalesced into one/two or more than two possible solution, that's because
         // we tried to order with this priority.
         if op_code.get_bits(4..=27) == 0b0001_0010_1111_1111_1111_0001 {
-            BranchAndExchange
+            let rn = op_code.get_bits(0..=3) as usize;
+            BranchAndExchange(condition, rn)
         } else if op_code.get_bits(23..=27) == 0b00010
             && op_code.get_bits(20..=21) == 0b00
             && op_code.get_bits(4..=11) == 0b0000_1001
@@ -96,7 +99,6 @@ impl From<u32> for ArmModeInstruction {
         } else if op_code.get_bits(25..=27) == 0b100 {
             BlockDataTransfer
         } else if op_code.get_bits(25..=27) == 0b101 {
-            let condition = Condition::from(op_code.get_bits(28..=31) as u8);
             let is_link = op_code.get_bit(24);
             let offset = op_code.get_bits(0..=23) << 2;
             Branch(condition, is_link, offset)
@@ -215,7 +217,10 @@ mod tests {
         let output: ArmModeOpcode = 0b1110_0001_0010_1111_1111_1111_0001_0001
             .try_into()
             .unwrap();
-        assert_eq!(output.instruction, ArmModeInstruction::BranchAndExchange);
+        assert_eq!(
+            output.instruction,
+            ArmModeInstruction::BranchAndExchange(Condition::AL, 1)
+        );
     }
 
     #[test]
