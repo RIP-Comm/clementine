@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 /// In ARM state, all instructions are conditionally executed according to the state of the CPSR,
 ///  condition codes and the instruction’s condition field.
 /// This field (bits 31:28) determines the circumstances under which an instruction is to be executed.
@@ -76,6 +78,29 @@ impl From<u8> for Condition {
             0xE => Self::AL,
             0xF => Self::NV,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl Display for Condition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EQ => f.write_str("eq"),
+            Self::NE => f.write_str("ne"),
+            Self::CS => f.write_str("cs"),
+            Self::CC => f.write_str("cc"),
+            Self::MI => f.write_str("mi"),
+            Self::PL => f.write_str("pl"),
+            Self::VS => f.write_str("vs"),
+            Self::VC => f.write_str("vc"),
+            Self::HI => f.write_str("hi"),
+            Self::LS => f.write_str("ls"),
+            Self::GE => f.write_str("ge"),
+            Self::LT => f.write_str("lt"),
+            Self::GT => f.write_str("gt"),
+            Self::LE => f.write_str("le"),
+            Self::AL => Ok(()),
+            Self::NV => f.write_str("_NEVER"),
         }
     }
 }
