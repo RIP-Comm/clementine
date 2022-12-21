@@ -89,6 +89,8 @@ impl Arm7tdmi {
         let bytes_to_advance = if !self.cpsr.can_execute(op_code.condition) {
             Some(SIZE_OF_ARM_INSTRUCTION)
         } else {
+            self.current_instruction
+                .push(op_code.instruction.disassembler());
             match op_code.instruction {
                 DataProcessing => self.data_processing(op_code),
                 Multiply => todo!(),
