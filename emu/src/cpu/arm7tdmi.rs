@@ -33,6 +33,8 @@ pub struct Arm7tdmi {
     pub registers: Registers,
 
     pub register_bank: RegisterBank,
+
+    pub current_instruction: Vec<String>,
 }
 
 impl Default for Arm7tdmi {
@@ -43,6 +45,7 @@ impl Default for Arm7tdmi {
             spsr: Psr::default(),
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
+            current_instruction: vec![],
         };
 
         // Setting ARM mode at startup
@@ -599,6 +602,9 @@ impl Arm7tdmi {
         // 8 is for the prefetch
         let new_pc = self.registers.program_counter() as i32 + offset + 8;
         self.registers.set_program_counter(new_pc as u32);
+
+        let disassembler = format!("B {} {} <{}>", is_link, op_code.condition, offset);
+        self.current_instruction.push(disassembler);
 
         // Never advance PC after B
         None
