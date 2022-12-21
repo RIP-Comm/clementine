@@ -96,9 +96,9 @@ impl Arm7tdmi {
                 Multiply => todo!(),
                 MultiplyLong => todo!(),
                 SingleDataSwap => todo!(),
-                BranchAndExchange => self.branch_and_exchange(op_code),
-                HalfwordDataTransferRegisterOffset => self.half_word_data_transfer(op_code),
-                HalfwordDataTransferImmediateOffset => self.half_word_data_transfer(op_code),
+                BranchAndExchange(_, register) => self.branch_and_exchange(register),
+                HalfwordDataTransferRegisterOffset => self.data_transfer_register_offset(op_code),
+                HalfwordDataTransferImmediateOffset => self.data_transfer_immediate_offset(op_code),
                 SingleDataTransfer => self.single_data_transfer(op_code),
                 Undefined => todo!(),
                 BlockDataTransfer => self.block_data_transfer(op_code),
@@ -315,6 +315,7 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
+<<<<<<< HEAD
     fn load_store_immediate_offset(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
         let byte_word: ReadWriteKind = op_code.get_bit(12).into();
         let load_store: LoadStoreKind = op_code.get_bit(11).into();

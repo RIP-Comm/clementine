@@ -45,7 +45,7 @@ impl Display for ArmModeOpcode {
             ArmModeInstruction::Multiply => "FMT: |_Cond__|",
             ArmModeInstruction::MultiplyLong => "FMT: |_Cond__|",
             ArmModeInstruction::SingleDataSwap => "FMT: |_Cond__|",
-            ArmModeInstruction::BranchAndExchange => {
+            ArmModeInstruction::BranchAndExchange(..) => {
                 "FMT: |_Cond__|0_0_0_1|0_0_1_0|1_1_1_1|1_1_1_1|1_1_1_1|0_0_0_1|__Rn___|"
             }
             ArmModeInstruction::HalfwordDataTransferRegisterOffset => {
@@ -61,7 +61,7 @@ impl Display for ArmModeOpcode {
             ArmModeInstruction::BlockDataTransfer => {
                 "FMT: |_Cond__|1_0_0|P|U|S|W|L|__Rn___|_____________Reg_List__________|"
             }
-            ArmModeInstruction::Branch(_, _, _) => {
+            ArmModeInstruction::Branch(..) => {
                 "FMT: |_Cond__|1_0_1|L|______________________Offset___________________|"
             }
             ArmModeInstruction::CoprocessorDataTransfer => {
