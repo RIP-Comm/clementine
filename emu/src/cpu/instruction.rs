@@ -4,6 +4,8 @@ use logger::log;
 
 use crate::bitwise::Bits;
 
+use super::condition::Condition;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArmModeInstruction {
     DataProcessing,
@@ -16,11 +18,38 @@ pub enum ArmModeInstruction {
     SingleDataTransfer,
     Undefined,
     BlockDataTransfer,
-    Branch,
+    Branch(Condition, bool, u32),
     CoprocessorDataTransfer,
     CoprocessorDataOperation,
     CoprocessorRegisterTrasfer,
     SoftwareInterrupt,
+}
+impl ArmModeInstruction {
+    pub(crate) fn disassembler(&self) -> String {
+        match self {
+            Self::DataProcessing => "".to_owned(),
+            Self::Multiply => "".to_owned(),
+            Self::MultiplyLong => "".to_owned(),
+            Self::SingleDataSwap => "".to_owned(),
+            Self::BranchAndExchange => "".to_owned(),
+            Self::HalfwordDataTransferRegisterOffset => "".to_owned(),
+            Self::HalfwordDataTransferImmediateOffset => "".to_owned(),
+            Self::SingleDataTransfer => "".to_owned(),
+            Self::Undefined => "".to_owned(),
+            Self::BlockDataTransfer => "".to_owned(),
+            Self::Branch(cond, is_link, offset) => {
+                if *is_link {
+                    format!("b{} 0x{:08X}", cond, offset)
+                } else {
+                    format!("bl{} 0x{:08X}", cond, offset)
+                }
+            }
+            Self::CoprocessorDataTransfer => "".to_owned(),
+            Self::CoprocessorDataOperation => "".to_owned(),
+            Self::CoprocessorRegisterTrasfer => "".to_owned(),
+            Self::SoftwareInterrupt => "".to_owned(),
+        }
+    }
 }
 
 impl From<u32> for ArmModeInstruction {
@@ -67,7 +96,10 @@ impl From<u32> for ArmModeInstruction {
         } else if op_code.get_bits(25..=27) == 0b100 {
             BlockDataTransfer
         } else if op_code.get_bits(25..=27) == 0b101 {
-            Branch
+            let condition = Condition::from(op_code.get_bits(28..=31) as u8);
+            let is_link = op_code.get_bit(24);
+            let offset = op_code.get_bits(0..=23) << 2;
+            Branch(condition, is_link, offset)
         } else if op_code.get_bits(26..=27) == 0b01 {
             SingleDataTransfer
         } else if op_code.get_bits(26..=27) == 0b00 {
@@ -165,7 +197,8 @@ impl Display for ThumbModeInstruction {
 
 #[cfg(test)]
 mod tests {
-    use crate::{cpu::instruction::ArmModeInstruction, cpu::opcode::ArmModeOpcode};
+    use super::*;
+    use crate::cpu::opcode::ArmModeOpcode;
 
     #[test]
     fn decode_half_word_data_transfer_immediate_offset() {
@@ -190,6 +223,9 @@ mod tests {
         let output: ArmModeOpcode = 0b1110_1011_0000_0000_0000_0000_0111_1111
             .try_into()
             .unwrap();
-        assert_eq!(output.instruction, ArmModeInstruction::Branch);
+        assert_eq!(
+            ArmModeInstruction::Branch(Condition::AL, true, 508),
+            output.instruction
+        );
     }
 }

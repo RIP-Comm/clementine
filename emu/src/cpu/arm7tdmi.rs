@@ -98,7 +98,7 @@ impl Arm7tdmi {
                 SingleDataTransfer => self.single_data_transfer(op_code),
                 Undefined => todo!(),
                 BlockDataTransfer => self.block_data_transfer(op_code),
-                Branch => self.branch(op_code),
+                Branch(_, link, offset) => self.branch(link, offset),
                 CoprocessorDataTransfer => self.coprocessor_data_transfer(op_code),
                 CoprocessorDataOperation => todo!(),
                 CoprocessorRegisterTrasfer => todo!(),
@@ -540,9 +540,7 @@ impl Arm7tdmi {
         self.cpsr.set_mode(new_mode);
     }
 
-    fn branch(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
-        let offset = op_code.get_bits(0..=23) << 2;
-
+    fn branch(&mut self, is_link: bool, offset: u32) -> Option<u32> {
         // We need to sign-extend the 26 bit number into a 32 bit.
         // We can't just do `offset as i32` since it would just do a
         // zero extension.
@@ -551,7 +549,6 @@ impl Arm7tdmi {
         let offset = (offset as i32 ^ mask) - mask;
 
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
-        let is_link = op_code.get_bit(24);
         if is_link {
             self.registers
                 .set_register_at(14, old_pc.wrapping_add(SIZE_OF_ARM_INSTRUCTION));
@@ -560,13 +557,6 @@ impl Arm7tdmi {
         // 8 is for the prefetch
         let new_pc = self.registers.program_counter() as i32 + offset + 8;
         self.registers.set_program_counter(new_pc as u32);
-
-        let disassembler = if is_link {
-            format!("b{} 0x{:08X}", op_code.condition, offset)
-        } else {
-            format!("bl{} 0x{:08X}", op_code.condition, offset)
-        };
-        self.current_instruction.push(disassembler);
 
         // Never advance PC after B
         None
