@@ -878,6 +878,8 @@ impl Arm7tdmi {
     fn alu_op(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
         let op: ThumbModeAluInstruction = op_code.get_bits(6..=9).into();
         let rs = op_code.get_bits(3..=5);
+        let rs = self.registers.register_at(rs.try_into().unwrap());
+
         let rd = op_code.get_bits(0..=2);
 
         match op {
@@ -897,7 +899,7 @@ impl Arm7tdmi {
             ThumbModeAluInstruction::Mul => todo!(),
             ThumbModeAluInstruction::Bic => todo!(),
             ThumbModeAluInstruction::Mvn => {
-                self.mvn(rd.try_into().unwrap(), rs.try_into().unwrap(), true);
+                self.mvn(rd.try_into().unwrap(), rs, true);
             }
         }
 
@@ -1699,7 +1701,7 @@ mod tests {
 
         cpu.execute_thumb(op_code);
 
-        assert_eq!(cpu.registers.register_at(7), !1);
+        assert_eq!(cpu.registers.register_at(7), !0);
         assert!(cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
     }
