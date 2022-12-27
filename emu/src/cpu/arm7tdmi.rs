@@ -908,7 +908,7 @@ impl Arm7tdmi {
 
     fn long_branch_link(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
         let h = op_code.get_bit(11);
-        let offset = op_code.get_bits(0..=10);
+        let offset = op_code.get_bits(0..=10) as u32;
 
         if h {
             let next_instruction =
@@ -918,12 +918,15 @@ impl Arm7tdmi {
             self.registers.set_program_counter(lr.wrapping_add(offset));
             self.registers.set_register_at(REG_LR, next_instruction | 1);
         } else {
-            let offset = (offset << 12) as u32;
+            let offset = offset << 12;
+            let mask = 1 << 22;
+            let offset = (offset as i32 ^ mask) - mask;
+
             let pc = self.registers.program_counter() as u32
                 + SIZE_OF_THUMB_INSTRUCTION
                 + SIZE_OF_THUMB_INSTRUCTION;
             self.registers
-                .set_register_at(REG_LR, pc.wrapping_add(offset));
+                .set_register_at(REG_LR, ((pc as i32) + offset) as u32);
         }
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
