@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use egui::{ScrollArea, TextEdit, TextStyle};
 use emu::gba::Gba;
 
-use crate::ui_traits::{UiTool, View};
+use crate::ui_traits::UiTool;
 
 pub struct Disassembler {
     gba: Arc<Mutex<Gba>>,
@@ -25,13 +25,10 @@ impl UiTool for Disassembler {
             .resizable(true)
             .open(open)
             .show(ctx, |ui| {
-                use View as _;
                 self.ui(ui);
             });
     }
-}
 
-impl View for Disassembler {
     fn ui(&mut self, ui: &mut egui::Ui) {
         let mut s = self.gba.lock().unwrap().cpu.disassembler_buffer.join("\n");
 

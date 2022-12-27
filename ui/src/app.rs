@@ -1,3 +1,4 @@
+use crate::disassembler::Disassembler;
 use emu::{cartridge_header::CartridgeHeader, gba::Gba};
 use logger::log;
 use std::io::Read;
@@ -45,11 +46,14 @@ impl ClementineApp {
             data,
         )));
 
+        let disassembler = Disassembler::new(Arc::clone(&arc_gba));
+
         Self::from_tools(vec![
             Box::<about::About>::default(),
             Box::new(CpuInspector::new(Arc::clone(&arc_gba))),
             Box::new(GbaDisplay::new(Arc::clone(&arc_gba))),
             Box::new(PaletteVisualizer::new(arc_gba)),
+            Box::new(disassembler),
         ])
     }
 

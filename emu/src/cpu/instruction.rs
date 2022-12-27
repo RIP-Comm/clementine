@@ -31,18 +31,15 @@ impl ArmModeInstruction {
             Self::Multiply => "".to_owned(),
             Self::MultiplyLong => "".to_owned(),
             Self::SingleDataSwap => "".to_owned(),
-            Self::BranchAndExchange(_, reg) => format!("bx R{}", reg),
+            Self::BranchAndExchange(_, reg) => format!("bx R{reg}"),
             Self::HalfwordDataTransferRegisterOffset => "".to_owned(),
             Self::HalfwordDataTransferImmediateOffset => "".to_owned(),
             Self::SingleDataTransfer => "".to_owned(),
             Self::Undefined => "".to_owned(),
             Self::BlockDataTransfer => "".to_owned(),
-            Self::Branch(cond, is_link, offset) => {
-                if *is_link {
-                    format!("b{} 0x{:08X}", cond, offset)
-                } else {
-                    format!("bl{} 0x{:08X}", cond, offset)
-                }
+            Self::Branch(cond, is_link, address) => {
+                let link = if *is_link { "l" } else { "" };
+                format!("b{cond}{link} 0x{address:08X}")
             }
             Self::CoprocessorDataTransfer => "".to_owned(),
             Self::CoprocessorDataOperation => "".to_owned(),
