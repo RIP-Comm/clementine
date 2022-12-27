@@ -27,7 +27,7 @@ enum PsrOpKind {
 impl Arm7tdmi {
     pub fn shift_operand(
         &mut self,
-        alu_opcode: u32,
+        alu_instruction: ArmModeAluInstruction,
         s: bool,
         shift_type: u32,
         shift_amount: u32,
@@ -84,14 +84,20 @@ impl Arm7tdmi {
         };
 
         // If the instruction is a logical ALU instruction and S is set we set the carry flag
-        if ArmModeAluInstruction::from(alu_opcode).kind() == AluInstructionKind::Logical && s {
+        if alu_instruction.kind() == AluInstructionKind::Logical && s {
             self.cpsr.set_carry_flag(carry);
         }
 
         result
     }
 
-    fn get_operand(&mut self, alu_opcode: u32, s: bool, i: OperandKind, op2: u32) -> u32 {
+    fn get_operand(
+        &mut self,
+        alu_instruction: ArmModeAluInstruction,
+        s: bool,
+        i: OperandKind,
+        op2: u32,
+    ) -> u32 {
         match i {
             // we get the operand from a register and then we shift it
             OperandKind::Register => {
@@ -131,7 +137,7 @@ impl Arm7tdmi {
                     }
                 };
 
-                self.shift_operand(alu_opcode, s, shift_type, shift_amount, rm)
+                self.shift_operand(alu_instruction, s, shift_type, shift_amount, rm)
             }
             OperandKind::Immediate => {
                 // bits [7-0] are the immediate value
@@ -306,7 +312,7 @@ impl Arm7tdmi {
 
         let rn = self.registers.register_at(rn.try_into().unwrap()) + offset;
 
-        let op2 = self.get_operand(alu_op_code, s, i, op_code.get_bits(0..=11));
+        let op2 = self.get_operand(alu_op_code.into(), s, i, op_code.get_bits(0..=11));
 
         // S = 1 and Rd = 0xF should not be allowed in User Mode.
         // TODO: When in other modes it should load SPSR_<current_mode> into CPSR
