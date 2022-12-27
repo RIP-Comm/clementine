@@ -37,12 +37,9 @@ impl ArmModeInstruction {
             Self::SingleDataTransfer => "".to_owned(),
             Self::Undefined => "".to_owned(),
             Self::BlockDataTransfer => "".to_owned(),
-            Self::Branch(cond, is_link, offset) => {
-                if *is_link {
-                    format!("b{} 0x{:08X}", cond, offset)
-                } else {
-                    format!("bl{} 0x{:08X}", cond, offset)
-                }
+            Self::Branch(cond, is_link, address) => {
+                let link = if *is_link { "l" } else { "" };
+                format!("b{}{} 0x{:08X}", cond, link, address)
             }
             Self::CoprocessorDataTransfer => "".to_owned(),
             Self::CoprocessorDataOperation => "".to_owned(),
