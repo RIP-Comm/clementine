@@ -914,7 +914,7 @@ impl Arm7tdmi {
             let next_instruction =
                 self.registers.program_counter() as u32 + SIZE_OF_THUMB_INSTRUCTION;
             let lr = self.registers.register_at(REG_LR);
-            let offset = (offset << 1) as u32;
+            let offset = offset << 1;
             self.registers.set_program_counter(lr.wrapping_add(offset));
             self.registers.set_register_at(REG_LR, next_instruction | 1);
         } else {
