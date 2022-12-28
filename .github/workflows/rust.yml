@@ -25,9 +25,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: extractions/setup-just@v1
       - name: Check fmt
-        run: just check-fmt
+        run: cargo fmt --all --check
 
   test:
     needs: [fmt]
@@ -39,10 +38,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: extractions/setup-just@v1
       - uses: dtolnay/rust-toolchain@stable
       - name: Test
-        run: just test
+        run: cargo test --workspace
 
   lint:
     needs: [fmt, test]
@@ -50,9 +48,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: extractions/setup-just@v1
       - name: Lint
-        run: just lint
+        run: |
+          cargo clippy --workspace -- -D warnings    \
+          -W clippy::complexity                       \
+          -W clippy::correctness                      \
+          -W clippy::nursery                          \
+          -W clippy::perf                             \
+          -W clippy::style                            \
+          -W clippy::suspicious
 
   coverage:
     needs: [fmt, test, lint]
