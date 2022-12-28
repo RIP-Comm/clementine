@@ -919,7 +919,12 @@ impl Arm7tdmi {
             ThumbModeAluInstruction::Neg => todo!(),
             ThumbModeAluInstruction::Cmp => todo!(),
             ThumbModeAluInstruction::Cmn => todo!(),
-            ThumbModeAluInstruction::Orr => todo!(),
+            ThumbModeAluInstruction::Orr => self.orr(
+                rd.into(),
+                self.registers.register_at(rd.try_into().unwrap()),
+                rs,
+                true,
+            ),
             ThumbModeAluInstruction::Mul => todo!(),
             ThumbModeAluInstruction::Bic => todo!(),
             ThumbModeAluInstruction::Mvn => {
@@ -1732,6 +1737,23 @@ mod tests {
 
             assert!(!cpu.cpsr.sign_flag());
             assert!(cpu.cpsr.zero_flag());
+        }
+        {
+            // orr
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b0100_0011_0010_1010;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+
+            cpu.registers.set_register_at(2, 90);
+            cpu.registers.set_register_at(5, 97);
+            cpu.cpsr.set_sign_flag(true);
+            cpu.cpsr.set_zero_flag(true);
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(2), 123);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
         }
         {
             // mvn
