@@ -154,6 +154,10 @@ impl InternalMemory {
     }
 
     pub fn read_half_word(&self, address: usize) -> u16 {
+        if address & 1 != 0 {
+            log("warning, read_half_word has address not half-word aligned");
+        }
+
         let part_0: u16 = self.read_at(address).try_into().unwrap();
         let part_1: u16 = self.read_at(address + 1).try_into().unwrap();
 
@@ -365,5 +369,13 @@ mod tests {
         assert_eq!(im.bios_system_rom[1], 0x56);
         assert_eq!(im.bios_system_rom[2], 0x34);
         assert_eq!(im.bios_system_rom[3], 0x12);
+    }
+
+    #[test]
+    fn check_read_half_word() {
+        let mut im = InternalMemory::default();
+        im.bios_system_rom = vec![0x12, 0x34];
+
+        assert_eq!(im.read_half_word(0), 0x3412);
     }
 }
