@@ -193,7 +193,18 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
                 },
             }
         }
-        ShiftKind::Asr => todo!(),
+        ShiftKind::Asr => match shift_amount {
+            1..=31 => ArithmeticOpResult {
+                result: ((rm as i32) >> shift_amount) as u32,
+                carry: rm.get_bit((shift_amount - 1).try_into().unwrap()),
+                ..Default::default()
+            },
+            _ => ArithmeticOpResult {
+                result: ((rm as i32) >> 31) as u32,
+                carry: rm.get_bit(31),
+                ..Default::default()
+            },
+        },
         ShiftKind::Ror => todo!(),
     }
 }

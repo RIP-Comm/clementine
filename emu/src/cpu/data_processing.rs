@@ -36,29 +36,14 @@ impl Arm7tdmi {
         // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
 
         let (result, carry) = match shift_type {
-            0 | 1 => {
+            0 | 1 | 2 => {
                 let a = alu_instruction::shift(
-                    shift_amount.into(),
+                    shift_type.into(),
                     shift_amount,
                     rm,
                     self.cpsr.carry_flag(),
                 );
                 (a.result, a.carry)
-            }
-            //ASR
-            2 => {
-                match shift_amount {
-                    // ASR#1..31: normal arithmetic right shift
-                    1..=31 => (
-                        ((rm as i32) >> shift_amount) as u32,
-                        rm.get_bit((shift_amount - 1).try_into().unwrap()),
-                    ),
-                    // ASR#0 (which is used to encode ASR#32), ASR#32 and above all have the same result
-                    _ => {
-                        // arithmetically shifting by 31 is the same as shifting by 32, but with 32 rust complains
-                        (((rm as i32) >> 31) as u32, rm.get_bit(31))
-                    }
-                }
             }
             // ROR
             3 => {
