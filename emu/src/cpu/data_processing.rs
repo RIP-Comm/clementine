@@ -552,7 +552,7 @@ impl Arm7tdmi {
         self.cpsr.set_flags(add_result);
     }
 
-    fn orr(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+    pub fn orr(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
         let result = rn | op2;
 
         self.registers.set_register_at(rd, result);
