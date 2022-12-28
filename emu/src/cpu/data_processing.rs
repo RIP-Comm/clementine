@@ -36,8 +36,7 @@ impl Arm7tdmi {
         // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
 
         let (result, carry) = match shift_type {
-            // LSL
-            0 => {
+            0 | 1 => {
                 let a = alu_instruction::shift(
                     shift_amount.into(),
                     shift_amount,
@@ -45,20 +44,6 @@ impl Arm7tdmi {
                     self.cpsr.carry_flag(),
                 );
                 (a.result, a.carry)
-            }
-            // LSR
-            1 => {
-                match shift_amount {
-                    // LSR#0 is used to encode LSR#32, it has 0 result and carry equal to bit 31 of Rm
-                    0 => (0, rm.get_bit(31)),
-                    // LSR#1..32: Normal right logical shift
-                    1..=32 => (
-                        rm >> shift_amount,
-                        rm.get_bit((shift_amount - 1).try_into().unwrap()),
-                    ),
-                    // LSR#33...: result is 0 and carry is 0
-                    _ => (0, false),
-                }
             }
             //ASR
             2 => {

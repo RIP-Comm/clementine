@@ -172,7 +172,27 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
                 },
             }
         }
-        ShiftKind::Lsr => todo!(),
+        ShiftKind::Lsr => {
+            match shift_amount {
+                // LSR#0 is used to encode LSR#32, it has 0 result and carry equal to bit 31 of Rm
+                0 => ArithmeticOpResult {
+                    result: 0,
+                    carry: rm.get_bit(31),
+                    ..Default::default()
+                },
+                // LSR#1..32: Normal right logical shift
+                1..=32 => ArithmeticOpResult {
+                    result: rm >> shift_amount,
+                    carry: rm.get_bit((shift_amount - 1).try_into().unwrap()),
+                    ..Default::default()
+                },
+                _ => ArithmeticOpResult {
+                    result: 0,
+                    carry: false,
+                    ..Default::default()
+                },
+            }
+        }
         ShiftKind::Asr => todo!(),
         ShiftKind::Ror => todo!(),
     }
