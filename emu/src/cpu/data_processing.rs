@@ -542,7 +542,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn tst(&mut self, rn: u32, op2: u32) {
+    pub fn tst(&mut self, rn: u32, op2: u32) {
         let value = rn & op2;
 
         self.cpsr.set_sign_flag(value.is_bit_on(31));
