@@ -132,7 +132,7 @@ impl Display for ThumbModeOpcode {
                 "FMT: |0_1_0_1|L|B|0|_Ro__|_Rb__|_Rd__|"
             }
             ThumbModeInstruction::LoadStoreSignExtByteHalfword => todo!(),
-            ThumbModeInstruction::LoadStoreImmOffset => todo!(),
+            ThumbModeInstruction::LoadStoreImmOffset => "FMT: |0_1_1|B|L|_Offset5_|_Rb__|_Rd__|",
             ThumbModeInstruction::LoadStoreHalfword => "FMT: |1_0_0_0|L|_Offset5_|_Rb__|_Rd__|",
             ThumbModeInstruction::SPRelativeLoadStore => "FMT: |1_0_0_1|L|_Rd__|_____Word8_____|",
             ThumbModeInstruction::LoadAddress => todo!(),

@@ -118,7 +118,7 @@ impl Arm7tdmi {
             PCRelativeLoad => self.pc_relative_load(op_code),
             LoadStoreRegisterOffset => self.load_store_register_offset(op_code),
             LoadStoreSignExtByteHalfword => unimplemented!(),
-            LoadStoreImmOffset => unimplemented!(),
+            LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
             LoadStoreHalfword => self.load_store_halfword(op_code),
             SPRelativeLoadStore => self.sp_relative_load_store(op_code),
             LoadAddress => unimplemented!(),
@@ -306,6 +306,30 @@ impl Arm7tdmi {
                 self.registers.set_register_at(rd, value);
             }
         };
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
+
+    fn load_store_immediate_offset(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let byte_word: ReadWriteKind = op_code.get_bit(12).into();
+        let load_store: LoadStoreKind = op_code.get_bit(11).into();
+        let offset5 = op_code.get_bits(6..=10) as u32;
+        let rb = op_code.get_bits(3..=5);
+        let rd = op_code.get_bits(0..=2);
+
+        let base = self.registers.register_at(rb.try_into().unwrap());
+        let address = base.wrapping_add(offset5);
+
+        let mut mem = self.memory.lock().unwrap();
+        match (load_store, byte_word) {
+            (LoadStoreKind::Store, ReadWriteKind::Word) => {
+                let v = self.registers.register_at(rd.try_into().unwrap());
+                mem.write_word(address.try_into().unwrap(), v)
+            }
+            (LoadStoreKind::Store, ReadWriteKind::Byte) => todo!(),
+            (LoadStoreKind::Load, ReadWriteKind::Word) => todo!(),
+            (LoadStoreKind::Load, ReadWriteKind::Byte) => todo!(),
+        }
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
@@ -1354,6 +1378,26 @@ mod tests {
             cpu.execute_thumb(op_code);
 
             assert_eq!(cpu.registers.register_at(2), 0x1F);
+        }
+    }
+
+    #[test]
+    fn check_load_store_immediate_offset() {
+        {
+            // Store Word
+            let op_code = 0b0110_0011_0111_1000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::LoadStoreImmOffset
+            );
+
+            cpu.registers.set_register_at(0, 1000);
+            cpu.execute_thumb(op_code);
+
+            let mem = cpu.memory.lock().unwrap();
+            assert_eq!(mem.read_word(13), 1000);
         }
     }
 
