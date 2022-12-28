@@ -915,7 +915,7 @@ impl Arm7tdmi {
             ThumbModeAluInstruction::Adc => todo!(),
             ThumbModeAluInstruction::Sbc => todo!(),
             ThumbModeAluInstruction::Ror => todo!(),
-            ThumbModeAluInstruction::Tst => todo!(),
+            ThumbModeAluInstruction::Tst => self.tst(rd.into(), rs),
             ThumbModeAluInstruction::Neg => todo!(),
             ThumbModeAluInstruction::Cmp => todo!(),
             ThumbModeAluInstruction::Cmn => todo!(),
@@ -1721,16 +1721,31 @@ mod tests {
 
     #[test]
     fn check_alu_op() {
-        let mut cpu = Arm7tdmi::default();
-        let op_code = 0b0100_0011_1100_1111;
-        let op_code: ThumbModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+        {
+            // tst
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b0100_0010_0011_1110;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
 
-        cpu.execute_thumb(op_code);
+            cpu.execute_thumb(op_code);
 
-        assert_eq!(cpu.registers.register_at(7), !0);
-        assert!(cpu.cpsr.sign_flag());
-        assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(cpu.cpsr.zero_flag());
+        }
+        {
+            // mvn
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b0100_0011_1100_1111;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(7), !0);
+            assert!(cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+        }
     }
 
     #[test]
