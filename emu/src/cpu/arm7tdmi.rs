@@ -119,7 +119,7 @@ impl Arm7tdmi {
             LoadStoreRegisterOffset => self.load_store_register_offset(op_code),
             LoadStoreSignExtByteHalfword => unimplemented!(),
             LoadStoreImmOffset => unimplemented!(),
-            LoadStoreHalfword => unimplemented!(),
+            LoadStoreHalfword => self.load_store_halfword(op_code),
             SPRelativeLoadStore => self.sp_relative_load_store(op_code),
             LoadAddress => unimplemented!(),
             AddOffsetSP => self.add_offset_sp(op_code),
@@ -180,6 +180,30 @@ impl Arm7tdmi {
             Mode::Supervisor => self.register_bank.spsr_svc,
             Mode::Undefined => self.register_bank.spsr_und
         }
+    }
+
+    fn load_store_halfword(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let load_store: LoadStoreKind = op_code.get_bit(11).into();
+        let offset = op_code.get_bits(6..=10) << 1;
+        let rb = op_code.get_bits(3..=5);
+        let rb = self.registers.register_at(rb.try_into().unwrap());
+        let rd: usize = op_code.get_bits(0..=2).try_into().unwrap();
+
+        let address: usize = rb.wrapping_add(offset as u32).try_into().unwrap();
+
+        let mut mem = self.memory.lock().unwrap();
+
+        match load_store {
+            LoadStoreKind::Load => {
+                self.registers
+                    .set_register_at(rd, mem.read_half_word(address) as u32);
+            }
+            LoadStoreKind::Store => {
+                mem.write_half_word(address, self.registers.register_at(rd) as u16);
+            }
+        }
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
     fn cond_branch(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
@@ -1722,5 +1746,37 @@ mod tests {
 
         assert_eq!(cpu.registers.register_at(REG_LR), 103);
         assert_eq!(cpu.registers.program_counter(), 330);
+    }
+
+    #[test]
+    fn check_load_store_halfword() {
+        {
+            // Load
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1000_1_00001_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::LoadStoreHalfword);
+
+            cpu.registers.set_register_at(0, 100);
+            cpu.memory.lock().unwrap().write_half_word(102, 0xFF);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(1), 0xFF);
+        }
+        {
+            // Store
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1000_0_00001_000_001;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::LoadStoreHalfword);
+
+            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(1, 0xFF);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.memory.lock().unwrap().read_half_word(102), 0xFF);
+        }
     }
 }

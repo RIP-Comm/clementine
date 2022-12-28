@@ -163,6 +163,18 @@ impl InternalMemory {
 
         part_1 << 8 | part_0
     }
+
+    pub fn write_half_word(&mut self, address: usize, value: u16) {
+        if address & 1 != 0 {
+            log("warning, write_half_word has address not half-word aligned");
+        }
+
+        let part_0: u8 = value.get_bits(0..=7).try_into().unwrap();
+        let part_1: u8 = value.get_bits(8..=15).try_into().unwrap();
+
+        self.write_at(address, part_0);
+        self.write_at(address + 1, part_1);
+    }
 }
 
 #[cfg(test)]
@@ -369,6 +381,15 @@ mod tests {
         assert_eq!(im.bios_system_rom[1], 0x56);
         assert_eq!(im.bios_system_rom[2], 0x34);
         assert_eq!(im.bios_system_rom[3], 0x12);
+    }
+
+    #[test]
+    fn check_write_half_word() {
+        let mut im = InternalMemory::default();
+        im.write_half_word(0, 0x1234);
+
+        assert_eq!(im.bios_system_rom[0], 0x34);
+        assert_eq!(im.bios_system_rom[1], 0x12);
     }
 
     #[test]
