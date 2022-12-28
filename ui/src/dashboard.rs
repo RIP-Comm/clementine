@@ -4,7 +4,8 @@ use logger::log;
 
 use super::cpu_inspector::CpuInspector;
 use crate::{
-    about, gba_display::GbaDisplay, palette_visualizer::PaletteVisualizer, ui_traits::UiTool,
+    about, disassembler::Disassembler, gba_display::GbaDisplay,
+    palette_visualizer::PaletteVisualizer, ui_traits::UiTool,
 };
 
 use std::{
@@ -48,11 +49,14 @@ impl UiTools {
             data,
         )));
 
+        let disassembler = Disassembler::new(Arc::clone(&arc_gba));
+
         Self::from_tools(vec![
             Box::<about::About>::default(),
             Box::new(CpuInspector::new(Arc::clone(&arc_gba))),
             Box::new(GbaDisplay::new(Arc::clone(&arc_gba))),
             Box::new(PaletteVisualizer::new(arc_gba)),
+            Box::new(disassembler),
         ])
     }
 
@@ -62,6 +66,7 @@ impl UiTools {
         // Here the default opened window
         open.insert(tools[1].name().to_owned());
         open.insert(tools[2].name().to_owned());
+        open.insert(tools[4].name().to_owned());
 
         Self { tools, open }
     }

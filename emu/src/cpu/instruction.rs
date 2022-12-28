@@ -4,34 +4,63 @@ use logger::log;
 
 use crate::bitwise::Bits;
 
+use super::condition::Condition;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArmModeInstruction {
     DataProcessing,
     Multiply,
     MultiplyLong,
     SingleDataSwap,
-    BranchAndExchange,
+    BranchAndExchange(Condition, usize),
     HalfwordDataTransferRegisterOffset,
     HalfwordDataTransferImmediateOffset,
     SingleDataTransfer,
     Undefined,
     BlockDataTransfer,
-    Branch,
+    Branch(Condition, bool, u32),
     CoprocessorDataTransfer,
     CoprocessorDataOperation,
     CoprocessorRegisterTrasfer,
     SoftwareInterrupt,
+}
+impl ArmModeInstruction {
+    pub(crate) fn disassembler(&self) -> String {
+        match self {
+            Self::DataProcessing => "".to_owned(),
+            Self::Multiply => "".to_owned(),
+            Self::MultiplyLong => "".to_owned(),
+            Self::SingleDataSwap => "".to_owned(),
+            Self::BranchAndExchange(_, reg) => format!("bx R{}", reg),
+            Self::HalfwordDataTransferRegisterOffset => "".to_owned(),
+            Self::HalfwordDataTransferImmediateOffset => "".to_owned(),
+            Self::SingleDataTransfer => "".to_owned(),
+            Self::Undefined => "".to_owned(),
+            Self::BlockDataTransfer => "".to_owned(),
+            Self::Branch(cond, is_link, address) => {
+                let link = if *is_link { "l" } else { "" };
+                format!("b{}{} 0x{:08X}", cond, link, address)
+            }
+            Self::CoprocessorDataTransfer => "".to_owned(),
+            Self::CoprocessorDataOperation => "".to_owned(),
+            Self::CoprocessorRegisterTrasfer => "".to_owned(),
+            Self::SoftwareInterrupt => "".to_owned(),
+        }
+    }
 }
 
 impl From<u32> for ArmModeInstruction {
     fn from(op_code: u32) -> Self {
         use ArmModeInstruction::*;
 
+        let condition = Condition::from(op_code.get_bits(28..=31) as u8);
+
         // NOTE: The order is based on how many bits are already know at decoding time.
         // It can happen `op_code` coalesced into one/two or more than two possible solution, that's because
         // we tried to order with this priority.
         if op_code.get_bits(4..=27) == 0b0001_0010_1111_1111_1111_0001 {
-            BranchAndExchange
+            let rn = op_code.get_bits(0..=3) as usize;
+            BranchAndExchange(condition, rn)
         } else if op_code.get_bits(23..=27) == 0b00010
             && op_code.get_bits(20..=21) == 0b00
             && op_code.get_bits(4..=11) == 0b0000_1001
@@ -67,7 +96,9 @@ impl From<u32> for ArmModeInstruction {
         } else if op_code.get_bits(25..=27) == 0b100 {
             BlockDataTransfer
         } else if op_code.get_bits(25..=27) == 0b101 {
-            Branch
+            let is_link = op_code.get_bit(24);
+            let offset = op_code.get_bits(0..=23) << 2;
+            Branch(condition, is_link, offset)
         } else if op_code.get_bits(26..=27) == 0b01 {
             SingleDataTransfer
         } else if op_code.get_bits(26..=27) == 0b00 {
@@ -165,7 +196,8 @@ impl Display for ThumbModeInstruction {
 
 #[cfg(test)]
 mod tests {
-    use crate::{cpu::instruction::ArmModeInstruction, cpu::opcode::ArmModeOpcode};
+    use super::*;
+    use crate::cpu::opcode::ArmModeOpcode;
 
     #[test]
     fn decode_half_word_data_transfer_immediate_offset() {
@@ -182,7 +214,10 @@ mod tests {
         let output: ArmModeOpcode = 0b1110_0001_0010_1111_1111_1111_0001_0001
             .try_into()
             .unwrap();
-        assert_eq!(output.instruction, ArmModeInstruction::BranchAndExchange);
+        assert_eq!(
+            output.instruction,
+            ArmModeInstruction::BranchAndExchange(Condition::AL, 1)
+        );
     }
 
     #[test]
@@ -190,6 +225,9 @@ mod tests {
         let output: ArmModeOpcode = 0b1110_1011_0000_0000_0000_0000_0111_1111
             .try_into()
             .unwrap();
-        assert_eq!(output.instruction, ArmModeInstruction::Branch);
+        assert_eq!(
+            ArmModeInstruction::Branch(Condition::AL, true, 508),
+            output.instruction
+        );
     }
 }

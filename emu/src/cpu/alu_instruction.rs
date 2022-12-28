@@ -1,5 +1,8 @@
+use std::fmt::Display;
+
 use crate::bitwise::Bits;
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ArmModeAluInstruction {
     And = 0x0,
     Eor = 0x1,
@@ -17,6 +20,29 @@ pub enum ArmModeAluInstruction {
     Mov = 0xD,
     Bic = 0xE,
     Mvn = 0xF,
+}
+
+impl Display for ArmModeAluInstruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::And => f.write_str("and"),
+            Self::Eor => f.write_str("eor"),
+            Self::Sub => f.write_str("sub"),
+            Self::Rsb => f.write_str("rsb"),
+            Self::Add => f.write_str("add"),
+            Self::Adc => f.write_str("adc"),
+            Self::Sbc => f.write_str("sbc"),
+            Self::Rsc => f.write_str("rsc"),
+            Self::Tst => f.write_str("tst"),
+            Self::Teq => f.write_str("teq"),
+            Self::Cmp => f.write_str("cmp"),
+            Self::Cmn => f.write_str("cmn"),
+            Self::Orr => f.write_str("orr"),
+            Self::Mov => f.write_str("mov"),
+            Self::Bic => f.write_str("bic"),
+            Self::Mvn => f.write_str("mvn"),
+        }
+    }
 }
 
 #[derive(Eq, PartialEq, Debug)]
