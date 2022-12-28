@@ -127,7 +127,7 @@ impl Arm7tdmi {
             MultipleLoadStore => unimplemented!(),
             CondBranch => self.cond_branch(op_code),
             Swi => unimplemented!(),
-            UncondBranch => unimplemented!(),
+            UncondBranch => self.uncond_branch(op_code),
             LongBranchLink => self.long_branch_link(op_code),
         };
 
@@ -226,6 +226,16 @@ impl Arm7tdmi {
         } else {
             Some(SIZE_OF_THUMB_INSTRUCTION)
         }
+    }
+
+    fn uncond_branch(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
+        let offset = op_code.get_bits(0..=10) << 1;
+        let mask = 1 << 10;
+        let offset = (offset as i32 ^ mask) - mask;
+        let pc = self.registers.program_counter() as u32;
+        let new_pc = pc.wrapping_add(offset.try_into().unwrap());
+        self.registers.set_program_counter(new_pc);
+        Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
     fn add_subtract(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
@@ -1405,6 +1415,20 @@ mod tests {
 
         // Asserting branch now that we set the condition
         assert_eq!(cpu.registers.program_counter(), 1002 + 4 - 8);
+    }
+
+    #[test]
+    fn check_uncond_branch() {
+        let mut cpu = Arm7tdmi::default();
+        let op_code = 0b1110_0001_0010_1111;
+        let op_code: ThumbModeOpcode = cpu.decode(op_code);
+        assert_eq!(op_code.instruction, ThumbModeInstruction::UncondBranch);
+
+        cpu.registers.set_program_counter(1000);
+
+        cpu.execute_thumb(op_code);
+
+        assert_eq!(cpu.registers.program_counter(), 1608);
     }
 
     #[test]
