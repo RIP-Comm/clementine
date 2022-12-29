@@ -211,10 +211,8 @@ impl Arm7tdmi {
         let cond = op_code.get_bits(8..=11) as u8;
 
         // 9 bits signed offset (assembler puts `label` >> 1 in this field so we should <<1)
-        let offset = op_code.get_bits(0..=7) << 1;
-
-        let mask = 1 << 8;
-        let offset = (offset as i32 ^ mask) - mask;
+        let offset = (op_code.get_bits(0..=7) << 1) as u32;
+        let offset = offset.sign_extended(9) as i32;
 
         if self.cpsr.can_execute(cond.into()) {
             let pc = self.registers.program_counter() as i32;
@@ -230,8 +228,7 @@ impl Arm7tdmi {
 
     fn uncond_branch(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
         let offset = op_code.get_bits(0..=10) << 1;
-        let mask = 1 << 10;
-        let offset = (offset as i32 ^ mask) - mask;
+        let offset = offset.sign_extended(12);
         let pc = self.registers.program_counter() as u32;
         let new_pc = pc.wrapping_add(offset.try_into().unwrap());
         self.registers.set_program_counter(new_pc);
@@ -597,13 +594,7 @@ impl Arm7tdmi {
 
     fn branch(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
         let offset = op_code.get_bits(0..=23) << 2;
-
-        // We need to sign-extend the 26 bit number into a 32 bit.
-        // We can't just do `offset as i32` since it would just do a
-        // zero extension.
-
-        let mask = 1 << 25;
-        let offset = (offset as i32 ^ mask) - mask;
+        let offset = offset.sign_extended(26) as i32;
 
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
         let is_link = op_code.get_bit(24);
@@ -982,8 +973,7 @@ impl Arm7tdmi {
             self.registers.set_register_at(REG_LR, next_instruction | 1);
         } else {
             let offset = offset << 12;
-            let mask = 1 << 22;
-            let offset = (offset as i32 ^ mask) - mask;
+            let offset = offset.sign_extended(23) as i32;
 
             let pc = self.registers.program_counter() as u32
                 + SIZE_OF_THUMB_INSTRUCTION

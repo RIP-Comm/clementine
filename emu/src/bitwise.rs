@@ -117,6 +117,41 @@ where
         bitwise = (bitwise & mask) | shifted_value;
         *self = <Self as TryFrom<u128>>::try_from(bitwise).unwrap();
     }
+
+    /// Returns a sign-extended copy of the value.
+    /// `bits_amount` is the numbers of bits of the value we want
+    /// to sign-extend.
+    fn sign_extended(&self, number_of_bits: u8) -> Self {
+        let value: u128 = <Self as Into<u128>>::into(self.clone());
+
+        // We generate a mask having a 1 in the last most significant bit of the value
+        // (if we suppose it to be a two's complement number `bits_amount` long)
+        let mask = 1 << (number_of_bits - 1);
+
+        // With `value ^ mask` we get the information about the "sign bit" in the value.
+        // If the value is negative the "sign bit" will be set, resulting in a 0 after the XOR operation.
+        // Subtracting the mask would then result in a sign-extended value.
+        // Example in 4 bits:
+        // We want to sign-extend 0b1001 which in `i4` is `-7`.
+        // The mask in this case in 0b1000.
+        // 0b1001 ^ 0b1000 = 0b0001
+        // 0b0001 - 0b1000 = 0b1111_1001 (imagine it sign-extended to an `i8`)
+        // The result would then represent `-7` if interpreted as an `i8`.
+        // This works because the XOR operation "removed" the "sign-bit", leading to subsequent borrows
+        // in the subtraction operation. If the starting value is positive it has the "sign bit" unset:
+        // `7 = 0b0111`, `0b0111 ^ 0b1000 = 0b1111`, `0b1111 - 0b1000 = 0b0111`, returning `7` unchanged.
+        // This works since the XOR operation "added" a `1` bit in the "sign-bit" position which is later
+        // "removed" by the subtraction.
+        let value = ((value as i128 ^ mask) - mask) as u128;
+
+        // We need to remove all the excessive leading ones otherwise the `try_from` would fail when
+        // `Self` is a type smaller than `128` bits.
+        let size_bits = (size_of::<Self>() * 8) as u128;
+        let mask = (1 << size_bits) - 1;
+        let value = value & mask;
+
+        <Self as TryFrom<u128>>::try_from(value).unwrap()
+    }
 }
 
 impl Bits for u128 {}
@@ -276,5 +311,12 @@ mod tests {
         let mut b: u32 = 0b00000001_00000010_00000100_00001000;
 
         b.set_byte(4, 0);
+    }
+
+    #[test]
+    fn check_sign_extended() {
+        let a: u32 = 0b1001; // -7 in i4
+
+        assert_eq!(a.sign_extended(4) as i32, -7);
     }
 }
