@@ -329,7 +329,10 @@ impl Arm7tdmi {
                 let v = self.registers.register_at(rd.try_into().unwrap());
                 mem.write_word(address.try_into().unwrap(), v)
             }
-            (LoadStoreKind::Store, ReadWriteKind::Byte) => todo!(),
+            (LoadStoreKind::Store, ReadWriteKind::Byte) => {
+                let v = self.registers.register_at(rd.try_into().unwrap());
+                mem.write_at(address.try_into().unwrap(), v as u8)
+            }
             (LoadStoreKind::Load, ReadWriteKind::Word) => {
                 let v = mem.read_word(address.try_into().unwrap());
                 self.registers.set_register_at(rd.try_into().unwrap(), v);
@@ -1421,6 +1424,23 @@ mod tests {
             cpu.execute_thumb(op_code);
 
             assert_eq!(cpu.registers.register_at(7), 0xFFFFFFFF);
+        }
+        {
+            // Store Byte
+            let op_code = 0b0111_0010_0011_1000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::LoadStoreImmOffset
+            );
+
+            cpu.registers.set_register_at(7, 2);
+            cpu.registers.set_register_at(0, 0xFFFFFFFF);
+            cpu.execute_thumb(op_code);
+
+            let mem = cpu.memory.lock().unwrap();
+            assert_eq!(mem.read_at(10), 0xFF);
         }
     }
 
