@@ -311,11 +311,17 @@ impl Arm7tdmi {
         let byte_word: ReadWriteKind = op_code.get_bit(12).into();
         let load_store: LoadStoreKind = op_code.get_bit(11).into();
         let offset5 = op_code.get_bits(6..=10) as u32;
+        let offset = offset5
+            << match byte_word {
+                ReadWriteKind::Word => 2,
+                ReadWriteKind::Byte => 0,
+            };
+
         let rb = op_code.get_bits(3..=5);
         let rd = op_code.get_bits(0..=2);
 
         let base = self.registers.register_at(rb.try_into().unwrap());
-        let address = base.wrapping_add(offset5);
+        let address = base.wrapping_add(offset);
 
         let mut mem = self.memory.lock().unwrap();
         match (load_store, byte_word) {
@@ -324,7 +330,10 @@ impl Arm7tdmi {
                 mem.write_word(address.try_into().unwrap(), v)
             }
             (LoadStoreKind::Store, ReadWriteKind::Byte) => todo!(),
-            (LoadStoreKind::Load, ReadWriteKind::Word) => todo!(),
+            (LoadStoreKind::Load, ReadWriteKind::Word) => {
+                let v = mem.read_word(address.try_into().unwrap());
+                self.registers.set_register_at(rd.try_into().unwrap(), v);
+            }
             (LoadStoreKind::Load, ReadWriteKind::Byte) => todo!(),
         }
 
@@ -1388,11 +1397,30 @@ mod tests {
                 ThumbModeInstruction::LoadStoreImmOffset
             );
 
-            cpu.registers.set_register_at(0, 1000);
+            cpu.registers.set_register_at(7, 2);
+            cpu.registers.set_register_at(0, 0xFFFFFFFF);
             cpu.execute_thumb(op_code);
 
             let mem = cpu.memory.lock().unwrap();
-            assert_eq!(mem.read_word(13), 1000);
+            assert_eq!(mem.read_word(54), 0xFFFFFFFF);
+        }
+        {
+            // Load Word
+            let op_code = 0b0110_1011_0000_1111;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::LoadStoreImmOffset
+            );
+            {
+                let mut mem = cpu.memory.lock().unwrap();
+                mem.write_word(1048, 0xFFFFFFFF);
+            }
+            cpu.registers.set_register_at(1, 1000);
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(7), 0xFFFFFFFF);
         }
     }
 
