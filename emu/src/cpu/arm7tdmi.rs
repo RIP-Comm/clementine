@@ -932,7 +932,12 @@ impl Arm7tdmi {
         let rd = op_code.get_bits(0..=2);
 
         match op {
-            ThumbModeAluInstruction::And => todo!(),
+            ThumbModeAluInstruction::And => self.and(
+                rd.into(),
+                self.registers.register_at(rd.try_into().unwrap()),
+                rs,
+                true,
+            ),
             ThumbModeAluInstruction::Eor => todo!(),
             ThumbModeAluInstruction::Lsl => todo!(),
             ThumbModeAluInstruction::Lsr => todo!(),
@@ -1784,6 +1789,23 @@ mod tests {
 
     #[test]
     fn check_alu_op() {
+        {
+            // and
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b0100_0000_0001_1000;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+
+            cpu.cpsr.set_sign_flag(true);
+            cpu.cpsr.set_zero_flag(true);
+            cpu.registers.set_register_at(0, 1000);
+            cpu.registers.set_register_at(3, 8);
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(0), 8);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+        }
         {
             // tst
             let mut cpu = Arm7tdmi::default();
