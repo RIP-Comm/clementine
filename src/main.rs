@@ -42,5 +42,6 @@ fn main() {
         "Clementine - A GBA Emulator",
         options,
         Box::new(|_cc| Box::new(ClementineApp::new(cartridge_name))),
-    );
+    )
+    .ok();
 }
