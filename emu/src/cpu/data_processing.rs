@@ -578,6 +578,14 @@ impl Arm7tdmi {
             self.cpsr.set_zero_flag(result == 0);
         }
     }
+
+    pub fn mul(&mut self, reg_result: usize, op1: u32, op2: u32) {
+        let result = op1 as u64 * op2 as u64;
+
+        self.registers.set_register_at(reg_result, result as u32);
+        self.cpsr.set_zero_flag(result == 0);
+        self.cpsr.set_sign_flag(result.get_bit(31));
+    }
 }
 
 #[cfg(test)]
