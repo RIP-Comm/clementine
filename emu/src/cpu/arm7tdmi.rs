@@ -421,7 +421,7 @@ impl Arm7tdmi {
         let indexing: Indexing = op_code.get_bit(24).into();
         let offsetting: Offsetting = op_code.get_bit(23).into();
         let _write_back = op_code.get_bit(21); // TODO: Handle write back.
-        let load_store = op_code.get_bit(20);
+        let load_store: LoadStoreKind = op_code.get_bit(20).into();
         let rn_base_register = op_code.get_bits(16..=19);
         let rd_source_destination_register = op_code.get_bits(12..=15);
         let transfer_type = HalfwordTransferType::from(op_code.get_bits(5..=6) as u8);
@@ -449,26 +449,35 @@ impl Arm7tdmi {
             Indexing::Post => address.try_into().unwrap(), // TODO: ignore write back (should be 0 in this case but...)
         };
 
-        if load_store {
-            todo!("load from mem")
-        } else {
-            let value = if rd_source_destination_register == REG_PROGRAM_COUNTER {
-                let pc: u32 = self.registers.program_counter().try_into().unwrap();
-                pc + 12
-            } else {
-                self.registers
-                    .register_at(rd_source_destination_register as usize)
-            };
+        match load_store {
+            LoadStoreKind::Store => {
+                let value = if rd_source_destination_register == REG_PROGRAM_COUNTER {
+                    let pc: u32 = self.registers.program_counter().try_into().unwrap();
+                    pc + 12
+                } else {
+                    self.registers
+                        .register_at(rd_source_destination_register as usize)
+                };
 
-            match transfer_type {
-                HalfwordTransferType::UnsignedHalfwords => {
-                    if let Ok(mut mem) = self.memory.lock() {
-                        mem.write_at(address, value.get_bits(0..=7) as u8);
-                        mem.write_at(address + 1, value.get_bits(8..=15) as u8);
+                match transfer_type {
+                    HalfwordTransferType::UnsignedHalfwords => {
+                        if let Ok(mut mem) = self.memory.lock() {
+                            mem.write_half_word(address, value as u16);
+                        }
                     }
+                    _ => unreachable!("HS flags can't be != from 01 for STORE (L=0)"),
+                };
+            }
+            LoadStoreKind::Load => match transfer_type {
+                HalfwordTransferType::UnsignedHalfwords => {
+                    let mem = self.memory.lock().unwrap();
+                    let v = mem.read_half_word(address);
+                    self.registers
+                        .set_register_at(rd_source_destination_register as usize, v.into());
                 }
-                _ => unreachable!("HS flags can't be != from 01 for STORE (L=0)"),
-            };
+                HalfwordTransferType::SignedByte => todo!(),
+                HalfwordTransferType::SignedHalfwords => todo!(),
+            },
         }
 
         if indexing == Indexing::Post {
@@ -476,7 +485,9 @@ impl Arm7tdmi {
             todo!()
         }
 
-        if !(load_store && rd_source_destination_register == REG_PROGRAM_COUNTER) {
+        if !(load_store == LoadStoreKind::Load
+            && rd_source_destination_register == REG_PROGRAM_COUNTER)
+        {
             Some(SIZE_OF_ARM_INSTRUCTION)
         } else {
             None
