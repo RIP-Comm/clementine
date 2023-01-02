@@ -999,6 +999,7 @@ impl Arm7tdmi {
             let offset = offset << 1;
             self.registers.set_program_counter(lr.wrapping_add(offset));
             self.registers.set_register_at(REG_LR, next_instruction | 1);
+            None
         } else {
             let offset = offset << 12;
             let offset = offset.sign_extended(23) as i32;
@@ -1008,9 +1009,8 @@ impl Arm7tdmi {
                 + SIZE_OF_THUMB_INSTRUCTION;
             self.registers
                 .set_register_at(REG_LR, ((pc as i32) + offset) as u32);
+            Some(SIZE_OF_THUMB_INSTRUCTION)
         }
-
-        Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
     pub(crate) fn move_shifted_reg(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
@@ -1921,7 +1921,7 @@ mod tests {
         cpu.execute_thumb(op_code);
 
         assert_eq!(cpu.registers.register_at(REG_LR), 103);
-        assert_eq!(cpu.registers.program_counter(), 330);
+        assert_eq!(cpu.registers.program_counter(), 328);
     }
 
     #[test]
