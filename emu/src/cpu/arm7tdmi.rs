@@ -47,6 +47,8 @@ impl Default for Arm7tdmi {
 
         // Setting ARM mode at startup
         s.cpsr.set_cpu_state(CpuState::Arm);
+        s.cpsr.set_irq_disable(true);
+        s.cpsr.set_fiq_disable(true);
 
         s
     }
