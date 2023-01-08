@@ -231,10 +231,11 @@ impl Arm7tdmi {
     fn uncond_branch(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
         let offset = op_code.get_bits(0..=10) << 1;
         let offset = offset.sign_extended(12);
-        let pc = self.registers.program_counter() as u32;
+        let pc = self.registers.program_counter() as u32 + 4; // NOTE: Emulating prefetch with this +4.
         let new_pc = pc.wrapping_add(offset.try_into().unwrap());
         self.registers.set_program_counter(new_pc);
-        Some(SIZE_OF_THUMB_INSTRUCTION)
+
+        None
     }
 
     fn add_subtract(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
