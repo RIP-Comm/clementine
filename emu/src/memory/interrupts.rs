@@ -6,12 +6,23 @@ use crate::{
 use super::io_device::IoDevice;
 
 pub struct Interrupts {
-    //   4000200h  2    R/W  IE        Interrupt Enable Register
-    //   4000202h  2    R/W  IF        Interrupt Request Flags / IRQ Acknowledge
-    //   4000204h  2    R/W  WAITCNT   Game Pak Waitstate Control
-    //   4000206h       -    -         Not used
+    /// 0x04000200  2    R/W  IE        Interrupt Enable Register
+    interrupt_enable: IORegister,
+
+    /// 0x04000202  2    R/W  IF        Interrupt Request Flags / IRQ Acknowledge
+    interrupt_request: IORegister,
+
+    /// 0x04000204  2    R/W  WAITCNT   Game Pak Waitstate Control
+    wait_state: IORegister,
+
+    /// 0x04000206       -    -         Not used
+    not_used_06: IORegister,
+    /// 0x400020A       -    -         Not used
+    not_used_a: IORegister,
+
     /// Interrupt Master Enable Register
     ime: IORegister,
+
     //   400020Ah       -    -         Not used
     /// Post boot flag.
     post_flag: IORegister,
@@ -35,8 +46,13 @@ impl Interrupts {
         use IORegisterAccessControl::*;
 
         Self {
+            interrupt_enable: IORegister::with_access_control(ReadWrite),
+            interrupt_request: IORegister::with_access_control(ReadWrite),
+            wait_state: IORegister::with_access_control(ReadWrite),
             post_flag: IORegister::with_access_control(ReadWrite),
             ime: IORegister::with_access_control(ReadWrite),
+            not_used_06: IORegister::with_access_control(ReadWrite),
+            not_used_a: IORegister::with_access_control(ReadWrite),
         }
     }
 }
@@ -47,6 +63,16 @@ impl IoDevice for Interrupts {
 
     fn read_at(&self, address: usize) -> u8 {
         match address {
+            0x04000200 => self.interrupt_enable.read().get_byte(0),
+            0x04000201 => self.interrupt_enable.read().get_byte(1),
+            0x04000202 => self.interrupt_request.read().get_byte(0),
+            0x04000203 => self.interrupt_request.read().get_byte(1),
+            0x04000204 => self.wait_state.read().get_byte(0),
+            0x04000205 => self.wait_state.read().get_byte(1),
+            0x04000206 => self.not_used_06.read().get_byte(0),
+            0x04000207 => self.not_used_06.read().get_byte(1),
+            0x0400020A => self.not_used_a.read().get_byte(0),
+            0x0400020B => self.not_used_a.read().get_byte(1),
             0x04000300 => self.post_flag.read().get_byte(0),
             0x04000208 => self.ime.read().get_byte(0),
             0x04000209 => self.ime.read().get_byte(1),
@@ -56,6 +82,16 @@ impl IoDevice for Interrupts {
 
     fn write_at(&mut self, address: usize, value: u8) {
         match address {
+            0x04000200 => self.interrupt_enable.set_byte(0, value),
+            0x04000201 => self.interrupt_enable.set_byte(1, value),
+            0x04000202 => self.interrupt_request.set_byte(0, value),
+            0x04000203 => self.interrupt_request.set_byte(1, value),
+            0x04000204 => self.wait_state.set_byte(0, value),
+            0x04000205 => self.wait_state.set_byte(1, value),
+            0x04000206 => self.not_used_06.set_byte(0, value),
+            0x04000207 => self.not_used_06.set_byte(1, value),
+            0x0400020A => self.not_used_a.set_byte(0, value),
+            0x0400020B => self.not_used_a.set_byte(1, value),
             0x04000300 => self.post_flag.set_byte(0, value),
             0x04000208 => self.ime.set_byte(0, value),
             0x04000209 => self.ime.set_byte(1, value),

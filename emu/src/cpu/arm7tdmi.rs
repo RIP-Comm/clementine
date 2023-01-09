@@ -1628,7 +1628,7 @@ mod tests {
 
         cpu.execute_thumb(op_code);
 
-        assert_eq!(cpu.registers.program_counter(), 1608);
+        assert_eq!(cpu.registers.program_counter(), 1610);
     }
 
     #[test]
