@@ -1088,8 +1088,8 @@ mod tests {
             cpu.execute_arm(op_code);
 
             assert_eq!(
+                0b1111_00000000000000000000_110_10000,
                 cpu.registers.register_at(0),
-                0b1111_00000000000000000000_000_10000
             );
         }
         {
@@ -1125,7 +1125,7 @@ mod tests {
             cpu.execute_arm(op_code);
 
             // All flags set and User mode
-            assert_eq!(u32::from(cpu.cpsr), 0b1111 << 28 | (0b10000));
+            assert_eq!(0b1111_00000000000000000000_110_10000, u32::from(cpu.cpsr));
         }
         {
             // Covers MSR with SPSR_fiq
@@ -1153,7 +1153,7 @@ mod tests {
             cpu.execute_arm(op_code);
 
             // All flags set and User mode
-            assert_eq!(u32::from(cpu.cpsr), 0b1111 << 28 | (0b10000));
+            assert_eq!(0b1111_00000000000000000000_110_10000, u32::from(cpu.cpsr));
         }
         {
             // Covers MSR-flags with SPSR_fiq

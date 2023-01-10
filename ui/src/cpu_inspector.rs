@@ -107,7 +107,7 @@ impl View for CpuInspector {
             .striped(true)
             .show(ui, |ui| {
                 for reg in registers {
-                    let mut value = reg.to_string();
+                    let mut value = format!("0x{:x}", reg);
                     ui.label(if index == 15 {
                         format!("R{:?} (PC)", index)
                     } else {
