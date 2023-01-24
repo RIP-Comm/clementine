@@ -1,11 +1,10 @@
-use std::{env, process};
 extern crate ui;
 use ui::app::ClementineApp;
 extern crate logger;
 use logger::{init_logger, log, LogKind};
 
 fn main() {
-    let mut args = env::args().skip(1).collect::<Vec<String>>();
+    let mut args = std::env::args().skip(1).collect::<Vec<String>>();
 
     if args.len() > 1 {
         let arg = args.remove(0);
@@ -13,7 +12,7 @@ fn main() {
             init_logger(LogKind::FILE);
         } else {
             eprintln!("arguments not recognized.");
-            process::exit(1);
+            std::process::exit(1);
         }
     } else {
         init_logger(LogKind::STDOUT);
