@@ -95,7 +95,7 @@ impl Logger {
 }
 
 pub fn init_logger(kind: LogKind) {
-    _ = LOGGER.set(Logger::new(kind));
+    LOGGER.set(Logger::new(kind)).ok();
 }
 
 pub fn log<T>(data: T)
