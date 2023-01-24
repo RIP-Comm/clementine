@@ -1,7 +1,4 @@
-use crate::{
-    gba_color::GbaColor,
-    ui_traits::{UiTool, View},
-};
+use crate::{gba_color::GbaColor, ui_traits::UiTool};
 use egui::Color32;
 
 use egui_extras::{Column, TableBuilder};
@@ -43,13 +40,10 @@ impl UiTool for PaletteVisualizer {
             .default_height(500.0)
             .open(open)
             .show(ctx, |ui| {
-                use View as _;
                 self.ui(ui);
             });
     }
-}
 
-impl View for PaletteVisualizer {
     fn ui(&mut self, ui: &mut egui::Ui) {
         if let Ok(gba) = self.gba.lock() {
             self.palettes = gba.ppu.get_palettes(&self.palette_type);

@@ -1,4 +1,4 @@
-use crate::ui_traits::{UiTool, View};
+use crate::ui_traits::UiTool;
 
 #[derive(Default)]
 pub struct About {}
@@ -13,13 +13,10 @@ impl UiTool for About {
             .default_width(320.0)
             .open(open)
             .show(ctx, |ui| {
-                use View as _;
                 self.ui(ui);
             });
     }
-}
 
-impl View for About {
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("🍊Clementine");
         ui.label(

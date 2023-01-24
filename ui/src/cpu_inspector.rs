@@ -1,6 +1,6 @@
 use emu::gba::Gba;
 
-use crate::ui_traits::{UiTool, View};
+use crate::ui_traits::UiTool;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
@@ -32,13 +32,10 @@ impl UiTool for CpuInspector {
             .default_width(320.0)
             .open(open)
             .show(ctx, |ui| {
-                use View as _;
                 self.ui(ui);
             });
     }
-}
 
-impl View for CpuInspector {
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("MODE: Arm7tdmi");
         ui.add_space(12.0);
