@@ -1,4 +1,4 @@
-use egui::{self, Color32, ColorImage, Vec2};
+use egui::{self, Color32, ColorImage, Ui, Vec2};
 
 use std::sync::{Arc, Mutex};
 
@@ -7,13 +7,10 @@ use emu::{
     render::{LCD_HEIGHT, LCD_WIDTH},
 };
 
-use crate::{
-    gba_color::GbaColor,
-    ui_traits::{UiTool, View},
-};
+use crate::{gba_color::GbaColor, ui_traits::UiTool};
 
 pub struct GbaDisplay {
-    image: egui::ColorImage,
+    image: ColorImage,
     texture: Option<egui::TextureHandle>,
     gba: Arc<Mutex<Gba>>,
     scale: f32,
@@ -85,10 +82,8 @@ impl GbaDisplay {
             gba.ppu.load_gbc_bitmap(bitmap_data, size[0], size[1]);
         }
     }
-}
 
-impl View for GbaDisplay {
-    fn ui(&mut self, ui: &mut egui::Ui) {
+    fn ui(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             if ui.button("x1").clicked() {
                 self.scale = 1.0;
@@ -144,5 +139,9 @@ impl UiTool for GbaDisplay {
             .show(ctx, |ui| {
                 self.ui(ui);
             });
+    }
+
+    fn ui(&mut self, _ui: &mut Ui) {
+        todo!()
     }
 }
