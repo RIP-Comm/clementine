@@ -1,6 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "debug")]
+use crate::render::GBC_LCD_WIDTH;
+#[cfg(feature = "debug")]
 use rand::Rng;
 
 use crate::{
@@ -8,8 +10,8 @@ use crate::{
     render::{
         color::{Color, PaletteType},
         gba_lcd::GbaLcd,
-        GBC_LCD_HEIGHT, GBC_LCD_WIDTH, LCD_HEIGHT, LCD_WIDTH, MAX_COLORS_FULL_PALETTE,
-        MAX_COLORS_SINGLE_PALETTE, MAX_PALETTES_BY_TYPE,
+        LCD_HEIGHT, LCD_WIDTH, MAX_COLORS_FULL_PALETTE, MAX_COLORS_SINGLE_PALETTE,
+        MAX_PALETTES_BY_TYPE,
     },
 };
 
@@ -62,15 +64,14 @@ impl PixelProcessUnit {
             }
             3 => {
                 // Bitmap mode
-                for y in 0..LCD_HEIGHT {
-                    for x in 0..LCD_WIDTH {
-                        let index_color = (y * LCD_WIDTH + x) * 2;
+                for x in 0..LCD_HEIGHT {
+                    for y in 0..LCD_WIDTH {
+                        let index_color = (x * LCD_WIDTH + y) * 2;
                         let color: Color = [
                             memory.video_ram[index_color],
                             memory.video_ram[index_color + 1],
                         ]
                         .into();
-
                         gba_lcd.set_pixel(x, y, color);
                     }
                 }
@@ -81,22 +82,24 @@ impl PixelProcessUnit {
             5 => {
                 // 06000000-06009FFF for Frame 0
                 // 0600A000-06013FFF for Frame 1
-                let selected_frame = memory.lcd_registers.get_frame_select();
-
-                // Bitmap mode
-                for y in 0..GBC_LCD_HEIGHT {
-                    for x in 0..GBC_LCD_WIDTH {
-                        let index_color = (y * GBC_LCD_WIDTH + x) * 2
-                            + (selected_frame * GBC_LCD_HEIGHT * GBC_LCD_WIDTH);
-                        let color: Color = [
-                            memory.video_ram[index_color],
-                            memory.video_ram[index_color + 1],
-                        ]
-                        .into();
-
-                        gba_lcd.set_gbc_pixel(x, y, color);
-                    }
-                }
+                // let selected_frame = memory.lcd_registers.get_frame_select();
+                //
+                // // Bitmap mode
+                // for y in 0..GBC_LCD_HEIGHT {
+                //     for x in 0..GBC_LCD_WIDTH {
+                //         let index_color = (y * GBC_LCD_WIDTH + x) * 2
+                //             + (selected_frame * GBC_LCD_HEIGHT * GBC_LCD_WIDTH);
+                //         // let color: Color = [
+                //         //     memory.video_ram[index_color],
+                //         //     memory.video_ram[index_color + 1],
+                //         // ]
+                //         // .into();
+                //         // FIXME
+                //         let color = Color(0);
+                //
+                //         gba_lcd.set_gbc_pixel(x, y, color);
+                //     }
+                // }
             }
             _ => panic!("BG MODE doesn't exist."),
         }

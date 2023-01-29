@@ -1,85 +1,28 @@
-use egui::{self, Color32, ColorImage, Ui, Vec2};
+use egui::{self, ColorImage, Ui, Vec2};
 
+use eframe::epaint::textures::TextureOptions;
 use std::sync::{Arc, Mutex};
 
+use emu::render::color::Color;
 use emu::{
     gba::Gba,
     render::{LCD_HEIGHT, LCD_WIDTH},
 };
 
-use crate::{gba_color::GbaColor, ui_traits::UiTool};
+use crate::ui_traits::UiTool;
 
 pub struct GbaDisplay {
-    image: ColorImage,
-    texture: Option<egui::TextureHandle>,
+    pixels_buffer: Arc<Mutex<[[Color; LCD_WIDTH]; LCD_HEIGHT]>>,
     gba: Arc<Mutex<Gba>>,
     scale: f32,
 }
 
 impl GbaDisplay {
     pub(crate) fn new(gba: Arc<Mutex<Gba>>) -> Self {
-        #[allow(unused_mut)]
-        let mut res = Self {
-            image: ColorImage::new([LCD_WIDTH, LCD_HEIGHT], Color32::BLACK),
-            texture: None,
+        Self {
+            pixels_buffer: Arc::new(Mutex::new([[Color::default(); LCD_WIDTH]; LCD_HEIGHT])),
             gba,
             scale: 1.0,
-        };
-
-        #[cfg(feature = "test_bitmap_3")]
-        {
-            res.load_test_mode_3();
-        }
-
-        #[cfg(feature = "test_bitmap_5")]
-        {
-            res.load_test_mode_5();
-        }
-
-        res
-    }
-
-    #[cfg(feature = "test_bitmap_3")]
-    pub fn load_test_mode_3(&mut self) {
-        let image_data = include_bytes!("../../img/clementine_logo_test_bitmap.png");
-        let color_image: ColorImage =
-            egui_extras::image::load_image_bytes(image_data).expect("Failed to load image");
-
-        let size = color_image.size;
-        let bitmap_data = color_image
-            .clone()
-            .pixels
-            .into_iter()
-            .map(|pixel| {
-                let gba_color: GbaColor = pixel.into();
-                gba_color.0
-            })
-            .collect();
-
-        if let Ok(mut gba) = self.gba.lock() {
-            gba.ppu.load_centered_bitmap(bitmap_data, size[0], size[1]);
-        }
-    }
-
-    #[cfg(feature = "test_bitmap_5")]
-    pub fn load_test_mode_5(&mut self) {
-        let image_data = include_bytes!("../../img/clementine_logo_160px.png");
-        let color_image: ColorImage =
-            egui_extras::image::load_image_bytes(image_data).expect("Failed to load image");
-
-        let size = color_image.size;
-        let bitmap_data = color_image
-            .clone()
-            .pixels
-            .into_iter()
-            .map(|pixel| {
-                let gba_color: GbaColor = pixel.into();
-                gba_color.0
-            })
-            .collect();
-
-        if let Ok(mut gba) = self.gba.lock() {
-            gba.ppu.load_gbc_bitmap(bitmap_data, size[0], size[1]);
         }
     }
 
@@ -97,29 +40,34 @@ impl GbaDisplay {
         });
 
         let gba = self.gba.lock().unwrap();
-
         gba.ppu.render();
-        for row in 0..LCD_HEIGHT {
-            for col in 0..LCD_WIDTH {
-                let gba_lcd = gba.lcd.lock().unwrap();
-                self.image[(col, row)] = GbaColor(gba_lcd[(col, row)]).into();
-            }
-        }
 
-        let texture: &egui::TextureHandle = self.texture.get_or_insert_with(|| {
-            // Load the texture only once.
-            ui.ctx().load_texture(
-                "gba_display",
-                self.image.clone(),
-                egui::TextureOptions::LINEAR,
-            )
-        });
+        let rgb_data = self
+            .pixels_buffer
+            .lock()
+            .unwrap()
+            .iter()
+            .flat_map(|row| {
+                row.iter().flat_map(|pixel| {
+                    let red = (pixel.red() << 3) | (pixel.red() >> 2);
+                    let green = (pixel.green() << 3) | (pixel.green() >> 2);
+                    let blue = (pixel.blue() << 3) | (pixel.blue() >> 2);
+                    [red, green, blue]
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let image = ColorImage::from_rgb([LCD_WIDTH, LCD_HEIGHT], &rgb_data);
+
+        let texture = ui
+            .ctx()
+            .load_texture("gba_display", image, TextureOptions::NEAREST);
 
         let size = Vec2::new(
             texture.size_vec2().x * self.scale,
             texture.size_vec2().y * self.scale,
         );
-        ui.image(texture, size);
+        ui.image(texture.id(), size);
     }
 }
 

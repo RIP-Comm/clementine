@@ -24,7 +24,7 @@ impl Gba {
         bios: [u8; 0x00004000],
         cartridge: Vec<u8>,
     ) -> Self {
-        let lcd = Arc::new(Mutex::new(Box::new(GbaLcd::new())));
+        let lcd = Arc::new(Mutex::new(Box::default()));
         let memory = Arc::new(Mutex::new(InternalMemory::new(bios, cartridge)));
         let ppu = PixelProcessUnit::new(Arc::clone(&lcd), Arc::clone(&memory));
         let arm = Arm7tdmi::new(Arc::clone(&memory));

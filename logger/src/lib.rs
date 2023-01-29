@@ -44,12 +44,11 @@ impl LoggerImpl {
         let hours = seconds / 3600;
         let minutes = (seconds / 60) % 60;
         let seconds = seconds % 60;
-        let miliseconds = now.subsec_millis();
+        let milliseconds = now.subsec_millis();
 
         let _ = writeln!(
             self.sink,
-            "[{:02}:{:02}:{:02}.{:03}] {}",
-            hours, minutes, seconds, miliseconds, data
+            "[{hours:02}:{minutes:02}:{seconds:02}.{milliseconds:03}] {data}"
         );
     }
 }
