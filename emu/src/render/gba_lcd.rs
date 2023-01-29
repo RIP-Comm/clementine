@@ -1,26 +1,20 @@
-use super::{color::colors, color::Color, GBC_LCD_HEIGHT, GBC_LCD_WIDTH, LCD_HEIGHT, LCD_WIDTH};
+use super::{color::Color, GBC_LCD_HEIGHT, GBC_LCD_WIDTH, LCD_HEIGHT, LCD_WIDTH};
 
 pub struct GbaLcd {
-    pixels: [Color; LCD_WIDTH * LCD_HEIGHT],
+    pixels: [[Color; LCD_WIDTH]; LCD_HEIGHT],
 }
 
 impl Default for GbaLcd {
     fn default() -> Self {
         Self {
-            pixels: [colors::BLACK; LCD_WIDTH * LCD_HEIGHT],
+            pixels: [[Color::default(); LCD_WIDTH]; LCD_HEIGHT],
         }
     }
 }
 
 impl GbaLcd {
-    pub const fn new() -> Self {
-        Self {
-            pixels: [colors::BLACK; LCD_WIDTH * LCD_HEIGHT],
-        }
-    }
-
     pub fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
-        self[(x, y)] = color;
+        self.pixels[x][y] = color;
     }
 
     pub fn set_gbc_pixel(&mut self, x: usize, y: usize, color: Color) {
@@ -36,13 +30,13 @@ impl std::ops::Index<(usize, usize)> for GbaLcd {
 
     fn index(&self, (x, y): (usize, usize)) -> &Color {
         assert!(x < LCD_WIDTH && y < LCD_HEIGHT);
-        &self.pixels[y * LCD_WIDTH + x]
+        &self.pixels[x][y]
     }
 }
 
 impl std::ops::IndexMut<(usize, usize)> for GbaLcd {
     fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
         assert!(x < LCD_WIDTH && y < LCD_HEIGHT);
-        &mut self.pixels[y * LCD_WIDTH + x]
+        &mut self.pixels[x][y]
     }
 }

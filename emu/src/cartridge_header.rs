@@ -145,10 +145,7 @@ impl CartridgeHeader {
             .wrapping_sub(0x19);
 
         if checksum != checksum_expected {
-            return Err(format!(
-                "Expected {} but got {}",
-                checksum_expected, checksum
-            ));
+            return Err(format!("Expected {checksum_expected} but got {checksum}"));
         }
 
         Ok(checksum)

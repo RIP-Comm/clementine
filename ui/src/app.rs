@@ -1,4 +1,3 @@
-use egui::Context;
 use emu::{cartridge_header::CartridgeHeader, gba::Gba};
 use logger::log;
 use std::io::Read;
@@ -10,7 +9,7 @@ use crate::{
 
 use std::{
     collections::BTreeSet,
-    env, error, fs,
+    env, error,
     sync::{Arc, Mutex},
 };
 
@@ -30,7 +29,7 @@ impl ClementineApp {
         };
 
         let bios_file = env::current_dir().unwrap().join("gba_bios.bin");
-        let bios = match fs::read(bios_file) {
+        let bios = match std::fs::read(bios_file) {
             Ok(f) => f,
             Err(e) => {
                 eprintln!("can't open bios file: {e}");
@@ -81,7 +80,7 @@ impl eframe::App for ClementineApp {
                 ui.label("Links");
                 use egui::special_emojis::GITHUB;
                 ui.hyperlink_to(
-                    format!("{} Clementine", GITHUB),
+                    format!("{GITHUB} Clementine"),
                     "https://github.com/RIP-Comm/clementine",
                 );
 
@@ -104,7 +103,7 @@ impl ClementineApp {
         }
     }
 
-    fn windows(&mut self, ctx: &Context) {
+    fn windows(&mut self, ctx: &egui::Context) {
         let Self { tools, open } = self;
         for tool in tools {
             let mut is_open = open.contains(tool.name());

@@ -1,7 +1,6 @@
 mod about;
 pub mod app;
 mod cpu_inspector;
-mod dashboard;
 mod gba_color;
 mod gba_display;
 mod palette_visualizer;

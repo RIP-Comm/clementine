@@ -81,7 +81,7 @@ impl From<u32> for ArmModeInstruction {
 
 impl Display for ArmModeInstruction {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -159,7 +159,7 @@ impl From<u16> for ThumbModeInstruction {
 
 impl Display for ThumbModeInstruction {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

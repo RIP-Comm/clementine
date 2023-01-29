@@ -5,9 +5,9 @@ pub struct GbaColor(pub emu::render::color::Color);
 impl From<GbaColor> for Color32 {
     fn from(gba_color: GbaColor) -> Self {
         Self::from_rgb(
-            gba_color.0.red << 3,
-            gba_color.0.green << 3,
-            gba_color.0.blue << 3,
+            gba_color.0.red() << 3,
+            gba_color.0.green() << 3,
+            gba_color.0.blue() << 3,
         )
     }
 }

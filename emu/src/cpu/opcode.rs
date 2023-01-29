@@ -33,7 +33,7 @@ impl Deref for ArmModeOpcode {
 impl Display for ArmModeOpcode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let instruction = self.instruction.to_string();
-        let instruction = format!("INS: {}\n", instruction);
+        let instruction = format!("INS: {instruction}\n");
 
         let bytes_pos1 = "POS: |..3 ..................2 ..................1 ..................0|\n";
         let bytes_pos2 = "     |1_0_9_8_7_6_5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0|\n";
@@ -78,7 +78,7 @@ impl Display for ArmModeOpcode {
             raw_bits.push('_');
         }
         raw_bits.pop();
-        let raw_bits = format!("RAW: |{}|\n", raw_bits);
+        let raw_bits = format!("RAW: |{raw_bits}|\n");
 
         writeln!(
             f,
@@ -114,7 +114,7 @@ impl Deref for ThumbModeOpcode {
 impl Display for ThumbModeOpcode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let instruction = self.instruction.to_string();
-        let instruction = format!("INS: {}\n", instruction);
+        let instruction = format!("INS: {instruction}\n");
 
         let bytes_pos1 = "POS: |..........1 ..................0|\n";
         let bytes_pos2 = "     |5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0|\n";
@@ -151,7 +151,7 @@ impl Display for ThumbModeOpcode {
             raw_bits.push('_');
         }
         raw_bits.pop();
-        let raw_bits = format!("RAW: |{}|\n", raw_bits);
+        let raw_bits = format!("RAW: |{raw_bits}|\n");
 
         writeln!(
             f,

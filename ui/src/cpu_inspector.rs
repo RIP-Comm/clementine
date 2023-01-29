@@ -104,11 +104,11 @@ impl UiTool for CpuInspector {
             .striped(true)
             .show(ui, |ui| {
                 for reg in registers {
-                    let mut value = format!("0x{:x}", reg);
+                    let mut value = format!("0x{reg:x}");
                     ui.label(if index == 15 {
-                        format!("R{:?} (PC)", index)
+                        format!("R{index:?} (PC)")
                     } else {
-                        format!("R{:?}", index)
+                        format!("R{index:?}")
                     });
                     ui.text_edit_singleline(&mut value);
 
