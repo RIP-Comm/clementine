@@ -166,7 +166,7 @@ impl From<u32> for ShiftKind {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ArithmeticOpResult {
     pub result: u32,
     pub carry: bool,

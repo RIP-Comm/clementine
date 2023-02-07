@@ -1,4 +1,5 @@
 use crate::bitwise::Bits;
+use crate::cpu::arm7tdmi::Arm7tdmi;
 use crate::cpu::condition::Condition;
 use crate::cpu::instruction::{ArmModeInstruction, ThumbModeInstruction};
 use std::fmt::{Display, Formatter};
@@ -10,15 +11,14 @@ pub struct ArmModeOpcode {
     pub raw: u32,
 }
 
-impl TryFrom<u32> for ArmModeOpcode {
-    type Error = String;
-
-    fn try_from(op_code: u32) -> Result<Self, Self::Error> {
-        Ok(Self {
-            instruction: ArmModeInstruction::from(op_code),
-            condition: Condition::from(op_code.get_bits(28..=31) as u8),
+impl Arm7tdmi {
+    pub fn decode_arm_mode_opcode(&mut self, op_code: u32) -> ArmModeOpcode {
+        let condition = Condition::from(op_code.get_bits(28..=31) as u8);
+        ArmModeOpcode {
+            instruction: self.decode_instruction(op_code, condition),
+            condition,
             raw: op_code,
-        })
+        }
     }
 }
 
@@ -39,7 +39,7 @@ impl Display for ArmModeOpcode {
         let bytes_pos2 = "     |1_0_9_8_7_6_5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0|\n";
 
         let op_code_format: &str = match &self.instruction {
-            ArmModeInstruction::DataProcessing => {
+            ArmModeInstruction::DataProcessing { .. } => {
                 "FMT: |_Cond__|0_0|I|_code__|S|__Rn___|__Rd___|_______operand2________|"
             }
             ArmModeInstruction::Multiply => "FMT: |_Cond__|",

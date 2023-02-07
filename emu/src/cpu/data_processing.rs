@@ -91,7 +91,7 @@ impl Arm7tdmi {
         result
     }
 
-    fn get_operand(
+    pub fn get_operand(
         &mut self,
         alu_instruction: ArmModeAluInstruction,
         s: bool,
@@ -162,7 +162,7 @@ impl Arm7tdmi {
     ///
     /// * `i` - A boolean value representing whether the 2nd operand is immediate or not
     /// * `r` - A boolean value representing whether the shift amount is to be taken from register or not
-    fn get_pc_offset_alu(&self, i: OperandKind, r: bool) -> u32 {
+    pub(crate) fn get_pc_offset_alu(&self, i: OperandKind, r: bool) -> u32 {
         if i == OperandKind::Register && r {
             12
         } else {
@@ -292,92 +292,91 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn data_processing(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
-        // bit [25] is I = Immediate Flag
-        let i: OperandKind = op_code.get_bit(25).into();
-        // bits [24-21]
-        let alu_op_code = op_code.get_bits(21..=24);
-        // bit [20] is sets condition codes
-        let s = op_code.get_bit(20);
-        // bits [15-12] are the Rd
-        let rd = op_code.get_bits(12..=15);
-        // bits [19-16] are the Rn
-        let rn = op_code.get_bits(16..=19);
+    pub fn data_processing(
+        &mut self,
+        op_code: ArmModeOpcode, // FIXME: This parameter will be remove after change `psr_transfer`.
+        alu_instruction: ArmModeAluInstruction,
+        set_conditions: bool,
+        op_kind: OperandKind,
+        rn: u32,
+        destination: u32,
+    ) -> Option<u32> {
         let offset = match rn {
             // if Rn is R15(PC) we need to offset its value because of
             // instruction pipelining
-            REG_PROGRAM_COUNTER => self.get_pc_offset_alu(i, op_code.get_bit(4)),
+            REG_PROGRAM_COUNTER => self.get_pc_offset_alu(op_kind, op_code.get_bit(4)),
             _ => 0,
         };
+        let op1 = self.registers.register_at(rn.try_into().unwrap()) + offset;
 
-        let rn = self.registers.register_at(rn.try_into().unwrap()) + offset;
-
-        let op2 = self.get_operand(alu_op_code.into(), s, i, op_code.get_bits(0..=11));
-
+        let op2 = self.get_operand(
+            alu_instruction,
+            set_conditions,
+            op_kind,
+            op_code.get_bits(0..=11),
+        );
         // S = 1 and Rd = 0xF should not be allowed in User Mode.
         // TODO: When in other modes it should load SPSR_<current_mode> into CPSR
-        if s && rd == REG_PROGRAM_COUNTER {
+        if set_conditions && destination == REG_PROGRAM_COUNTER {
             unimplemented!("Implement cases when S=1 and Rd=0xF");
         }
 
-        match ArmModeAluInstruction::from(alu_op_code) {
-            ArmModeAluInstruction::And => self.and(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Eor => self.eor(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Sub => self.sub(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Rsb => self.rsb(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Add => self.add(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Adc => self.adc(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Sbc => self.sbc(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Rsc => self.rsc(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Tst => {
-                if s {
-                    self.tst(rn, op2)
+        use ArmModeAluInstruction::*;
+        match alu_instruction {
+            And => self.and(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Eor => self.eor(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Sub => self.sub(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Rsb => self.rsb(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Add => self.add(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Adc => self.adc(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Sbc => self.sbc(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Rsc => self.rsc(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Tst => {
+                if set_conditions {
+                    self.tst(op1, op2)
                 } else {
                     self.psr_transfer(op_code);
 
                     return Some(SIZE_OF_ARM_INSTRUCTION);
                 }
             }
-            ArmModeAluInstruction::Teq => {
-                if s {
-                    self.teq(rn, op2)
+            Teq => {
+                if set_conditions {
+                    self.teq(op1, op2)
                 } else {
                     self.psr_transfer(op_code);
 
                     return Some(SIZE_OF_ARM_INSTRUCTION);
                 }
             }
-            ArmModeAluInstruction::Cmp => {
-                if s {
-                    self.cmp(rn, op2)
+            Cmp => {
+                if set_conditions {
+                    self.cmp(op1, op2)
                 } else {
                     self.psr_transfer(op_code);
 
                     return Some(SIZE_OF_ARM_INSTRUCTION);
                 }
             }
-            ArmModeAluInstruction::Cmn => {
-                if s {
-                    self.cmn(rn, op2)
+            Cmn => {
+                if set_conditions {
+                    self.cmn(op1, op2)
                 } else {
                     self.psr_transfer(op_code);
 
                     return Some(SIZE_OF_ARM_INSTRUCTION);
                 }
             }
-            ArmModeAluInstruction::Orr => self.orr(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Mov => self.mov(rd.try_into().unwrap(), op2, s),
-            ArmModeAluInstruction::Bic => self.bic(rd.try_into().unwrap(), rn, op2, s),
-            ArmModeAluInstruction::Mvn => self.mvn(rd.try_into().unwrap(), op2, s),
+            Orr => self.orr(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Mov => self.mov(destination.try_into().unwrap(), op2, set_conditions),
+            Bic => self.bic(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Mvn => self.mvn(destination.try_into().unwrap(), op2, set_conditions),
         };
 
         // If is a "test" ALU instruction we ever advance PC.
-        match ArmModeAluInstruction::from(alu_op_code) {
-            ArmModeAluInstruction::Teq
-            | ArmModeAluInstruction::Cmp
-            | ArmModeAluInstruction::Cmn
-            | ArmModeAluInstruction::Tst => Some(SIZE_OF_ARM_INSTRUCTION),
-            _ if rd != 0xF => Some(SIZE_OF_ARM_INSTRUCTION),
+        match alu_instruction {
+            Teq | Cmn | Cmp | Tst => Some(SIZE_OF_ARM_INSTRUCTION),
+            _ if destination != REG_PROGRAM_COUNTER => Some(SIZE_OF_ARM_INSTRUCTION),
             _ => None,
         }
     }
@@ -598,45 +597,290 @@ impl Arm7tdmi {
 mod tests {
     use crate::{
         cpu::arm7tdmi::Arm7tdmi,
-        cpu::{condition::Condition, opcode::ArmModeOpcode},
+        cpu::condition::Condition,
         cpu::{cpu_modes::Mode, instruction::ArmModeInstruction},
     };
 
+    use crate::cpu::alu_instruction::ArmModeAluInstruction;
+    use crate::cpu::flags::OperandKind;
     use pretty_assertions::assert_eq;
 
     #[test]
+    fn check_cmn() {
+        {
+            let op_code = 0b1110_00_0_1011_0_1001_1111_000000001110;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Cmn,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 9,
+                    destination: 15,
+                }
+            );
+
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+            cpu.execute_arm(op_code);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+        }
+    }
+
+    #[test]
     fn check_teq() {
-        let op_code = 0b1110_0001_0011_1001_0011_0000_0000_0000;
-        let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
-        let rn = 9_usize;
-        cpu.registers.set_register_at(rn, 100);
-        cpu.cpsr.set_sign_flag(true); // set for later verify.
-        cpu.execute_arm(op_code);
-        assert!(!cpu.cpsr.sign_flag());
-        assert!(!cpu.cpsr.zero_flag());
+        {
+            let op_code = 0b1110_00_1_1001_1_1100_0000_000000000001;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Teq,
+                    set_conditions: true,
+                    op_kind: OperandKind::Immediate,
+                    rn: 12,
+                    destination: 0,
+                }
+            );
+
+            cpu.registers.set_register_at(12, 0xFFFFFFFF);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+            cpu.execute_arm(op_code);
+            assert!(cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+        }
+
+        {
+            let op_code: u32 = 0b0000_00_0_1001_0_1001_1111_000000001100;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::EQ,
+                    alu_instruction: ArmModeAluInstruction::Teq,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 9,
+                    destination: 15,
+                }
+            );
+
+            assert!(!cpu.cpsr.can_execute(op_code.condition));
+        }
+
+        // let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
+        // let mut cpu = Arm7tdmi::default();
+        // let op_code = cpu.decode_arm_mode_opcode(op_code);
+        // assert_eq!(
+        //     op_code.instruction,
+        //     ArmModeInstruction::DataProcessing {
+        //         condition: Condition::AL,
+        //         alu_instruction: ArmModeAluInstruction::Teq,
+        //         set_conditions: true,
+        //         op_kind: OperandKind::Register,
+        //         rn: 9,
+        //         destination: 3,
+        //     }
+        // );
+        //
+        // let rn = 9_usize;
+        // cpu.registers.set_register_at(rn, 100);
+        // cpu.cpsr.set_sign_flag(true); // set for later verify.
+        // cpu.execute_arm(op_code);
+        // assert!(!cpu.cpsr.sign_flag());
+        // assert!(!cpu.cpsr.zero_flag());
     }
 
     #[test]
     fn check_cmp() {
-        let op_code: u32 = 0b1110_0001_0011_1010_0011_0000_0000_0000;
+        let op_code: u32 = 0b1110_00_1_1010_1_1110_0000_000000000000;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
-        let rn = 9_usize;
-        cpu.registers.set_register_at(rn, 1);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Cmp,
+                set_conditions: true,
+                op_kind: OperandKind::Immediate,
+                rn: 14,
+                destination: 0,
+            }
+        );
+
+        cpu.registers.set_register_at(14, 1);
+        assert!(!cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.overflow_flag());
         cpu.execute_arm(op_code);
         assert!(!cpu.cpsr.sign_flag());
-        assert!(cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+    }
+
+    #[test]
+    fn check_orr() {
+        {
+            let op_code: u32 = 0b0000_00_1_1100_0_1100_1100_000011000000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::EQ,
+                    alu_instruction: ArmModeAluInstruction::Orr,
+                    set_conditions: false,
+                    op_kind: OperandKind::Immediate,
+                    rn: 12,
+                    destination: 12,
+                }
+            );
+
+            assert!(!cpu.cpsr.can_execute(op_code.condition));
+        }
+    }
+
+    #[test]
+    fn check_mov() {
+        {
+            let op_code: u32 = 0b0000_00_1_1101_0_0000_1110_000000000100;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::EQ,
+                    alu_instruction: ArmModeAluInstruction::Mov,
+                    set_conditions: false,
+                    op_kind: OperandKind::Immediate,
+                    rn: 0,
+                    destination: 14,
+                }
+            );
+
+            assert!(!cpu.cpsr.can_execute(op_code.condition));
+        }
+        {
+            let op_code: u32 = 0b1110_00_1_1101_0_0000_0000_000011011111;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Mov,
+                    set_conditions: false,
+                    op_kind: OperandKind::Immediate,
+                    rn: 0,
+                    destination: 0,
+                }
+            );
+
+            cpu.registers.set_register_at(0, 1);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+            cpu.execute_arm(op_code);
+            assert_eq!(cpu.registers.register_at(0), 0xDF);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+        }
+        {
+            let op_code: u32 = 0b1110_00_1_1101_0_0000_1100_001100000001;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Mov,
+                    set_conditions: false,
+                    op_kind: OperandKind::Immediate,
+                    rn: 0,
+                    destination: 12,
+                }
+            );
+
+            cpu.registers.set_register_at(12, 1);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+            cpu.execute_arm(op_code);
+            assert_eq!(cpu.registers.register_at(12), 0x4000000);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+        }
     }
 
     #[test]
     fn check_add() {
-        let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
+        {
+            let op_code: u32 = 0b1110_00_1_0100_0_1111_0000_000000000001;
+            let mut cpu = Arm7tdmi::default();
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Add,
+                    set_conditions: false,
+                    op_kind: OperandKind::Immediate,
+                    rn: 15,
+                    destination: 0,
+                }
+            );
+
+            cpu.registers.set_register_at(15, 15);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+            cpu.execute_arm(op_code);
+            assert_eq!(cpu.registers.register_at(0), 24);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.overflow_flag());
+        }
+
+        let op_code = 0b1110_00_1_0100_0_1111_0000_000000100000;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Add,
+                set_conditions: false,
+                op_kind: OperandKind::Immediate,
+                rn: 15,
+                destination: 0,
+            }
+        );
         cpu.registers.set_register_at(15, 15);
         cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(0), 15 + 8 + 32);
@@ -646,10 +890,20 @@ mod tests {
     fn check_add_pc_operand_shift_register() {
         // Case when R15 is used as operand and shift amount is taken from register:
         // R2 = R1 + (R15 << R3)
-        let op_code = 0b1110_0000_1000_0001_0010_0011_0001_1111;
+        let op_code = 0b1110_00_0_0100_0_0001_0010_0011_0001_1111;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Add,
+                set_conditions: false,
+                op_kind: OperandKind::Register,
+                rn: 1,
+                destination: 2,
+            }
+        );
 
         cpu.registers.set_register_at(2, 5);
         cpu.registers.set_register_at(1, 10);
@@ -663,11 +917,20 @@ mod tests {
 
     #[test]
     fn check_add_carry_bit() {
-        let op_code: u32 = 0b1110_0000_1001_1111_0000_0000_0000_1110;
+        let op_code: u32 = 0b1110_00_0_0100_1_1111_0000_0000_0000_1110;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
-
-        assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Add,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 15,
+                destination: 0,
+            }
+        );
 
         cpu.registers.set_register_at(15, 1 << 31);
         cpu.registers.set_register_at(14, 1 << 31);
@@ -682,30 +945,38 @@ mod tests {
     #[test]
     fn check_mov_rx_immediate() {
         // MOV R0, 0
-        let mut op_code: u32 = 0b1110_0011_1010_0000_0000_0000_0000_0000;
+        let mut op_code: u32 = 0b1110_00_1_1101_0_0000_0000_0000_0000_0000;
 
         // bits [11-8] are ROR-Shift applied to nn
         let is = op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000;
 
         // MOV Rx,x
         let mut cpu = Arm7tdmi::default();
-        for rx in 0..=0xF {
-            let register_for_op = rx << 12;
-            let immediate_value = rx;
+        let rx = 0;
+        let register_for_op = rx << 12;
+        let immediate_value = rx;
 
-            // Rd parameter
-            op_code = (op_code & 0b1111_1111_1111_1111_0000_1111_1111_1111) + register_for_op;
-            // Immediate parameter
-            op_code = (op_code & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
+        // Rd parameter
+        op_code = (op_code & 0b1111_1111_1111_1111_0000_1111_1111_1111) + register_for_op;
+        // Immediate parameter
+        op_code = (op_code & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
 
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.condition, Condition::AL);
-            assert_eq!(op_code.instruction, ArmModeInstruction::DataProcessing);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Mov,
+                set_conditions: false,
+                op_kind: OperandKind::Immediate,
+                rn: 0,
+                destination: 0,
+            }
+        );
 
-            cpu.execute_arm(op_code);
-            let rotated = rx.rotate_right(is * 2);
-            assert_eq!(cpu.registers.register_at(rx.try_into().unwrap()), rotated);
-        }
+        cpu.execute_arm(op_code);
+        let rotated = rx.rotate_right(is * 2);
+        assert_eq!(cpu.registers.register_at(rx.try_into().unwrap()), rotated);
     }
 
     #[test]
@@ -713,7 +984,18 @@ mod tests {
         // Checks for Z flag
         let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Mov,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.execute_arm(op_code);
 
@@ -722,7 +1004,7 @@ mod tests {
         // Checks for Z flag
         let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
 
         cpu.registers.set_register_at(2, -5_i32 as u32);
         cpu.execute_arm(op_code);
@@ -732,10 +1014,20 @@ mod tests {
 
     #[test]
     fn shift_from_register_is_0() {
-        let op_code = 0b1110_0000_1000_0000_0001_0011_0111_0010;
+        let op_code = 0b1110_00_0_0100_0_0000_0001_0011_0111_0010;
         let mut cpu = Arm7tdmi::default();
-
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Add,
+                set_conditions: false,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.registers.set_register_at(0, 5);
         cpu.registers.set_register_at(2, 11);
@@ -750,7 +1042,18 @@ mod tests {
     fn check_and() {
         let op_code = 0b1110_00_1_0000_0_0000_0001_0000_10101010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::And,
+                set_conditions: false,
+                op_kind: OperandKind::Immediate,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         // All 1 except msb
         cpu.registers.set_register_at(0, 2_u32.pow(31) - 1);
@@ -764,7 +1067,18 @@ mod tests {
     fn check_eor() {
         let op_code = 0b1110_00_1_0001_0_0000_0001_0000_10101010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Eor,
+                set_conditions: false,
+                op_kind: OperandKind::Immediate,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.registers.set_register_at(0, 0b11111111);
 
@@ -775,23 +1089,40 @@ mod tests {
 
     #[test]
     fn check_tst() {
+        let op_code = 0b0000_00_0_1000_0_1111_1100_0000_00000000;
         let mut cpu = Arm7tdmi::default();
-        let op_code = 0b1110_00_1_1000_1_0000_0001_0000_00000000;
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::EQ,
+                alu_instruction: ArmModeAluInstruction::Tst,
+                set_conditions: false,
+                op_kind: OperandKind::Register,
+                rn: 15,
+                destination: 12,
+            }
+        );
 
-        cpu.cpsr.set_sign_flag(true);
-
-        cpu.execute_arm(op_code);
-
-        assert!(cpu.cpsr.zero_flag());
-        assert!(!cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.can_execute(op_code.condition));
     }
 
     #[test]
     fn check_bic() {
         let op_code = 0b1110_00_1_1110_0_0000_0001_0000_10101010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Bic,
+                set_conditions: false,
+                op_kind: OperandKind::Immediate,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.registers.set_register_at(0, 0b11111111);
 
@@ -804,7 +1135,18 @@ mod tests {
     fn check_mvn() {
         let op_code = 0b1110_00_1_1111_1_0000_0001_0000_11111111;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Mvn,
+                set_conditions: true,
+                op_kind: OperandKind::Immediate,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.execute_arm(op_code);
 
@@ -816,7 +1158,18 @@ mod tests {
     fn check_sub() {
         let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sub,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.registers.set_register_at(0, 10);
         cpu.registers.set_register_at(2, 5);
@@ -830,7 +1183,7 @@ mod tests {
 
         //Covers carry logic
         let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
         cpu.registers.set_register_at(2, 15);
         cpu.execute_arm(op_code);
 
@@ -842,7 +1195,18 @@ mod tests {
 
         // Covers overflow logic
         let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sub,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.registers.set_register_at(0, 1);
         cpu.registers.set_register_at(2, i32::MIN as u32);
@@ -861,7 +1225,18 @@ mod tests {
         // Covers all flags=0
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Adc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.registers.set_register_at(0, 1);
         cpu.registers.set_register_at(2, 1);
@@ -878,7 +1253,18 @@ mod tests {
         // Covers carry during first sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Adc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.cpsr.set_carry_flag(true);
         cpu.registers.set_register_at(0, u32::MAX);
@@ -895,7 +1281,18 @@ mod tests {
         // Covers carry during second sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Adc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
 
         cpu.cpsr.set_carry_flag(true);
         cpu.registers.set_register_at(0, u32::MAX - 1);
@@ -912,8 +1309,18 @@ mod tests {
         // Covers overflow during first sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Adc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(true);
 
         // All 1 except MSB
@@ -931,8 +1338,18 @@ mod tests {
         // Covers overflow during second sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Adc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(true);
 
         // All 1 except MSB
@@ -953,8 +1370,18 @@ mod tests {
         // Covers all flag=0
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sbc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(true);
 
         cpu.registers.set_register_at(0, 10);
@@ -971,8 +1398,18 @@ mod tests {
         // Covers carry during first diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sbc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(true);
 
         cpu.registers.set_register_at(0, 0);
@@ -989,8 +1426,18 @@ mod tests {
         // Covers carry during sum
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sbc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(true);
 
         cpu.registers.set_register_at(0, u32::MAX);
@@ -1007,8 +1454,18 @@ mod tests {
         // Covers carry during second diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sbc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(false);
 
         cpu.registers.set_register_at(0, 0);
@@ -1025,8 +1482,18 @@ mod tests {
         // Covers overflow during first diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sbc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(true);
 
         cpu.registers.set_register_at(0, i32::MAX as u32);
@@ -1043,8 +1510,18 @@ mod tests {
         // Covers overflow during sum
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sbc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(true);
 
         cpu.registers.set_register_at(0, i32::MAX as u32);
@@ -1061,8 +1538,18 @@ mod tests {
         // Covers overflow during second diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode(op_code);
-
+        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Sbc,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+            }
+        );
         cpu.cpsr.set_carry_flag(false);
 
         cpu.registers.set_register_at(0, i32::MIN as u32);
@@ -1083,7 +1570,18 @@ mod tests {
             // Covers MRS with CPSR and User mode
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_0_001111_0000_000000000000;
-            let op_code = cpu.decode(op_code);
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Tst,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 15,
+                    destination: 0,
+                }
+            );
             cpu.cpsr.set_mode(Mode::User);
 
             cpu.cpsr.set_carry_flag(true);
@@ -1102,7 +1600,18 @@ mod tests {
             // Covers MRS with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_1_001111_0000_000000000000;
-            let op_code = cpu.decode(op_code);
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Cmp,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 15,
+                    destination: 0,
+                }
+            );
             cpu.cpsr.set_mode(Mode::Fiq);
 
             cpu.register_bank.spsr_fiq.set_state_bit(true);
@@ -1123,7 +1632,18 @@ mod tests {
             // Covers MSR with CPSR and User Mode
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_0_1010011111_00000000_0000;
-            let op_code = cpu.decode(op_code);
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Teq,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 9,
+                    destination: 15,
+                }
+            );
             cpu.cpsr.set_mode(Mode::User);
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
@@ -1137,7 +1657,18 @@ mod tests {
             // Covers MSR with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_1_1010011111_00000000_0000;
-            let op_code = cpu.decode(op_code);
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Cmn,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 9,
+                    destination: 15,
+                }
+            );
             cpu.cpsr.set_mode(Mode::Fiq);
 
             cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10001));
@@ -1151,7 +1682,18 @@ mod tests {
             // Covers MSR-flags with CPSR and User mode
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00_0_10_0_1010001111_00000000_0000;
-            let op_code = cpu.decode(op_code);
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Teq,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 8,
+                    destination: 15,
+                }
+            );
             cpu.cpsr.set_mode(Mode::User);
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
@@ -1165,7 +1707,18 @@ mod tests {
             // Covers MSR-flags with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00_0_10_1_1010001111_00000000_0000;
-            let op_code = cpu.decode(op_code);
+            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Cmn,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 8,
+                    destination: 15,
+                }
+            );
             cpu.cpsr.set_mode(Mode::Fiq);
 
             // Trying to change MODE bits to a User mode
