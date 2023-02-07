@@ -3,12 +3,22 @@ use std::fmt::{Display, Formatter};
 use logger::log;
 
 use crate::bitwise::Bits;
+use crate::cpu::alu_instruction::ArmModeAluInstruction;
+use crate::cpu::arm7tdmi::{Arm7tdmi, REG_PROGRAM_COUNTER};
+use crate::cpu::flags::OperandKind;
 
 use super::condition::Condition;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArmModeInstruction {
-    DataProcessing,
+    DataProcessing {
+        condition: Condition,
+        alu_instruction: ArmModeAluInstruction,
+        set_conditions: bool,
+        op_kind: OperandKind,
+        rn: u32,
+        destination: u32,
+    },
     Multiply,
     MultiplyLong,
     SingleDataSwap,
@@ -24,10 +34,43 @@ pub enum ArmModeInstruction {
     CoprocessorRegisterTrasfer,
     SoftwareInterrupt,
 }
+
 impl ArmModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
-            Self::DataProcessing => "".to_owned(),
+            Self::DataProcessing {
+                condition,
+                alu_instruction,
+                set_conditions,
+                op_kind: _,
+                rn,
+                destination,
+            } => {
+                let set_string = if *set_conditions { "s" } else { "" };
+                match alu_instruction {
+                    ArmModeAluInstruction::And
+                    | ArmModeAluInstruction::Eor
+                    | ArmModeAluInstruction::Sub
+                    | ArmModeAluInstruction::Rsb
+                    | ArmModeAluInstruction::Add
+                    | ArmModeAluInstruction::Adc
+                    | ArmModeAluInstruction::Sbc
+                    | ArmModeAluInstruction::Rsc
+                    | ArmModeAluInstruction::Orr
+                    | ArmModeAluInstruction::Bic => {
+                        format!("{alu_instruction}{condition}{condition} R{destination}, R{rn}")
+                    }
+                    ArmModeAluInstruction::Tst
+                    | ArmModeAluInstruction::Teq
+                    | ArmModeAluInstruction::Cmp
+                    | ArmModeAluInstruction::Cmn => {
+                        format!("{alu_instruction}{condition} R{rn}")
+                    }
+                    ArmModeAluInstruction::Mov | ArmModeAluInstruction::Mvn => {
+                        format!("{alu_instruction}{condition}{set_string} R{destination}")
+                    }
+                }
+            }
             Self::Multiply => "".to_owned(),
             Self::MultiplyLong => "".to_owned(),
             Self::SingleDataSwap => "".to_owned(),
@@ -49,11 +92,13 @@ impl ArmModeInstruction {
     }
 }
 
-impl From<u32> for ArmModeInstruction {
-    fn from(op_code: u32) -> Self {
+impl Arm7tdmi {
+    pub(crate) fn decode_instruction(
+        &mut self,
+        op_code: u32,
+        condition: Condition,
+    ) -> ArmModeInstruction {
         use ArmModeInstruction::*;
-
-        let condition = Condition::from(op_code.get_bits(28..=31) as u8);
 
         // NOTE: The order is based on how many bits are already know at decoding time.
         // It can happen `op_code` coalesced into one/two or more than two possible solution, that's because
@@ -102,7 +147,20 @@ impl From<u32> for ArmModeInstruction {
         } else if op_code.get_bits(26..=27) == 0b01 {
             SingleDataTransfer
         } else if op_code.get_bits(26..=27) == 0b00 {
-            DataProcessing
+            let alu_instruction = op_code.get_bits(21..=24).into();
+            let set_conditions = op_code.get_bit(20);
+            let rn = op_code.get_bits(16..=19);
+            let op_kind: OperandKind = op_code.get_bit(25).into();
+            let rd = op_code.get_bits(12..=15);
+
+            DataProcessing {
+                condition,
+                alu_instruction,
+                set_conditions,
+                op_kind,
+                rn,
+                destination: rd,
+            }
         } else {
             log("not identified instruction");
             unimplemented!()
@@ -197,37 +255,35 @@ impl Display for ThumbModeInstruction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::opcode::ArmModeOpcode;
 
     #[test]
     fn decode_half_word_data_transfer_immediate_offset() {
-        let output: ArmModeInstruction = 0b1110_0001_1100_0001_0000_0000_1011_0000.into();
+        let mut cpu = Arm7tdmi::default();
+        let output: ArmModeInstruction =
+            cpu.decode_instruction(0b1110_0001_1100_0001_0000_0000_1011_0000, Condition::AL);
         assert_eq!(
-            output,
-            ArmModeInstruction::HalfwordDataTransferImmediateOffset
+            ArmModeInstruction::HalfwordDataTransferImmediateOffset,
+            output
         );
     }
 
     // FIXME: Not sure about this, just because `BranchAndExchange` if is first.
     #[test]
     fn decode_branch_and_exchange() {
-        let output: ArmModeOpcode = 0b1110_0001_0010_1111_1111_1111_0001_0001
-            .try_into()
-            .unwrap();
+        let mut cpu = Arm7tdmi::default();
+        let output: ArmModeInstruction =
+            cpu.decode_instruction(0b1110_0001_0010_1111_1111_1111_0001_0001, Condition::AL);
         assert_eq!(
-            output.instruction,
-            ArmModeInstruction::BranchAndExchange(Condition::AL, 1)
+            ArmModeInstruction::BranchAndExchange(Condition::AL, 1),
+            output
         );
     }
 
     #[test]
     fn decode_branch_link() {
-        let output: ArmModeOpcode = 0b1110_1011_0000_0000_0000_0000_0111_1111
-            .try_into()
-            .unwrap();
-        assert_eq!(
-            ArmModeInstruction::Branch(Condition::AL, true, 508),
-            output.instruction
-        );
+        let mut cpu = Arm7tdmi::default();
+        let output: ArmModeInstruction =
+            cpu.decode_instruction(0b1110_1011_0000_0000_0000_0000_0111_1111, Condition::AL);
+        assert_eq!(ArmModeInstruction::Branch(Condition::AL, true, 508), output);
     }
 }
