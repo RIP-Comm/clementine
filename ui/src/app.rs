@@ -62,6 +62,7 @@ impl ClementineApp {
 
         open.insert(tools[1].name().to_owned());
         open.insert(tools[2].name().to_owned());
+        open.insert(tools[4].name().to_owned());
 
         Self { tools, open }
     }
