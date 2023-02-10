@@ -1,6 +1,7 @@
 mod about;
 pub mod app;
-mod cpu_inspector;
+mod cpu_handler;
+mod cpu_registers;
 mod disassembler;
 mod gba_color;
 mod gba_display;
