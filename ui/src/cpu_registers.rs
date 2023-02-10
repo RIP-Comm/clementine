@@ -6,11 +6,21 @@ use std::sync::{Arc, Mutex};
 
 pub struct CpuRegisters {
     gba: Arc<Mutex<Gba>>,
+    base_kind: BaseKind,
+}
+
+#[derive(PartialEq)]
+enum BaseKind {
+    Hex,
+    Dec,
 }
 
 impl CpuRegisters {
     pub fn new(gba: Arc<Mutex<Gba>>) -> Self {
-        Self { gba }
+        Self {
+            gba,
+            base_kind: BaseKind::Hex,
+        }
     }
 }
 
@@ -32,6 +42,10 @@ impl UiTool for CpuRegisters {
         ui.heading("Registers");
         ui.add_space(8.0);
 
+        ui.radio_value(&mut self.base_kind, BaseKind::Dec, "Decimal");
+        ui.radio_value(&mut self.base_kind, BaseKind::Hex, "Hexadecimal");
+        ui.add_space(8.0);
+
         // If it's poisoned it means that the thread that executes instructions
         // panicked, we still want access to registers to debug
         let registers = self.gba.lock().map_or_else(
@@ -47,12 +61,17 @@ impl UiTool for CpuRegisters {
             .striped(true)
             .show(ui, |ui| {
                 for reg in registers {
-                    let mut value = reg.to_string();
+                    let mut value = match self.base_kind {
+                        BaseKind::Dec => reg.to_string(),
+                        BaseKind::Hex => format!("0x{reg:x}"),
+                    };
+
                     ui.label(if index == 15 {
                         format!("R{index:?} (PC)")
                     } else {
                         format!("R{index:?}")
                     });
+
                     ui.text_edit_singleline(&mut value);
 
                     ui.end_row();
