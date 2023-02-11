@@ -166,6 +166,17 @@ impl From<u32> for ShiftKind {
     }
 }
 
+impl Display for ShiftKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Lsl => f.write_str("LSL"),
+            Self::Lsr => f.write_str("LSR"),
+            Self::Asr => f.write_str("ASR"),
+            Self::Ror => f.write_str("ROR"),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ArithmeticOpResult {
     pub result: u32,

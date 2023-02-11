@@ -113,7 +113,26 @@ impl Arm7tdmi {
                 BranchAndExchange(_, register) => self.branch_and_exchange(register),
                 HalfwordDataTransferRegisterOffset => self.half_word_data_transfer(op_code),
                 HalfwordDataTransferImmediateOffset => self.half_word_data_transfer(op_code),
-                SingleDataTransfer => self.single_data_transfer(op_code),
+                SingleDataTransfer {
+                    condition: _,
+                    kind,
+                    quantity,
+                    write_back,
+                    indexing,
+                    rd,
+                    base_register,
+                    offset,
+                    offsetting,
+                } => self.single_data_transfer(
+                    kind,
+                    quantity,
+                    write_back,
+                    indexing,
+                    rd,
+                    base_register,
+                    offset,
+                    offsetting,
+                ),
                 Undefined => todo!(),
                 BlockDataTransfer => self.block_data_transfer(op_code),
                 Branch(_, link, offset) => self.branch(link, offset),
@@ -177,6 +196,7 @@ impl Arm7tdmi {
                 self.registers.set_program_counter(pc);
                 let opcode = self.fetch_arm();
                 let arm_opcode = self.decode_arm_mode_opcode(opcode);
+                log(format!("{arm_opcode}"));
                 self.execute_arm(arm_opcode);
             }
         }
