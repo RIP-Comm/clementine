@@ -135,6 +135,7 @@ impl From<u16> for ThumbModeAluInstruction {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ShiftKind {
     Lsl,
     Lsr,

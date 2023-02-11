@@ -99,6 +99,7 @@ impl Arm7tdmi {
                     op_kind,
                     rn,
                     destination,
+                    op2: _,
                 } => self.data_processing(
                     op_code,
                     alu_instruction,
