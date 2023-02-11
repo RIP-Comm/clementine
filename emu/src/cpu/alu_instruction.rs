@@ -25,22 +25,22 @@ pub enum ArmModeAluInstruction {
 impl Display for ArmModeAluInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::And => f.write_str("and"),
-            Self::Eor => f.write_str("eor"),
-            Self::Sub => f.write_str("sub"),
-            Self::Rsb => f.write_str("rsb"),
-            Self::Add => f.write_str("add"),
-            Self::Adc => f.write_str("adc"),
-            Self::Sbc => f.write_str("sbc"),
-            Self::Rsc => f.write_str("rsc"),
-            Self::Tst => f.write_str("tst"),
-            Self::Teq => f.write_str("teq"),
-            Self::Cmp => f.write_str("cmp"),
-            Self::Cmn => f.write_str("cmn"),
-            Self::Orr => f.write_str("orr"),
-            Self::Mov => f.write_str("mov"),
-            Self::Bic => f.write_str("bic"),
-            Self::Mvn => f.write_str("mvn"),
+            Self::And => f.write_str("AND"),
+            Self::Eor => f.write_str("EOR"),
+            Self::Sub => f.write_str("SUB"),
+            Self::Rsb => f.write_str("RSB"),
+            Self::Add => f.write_str("ADD"),
+            Self::Adc => f.write_str("ADC"),
+            Self::Sbc => f.write_str("SBC"),
+            Self::Rsc => f.write_str("RSC"),
+            Self::Tst => f.write_str("TST"),
+            Self::Teq => f.write_str("TEQ"),
+            Self::Cmp => f.write_str("CMP"),
+            Self::Cmn => f.write_str("CMN"),
+            Self::Orr => f.write_str("ORR"),
+            Self::Mov => f.write_str("MOV"),
+            Self::Bic => f.write_str("BIC"),
+            Self::Mvn => f.write_str("MVN"),
         }
     }
 }

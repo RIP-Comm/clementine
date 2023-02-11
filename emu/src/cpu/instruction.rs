@@ -57,7 +57,7 @@ impl ArmModeInstruction {
                 rn,
                 destination,
             } => {
-                let set_string = if *set_conditions { "s" } else { "" };
+                let set_string = if *set_conditions { "S" } else { "" };
                 match alu_instruction {
                     ArmModeAluInstruction::And
                     | ArmModeAluInstruction::Eor
@@ -69,7 +69,7 @@ impl ArmModeInstruction {
                     | ArmModeAluInstruction::Rsc
                     | ArmModeAluInstruction::Orr
                     | ArmModeAluInstruction::Bic => {
-                        format!("{alu_instruction}{condition}{condition} R{destination}, R{rn}")
+                        format!("{alu_instruction}{condition}{set_string} R{destination}, R{rn}")
                     }
                     ArmModeAluInstruction::Tst
                     | ArmModeAluInstruction::Teq
@@ -85,7 +85,7 @@ impl ArmModeInstruction {
             Self::Multiply => "".to_owned(),
             Self::MultiplyLong => "".to_owned(),
             Self::SingleDataSwap => "".to_owned(),
-            Self::BranchAndExchange(_, reg) => format!("bx R{reg}"),
+            Self::BranchAndExchange(condition, reg) => format!("BX{condition} R{reg}"),
             Self::HalfwordDataTransferRegisterOffset => "".to_owned(),
             Self::HalfwordDataTransferImmediateOffset => "".to_owned(),
             Self::SingleDataTransfer {
@@ -125,9 +125,9 @@ impl ArmModeInstruction {
             }
             Self::Undefined => "".to_owned(),
             Self::BlockDataTransfer => "".to_owned(),
-            Self::Branch(cond, is_link, address) => {
-                let link = if *is_link { "l" } else { "" };
-                format!("b{cond}{link} 0x{address:08X}")
+            Self::Branch(condition, is_link, address) => {
+                let link = if *is_link { "L" } else { "" };
+                format!("B{link}{condition} 0x{address:08X}")
             }
             Self::CoprocessorDataTransfer => "".to_owned(),
             Self::CoprocessorDataOperation => "".to_owned(),
