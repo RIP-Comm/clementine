@@ -4,7 +4,6 @@ use logger::log;
 
 use crate::bitwise::Bits;
 use crate::cpu::alu_instruction::ArmModeAluInstruction;
-use crate::cpu::arm7tdmi::Arm7tdmi;
 use crate::cpu::flags::{Indexing, Offsetting, OperandKind, ReadWriteKind};
 use crate::cpu::single_data_transfer::SingleDataTransferKind;
 
@@ -137,14 +136,11 @@ impl ArmModeInstruction {
     }
 }
 
-impl Arm7tdmi {
-    pub(crate) fn decode_instruction(
-        &mut self,
-        op_code: u32,
-        condition: Condition,
-    ) -> ArmModeInstruction {
+impl From<u32> for ArmModeInstruction {
+    fn from(op_code: u32) -> Self {
         use ArmModeInstruction::*;
 
+        let condition = Condition::from(op_code.get_bits(28..=31) as u8);
         // NOTE: The order is based on how many bits are already know at decoding time.
         // It can happen `op_code` coalesced into one/two or more than two possible solution, that's because
         // we tried to order with this priority.
@@ -324,12 +320,12 @@ impl Display for ThumbModeInstruction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::arm7tdmi::Arm7tdmi;
 
     #[test]
     fn decode_half_word_data_transfer_immediate_offset() {
-        let mut cpu = Arm7tdmi::default();
-        let output: ArmModeInstruction =
-            cpu.decode_instruction(0b1110_0001_1100_0001_0000_0000_1011_0000, Condition::AL);
+        let cpu = Arm7tdmi::default();
+        let output: ArmModeInstruction = cpu.decode(0b1110_0001_1100_0001_0000_0000_1011_0000);
         assert_eq!(
             ArmModeInstruction::HalfwordDataTransferImmediateOffset,
             output
@@ -339,9 +335,8 @@ mod tests {
     // FIXME: Not sure about this, just because `BranchAndExchange` if is first.
     #[test]
     fn decode_branch_and_exchange() {
-        let mut cpu = Arm7tdmi::default();
-        let output: ArmModeInstruction =
-            cpu.decode_instruction(0b1110_0001_0010_1111_1111_1111_0001_0001, Condition::AL);
+        let cpu = Arm7tdmi::default();
+        let output: ArmModeInstruction = cpu.decode(0b1110_0001_0010_1111_1111_1111_0001_0001);
         assert_eq!(
             ArmModeInstruction::BranchAndExchange(Condition::AL, 1),
             output
@@ -350,9 +345,8 @@ mod tests {
 
     #[test]
     fn decode_branch_link() {
-        let mut cpu = Arm7tdmi::default();
-        let output: ArmModeInstruction =
-            cpu.decode_instruction(0b1110_1011_0000_0000_0000_0000_0111_1111, Condition::AL);
+        let cpu = Arm7tdmi::default();
+        let output: ArmModeInstruction = cpu.decode(0b1110_1011_0000_0000_0000_0000_0111_1111);
         assert_eq!(ArmModeInstruction::Branch(Condition::AL, true, 508), output);
     }
 }
