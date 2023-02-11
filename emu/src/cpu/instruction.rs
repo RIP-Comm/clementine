@@ -3,7 +3,8 @@ use std::fmt::{Display, Formatter};
 use logger::log;
 
 use crate::bitwise::Bits;
-use crate::cpu::alu_instruction::ArmModeAluInstruction;
+use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind};
+use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
 use crate::cpu::flags::{Indexing, Offsetting, OperandKind, ReadWriteKind};
 use crate::cpu::single_data_transfer::SingleDataTransferKind;
 
@@ -18,6 +19,7 @@ pub enum ArmModeInstruction {
         op_kind: OperandKind,
         rn: u32,
         destination: u32,
+        op2: AluSecondOperandInfo,
     },
     Multiply,
     MultiplyLong,
@@ -55,6 +57,7 @@ impl ArmModeInstruction {
                 op_kind: _,
                 rn,
                 destination,
+                op2,
             } => {
                 let set_string = if *set_conditions { "S" } else { "" };
                 match alu_instruction {
@@ -68,16 +71,18 @@ impl ArmModeInstruction {
                     | ArmModeAluInstruction::Rsc
                     | ArmModeAluInstruction::Orr
                     | ArmModeAluInstruction::Bic => {
-                        format!("{alu_instruction}{condition}{set_string} R{destination}, R{rn}")
+                        format!(
+                            "{alu_instruction}{condition}{set_string} R{destination}, R{rn}, {op2}"
+                        )
                     }
                     ArmModeAluInstruction::Tst
                     | ArmModeAluInstruction::Teq
                     | ArmModeAluInstruction::Cmp
                     | ArmModeAluInstruction::Cmn => {
-                        format!("{alu_instruction}{condition} R{rn}")
+                        format!("{alu_instruction}{condition} R{rn}, {op2}")
                     }
                     ArmModeAluInstruction::Mov | ArmModeAluInstruction::Mvn => {
-                        format!("{alu_instruction}{condition}{set_string} R{destination}")
+                        format!("{alu_instruction}{condition}{set_string} R{destination}, {op2}")
                     }
                 }
             }
@@ -218,6 +223,32 @@ impl From<u32> for ArmModeInstruction {
             let op_kind: OperandKind = op_code.get_bit(25).into();
             let rd = op_code.get_bits(12..=15);
 
+            let op2 = match op_kind {
+                OperandKind::Immediate => {
+                    let shift = op_code.get_bits(8..=11) * 2;
+                    let base = op_code.get_bits(0..=7);
+                    AluSecondOperandInfo::Immediate { base, shift }
+                }
+                OperandKind::Register => {
+                    let shift_kind: ShiftKind = op_code.get_bits(5..=6).into();
+                    let shift_by_register_bit = op_code.get_bit(4);
+                    let register = op_code.get_bits(0..=3);
+                    let op_kind = if shift_by_register_bit {
+                        if !op_code.get_bit(7) {
+                            todo!("should be zero or need different work")
+                        }
+                        ShiftOperator::Register(op_code.get_bits(8..=11))
+                    } else {
+                        ShiftOperator::Immediate(op_code.get_bits(7..=11))
+                    };
+                    AluSecondOperandInfo::Register {
+                        op_kind,
+                        shift_kind,
+                        register,
+                    }
+                }
+            };
+
             DataProcessing {
                 condition,
                 alu_instruction,
@@ -225,6 +256,7 @@ impl From<u32> for ArmModeInstruction {
                 op_kind,
                 rn,
                 destination: rd,
+                op2,
             }
         } else {
             log("not identified instruction");

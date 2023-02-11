@@ -1,7 +1,7 @@
 use crate::bitwise::Bits;
 
 /// There two different kind of write or read for memory.
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ReadWriteKind {
     /// Word is a u32 value for ARM mode and u16 for Thumb mode.
     #[default]
@@ -27,7 +27,7 @@ impl From<u32> for ReadWriteKind {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LoadStoreKind {
     Store,
     Load,
@@ -42,7 +42,7 @@ impl From<bool> for LoadStoreKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Indexing {
     /// Add offset after transfer.
     Post,
@@ -60,7 +60,7 @@ impl From<bool> for Indexing {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Offsetting {
     /// Substract the offset from base.
     Down,
@@ -78,7 +78,7 @@ impl From<bool> for Offsetting {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OperandKind {
     Immediate,
     Register,
