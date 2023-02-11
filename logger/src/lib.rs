@@ -116,17 +116,15 @@ mod tests {
         log("ok".to_string());
         let dir = std::env::temp_dir();
         let files = fs::read_dir(dir).unwrap();
-        for f in files {
-            if let Ok(ff) = f {
-                let p = ff.path();
-                if let Some(ext) = p.extension() {
-                    let s = p.to_str().unwrap();
-                    if ext == "log" && s.contains(&"clementine") {
-                        print!("{p:?}");
-                        let s = fs::read_to_string(p.clone()).unwrap();
-                        fs::remove_file(p).unwrap();
-                        assert_eq!(s, "[00:00:00.000] ok\n".to_string());
-                    }
+        for f in files.flatten() {
+            let p = f.path();
+            if let Some(ext) = p.extension() {
+                let s = p.to_str().unwrap();
+                if ext == "log" && s.contains("clementine") {
+                    print!("{p:?}");
+                    let s = fs::read_to_string(p.clone()).unwrap();
+                    fs::remove_file(p).unwrap();
+                    assert_eq!(s, "[00:00:00.000] ok\n".to_string());
                 }
             }
         }

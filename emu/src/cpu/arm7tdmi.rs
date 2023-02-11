@@ -194,10 +194,9 @@ impl Arm7tdmi {
                 pc.set_bit_off(0);
                 pc.set_bit_off(1);
                 self.registers.set_program_counter(pc);
-                let opcode = self.fetch_arm();
-                let arm_opcode = self.decode_arm_mode_opcode(opcode);
-                log(format!("{arm_opcode}"));
-                self.execute_arm(arm_opcode);
+                let op = self.fetch_arm();
+                let op = self.decode(op);
+                self.execute_arm(op);
             }
         }
     }
@@ -1066,8 +1065,8 @@ mod tests {
     fn check_branch_and_exchange() {
         {
             let op_code = 0b1110_0_0_0_1_0_0_1_0_1_1_1_1_1_1_1_1_1_1_1_1_0_0_0_1_0000;
-            let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(op_code.instruction, BranchAndExchange(Condition::AL, 0));
             let asm = op_code.instruction.disassembler();
             assert_eq!(asm, "BX R0");
@@ -1078,12 +1077,9 @@ mod tests {
     fn check_branch() {
         {
             let op_code = 0b0000_101_0_111111111111111111100011;
-            let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
-            assert_eq!(
-                op_code.instruction,
-                ArmModeInstruction::Branch(Condition::EQ, false, 0x3FFFF8C)
-            );
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, Branch(Condition::EQ, false, 0x3FFFF8C));
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
             let asm = op_code.instruction.disassembler();
@@ -1091,8 +1087,8 @@ mod tests {
         }
         {
             let op_code = 0b1110_101_1_000000000000000000001111;
-            let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(op_code.instruction, Branch(Condition::AL, true, 60));
             let asm = op_code.instruction.disassembler();
             assert_eq!(asm, "BL 0x0000003C");
@@ -1103,7 +1099,7 @@ mod tests {
         // 15(1111b) << 2 = 60 bytes
         let op_code = 0b1110_1010_0000_0000_0000_0000_0000_1111;
         let mut cpu = Arm7tdmi::default();
-        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
 
         cpu.execute_arm(op_code);
 
@@ -1113,7 +1109,7 @@ mod tests {
 
         // -9 << 2 = -36 bytes
         let op_code = 0b1110_1010_1111_1111_1111_1111_1111_0111;
-        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
 
         cpu.execute_arm(op_code);
 
@@ -1122,7 +1118,7 @@ mod tests {
         // Covers link
 
         let op_code = 0b1110_1011_0000_0000_0000_0000_0000_1111;
-        let op_code = cpu.decode_arm_mode_opcode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
 
         cpu.execute_arm(op_code);
 
@@ -1135,7 +1131,7 @@ mod tests {
         let op_code = 0b1110_1111_1111_1111_1111_1111_1111_1111;
         let mut cpu = Arm7tdmi::default();
 
-        let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
         assert_eq!(op_code.condition, Condition::AL);
 
         cpu.execute_arm(op_code);
@@ -1147,7 +1143,7 @@ mod tests {
             // LDM with post-increment
             let op_code = 0b1110_100_0_1_0_1_1_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
             {
@@ -1168,7 +1164,7 @@ mod tests {
             // LDM with pre-increment
             let op_code = 0b1110_100_1_1_0_1_1_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
             {
@@ -1189,7 +1185,7 @@ mod tests {
             // LDM with post-decrement
             let op_code = 0b1110_100_0_0_0_1_1_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
             {
@@ -1210,7 +1206,7 @@ mod tests {
             // LDM with pre-decrement
             let op_code = 0b1110_100_1_0_0_1_1_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
             {
@@ -1231,7 +1227,7 @@ mod tests {
             // STM with post-increment
             let op_code = 0b1110_100_0_1_0_1_0_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             for r in 0..16 {
                 cpu.registers.set_register_at(r, r as u32);
@@ -1252,7 +1248,7 @@ mod tests {
             // STM with pre-increment
             let op_code = 0b1110_100_1_1_0_1_0_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             for r in 0..16 {
                 cpu.registers.set_register_at(r, r as u32);
@@ -1274,7 +1270,7 @@ mod tests {
             // STM with post-decrement
             let op_code = 0b1110_100_0_0_0_1_0_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             for r in 0..16 {
                 cpu.registers.set_register_at(r, r as u32);
@@ -1296,7 +1292,7 @@ mod tests {
 
             let op_code = 0b1110_100_1_0_0_1_0_1101_1000000010100010;
             let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             for r in 0..16 {
                 cpu.registers.set_register_at(r, r as u32);
@@ -1323,7 +1319,7 @@ mod tests {
             // Register offset
             let op_code = 0b1110_0001_1000_0010_0000_0000_1011_0001;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::HalfwordDataTransferRegisterOffset
@@ -1343,7 +1339,7 @@ mod tests {
             // Immediate offset, pre-index, down, no wb, load, unsigned halfword
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_1_0_1_0_1_0000_0001_0001_1_01_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.memory
@@ -1360,7 +1356,7 @@ mod tests {
             // Immediate offset, pre-index, down, wb, load, unsigned halfword
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_1_0_1_1_1_0000_0001_0001_1_01_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.memory
@@ -1377,7 +1373,7 @@ mod tests {
             // Immediate offset, pre-index, up, wb, load, unsigned halfword
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_1_1_1_1_1_0000_0001_0001_1_01_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.memory
@@ -1394,7 +1390,7 @@ mod tests {
             // Immediate offset, post-index, down, no wb (but implicit), load, unsigned halfword
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_0_0_1_0_1_0000_0001_0001_1_01_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.memory.lock().unwrap().write_word(100, 0xFFFF1234);
@@ -1408,7 +1404,7 @@ mod tests {
             // Immediate offset, post-index, down, no wb (but implicit), load, signed byte
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_0_0_1_0_1_0000_0001_0001_1_10_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.memory.lock().unwrap().write_at(100, -5_i8 as u8);
@@ -1422,7 +1418,7 @@ mod tests {
             // Immediate offset, post-index, down, no wb (but implicit), load, signed halfword
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_0_0_1_0_1_0000_0001_0001_1_11_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.memory
@@ -1439,7 +1435,7 @@ mod tests {
             // Immediate offset, post-index, down, no wb (but implicit), store, unsigned halfword
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_0_0_1_0_0_0000_0001_0001_1_01_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.registers.set_register_at(1, 0xFFFF1234);
@@ -1453,7 +1449,7 @@ mod tests {
             // Immediate offset, post-index, down, no wb (but implicit), store PC, unsigned halfword
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_0_0_1_0_0_0000_1111_0001_1_01_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.registers.set_program_counter(500);
@@ -1467,7 +1463,7 @@ mod tests {
             // Immediate offset, pre-index, down, no wb, store PC, unsigned halfword, base PC
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_1_0_1_0_0_1111_1111_0001_1_01_1_1111;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_program_counter(500);
 
@@ -1480,7 +1476,7 @@ mod tests {
             // Register offset, post-index, down, no wb (but implicit), store PC, unsigned halfword
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_000_0_0_0_0_0_0000_1111_0000_1_01_1_0010;
-            let op_code: ArmModeOpcode = cpu.decode_arm_mode_opcode(op_code);
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
             cpu.registers.set_program_counter(500);

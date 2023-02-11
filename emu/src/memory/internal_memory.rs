@@ -358,17 +358,20 @@ mod tests {
 
     #[test]
     fn test_read_rom() {
-        let mut im = InternalMemory::default();
-        im.rom = vec![1, 1, 1, 1];
+        let im = InternalMemory {
+            rom: vec![1, 1, 1, 1],
+            ..Default::default()
+        };
         let address = 0x08000000;
         assert_eq!(im.read_at(address), 1);
     }
 
     #[test]
     fn check_read_word() {
-        let mut im = InternalMemory::default();
-        im.bios_system_rom = vec![0x12, 0x34, 0x56, 0x78];
-
+        let im = InternalMemory {
+            bios_system_rom: vec![0x12, 0x34, 0x56, 0x78],
+            ..Default::default()
+        };
         assert_eq!(im.read_word(0), 0x78563412);
     }
 
@@ -394,9 +397,10 @@ mod tests {
 
     #[test]
     fn check_read_half_word() {
-        let mut im = InternalMemory::default();
-        im.bios_system_rom = vec![0x12, 0x34];
-
+        let im = InternalMemory {
+            bios_system_rom: vec![0x12, 0x34],
+            ..Default::default()
+        };
         assert_eq!(im.read_half_word(0), 0x3412);
     }
 }

@@ -108,6 +108,7 @@ mod tests {
 
     use crate::cpu::condition::Condition;
     use crate::cpu::flags::{Indexing, Offsetting, ReadWriteKind};
+    use crate::cpu::opcode::ArmModeOpcode;
     use crate::cpu::single_data_transfer::SingleDataTransferKind;
     use pretty_assertions::assert_eq;
     use ArmModeInstruction::SingleDataTransfer;
@@ -116,8 +117,8 @@ mod tests {
     fn check_ldr() {
         {
             let op_code = 0b1110_01_0_1_1_1_0_1_1100_1100_001100000000;
-            let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -135,8 +136,8 @@ mod tests {
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
-            let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -154,8 +155,8 @@ mod tests {
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000010111000;
-            let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -196,8 +197,8 @@ mod tests {
     fn check_str_byte() {
         {
             let op_code = 0b1110_01_0_1_1_1_0_0_0100_0100_001000001000;
-            let mut cpu = Arm7tdmi::default();
-            let op_code = cpu.decode_arm_mode_opcode(op_code);
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -215,7 +216,7 @@ mod tests {
         }
         //     let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
         //     let mut cpu = Arm7tdmi::default();
-        //     let op_code_type = cpu.decode_arm_mode_opcode(op_code);
+        //     let op_code_type = cpu.decode(op_code);
         //     assert_eq!(
         //         op_code_type.instruction,
         //         SingleDataTransfer {
@@ -253,7 +254,7 @@ mod tests {
     // fn check_ldr_word() {
     //     let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
     //     let mut cpu = Arm7tdmi::default();
-    //     let op_code_type = cpu.decode_arm_mode_opcode(op_code);
+    //     let op_code_type = cpu.decode(op_code);
     //     assert_eq!(
     //         op_code_type.instruction,
     //         SingleDataTransfer {
@@ -294,7 +295,7 @@ mod tests {
     // fn check_str_word() {
     //     let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
     //     let mut cpu = Arm7tdmi::default();
-    //     let op_code_type = cpu.decode_arm_mode_opcode(op_code);
+    //     let op_code_type = cpu.decode(op_code);
     //     assert_eq!(
     //         op_code_type.instruction,
     //         SingleDataTransfer {
