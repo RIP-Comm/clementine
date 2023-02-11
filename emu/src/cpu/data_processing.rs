@@ -623,6 +623,9 @@ mod tests {
                 }
             );
 
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "CMN R9");
+
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.carry_flag());
@@ -653,6 +656,9 @@ mod tests {
                 }
             );
 
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "TEQ R12");
+
             cpu.registers.set_register_at(12, 0xFFFFFFFF);
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
@@ -664,7 +670,6 @@ mod tests {
             assert!(!cpu.cpsr.carry_flag());
             assert!(!cpu.cpsr.overflow_flag());
         }
-
         {
             let op_code: u32 = 0b0000_00_0_1001_0_1001_1111_000000001100;
             let mut cpu = Arm7tdmi::default();
@@ -682,6 +687,8 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "TEQEQ R9");
         }
 
         // let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
@@ -724,6 +731,9 @@ mod tests {
             }
         );
 
+        let asm = op_code.instruction.disassembler();
+        assert_eq!(asm, "CMP R14");
+
         cpu.registers.set_register_at(14, 1);
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
@@ -755,6 +765,8 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "ORREQ R12, R12");
         }
     }
 
@@ -777,6 +789,8 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "MOVEQ R14");
         }
         {
             let op_code: u32 = 0b1110_00_1_1101_0_0000_0000_000011011111;
@@ -793,6 +807,9 @@ mod tests {
                     destination: 0,
                 }
             );
+
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "MOV R0");
 
             cpu.registers.set_register_at(0, 1);
             assert!(!cpu.cpsr.sign_flag());
@@ -821,6 +838,9 @@ mod tests {
                     destination: 12,
                 }
             );
+
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "MOV R12");
 
             cpu.registers.set_register_at(12, 1);
             assert!(!cpu.cpsr.sign_flag());
@@ -853,6 +873,9 @@ mod tests {
                     destination: 0,
                 }
             );
+
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "ADD R0, R15");
 
             cpu.registers.set_register_at(15, 15);
             assert!(!cpu.cpsr.sign_flag());

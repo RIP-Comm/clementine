@@ -1069,6 +1069,8 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = cpu.decode_arm_mode_opcode(op_code);
             assert_eq!(op_code.instruction, BranchAndExchange(Condition::AL, 0));
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "BX R0");
         }
     }
 
@@ -1084,12 +1086,16 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "BEQ 0x03FFFF8C");
         }
         {
             let op_code = 0b1110_101_1_000000000000000000001111;
             let mut cpu = Arm7tdmi::default();
             let op_code = cpu.decode_arm_mode_opcode(op_code);
             assert_eq!(op_code.instruction, Branch(Condition::AL, true, 60));
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "BL 0x0000003C");
         }
 
         // Covers a positive offset
