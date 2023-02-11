@@ -1,9 +1,7 @@
 use crate::bitwise::Bits;
 
-use super::opcode::ArmModeOpcode;
-
 /// There two different kind of write or read for memory.
-#[derive(Default)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub enum ReadWriteKind {
     /// Word is a u32 value for ARM mode and u16 for Thumb mode.
     #[default]
@@ -23,8 +21,8 @@ impl From<bool> for ReadWriteKind {
     }
 }
 
-impl From<&ArmModeOpcode> for ReadWriteKind {
-    fn from(op_code: &ArmModeOpcode) -> Self {
+impl From<u32> for ReadWriteKind {
+    fn from(op_code: u32) -> Self {
         op_code.get_bit(22).into()
     }
 }
@@ -44,7 +42,7 @@ impl From<bool> for LoadStoreKind {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Indexing {
     /// Add offset after transfer.
     Post,
@@ -62,6 +60,7 @@ impl From<bool> for Indexing {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Offsetting {
     /// Substract the offset from base.
     Down,
@@ -79,7 +78,7 @@ impl From<bool> for Offsetting {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OperandKind {
     Immediate,
     Register,
