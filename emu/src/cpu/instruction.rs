@@ -6,7 +6,7 @@ use crate::bitwise::Bits;
 use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind};
 use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
 use crate::cpu::flags::{Indexing, Offsetting, OperandKind, ReadWriteKind};
-use crate::cpu::single_data_transfer::SingleDataTransferKind;
+use crate::cpu::single_data_transfer::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
 
 use super::condition::Condition;
 
@@ -35,7 +35,7 @@ pub enum ArmModeInstruction {
         indexing: Indexing,
         rd: u32,
         base_register: u32,
-        offset: u32,
+        offset_info: SingleDataTransferOffsetInfo,
         offsetting: Offsetting,
     },
     Undefined,
@@ -99,25 +99,20 @@ impl ArmModeInstruction {
                 write_back,
                 indexing,
                 rd,
-                base_register,
-                offset,
+                base_register: _,
+                offset_info,
                 offsetting: _,
             } => {
-                let q = match quantity {
-                    ReadWriteKind::Word => "W",
+                let b = match quantity {
+                    ReadWriteKind::Word => "",
                     ReadWriteKind::Byte => "B",
                 };
 
-                let w = if *write_back { "!" } else { "" };
-
-                // let i = match indexing {
-                //     Indexing::Post => format!("[{base_register}], {offset}"),
-                //     Indexing::Pre => format!("[{base_register}, {offset}]"),
-                // };
-                let _ = offset;
+                let _ = write_back;
+                let _ = offset_info;
                 let _ = indexing;
-                // FIXME: finish the address
-                let address = base_register;
+
+                // let address = base_register;
 
                 let op = match kind {
                     SingleDataTransferKind::Ldr => "LDR",
@@ -125,7 +120,7 @@ impl ArmModeInstruction {
                     SingleDataTransferKind::Pld => unimplemented!(),
                 };
 
-                format!("{op}{condition}{q} {rd},{address} {w}")
+                format!("{op}{condition}{b} R{rd}, {offset_info}")
             }
             Self::Undefined => "".to_owned(),
             Self::BlockDataTransfer => "".to_owned(),
@@ -191,7 +186,8 @@ impl From<u32> for ArmModeInstruction {
             let offset = op_code.get_bits(0..=23) << 2;
             Branch(condition, is_link, offset)
         } else if op_code.get_bits(26..=27) == 0b01 {
-            let op_kind: OperandKind = op_code.get_bit(25).into();
+            // NOTE: This bit is negated because the meaning is inverted in SingleDataTransfer then other istructions.
+            let op_kind: OperandKind = (!op_code.get_bit(25)).into();
             let indexing: Indexing = op_code.get_bit(24).into(); // FIXME: should we use this?
             let offsetting: Offsetting = op_code.get_bit(23).into();
             let byte_or_word: ReadWriteKind = op_code.into(); // TODO: is this the same for all instruction?
@@ -200,9 +196,21 @@ impl From<u32> for ArmModeInstruction {
             let rn = op_code.get_bits(16..=19);
             let rd = op_code.get_bits(12..=15);
 
-            let offset = match op_kind {
-                OperandKind::Immediate => todo!(),
-                OperandKind::Register => op_code.get_bits(0..=11),
+            let offset_info = match op_kind {
+                OperandKind::Immediate => {
+                    let offset = op_code.get_bits(0..=11);
+                    SingleDataTransferOffsetInfo::Immediate { offset }
+                }
+                OperandKind::Register => {
+                    let shift_amount = op_code.get_bits(7..=11);
+                    let shift_kind: ShiftKind = op_code.get_bits(5..=6).into();
+                    let reg_offset = op_code.get_bits(0..=3);
+                    SingleDataTransferOffsetInfo::RegisterImmediate {
+                        shift_amount,
+                        shift_kind,
+                        reg_offset,
+                    }
+                }
             };
 
             SingleDataTransfer {
@@ -213,7 +221,7 @@ impl From<u32> for ArmModeInstruction {
                 indexing,
                 rd,
                 base_register: rn,
-                offset,
+                offset_info,
                 offsetting,
             }
         } else if op_code.get_bits(26..=27) == 0b00 {
@@ -233,7 +241,7 @@ impl From<u32> for ArmModeInstruction {
                     let shift_kind: ShiftKind = op_code.get_bits(5..=6).into();
                     let shift_by_register_bit = op_code.get_bit(4);
                     let register = op_code.get_bits(0..=3);
-                    let op_kind = if shift_by_register_bit {
+                    let shift_op = if shift_by_register_bit {
                         if !op_code.get_bit(7) {
                             todo!("should be zero or need different work")
                         }
@@ -242,7 +250,7 @@ impl From<u32> for ArmModeInstruction {
                         ShiftOperator::Immediate(op_code.get_bits(7..=11))
                     };
                     AluSecondOperandInfo::Register {
-                        op_kind,
+                        shift_op,
                         shift_kind,
                         register,
                     }
