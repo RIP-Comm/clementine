@@ -1,3 +1,4 @@
+use crate::cpu::alu_instruction::{shift, ShiftKind};
 use crate::cpu::flags::{Indexing, Offsetting};
 use crate::{bitwise::Bits, cpu::arm7tdmi::Arm7tdmi, memory::io_device::IoDevice};
 
@@ -32,6 +33,39 @@ impl From<u32> for SingleDataTransferKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SingleDataTransferOffsetInfo {
+    Immediate {
+        offset: u32,
+    },
+    RegisterImmediate {
+        shift_amount: u32,
+        shift_kind: ShiftKind,
+        reg_offset: u32,
+    },
+}
+
+impl std::fmt::Display for SingleDataTransferOffsetInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Immediate { offset } => {
+                f.write_str("#")?;
+                // FIXME: should we put the sign?
+                write!(f, "{offset}")?;
+            }
+            Self::RegisterImmediate {
+                shift_amount,
+                shift_kind,
+                reg_offset,
+            } => {
+                write!(f, "{reg_offset}, {shift_kind} #{shift_amount}")?;
+            }
+        };
+
+        Ok(())
+    }
+}
+
 impl Arm7tdmi {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn single_data_transfer(
@@ -42,7 +76,7 @@ impl Arm7tdmi {
         _indexing: Indexing, // FIXME: should we use this?
         rd: u32,
         base_register: u32,
-        offset: u32,
+        offset_info: SingleDataTransferOffsetInfo,
         offsetting: Offsetting,
     ) -> Option<u32> {
         let address = if base_register == REG_PROGRAM_COUNTER {
@@ -53,9 +87,22 @@ impl Arm7tdmi {
                 .register_at(base_register.try_into().unwrap())
         };
 
+        let amount = match offset_info {
+            SingleDataTransferOffsetInfo::Immediate { offset } => offset,
+            SingleDataTransferOffsetInfo::RegisterImmediate {
+                shift_amount,
+                shift_kind,
+                reg_offset,
+            } => {
+                let v = self.registers.register_at(reg_offset.try_into().unwrap());
+                let r = shift(shift_kind, shift_amount, v, self.cpsr.carry_flag());
+                r.result
+            }
+        };
+
         let address: usize = match offsetting {
-            Offsetting::Down => address.wrapping_sub(offset).try_into().unwrap(),
-            Offsetting::Up => address.wrapping_add(offset).try_into().unwrap(),
+            Offsetting::Down => address.wrapping_sub(amount).try_into().unwrap(),
+            Offsetting::Up => address.wrapping_add(amount).try_into().unwrap(),
         };
 
         let mut memory = self.memory.lock().unwrap();
@@ -104,14 +151,11 @@ impl Arm7tdmi {
 
 #[cfg(test)]
 mod tests {
-    use crate::{cpu::arm7tdmi::Arm7tdmi, cpu::instruction::ArmModeInstruction};
-
+    use super::*;
     use crate::cpu::condition::Condition;
-    use crate::cpu::flags::{Indexing, Offsetting, ReadWriteKind};
+    use crate::cpu::instruction::ArmModeInstruction::SingleDataTransfer;
     use crate::cpu::opcode::ArmModeOpcode;
-    use crate::cpu::single_data_transfer::SingleDataTransferKind;
     use pretty_assertions::assert_eq;
-    use ArmModeInstruction::SingleDataTransfer;
 
     #[test]
     fn check_ldr() {
@@ -129,10 +173,12 @@ mod tests {
                     indexing: Indexing::Pre,
                     rd: 12,
                     base_register: 12,
-                    offset: 768,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 768 },
                     offsetting: Offsetting::Up,
                 }
             );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDRB R12, #768");
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
@@ -148,10 +194,12 @@ mod tests {
                     indexing: Indexing::Pre,
                     rd: 13,
                     base_register: 15,
-                    offset: 208,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 208 },
                     offsetting: Offsetting::Up,
                 }
             );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDR R13, #208");
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000010111000;
@@ -167,34 +215,70 @@ mod tests {
                     indexing: Indexing::Pre,
                     rd: 13,
                     base_register: 15,
-                    offset: 184,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 184 },
                     offsetting: Offsetting::Up,
                 }
             );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDR R13, #184");
         }
+        {
+            let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Ldr,
+                    quantity: ReadWriteKind::Word,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 13,
+                    base_register: 15,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 208 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDR R13, #208");
+        }
+        {
+            let op_code = 0b1110_0101_1101_1111_1101_0000_0001_1000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Ldr,
+                    quantity: ReadWriteKind::Byte,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 13,
+                    base_register: 15,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 24 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDRB R13, #24");
 
-        //     let op_code = 0b1110_0101_1101_1111_1101_0000_0001_1000;
-        //
-        //     let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
-        //         .try_into()
-        //         .expect("conversion `rd` to u8");
-        //
-        //     assert_eq!(rd, 13);
-        //
-        //     // because in this specific case address will be
-        //     // then will be 0x03000050 + 8 (.wrapping_add(offset))
-        //     cpu.registers.set_program_counter(0x03000050);
-        //
-        //     // simulate mem already contains something.
-        //     cpu.memory.lock().unwrap().write_at(0x03000070, 99);
-        //
-        //     cpu.execute_arm(op_code_type);
-        //     assert_eq!(cpu.registers.register_at(13), 99);
-        //     assert_eq!(cpu.registers.program_counter(), 0x03000054);
+            // because in this specific case address will be
+            // then will be 0x03000050 + 8 (.wrapping_add(offset))
+            cpu.registers.set_program_counter(0x03000050);
+
+            // simulate mem already contains something.
+            cpu.memory.lock().unwrap().write_at(0x03000070, 99);
+
+            cpu.execute_arm(op_code);
+            assert_eq!(cpu.registers.register_at(13), 99);
+            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+        }
     }
 
     #[test]
-    fn check_str_byte() {
+    fn check_str() {
         {
             let op_code = 0b1110_01_0_1_1_1_0_0_0100_0100_001000001000;
             let cpu = Arm7tdmi::default();
@@ -209,127 +293,117 @@ mod tests {
                     indexing: Indexing::Pre,
                     rd: 4,
                     base_register: 4,
-                    offset: 520,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 520 },
                     offsetting: Offsetting::Up,
                 }
             );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "STRB R4, #520");
         }
-        //     let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
-        //     let mut cpu = Arm7tdmi::default();
-        //     let op_code_type = cpu.decode(op_code);
-        //     assert_eq!(
-        //         op_code_type.instruction,
-        //         SingleDataTransfer {
-        //             condition: Condition::EQ,
-        //             kind: SingleDataTransferKind::Ldr,
-        //             quantity: Default::default(),
-        //             write_back: false,
-        //             indexing: Indexing::Post,
-        //             rd: 0,
-        //             base_register: 0,
-        //             offset: 0,
-        //             offsetting: Offsetting::Down,
-        //         }
-        //     );
-        //
-        //     let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
-        //         .try_into()
-        //         .expect("conversion `rd` to u8");
-        //
-        //     assert_eq!(rd, 13);
-        //
-        //     // because in this specific case address will be
-        //     // then will be 0x03000050 + 8 (.wrapping_add(offset))
-        //     cpu.registers.set_program_counter(0x03000050);
-        //
-        //     cpu.execute_arm(op_code_type);
-        //
-        //     let memory = cpu.memory.lock().unwrap();
-        //
-        //     assert_eq!(memory.read_at(0x03000070), 13);
-        //     assert_eq!(cpu.registers.program_counter(), 0x03000054);
+        {
+            let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Str,
+                    quantity: ReadWriteKind::Word,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 1,
+                    base_register: 1,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 0 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "STR R1, #0");
+
+            cpu.registers.set_register_at(1, 16843009);
+
+            // because in this specific case address will be
+            // then will be 0x03000050 + 8 (.wrapping_sub(offset))
+            cpu.registers.set_program_counter(0x03000050);
+
+            cpu.execute_arm(op_code);
+
+            let memory = cpu.memory.lock().unwrap();
+
+            assert_eq!(memory.read_at(0x01010101), 1);
+            assert_eq!(memory.read_at(0x01010101 + 1), 1);
+            assert_eq!(memory.read_at(0x01010101 + 2), 1);
+            assert_eq!(memory.read_at(0x01010101 + 3), 1);
+            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+        }
+        {
+            let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Str,
+                    quantity: ReadWriteKind::Byte,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 13,
+                    base_register: 15,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 24 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "STRB R13, #24");
+
+            // because in this specific case address will be
+            // then will be 0x03000050 + 8 (.wrapping_add(offset))
+            cpu.registers.set_program_counter(0x03000050);
+
+            cpu.execute_arm(op_code);
+
+            let memory = cpu.memory.lock().unwrap();
+
+            assert_eq!(memory.read_at(0x03000070), 13);
+            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+        }
     }
-    //
-    // #[test]
-    // fn check_ldr_word() {
-    //     let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
-    //     let mut cpu = Arm7tdmi::default();
-    //     let op_code_type = cpu.decode(op_code);
-    //     assert_eq!(
-    //         op_code_type.instruction,
-    //         SingleDataTransfer {
-    //             condition: Condition::EQ,
-    //             kind: SingleDataTransferKind::Ldr,
-    //             quantity: Default::default(),
-    //             write_back: false,
-    //             indexing: Indexing::Post,
-    //             rd: 0,
-    //             base_register: 0,
-    //             offset: 0,
-    //             offsetting: Offsetting::Down,
-    //         }
-    //     );
-    //
-    //     let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
-    //         .try_into()
-    //         .expect("conversion `rd` to u8");
-    //
-    //     assert_eq!(rd, 13);
-    //
-    //     {
-    //         let mut memory = cpu.memory.lock().unwrap();
-    //
-    //         // simulate mem already contains something.
-    //         // in u32 this is 16843009 00000001_00000001_00000001_00000001.
-    //         memory.write_at(0x30, 1);
-    //         memory.write_at(0x30 + 1, 1);
-    //         memory.write_at(0x30 + 2, 1);
-    //         memory.write_at(0x30 + 3, 1);
-    //     }
-    //     cpu.execute_arm(op_code_type);
-    //     assert_eq!(cpu.registers.register_at(13), 16843009);
-    //     assert_eq!(cpu.registers.program_counter(), 4);
-    // }
-    //
-    // #[test]
-    // fn check_str_word() {
-    //     let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
-    //     let mut cpu = Arm7tdmi::default();
-    //     let op_code_type = cpu.decode(op_code);
-    //     assert_eq!(
-    //         op_code_type.instruction,
-    //         SingleDataTransfer {
-    //             condition: Condition::EQ,
-    //             kind: SingleDataTransferKind::Ldr,
-    //             quantity: Default::default(),
-    //             write_back: false,
-    //             indexing: Indexing::Post,
-    //             rd: 0,
-    //             base_register: 0,
-    //             offset: 0,
-    //             offsetting: Offsetting::Down,
-    //         }
-    //     );
-    //
-    //     let rd: u8 = ((op_code & 0b0000_0000_0000_0000_1111_0000_0000_0000) >> 12)
-    //         .try_into()
-    //         .expect("conversion `rd` to u8");
-    //
-    //     assert_eq!(rd, 1);
-    //     cpu.registers.set_register_at(1, 16843009);
-    //
-    //     // because in this specific case address will be
-    //     // then will be 0x03000050 + 8 (.wrapping_sub(offset))
-    //     cpu.registers.set_program_counter(0x03000050);
-    //
-    //     cpu.execute_arm(op_code_type);
-    //
-    //     let memory = cpu.memory.lock().unwrap();
-    //
-    //     assert_eq!(memory.read_at(0x01010101), 1);
-    //     assert_eq!(memory.read_at(0x01010101 + 1), 1);
-    //     assert_eq!(memory.read_at(0x01010101 + 2), 1);
-    //     assert_eq!(memory.read_at(0x01010101 + 3), 1);
-    //     assert_eq!(cpu.registers.program_counter(), 0x03000054);
-    // }
+
+
+    #[test]
+    fn check_ldr_word() {
+        let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
+        let mut cpu = Arm7tdmi::default();
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            SingleDataTransfer {
+                condition: Condition::AL,
+                kind: SingleDataTransferKind::Ldr,
+                quantity: ReadWriteKind::Word,
+                write_back: false,
+                indexing: Indexing::Pre,
+                rd: 13,
+                base_register: 15,
+                offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 40 },
+                offsetting: Offsetting::Up,
+            }
+        );
+
+        {
+            let mut memory = cpu.memory.lock().unwrap();
+
+            // simulate mem already contains something.
+            // in u32 this is 16843009 00000001_00000001_00000001_00000001.
+            memory.write_at(0x30, 1);
+            memory.write_at(0x30 + 1, 1);
+            memory.write_at(0x30 + 2, 1);
+            memory.write_at(0x30 + 3, 1);
+        }
+        cpu.execute_arm(op_code);
+        assert_eq!(cpu.registers.register_at(13), 16843009);
+        assert_eq!(cpu.registers.program_counter(), 4);
+    }
 }

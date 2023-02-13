@@ -122,7 +122,7 @@ impl Arm7tdmi {
                     indexing,
                     rd,
                     base_register,
-                    offset,
+                    offset_info,
                     offsetting,
                 } => self.single_data_transfer(
                     kind,
@@ -131,7 +131,7 @@ impl Arm7tdmi {
                     indexing,
                     rd,
                     base_register,
-                    offset,
+                    offset_info,
                     offsetting,
                 ),
                 Undefined => todo!(),

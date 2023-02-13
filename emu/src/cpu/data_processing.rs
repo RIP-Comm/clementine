@@ -43,7 +43,7 @@ impl std::fmt::Display for ShiftOperator {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AluSecondOperandInfo {
     Register {
-        op_kind: ShiftOperator,
+        shift_op: ShiftOperator,
         shift_kind: ShiftKind,
         register: u32,
     },
@@ -57,11 +57,11 @@ impl std::fmt::Display for AluSecondOperandInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             Self::Register {
-                op_kind,
+                shift_op,
                 shift_kind,
                 register,
             } => {
-                write!(f, "{register}, {shift_kind} {op_kind}")
+                write!(f, "{register}, {shift_kind} {shift_op}")
             }
             Self::Immediate { base, shift } => {
                 write!(f, "#{}", base.rotate_right(shift))
@@ -669,7 +669,7 @@ mod tests {
                     rn: 9,
                     destination: 15,
                     op2: AluSecondOperandInfo::Register {
-                        op_kind: ShiftOperator::Immediate(0),
+                        shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: 14,
                     }
@@ -738,7 +738,7 @@ mod tests {
                     rn: 9,
                     destination: 15,
                     op2: AluSecondOperandInfo::Register {
-                        op_kind: ShiftOperator::Immediate(0),
+                        shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: 12,
                     }
@@ -1026,7 +1026,7 @@ mod tests {
                 rn: 15,
                 destination: 0,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 14,
                 }
@@ -1097,7 +1097,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1219,7 +1219,7 @@ mod tests {
                 rn: 15,
                 destination: 12,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 0,
                 }
@@ -1299,7 +1299,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1341,7 +1341,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1376,7 +1376,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1409,7 +1409,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1442,7 +1442,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1475,7 +1475,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1509,7 +1509,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1546,7 +1546,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1579,7 +1579,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1612,7 +1612,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1645,7 +1645,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1678,7 +1678,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1711,7 +1711,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1744,7 +1744,7 @@ mod tests {
                 rn: 0,
                 destination: 1,
                 op2: AluSecondOperandInfo::Register {
-                    op_kind: ShiftOperator::Immediate(0),
+                    shift_op: ShiftOperator::Immediate(0),
                     shift_kind: ShiftKind::Lsl,
                     register: 2,
                 }
@@ -1781,7 +1781,7 @@ mod tests {
                     rn: 15,
                     destination: 0,
                     op2: AluSecondOperandInfo::Register {
-                        op_kind: ShiftOperator::Immediate(0),
+                        shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: 0,
                     }
@@ -1816,7 +1816,7 @@ mod tests {
                     rn: 15,
                     destination: 0,
                     op2: AluSecondOperandInfo::Register {
-                        op_kind: ShiftOperator::Immediate(0),
+                        shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: 0,
                     }
@@ -1853,7 +1853,7 @@ mod tests {
                     rn: 9,
                     destination: 15,
                     op2: AluSecondOperandInfo::Register {
-                        op_kind: ShiftOperator::Immediate(0),
+                        shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: 0,
                     }
@@ -1883,7 +1883,7 @@ mod tests {
                     rn: 9,
                     destination: 15,
                     op2: AluSecondOperandInfo::Register {
-                        op_kind: ShiftOperator::Immediate(0),
+                        shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: 0,
                     }
@@ -1913,7 +1913,7 @@ mod tests {
                     rn: 8,
                     destination: 15,
                     op2: AluSecondOperandInfo::Register {
-                        op_kind: ShiftOperator::Immediate(0),
+                        shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: 0,
                     }
@@ -1943,7 +1943,7 @@ mod tests {
                     rn: 8,
                     destination: 15,
                     op2: AluSecondOperandInfo::Register {
-                        op_kind: ShiftOperator::Immediate(0),
+                        shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: 0,
                     }
