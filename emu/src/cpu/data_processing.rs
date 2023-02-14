@@ -658,32 +658,11 @@ mod tests {
         {
             let op_code = 0b1110_00_0_1011_0_1001_1111_000000001110;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
-            assert_eq!(
-                op_code.instruction,
-                ArmModeInstruction::DataProcessing {
-                    condition: Condition::AL,
-                    alu_instruction: ArmModeAluInstruction::Cmn,
-                    set_conditions: false,
-                    op_kind: OperandKind::Register,
-                    rn: 9,
-                    destination: 15,
-                    op2: AluSecondOperandInfo::Register {
-                        shift_op: ShiftOperator::Immediate(0),
-                        shift_kind: ShiftKind::Lsl,
-                        register: 14,
-                    }
-                }
-            );
-
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "CMN R9, 14, LSL #0");
-
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.carry_flag());
             assert!(!cpu.cpsr.overflow_flag());
-            cpu.execute_arm(op_code);
+            cpu.execute_arm(cpu.decode(op_code));
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.carry_flag());
@@ -981,35 +960,39 @@ mod tests {
         assert_eq!(cpu.registers.register_at(0), 15 + 8 + 32);
     }
 
-    // #[test] // FIXME: Need more love
-    // fn check_add_pc_operand_shift_register() {
-    //     // Case when R15 is used as operand and shift amount is taken from register:
-    //     // R2 = R1 + (R15 << R3)
-    //     let op_code = 0b1110_00_0_0100_0_0001_0010_0011_0001_1111;
-    //     let mut cpu = Arm7tdmi::default();
-    //     let op_code: ArmModeOpcode = cpu.decode(op_code);
-    //     assert_eq!(
-    //         op_code.instruction,
-    //         ArmModeInstruction::DataProcessing {
-    //             condition: Condition::AL,
-    //             alu_instruction: ArmModeAluInstruction::Add,
-    //             set_conditions: false,
-    //             op_kind: OperandKind::Register,
-    //             rn: 1,
-    //             destination: 2,
-    //             op2: AluSecondOperandInfo::Immediate { base: 0, shift: 0 }
-    //         }
-    //     );
-    //
-    //     cpu.registers.set_register_at(2, 5);
-    //     cpu.registers.set_register_at(1, 10);
-    //     cpu.registers.set_register_at(15, 500);
-    //     cpu.registers.set_register_at(3, 0);
-    //
-    //     cpu.execute_arm(op_code);
-    //
-    //     assert_eq!(cpu.registers.register_at(2), 500 + 12 + 10);
-    // }
+    #[test]
+    fn check_add_pc_operand_shift_register() {
+        // Case when R15 is used as operand and shift amount is taken from register:
+        // R2 = R1 + (R15 << R3)
+        let op_code = 0b1110_00_0_0100_0_0001_0010_0011_0001_1111;
+        let mut cpu = Arm7tdmi::default();
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Add,
+                set_conditions: false,
+                op_kind: OperandKind::Register,
+                rn: 1,
+                destination: 2,
+                op2: AluSecondOperandInfo::Register {
+                    shift_op: ShiftOperator::Register(3),
+                    shift_kind: ShiftKind::Lsl,
+                    register: 15,
+                }
+            },
+        );
+
+        cpu.registers.set_register_at(2, 5);
+        cpu.registers.set_register_at(1, 10);
+        cpu.registers.set_register_at(15, 500);
+        cpu.registers.set_register_at(3, 0);
+
+        cpu.execute_arm(op_code);
+
+        assert_eq!(cpu.registers.register_at(2), 500 + 12 + 10);
+    }
 
     #[test]
     fn check_add_carry_bit() {

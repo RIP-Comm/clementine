@@ -242,7 +242,7 @@ impl From<u32> for ArmModeInstruction {
                     let shift_by_register_bit = op_code.get_bit(4);
                     let register = op_code.get_bits(0..=3);
                     let shift_op = if shift_by_register_bit {
-                        if !op_code.get_bit(7) {
+                        if op_code.get_bit(7) {
                             todo!("should be zero or need different work")
                         }
                         ShiftOperator::Register(op_code.get_bits(8..=11))
@@ -361,6 +361,81 @@ impl Display for ThumbModeInstruction {
 mod tests {
     use super::*;
     use crate::cpu::arm7tdmi::Arm7tdmi;
+    use crate::cpu::opcode::ArmModeOpcode;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn decode_branch() {
+        {
+            let cpu = Arm7tdmi::default();
+            let output: ArmModeInstruction = cpu.decode(0b1110_1011_0000_0000_0000_0000_0111_1111);
+            assert_eq!(ArmModeInstruction::Branch(Condition::AL, true, 508), output);
+        }
+        {
+            let cpu = Arm7tdmi::default();
+            let output: ArmModeInstruction = cpu.decode(0b1110_1010_0000_0000_0000_0000_0111_1111);
+            assert_eq!(
+                ArmModeInstruction::Branch(Condition::AL, false, 508),
+                output
+            );
+        }
+        {
+            let cpu = Arm7tdmi::default();
+            let output: ArmModeInstruction = cpu.decode(0b0000_1010_0000_0000_0000_0000_0111_1111);
+            assert_eq!(
+                ArmModeInstruction::Branch(Condition::EQ, false, 508),
+                output
+            );
+        }
+    }
+
+    #[test]
+    fn decode_branch_and_exchange() {
+        {
+            let cpu = Arm7tdmi::default();
+            let output: ArmModeInstruction = cpu.decode(0b1110_0001_0010_1111_1111_1111_0001_0001);
+            assert_eq!(
+                ArmModeInstruction::BranchAndExchange(Condition::AL, 1),
+                output
+            );
+        }
+        {
+            let cpu = Arm7tdmi::default();
+            let output: ArmModeInstruction = cpu.decode(0b0000_0001_0010_1111_1111_1111_0001_0001);
+            assert_eq!(
+                ArmModeInstruction::BranchAndExchange(Condition::EQ, 1),
+                output
+            );
+        }
+    }
+
+    #[test]
+    fn decode_data_processing() {
+        {
+            let op_code = 0b1110_00_0_1011_0_1001_1111_000000001110;
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Cmn,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 9,
+                    destination: 15,
+                    op2: AluSecondOperandInfo::Register {
+                        shift_op: ShiftOperator::Immediate(0),
+                        shift_kind: ShiftKind::Lsl,
+                        register: 14,
+                    }
+                }
+            );
+
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "CMN R9, 14, LSL #0");
+        }
+    }
 
     #[test]
     fn decode_half_word_data_transfer_immediate_offset() {
@@ -370,23 +445,5 @@ mod tests {
             ArmModeInstruction::HalfwordDataTransferImmediateOffset,
             output
         );
-    }
-
-    // FIXME: Not sure about this, just because `BranchAndExchange` if is first.
-    #[test]
-    fn decode_branch_and_exchange() {
-        let cpu = Arm7tdmi::default();
-        let output: ArmModeInstruction = cpu.decode(0b1110_0001_0010_1111_1111_1111_0001_0001);
-        assert_eq!(
-            ArmModeInstruction::BranchAndExchange(Condition::AL, 1),
-            output
-        );
-    }
-
-    #[test]
-    fn decode_branch_link() {
-        let cpu = Arm7tdmi::default();
-        let output: ArmModeInstruction = cpu.decode(0b1110_1011_0000_0000_0000_0000_0111_1111);
-        assert_eq!(ArmModeInstruction::Branch(Condition::AL, true, 508), output);
     }
 }

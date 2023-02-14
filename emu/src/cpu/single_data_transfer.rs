@@ -371,7 +371,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn check_ldr_word() {
         let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
