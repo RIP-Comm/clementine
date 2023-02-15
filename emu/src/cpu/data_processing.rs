@@ -741,27 +741,32 @@ mod tests {
             assert_eq!(asm, "TEQEQ R9, R12");
         }
 
-        // let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
-        // let mut cpu = Arm7tdmi::default();
-        // let op_code : ArmModeOpcode = cpu.decode(op_code);
-        // assert_eq!(
-        //     op_code.instruction,
-        //     ArmModeInstruction::DataProcessing {
-        //         condition: Condition::AL,
-        //         alu_instruction: ArmModeAluInstruction::Teq,
-        //         set_conditions: true,
-        //         op_kind: OperandKind::Register,
-        //         rn: 9,
-        //         destination: 3,
-        //     }
-        // );
-        //
-        // let rn = 9_usize;
-        // cpu.registers.set_register_at(rn, 100);
-        // cpu.cpsr.set_sign_flag(true); // set for later verify.
-        // cpu.execute_arm(op_code);
-        // assert!(!cpu.cpsr.sign_flag());
-        // assert!(!cpu.cpsr.zero_flag());
+        let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
+        let mut cpu = Arm7tdmi::default();
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Teq,
+                set_conditions: true,
+                op_kind: OperandKind::Register,
+                rn: 9,
+                destination: 3,
+                op2: AluSecondOperandInfo::Register {
+                    shift_op: ShiftOperator::Immediate(0),
+                    shift_kind: ShiftKind::Lsl,
+                    register: 0
+                }
+            }
+        );
+
+        let rn = 9_usize;
+        cpu.registers.set_register_at(rn, 100);
+        cpu.cpsr.set_sign_flag(true); // set for later verify.
+        cpu.execute_arm(op_code);
+        assert!(!cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.zero_flag());
     }
 
     #[test]
@@ -785,14 +790,13 @@ mod tests {
         let asm = op_code.instruction.disassembler();
         assert_eq!(asm, "CMP R14, #0");
 
-        cpu.registers.set_register_at(14, 1);
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
         assert!(!cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.overflow_flag());
         cpu.execute_arm(op_code);
         assert!(!cpu.cpsr.sign_flag());
-        assert!(!cpu.cpsr.zero_flag());
+        assert!(cpu.cpsr.zero_flag());
         assert!(!cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.overflow_flag());
     }
@@ -1114,33 +1118,36 @@ mod tests {
         assert!(cpu.cpsr.sign_flag());
     }
 
-    // FIXME: Need more love
-    // #[test]
-    // fn shift_from_register_is_0() {
-    //     let op_code = 0b1110_00_0_0100_0_0000_0001_0011_0111_0010;
-    //     let mut cpu = Arm7tdmi::default();
-    //     let op_code: ArmModeOpcode = cpu.decode(op_code);
-    //     assert_eq!(
-    //         op_code.instruction,
-    //         ArmModeInstruction::DataProcessing {
-    //             condition: Condition::AL,
-    //             alu_instruction: ArmModeAluInstruction::Add,
-    //             set_conditions: false,
-    //             op_kind: OperandKind::Register,
-    //             rn: 0,
-    //             destination: 1,
-    //             op2: AluSecondOperandInfo::Immediate { base: 0, shift: 0 }
-    //         }
-    //     );
-    //
-    //     cpu.registers.set_register_at(0, 5);
-    //     cpu.registers.set_register_at(2, 11);
-    //     cpu.registers.set_register_at(3, 8 << 8);
-    //
-    //     cpu.execute_arm(op_code);
-    //
-    //     assert_eq!(cpu.registers.register_at(1), 16);
-    // }
+    #[test]
+    fn shift_from_register_is_0() {
+        let op_code = 0b1110_00_0_0100_0_0000_0001_0011_0111_0010;
+        let mut cpu = Arm7tdmi::default();
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Add,
+                set_conditions: false,
+                op_kind: OperandKind::Register,
+                rn: 0,
+                destination: 1,
+                op2: AluSecondOperandInfo::Register {
+                    register: 2,
+                    shift_kind: ShiftKind::Ror,
+                    shift_op: ShiftOperator::Register(3)
+                }
+            }
+        );
+
+        cpu.registers.set_register_at(0, 5);
+        cpu.registers.set_register_at(2, 11);
+        cpu.registers.set_register_at(3, 8 << 8);
+
+        cpu.execute_arm(op_code);
+
+        assert_eq!(cpu.registers.register_at(1), 16);
+    }
 
     #[test]
     fn check_and() {
@@ -1201,27 +1208,52 @@ mod tests {
 
     #[test]
     fn check_tst() {
-        let op_code = 0b0000_00_0_1000_0_1111_1100_0000_00000000;
-        let cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
-        assert_eq!(
-            op_code.instruction,
-            ArmModeInstruction::DataProcessing {
-                condition: Condition::EQ,
-                alu_instruction: ArmModeAluInstruction::Tst,
-                set_conditions: false,
-                op_kind: OperandKind::Register,
-                rn: 15,
-                destination: 12,
-                op2: AluSecondOperandInfo::Register {
-                    shift_op: ShiftOperator::Immediate(0),
-                    shift_kind: ShiftKind::Lsl,
-                    register: 0,
+        {
+            let op_code = 0b0000_00_0_1000_0_1111_1100_0000_00000000;
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::EQ,
+                    alu_instruction: ArmModeAluInstruction::Tst,
+                    set_conditions: false,
+                    op_kind: OperandKind::Register,
+                    rn: 15,
+                    destination: 12,
+                    op2: AluSecondOperandInfo::Register {
+                        shift_op: ShiftOperator::Immediate(0),
+                        shift_kind: ShiftKind::Lsl,
+                        register: 0,
+                    }
                 }
-            }
-        );
+            );
 
-        assert!(!cpu.cpsr.can_execute(op_code.condition));
+            assert!(!cpu.cpsr.can_execute(op_code.condition));
+        }
+        {
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1110_00_1_1000_1_0000_0001_0000_00000000;
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Tst,
+                    set_conditions: true,
+                    op_kind: OperandKind::Immediate,
+                    rn: 0,
+                    destination: 1,
+                    op2: AluSecondOperandInfo::Immediate { base: 0, shift: 0 }
+                }
+            );
+            cpu.cpsr.set_sign_flag(true);
+
+            cpu.execute_arm(op_code);
+            assert!(cpu.cpsr.zero_flag());
+            assert!(!cpu.cpsr.sign_flag());
+        }
     }
 
     #[test]
