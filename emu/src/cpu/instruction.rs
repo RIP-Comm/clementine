@@ -433,7 +433,7 @@ mod tests {
             );
 
             let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "CMN R9, 14, LSL #0");
+            assert_eq!(asm, "CMN R9, R14");
         }
     }
 

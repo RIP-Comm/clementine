@@ -35,7 +35,7 @@ impl std::fmt::Display for ShiftOperator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Immediate(value) => write!(f, "#{value}"),
-            Self::Register(register) => write!(f, "{register}"),
+            Self::Register(register) => write!(f, "R{register}"),
         }
     }
 }
@@ -61,7 +61,19 @@ impl std::fmt::Display for AluSecondOperandInfo {
                 shift_kind,
                 register,
             } => {
-                write!(f, "{register}, {shift_kind} {shift_op}")
+                if let ShiftOperator::Immediate(shift) = shift_op {
+                    if shift == 0 {
+                        if shift_kind == ShiftKind::Lsl {
+                            return write!(f, "R{register}");
+                        } else if shift_kind == ShiftKind::Ror {
+                            return write!(f, "R{register}, RRX");
+                        } else {
+                            return write!(f, "R{register}, {shift_kind} #32");
+                        }
+                    }
+                }
+
+                write!(f, "R{register}, {shift_kind} {shift_op}")
             }
             Self::Immediate { base, shift } => {
                 write!(f, "#{}", base.rotate_right(shift))
@@ -726,7 +738,7 @@ mod tests {
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
             let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "TEQEQ R9, 12, LSL #0");
+            assert_eq!(asm, "TEQEQ R9, R12");
         }
 
         // let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
