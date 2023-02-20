@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use logger::log;
+
 use crate::{
     bitwise::Bits,
     memory::io_registers::{IORegister, IORegisterAccessControl},
@@ -82,6 +86,7 @@ pub struct LCDRegisters {
     pub bldalpha: IORegister,
     /// Brightness (Fade-In/Out) Coefficient
     pub bldy: IORegister,
+    unused_region: std::collections::HashMap<usize, u8>,
 }
 
 impl Default for LCDRegisters {
@@ -91,14 +96,14 @@ impl Default for LCDRegisters {
 }
 
 impl LCDRegisters {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         use IORegisterAccessControl::*;
 
         Self {
             dispcnt: IORegister::with_access_control(ReadWrite),
             green_swap: IORegister::with_access_control(ReadWrite),
             dispstat: IORegister::with_access_control(ReadWrite),
-            vcount: IORegister::with_access_control(Read),
+            vcount: IORegister::with_access_control(ReadWrite),
             bg0cnt: IORegister::with_access_control(ReadWrite),
             bg1cnt: IORegister::with_access_control(ReadWrite),
             bg2cnt: IORegister::with_access_control(ReadWrite),
@@ -133,6 +138,7 @@ impl LCDRegisters {
             bldcnt: IORegister::with_access_control(ReadWrite),
             bldalpha: IORegister::with_access_control(ReadWrite),
             bldy: IORegister::with_access_control(Write),
+            unused_region: HashMap::new(),
         }
     }
 
@@ -297,6 +303,10 @@ impl IoDevice for LCDRegisters {
             0x04000051 => self.bldcnt.read().get_byte(1),
             0x04000052 => self.bldalpha.read().get_byte(0),
             0x04000053 => self.bldalpha.read().get_byte(1),
+            0x0400004E..=0x0400004F | 0x04000056..=0x0400005F => {
+                log("read on unused memory");
+                self.unused_region.get(&address).map_or(0, |v| *v)
+            }
             _ => panic!("Reading an write-only memory address: {address:b}"),
         }
     }
@@ -310,6 +320,8 @@ impl IoDevice for LCDRegisters {
             0x04000004 => self.dispstat.set_byte(0, value),
             0x04000005 => self.dispstat.set_byte(1, value),
             0x04000008 => self.bg0cnt.set_byte(0, value),
+            0x04000006 => self.vcount.set_byte(0, value),
+            0x04000007 => self.vcount.set_byte(1, value),
             0x04000009 => self.bg0cnt.set_byte(1, value),
             0x0400000A => self.bg1cnt.set_byte(0, value),
             0x0400000B => self.bg1cnt.set_byte(1, value),
@@ -386,7 +398,11 @@ impl IoDevice for LCDRegisters {
             0x04000053 => self.bldalpha.set_byte(1, value),
             0x04000054 => self.bldy.set_byte(0, value),
             0x04000055 => self.bldy.set_byte(1, value),
-            _ => panic!("Writing an read-only memory address: {address:b}"),
+            0x0400004E..=0x0400004F | 0x04000056..=0x0400005F => {
+                log("write on unused memory");
+                self.unused_region.insert(address, value);
+            }
+            _ => panic!("Writing an read-only memory address: {address:x}"),
         }
     }
 }
