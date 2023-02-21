@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use logger::log;
 
 use crate::bitwise::Bits;
+use crate::memory::dma::Dma;
 use crate::memory::io_device::IoDevice;
 use crate::memory::lcd_registers::LCDRegisters;
 use crate::memory::timer_registers::TimerRegisters;
@@ -21,6 +22,9 @@ pub struct InternalMemory {
 
     /// From 0x04000000 to 0x04000055 (0x56 bytes).
     pub lcd_registers: LCDRegisters,
+
+    /// From 0x040000B0 to 0x040000E0 (0x30 bytes).
+    pub dma: Dma,
 
     /// From 0x04000100 to 0x0400010E.
     timer_registers: TimerRegisters,
@@ -65,6 +69,7 @@ impl InternalMemory {
             working_ram: vec![0; 0x00040000],
             working_iram: vec![0; 0x00008000],
             lcd_registers: LCDRegisters::default(),
+            dma: Dma::new(),
             timer_registers: TimerRegisters::default(),
             interrupts: Interrupts::default(),
             bg_palette_ram: vec![0; 0x200],
@@ -86,6 +91,7 @@ impl IoDevice for InternalMemory {
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000],
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000],
             0x04000000..=0x04000055 => self.lcd_registers.read_at(address),
+            0x040000B0..=0x040000E0 => self.dma.read_at(address),
             0x04000100..=0x0400010E => self.timer_registers.read_at(address),
             0x04000200..=0x04000804 => self.interrupts.read_at(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000],
@@ -106,6 +112,7 @@ impl IoDevice for InternalMemory {
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000] = value,
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
             0x04000000..=0x0400005F => self.lcd_registers.write_at(address, value),
+            0x040000B0..=0x040000E0 => self.dma.write_at(address, value),
             0x04000100..=0x0400010E => self.timer_registers.write_at(address, value),
             0x04000200..=0x04000804 => self.interrupts.write_at(address, value),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000] = value,
