@@ -2,6 +2,7 @@ use crate::bitwise::Bits;
 use crate::memory::io_device::IoDevice;
 use crate::memory::io_registers::{IORegister, IORegisterAccessControl};
 use logger::log;
+use std::collections::HashMap;
 
 struct DmaRegisters {
     pub source_address: IORegister,
@@ -72,7 +73,7 @@ impl IoDevice for DmaRegisters {
 
 pub struct Dma {
     banks: [DmaRegisters; 4],
-    unused: IORegister,
+    unused: HashMap<usize, u8>,
 }
 
 impl Default for Dma {
@@ -90,7 +91,7 @@ impl Dma {
                 DmaRegisters::default(),
                 DmaRegisters::default(),
             ],
-            unused: IORegister::with_access_control(IORegisterAccessControl::ReadWrite),
+            unused: HashMap::new(),
         }
     }
 }
@@ -105,9 +106,9 @@ impl IoDevice for Dma {
             0x040000BC..=0x040000C7 => self.banks[1].read_at(address - 0x040000BC),
             0x040000C8..=0x040000D3 => self.banks[2].read_at(address - 0x040000C8),
             0x040000D4..=0x040000DF => self.banks[3].read_at(address - 0x040000D4),
-            0x040000E0 => {
-                log("read in ununsed 0x040000E0");
-                self.unused.read().get_byte(0)
+            0x040000E0..=0x040000FF => {
+                log("read on unused memory");
+                self.unused.get(&address).map_or(0, |v| *v)
             }
             _ => panic!("Not implemented read memory address: {address:x}"),
         }
@@ -119,9 +120,9 @@ impl IoDevice for Dma {
             0x040000BC..=0x040000C7 => self.banks[1].write_at(address - 0x040000BC, value),
             0x040000C8..=0x040000D3 => self.banks[2].write_at(address - 0x040000C8, value),
             0x040000D4..=0x040000DF => self.banks[3].write_at(address - 0x040000D4, value),
-            0x040000E0 => {
-                log("write in unused 0x040000E0");
-                self.unused.set_byte(0, value);
+            0x040000E0..=0x040000FF => {
+                log("write on unused memory");
+                self.unused.insert(address, value);
             }
             _ => panic!("Not implemented write memory address: {address:x}"),
         }
