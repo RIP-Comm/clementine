@@ -62,7 +62,7 @@ impl IoDevice for TimerRegisters {
             0x0400010A => self.tm2cnt_h.read().get_byte(0),
             0x0400010C => self.tm3cnt_l.read().get_byte(0),
             0x0400010E => self.tm3cnt_h.read().get_byte(0),
-            _ => panic!("Reading an write-only memory address: {address:b}"),
+            _ => panic!("Reading an write-only memory address: {address:x}"),
         }
     }
 
@@ -77,7 +77,7 @@ impl IoDevice for TimerRegisters {
             0x0400010A => self.tm2cnt_h.set_byte(0, value),
             0x0400010C => self.tm3cnt_l.set_byte(0, value),
             0x0400010E => self.tm3cnt_h.set_byte(0, value),
-            _ => panic!("Reading an write-only memory address: {address:b}"),
+            _ => panic!("Reading an write-only memory address: {address:x}"),
         }
     }
 }
