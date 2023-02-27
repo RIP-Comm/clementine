@@ -55,13 +55,21 @@ impl IoDevice for TimerRegisters {
     fn read_at(&self, address: usize) -> u8 {
         match address {
             0x04000100 => self.tm0cnt_l.read().get_byte(0),
+            0x04000101 => self.tm0cnt_l.read().get_byte(1),
             0x04000102 => self.tm0cnt_h.read().get_byte(0),
+            0x04000103 => self.tm0cnt_h.read().get_byte(1),
             0x04000104 => self.tm1cnt_l.read().get_byte(0),
+            0x04000105 => self.tm1cnt_l.read().get_byte(1),
             0x04000106 => self.tm1cnt_h.read().get_byte(0),
+            0x04000107 => self.tm1cnt_h.read().get_byte(1),
             0x04000108 => self.tm2cnt_l.read().get_byte(0),
+            0x04000109 => self.tm2cnt_l.read().get_byte(1),
             0x0400010A => self.tm2cnt_h.read().get_byte(0),
+            0x0400010B => self.tm2cnt_h.read().get_byte(1),
             0x0400010C => self.tm3cnt_l.read().get_byte(0),
+            0x0400010D => self.tm3cnt_l.read().get_byte(1),
             0x0400010E => self.tm3cnt_h.read().get_byte(0),
+            0x0400010F => self.tm3cnt_h.read().get_byte(1),
             _ => panic!("Reading an write-only memory address: {address:x}"),
         }
     }
@@ -70,13 +78,21 @@ impl IoDevice for TimerRegisters {
     fn write_at(&mut self, address: usize, value: u8) {
         match address {
             0x04000100 => self.tm0cnt_l.set_byte(0, value),
+            0x04000101 => self.tm0cnt_l.set_byte(1, value),
             0x04000102 => self.tm0cnt_h.set_byte(0, value),
+            0x04000103 => self.tm0cnt_h.set_byte(1, value),
             0x04000104 => self.tm1cnt_l.set_byte(0, value),
+            0x04000105 => self.tm1cnt_l.set_byte(1, value),
             0x04000106 => self.tm1cnt_h.set_byte(0, value),
+            0x04000107 => self.tm1cnt_h.set_byte(1, value),
             0x04000108 => self.tm2cnt_l.set_byte(0, value),
+            0x04000109 => self.tm2cnt_l.set_byte(1, value),
             0x0400010A => self.tm2cnt_h.set_byte(0, value),
+            0x0400010B => self.tm2cnt_h.set_byte(1, value),
             0x0400010C => self.tm3cnt_l.set_byte(0, value),
+            0x0400010D => self.tm3cnt_l.set_byte(1, value),
             0x0400010E => self.tm3cnt_h.set_byte(0, value),
+            0x0400010F => self.tm3cnt_h.set_byte(1, value),
             _ => panic!("Reading an write-only memory address: {address:x}"),
         }
     }
