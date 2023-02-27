@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use logger::log;
+
 use crate::{
     bitwise::Bits,
     memory::io_registers::{IORegister, IORegisterAccessControl},
@@ -22,6 +26,8 @@ pub struct TimerRegisters {
     pub tm3cnt_l: IORegister,
     /// Timer 3 Control
     pub tm3cnt_h: IORegister,
+
+    unused_region: HashMap<usize, u8>,
 }
 
 impl Default for TimerRegisters {
@@ -31,7 +37,7 @@ impl Default for TimerRegisters {
 }
 
 impl TimerRegisters {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         use IORegisterAccessControl::*;
 
         Self {
@@ -43,6 +49,7 @@ impl TimerRegisters {
             tm2cnt_h: IORegister::with_access_control(ReadWrite),
             tm3cnt_l: IORegister::with_access_control(ReadWrite),
             tm3cnt_h: IORegister::with_access_control(ReadWrite),
+            unused_region: HashMap::default(),
         }
     }
 }
@@ -70,6 +77,7 @@ impl IoDevice for TimerRegisters {
             0x0400010D => self.tm3cnt_l.read().get_byte(1),
             0x0400010E => self.tm3cnt_h.read().get_byte(0),
             0x0400010F => self.tm3cnt_h.read().get_byte(1),
+            0x04000110..=0x0400012F => self.unused_region.get(&address).map_or(0, |v| *v),
             _ => panic!("Reading an write-only memory address: {address:x}"),
         }
     }
@@ -93,6 +101,10 @@ impl IoDevice for TimerRegisters {
             0x0400010D => self.tm3cnt_l.set_byte(1, value),
             0x0400010E => self.tm3cnt_h.set_byte(0, value),
             0x0400010F => self.tm3cnt_h.set_byte(1, value),
+            0x04000110..=0x0400012F => {
+                log(format!("write on unused memory {address:x}"));
+                self.unused_region.insert(address, value);
+            }
             _ => panic!("Reading an write-only memory address: {address:x}"),
         }
     }

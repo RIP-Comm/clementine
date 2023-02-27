@@ -27,7 +27,7 @@ pub struct InternalMemory {
     /// From 0x040000B0 to 0x040000E0 (0x30 bytes).
     pub dma: Dma,
 
-    /// From 0x04000100 to 0x0400010E.
+    /// From 0x04000100 to 0x0400012F.
     timer_registers: TimerRegisters,
 
     /// From 0x04000130 to 0x04000133
@@ -97,6 +97,7 @@ impl IoDevice for InternalMemory {
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000],
             0x04000000..=0x04000055 => self.lcd_registers.read_at(address),
             0x040000B0..=0x040000FF => self.dma.read_at(address),
+            0x04000100..=0x0400012F => self.timer_registers.read_at(address),
             0x04000130..=0x04000133 => self.keypad_input.read_at(address),
             0x04000200..=0x04000804 => self.interrupts.read_at(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000],
@@ -118,6 +119,7 @@ impl IoDevice for InternalMemory {
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
             0x04000000..=0x0400005F => self.lcd_registers.write_at(address, value),
             0x040000B0..=0x040000FF => self.dma.write_at(address, value),
+            0x04000100..=0x0400012F => self.timer_registers.write_at(address, value),
             0x04000130..=0x04000133 => self.keypad_input.write_at(address, value),
             0x04000200..=0x04000804 => self.interrupts.write_at(address, value),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000] = value,
