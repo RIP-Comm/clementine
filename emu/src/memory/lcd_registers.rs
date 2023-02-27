@@ -86,7 +86,7 @@ pub struct LCDRegisters {
     pub bldalpha: IORegister,
     /// Brightness (Fade-In/Out) Coefficient
     pub bldy: IORegister,
-    unused_region: std::collections::HashMap<usize, u8>,
+    unused_region: HashMap<usize, u8>,
 }
 
 impl Default for LCDRegisters {
