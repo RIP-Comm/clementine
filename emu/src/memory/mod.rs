@@ -6,4 +6,5 @@ mod io_registers;
 mod keypad;
 mod lcd_registers;
 mod serial_communication;
+mod sound;
 mod timer_registers;
