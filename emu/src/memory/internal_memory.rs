@@ -10,6 +10,7 @@ use crate::memory::timer_registers::TimerRegisters;
 
 use super::interrupts::Interrupts;
 use super::keypad::KeypadInput;
+use super::serial_communication::SerialCommunication2;
 
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 KBytes).
@@ -32,6 +33,9 @@ pub struct InternalMemory {
 
     /// From 0x04000130 to 0x04000133
     keypad_input: KeypadInput,
+
+    /// From 0x04000134 to 0x0400015F
+    serial_communication2: SerialCommunication2,
 
     /// From 0x04000200 to 040003FE
     interrupts: Interrupts,
@@ -76,6 +80,7 @@ impl InternalMemory {
             dma: Dma::new(),
             timer_registers: TimerRegisters::default(),
             keypad_input: KeypadInput::default(),
+            serial_communication2: SerialCommunication2::default(),
             interrupts: Interrupts::default(),
             bg_palette_ram: vec![0; 0x200],
             obj_palette_ram: vec![0; 0x200],
@@ -99,6 +104,7 @@ impl IoDevice for InternalMemory {
             0x040000B0..=0x040000FF => self.dma.read_at(address),
             0x04000100..=0x0400012F => self.timer_registers.read_at(address),
             0x04000130..=0x04000133 => self.keypad_input.read_at(address),
+            0x04000134..=0x0400015F => self.serial_communication2.read_at(address),
             0x04000200..=0x04000804 => self.interrupts.read_at(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000],
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200],
@@ -121,6 +127,7 @@ impl IoDevice for InternalMemory {
             0x040000B0..=0x040000FF => self.dma.write_at(address, value),
             0x04000100..=0x0400012F => self.timer_registers.write_at(address, value),
             0x04000130..=0x04000133 => self.keypad_input.write_at(address, value),
+            0x04000134..=0x0400015F => self.serial_communication2.write_at(address, value),
             0x04000200..=0x04000804 => self.interrupts.write_at(address, value),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000] = value,
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200] = value,
