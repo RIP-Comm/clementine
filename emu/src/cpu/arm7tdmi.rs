@@ -267,11 +267,12 @@ impl Arm7tdmi {
     }
 
     fn uncond_branch(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let offset = op_code.get_bits(0..=10) << 1;
-        let offset = offset.sign_extended(12);
-        let pc = self.registers.program_counter() as u32 + 4; // NOTE: Emulating prefetch with this +4.
-        let new_pc = pc.wrapping_add(offset.try_into().unwrap());
-        self.registers.set_program_counter(new_pc);
+        let offset = (op_code.get_bits(0..=10) << 1) as u32;
+        let offset = offset.sign_extended(12) as i32;
+
+        let pc = self.registers.program_counter() as i32 + 4; // NOTE: Emulating prefetch with this +4.
+        let new_pc = pc + offset;
+        self.registers.set_program_counter(new_pc as u32);
 
         None
     }
