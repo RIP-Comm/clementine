@@ -53,6 +53,9 @@ pub struct InternalMemory {
     /// From 0x06000000 to 0x06017FFF (96 kb).
     pub video_ram: Vec<u8>,
 
+    /// From 0x07000000 to 0x070003FF (1kbyte)
+    obj_attributes: Vec<u8>,
+
     /// From 0x08000000 to 0x0FFFFFFF.
     /// Basically here you can find different kind of rom loaded.
     // TODO: Not sure if we should split this into
@@ -90,6 +93,7 @@ impl InternalMemory {
             bg_palette_ram: vec![0; 0x200],
             obj_palette_ram: vec![0; 0x200],
             video_ram: vec![0; 0x00018000],
+            obj_attributes: vec![0; 0x400],
             rom,
             unused_region: HashMap::new(),
         }
@@ -115,9 +119,10 @@ impl IoDevice for InternalMemory {
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000],
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200],
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000],
+            0x07000000..=0x070003FF => self.obj_attributes[address - 0x07000000],
             0x08000000..=0x0FFFFFFF => self.rom[address - 0x08000000],
             0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
-                log("read on unused memory");
+                log(format!("read on unused memory {address:x}"));
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
@@ -139,6 +144,7 @@ impl IoDevice for InternalMemory {
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000] = value,
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200] = value,
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000] = value,
+            0x07000000..=0x070003FF => self.obj_attributes[address - 0x07000000] = value,
             0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
                 log("write on unused memory");
                 if self.unused_region.insert(address, value).is_some() {}
