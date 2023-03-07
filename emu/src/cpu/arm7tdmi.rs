@@ -149,6 +149,9 @@ impl Arm7tdmi {
     }
 
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
+        self.disassembler_buffer
+            .push(op_code.instruction.disassembler());
+
         use ThumbModeInstruction::*;
         let bytes_to_advance: Option<u32> = match op_code.instruction {
             MoveShiftedRegister => self.move_shifted_reg(op_code),
@@ -158,7 +161,19 @@ impl Arm7tdmi {
             HiRegisterOpBX => self.hi_reg_operation_branch_ex(op_code),
             PCRelativeLoad => self.pc_relative_load(op_code),
             LoadStoreRegisterOffset => self.load_store_register_offset(op_code),
-            LoadStoreSignExtByteHalfword => unimplemented!(),
+            LoadStoreSignExtByteHalfword {
+                h_flag,
+                sign_extend_flag,
+                r_offset,
+                r_base,
+                r_destination,
+            } => self.load_store_sign_extend_byte_halfword(
+                h_flag,
+                sign_extend_flag,
+                r_offset,
+                r_base,
+                r_destination,
+            ),
             LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
             LoadStoreHalfword => self.load_store_halfword(op_code),
             SPRelativeLoadStore => self.sp_relative_load_store(op_code),
@@ -220,6 +235,58 @@ impl Arm7tdmi {
             Mode::Supervisor => self.register_bank.spsr_svc,
             Mode::Undefined => self.register_bank.spsr_und
         }
+    }
+
+    fn load_store_sign_extend_byte_halfword(
+        &mut self,
+        h_flag: bool,
+        sign_extend_flag: bool,
+        r_offset: u32,
+        r_base: u32,
+        r_destination: u32,
+    ) -> Option<u32> {
+        let offset = self.registers.register_at(r_offset.try_into().unwrap());
+        let base = self.registers.register_at(r_base.try_into().unwrap());
+        let address: usize = base.wrapping_add(offset).try_into().unwrap();
+
+        match (sign_extend_flag, h_flag) {
+            // Store halfword
+            (false, false) => {
+                let value = self
+                    .registers
+                    .register_at(r_destination.try_into().unwrap());
+
+                self.memory
+                    .lock()
+                    .unwrap()
+                    .write_half_word(address, value as u16);
+            }
+            // Load halfword
+            (false, true) => {
+                let value = self.memory.lock().unwrap().read_half_word(address);
+
+                self.registers
+                    .set_register_at(r_destination.try_into().unwrap(), value as u32);
+            }
+            // Load sign-extended byte
+            (true, false) => {
+                let mut value = self.memory.lock().unwrap().read_at(address) as u32;
+                value = value.sign_extended(8);
+
+                self.registers
+                    .set_register_at(r_destination.try_into().unwrap(), value);
+            }
+            // Load sign-extended halfword
+            (true, true) => {
+                let mut value = self.memory.lock().unwrap().read_half_word(address) as u32;
+                value = value.sign_extended(16);
+
+                self.registers
+                    .set_register_at(r_destination.try_into().unwrap(), value);
+            }
+        }
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
     fn load_store_halfword(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
@@ -2139,6 +2206,104 @@ mod tests {
             cpu.execute_thumb(op_code);
 
             assert_eq!(cpu.memory.lock().unwrap().read_half_word(102), 0xFF);
+        }
+    }
+
+    #[test]
+    fn check_load_store_sign_extend_byte_halfword() {
+        struct Test {
+            opcode: u16,
+            expected_decode: ThumbModeInstruction,
+            prepare_fn: Box<dyn Fn(&mut Arm7tdmi)>,
+            check_fn: Box<dyn Fn(Arm7tdmi)>,
+        }
+
+        let cases = vec![
+            Test {
+                opcode: 0b0101_0_0_1_000_001_010,
+                expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                    h_flag: false,
+                    sign_extend_flag: false,
+                    r_offset: 0,
+                    r_base: 1,
+                    r_destination: 2,
+                },
+                prepare_fn: Box::new(|cpu| {
+                    cpu.registers.set_register_at(0, 10);
+                    cpu.registers.set_register_at(1, 100);
+                    cpu.registers.set_register_at(2, 0xF000_F0FF);
+                }),
+                check_fn: Box::new(|cpu| {
+                    assert_eq!(cpu.memory.lock().unwrap().read_half_word(110), 0xF0FF);
+                }),
+            },
+            Test {
+                opcode: 0b0101_1_0_1_000_001_010,
+                expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                    h_flag: true,
+                    sign_extend_flag: false,
+                    r_offset: 0,
+                    r_base: 1,
+                    r_destination: 2,
+                },
+                prepare_fn: Box::new(|cpu| {
+                    cpu.registers.set_register_at(0, 10);
+                    cpu.registers.set_register_at(1, 100);
+                    cpu.memory.lock().unwrap().write_half_word(110, 0xF0FF);
+                }),
+                check_fn: Box::new(|cpu| {
+                    assert_eq!(cpu.registers.register_at(2), 0xF0FF);
+                }),
+            },
+            Test {
+                opcode: 0b0101_0_1_1_000_001_010,
+                expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                    h_flag: false,
+                    sign_extend_flag: true,
+                    r_offset: 0,
+                    r_base: 1,
+                    r_destination: 2,
+                },
+                prepare_fn: Box::new(|cpu| {
+                    cpu.registers.set_register_at(0, 10);
+                    cpu.registers.set_register_at(1, 100);
+                    cpu.memory.lock().unwrap().write_at(110, 0x80);
+                }),
+                check_fn: Box::new(|cpu| {
+                    assert_eq!(cpu.registers.register_at(2), 0xFFFF_FF80);
+                }),
+            },
+            Test {
+                opcode: 0b0101_1_1_1_000_001_010,
+                expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                    h_flag: true,
+                    sign_extend_flag: true,
+                    r_offset: 0,
+                    r_base: 1,
+                    r_destination: 2,
+                },
+                prepare_fn: Box::new(|cpu| {
+                    cpu.registers.set_register_at(0, 10);
+                    cpu.registers.set_register_at(1, 100);
+                    cpu.memory.lock().unwrap().write_half_word(110, 0x8030);
+                }),
+                check_fn: Box::new(|cpu| {
+                    assert_eq!(cpu.registers.register_at(2), 0xFFFF_8030);
+                }),
+            },
+        ];
+
+        for case in cases {
+            let mut cpu = Arm7tdmi::default();
+            let op_code = case.opcode;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, case.expected_decode);
+
+            (*case.prepare_fn)(&mut cpu);
+
+            cpu.execute_thumb(op_code);
+
+            (*case.check_fn)(cpu);
         }
     }
 }
