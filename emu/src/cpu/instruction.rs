@@ -288,7 +288,13 @@ pub enum ThumbModeInstruction {
     HiRegisterOpBX,
     PCRelativeLoad,
     LoadStoreRegisterOffset,
-    LoadStoreSignExtByteHalfword,
+    LoadStoreSignExtByteHalfword {
+        h_flag: bool,
+        sign_extend_flag: bool,
+        r_offset: u32,
+        r_base: u32,
+        r_destination: u32,
+    },
     LoadStoreImmOffset,
     LoadStoreHalfword,
     SPRelativeLoadStore,
@@ -300,6 +306,30 @@ pub enum ThumbModeInstruction {
     Swi,
     UncondBranch,
     LongBranchLink,
+}
+
+impl ThumbModeInstruction {
+    pub(crate) fn disassembler(&self) -> String {
+        match self {
+            Self::LoadStoreSignExtByteHalfword {
+                h_flag,
+                sign_extend_flag,
+                r_offset,
+                r_base,
+                r_destination,
+            } => {
+                let instr = match (sign_extend_flag, h_flag) {
+                    (false, false) => "STRH",
+                    (false, true) => "LDRH",
+                    (true, false) => "LDSB",
+                    (true, true) => "LDSH",
+                };
+
+                format!("{instr} R{r_destination}, [R{r_base}, R{r_offset}]")
+            }
+            _ => "".to_owned(),
+        }
+    }
 }
 
 impl From<u16> for ThumbModeInstruction {
@@ -323,7 +353,13 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(12..=15) == 0b0101 && !op_code.get_bit(9) {
             LoadStoreRegisterOffset
         } else if op_code.get_bits(12..=15) == 0b0101 && op_code.get_bit(9) {
-            LoadStoreSignExtByteHalfword
+            LoadStoreSignExtByteHalfword {
+                h_flag: op_code.get_bit(11),
+                sign_extend_flag: op_code.get_bit(10),
+                r_offset: op_code.get_bits(6..=8) as u32,
+                r_base: op_code.get_bits(3..=5) as u32,
+                r_destination: op_code.get_bits(0..=2) as u32,
+            }
         } else if op_code.get_bits(11..=15) == 0b11100 {
             UncondBranch
         } else if op_code.get_bits(12..=15) == 0b1000 {
