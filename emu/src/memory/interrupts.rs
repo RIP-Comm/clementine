@@ -26,6 +26,7 @@ pub struct Interrupts {
     /// Post boot flag.
     post_flag: IORegister,
     //   4000301h  1    W    HALTCNT   Undocumented - Power Down Control
+    power_down_control: IORegister,
     //   4000302h       -    -         Not used
     //   4000410h  ?    ?    ?         Undocumented - Purpose Unknown / Bug ??? 0FFh
     purpose_unknown: IORegister,
@@ -51,6 +52,7 @@ impl Interrupts {
             interrupt_request: IORegister::with_access_control(ReadWrite),
             wait_state: IORegister::with_access_control(ReadWrite),
             post_flag: IORegister::with_access_control(ReadWrite),
+            power_down_control: IORegister::with_access_control(ReadWrite),
             ime: IORegister::with_access_control(ReadWrite),
             purpose_unknown: IORegister::with_access_control(ReadWrite),
             unused_region: HashMap::new(),
@@ -94,9 +96,10 @@ impl IoDevice for Interrupts {
                 log("write on unused memory");
                 self.unused_region.insert(address, value);
             }
-            0x04000300 => self.post_flag.set_byte(0, value),
             0x04000208 => self.ime.set_byte(0, value),
             0x04000209 => self.ime.set_byte(1, value),
+            0x04000300 => self.post_flag.set_byte(0, value),
+            0x04000301 => self.power_down_control.set_byte(0, value),
             0x04000410 => self.purpose_unknown.set_byte(0, value),
             _ => panic!("Writing an read-only memory address: {address:x}"),
         }
