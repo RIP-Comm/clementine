@@ -121,7 +121,10 @@ impl IoDevice for InternalMemory {
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000],
             0x07000000..=0x070003FF => self.obj_attributes[address - 0x07000000],
             0x08000000..=0x0FFFFFFF => self.rom[address - 0x08000000],
-            0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
+            0x03008000..=0x03FFFFFF
+            | 0x00004000..=0x01FFFFFF
+            | 0x10000000..=0xFFFFFFFF
+            | 0x06018000..=0x06FFFFFF => {
                 log(format!("read on unused memory {address:x}"));
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
@@ -145,7 +148,10 @@ impl IoDevice for InternalMemory {
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200] = value,
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000] = value,
             0x07000000..=0x070003FF => self.obj_attributes[address - 0x07000000] = value,
-            0x03008000..=0x03FFFFFF | 0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
+            0x03008000..=0x03FFFFFF
+            | 0x00004000..=0x01FFFFFF
+            | 0x10000000..=0xFFFFFFFF
+            | 0x06018000..=0x06FFFFFF => {
                 log("write on unused memory");
                 if self.unused_region.insert(address, value).is_some() {}
             }
