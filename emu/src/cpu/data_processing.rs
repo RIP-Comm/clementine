@@ -588,7 +588,7 @@ impl Arm7tdmi {
         self.cpsr.set_zero_flag(value == 0);
     }
 
-    fn cmp(&mut self, rn: u32, op2: u32) {
+    pub fn cmp(&mut self, rn: u32, op2: u32) {
         let sub_result = Self::sub_inner_op(rn, op2);
 
         self.cpsr.set_flags(sub_result);
