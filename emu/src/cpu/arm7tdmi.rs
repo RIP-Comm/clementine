@@ -1042,7 +1042,9 @@ impl Arm7tdmi {
             ThumbModeAluInstruction::Ror => todo!(),
             ThumbModeAluInstruction::Tst => self.tst(rd.into(), rs),
             ThumbModeAluInstruction::Neg => todo!(),
-            ThumbModeAluInstruction::Cmp => todo!(),
+            ThumbModeAluInstruction::Cmp => {
+                self.cmp(self.registers.register_at(rd.try_into().unwrap()), rs)
+            }
             ThumbModeAluInstruction::Cmn => todo!(),
             ThumbModeAluInstruction::Orr => self.orr(
                 rd.into(),
