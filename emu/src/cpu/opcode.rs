@@ -137,7 +137,7 @@ impl Display for ThumbModeOpcode {
             ThumbModeInstruction::LoadStoreImmOffset => "FMT: |0_1_1|B|L|_Offset5_|_Rb__|_Rd__|",
             ThumbModeInstruction::LoadStoreHalfword => "FMT: |1_0_0_0|L|_Offset5_|_Rb__|_Rd__|",
             ThumbModeInstruction::SPRelativeLoadStore => "FMT: |1_0_0_1|L|_Rd__|_____Word8_____|",
-            ThumbModeInstruction::LoadAddress => todo!(),
+            ThumbModeInstruction::LoadAddress { .. } => "FMT: |1_0_0_1|S|_Rd__|_____Word8_____|",
             ThumbModeInstruction::AddOffsetSP => "FMT: |1_0_1_1_0_0_0_0|S|____Word7____|",
             ThumbModeInstruction::PushPopReg => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
             ThumbModeInstruction::MultipleLoadStore => todo!(),
