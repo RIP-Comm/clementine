@@ -177,7 +177,11 @@ impl Arm7tdmi {
             LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
             LoadStoreHalfword => self.load_store_halfword(op_code),
             SPRelativeLoadStore => self.sp_relative_load_store(op_code),
-            LoadAddress => unimplemented!(),
+            LoadAddress {
+                sp,
+                r_destination,
+                offset,
+            } => self.load_address(sp, r_destination.try_into().unwrap(), offset),
             AddOffsetSP => self.add_offset_sp(op_code),
             PushPopReg => self.push_pop_register(op_code),
             MultipleLoadStore => unimplemented!(),
@@ -1016,6 +1020,21 @@ impl Arm7tdmi {
             }
         }
 
+        Some(SIZE_OF_THUMB_INSTRUCTION)
+    }
+
+    fn load_address(&mut self, sp: bool, r_destination: usize, offset: u32) -> Option<u32> {
+        let v = if sp {
+            let stack_pointer = self.registers.register_at(REG_SP);
+            stack_pointer.wrapping_add(offset)
+        } else {
+            let pc = self.registers.program_counter() as u32;
+            let mut pc = pc.wrapping_add(4);
+            pc.set_bit_off(0);
+            pc.wrapping_add(offset)
+        };
+
+        self.registers.set_register_at(r_destination, v);
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
@@ -2298,6 +2317,60 @@ mod tests {
         ];
 
         for case in cases {
+            let mut cpu = Arm7tdmi::default();
+            let op_code = case.opcode;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, case.expected_decode);
+
+            (*case.prepare_fn)(&mut cpu);
+
+            cpu.execute_thumb(op_code);
+
+            (*case.check_fn)(cpu);
+        }
+    }
+
+    #[test]
+    fn check_load_address() {
+        struct Test {
+            opcode: u16,
+            expected_decode: ThumbModeInstruction,
+            prepare_fn: Box<dyn Fn(&mut Arm7tdmi)>,
+            check_fn: Box<dyn Fn(Arm7tdmi)>,
+        }
+
+        for case in [
+            Test {
+                opcode: 0b1010_1_001_00000010,
+                expected_decode: ThumbModeInstruction::LoadAddress {
+                    sp: true,
+                    r_destination: 1,
+                    offset: 8,
+                },
+                prepare_fn: Box::new(|cpu| {
+                    cpu.registers.set_register_at(REG_SP, 10);
+                }),
+                check_fn: Box::new(|cpu| {
+                    let v = cpu.registers.register_at(1);
+                    assert_eq!(v, 18);
+                }),
+            },
+            Test {
+                opcode: 0b1010_0_001_00000010,
+                expected_decode: ThumbModeInstruction::LoadAddress {
+                    sp: false,
+                    r_destination: 1,
+                    offset: 8,
+                },
+                prepare_fn: Box::new(|cpu| {
+                    cpu.registers.set_program_counter(10);
+                }),
+                check_fn: Box::new(|cpu| {
+                    let v = cpu.registers.register_at(1);
+                    assert_eq!(v, 22);
+                }),
+            },
+        ] {
             let mut cpu = Arm7tdmi::default();
             let op_code = case.opcode;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);

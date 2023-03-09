@@ -298,7 +298,11 @@ pub enum ThumbModeInstruction {
     LoadStoreImmOffset,
     LoadStoreHalfword,
     SPRelativeLoadStore,
-    LoadAddress,
+    LoadAddress {
+        sp: bool,
+        r_destination: u32,
+        offset: u32,
+    },
     AddOffsetSP,
     PushPopReg,
     MultipleLoadStore,
@@ -326,6 +330,18 @@ impl ThumbModeInstruction {
                 };
 
                 format!("{instr} R{r_destination}, [R{r_base}, R{r_offset}]")
+            }
+            Self::LoadAddress {
+                sp,
+                r_destination,
+                offset,
+            } => {
+                let source = match sp {
+                    false => "PC",
+                    true => "SP",
+                };
+
+                format!("ADD R{r_destination}, {source}, #{offset}")
             }
             _ => "".to_owned(),
         }
@@ -367,7 +383,11 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(12..=15) == 0b1001 {
             SPRelativeLoadStore
         } else if op_code.get_bits(12..=15) == 0b1010 {
-            LoadAddress
+            LoadAddress {
+                sp: op_code.get_bit(11),
+                r_destination: op_code.get_bits(8..=10) as u32,
+                offset: (op_code.get_bits(0..=7) as u32) << 2,
+            }
         } else if op_code.get_bits(12..=15) == 0b1100 {
             MultipleLoadStore
         } else if op_code.get_bits(12..=15) == 0b1101 {
