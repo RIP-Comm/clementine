@@ -137,7 +137,28 @@ impl Arm7tdmi {
                 Undefined => todo!(),
                 BlockDataTransfer => self.block_data_transfer(op_code),
                 Branch(_, link, offset) => self.branch(link, offset),
-                CoprocessorDataTransfer => self.coprocessor_data_transfer(op_code),
+                CoprocessorDataTransfer {
+                    condition: _,
+                    indexing,
+                    offsetting,
+                    transfer_length,
+                    write_back,
+                    load_store,
+                    rn,
+                    crd,
+                    cp_number,
+                    offset,
+                } => self.coprocessor_data_transfer(
+                    indexing,
+                    offsetting,
+                    transfer_length,
+                    write_back,
+                    load_store,
+                    rn,
+                    crd,
+                    cp_number,
+                    offset,
+                ),
                 CoprocessorDataOperation => todo!(),
                 CoprocessorRegisterTrasfer => todo!(),
                 SoftwareInterrupt => todo!(),
@@ -770,22 +791,20 @@ impl Arm7tdmi {
         }
     }
 
-    fn coprocessor_data_transfer(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
-        let indexing: Indexing = op_code.get_bit(24).into();
-        let offsetting: Offsetting = op_code.get_bit(23).into();
-        let _transfer_len = op_code.get_bit(22);
-        let _write_back = op_code.get_bit(21);
-        let _load_store = op_code.get_bit(20);
-
-        let rn_base_register = op_code.get_bits(16..=19);
-        let _crd = op_code.get_bits(12..=15);
-        let _cp_number = op_code.get_bits(8..=11);
-        let offset = op_code.get_bits(0..=7);
-
-        let mut _address = self
-            .registers
-            .register_at(rn_base_register.try_into().unwrap());
-
+    #[allow(clippy::too_many_arguments)]
+    fn coprocessor_data_transfer(
+        &mut self,
+        indexing: Indexing,
+        offsetting: Offsetting,
+        _transfer_length: bool,
+        _write_back: bool,
+        _load_store: LoadStoreKind,
+        rn: u32,
+        _crd: u32,
+        _cp_number: u32,
+        offset: u32,
+    ) -> Option<u32> {
+        let mut _address = self.registers.register_at(rn.try_into().unwrap());
         let effective = match offsetting {
             Offsetting::Down => _address.wrapping_sub(offset),
             Offsetting::Up => _address.wrapping_add(offset),
@@ -797,7 +816,8 @@ impl Arm7tdmi {
         };
 
         // TODO: take a look if we need to finish this for real.
-        Some(SIZE_OF_ARM_INSTRUCTION)
+        todo!("finish this");
+        // Some(SIZE_OF_ARM_INSTRUCTION)
     }
 
     fn exec_data_trasfer<F>(
