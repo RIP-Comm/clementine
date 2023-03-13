@@ -5,7 +5,7 @@ use logger::log;
 use crate::bitwise::Bits;
 use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind};
 use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
-use crate::cpu::flags::{Indexing, Offsetting, OperandKind, ReadWriteKind};
+use crate::cpu::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
 use crate::cpu::single_data_transfer::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
 
 use super::condition::Condition;
@@ -41,7 +41,18 @@ pub enum ArmModeInstruction {
     Undefined,
     BlockDataTransfer,
     Branch(Condition, bool, u32),
-    CoprocessorDataTransfer,
+    CoprocessorDataTransfer {
+        condition: Condition,
+        indexing: Indexing,
+        offsetting: Offsetting,
+        transfer_length: bool,
+        write_back: bool,
+        load_store: LoadStoreKind,
+        rn: u32,
+        crd: u32,
+        cp_number: u32,
+        offset: u32,
+    },
     CoprocessorDataOperation,
     CoprocessorRegisterTrasfer,
     SoftwareInterrupt,
@@ -128,7 +139,33 @@ impl ArmModeInstruction {
                 let link = if *is_link { "L" } else { "" };
                 format!("B{link}{condition} 0x{address:08X}")
             }
-            Self::CoprocessorDataTransfer => "".to_owned(),
+            Self::CoprocessorDataTransfer {
+                condition,
+                indexing,
+                offsetting,
+                transfer_length,
+                write_back,
+                load_store,
+                rn,
+                crd,
+                cp_number,
+                offset,
+            } => {
+                // <LDC|STC>{cond}{L} p#,cd,<Address>
+                let op = match load_store {
+                    LoadStoreKind::Store => "SDC",
+                    LoadStoreKind::Load => "LDC",
+                };
+                let long_transfer = if *transfer_length { "L" } else { "" };
+
+                let address = offset;
+                let _ = rn;
+                let _ = write_back;
+                let _ = offsetting;
+                let _ = indexing;
+                // FIXME: Finish address
+                format!("{op}{condition}{long_transfer} p{cp_number},{crd},{address:08X}")
+            }
             Self::CoprocessorDataOperation => "".to_owned(),
             Self::CoprocessorRegisterTrasfer => "".to_owned(),
             Self::SoftwareInterrupt => "".to_owned(),
@@ -178,7 +215,29 @@ impl From<u32> for ArmModeInstruction {
         } else if op_code.get_bits(24..=27) == 0b1110 && !op_code.get_bit(4) {
             CoprocessorDataOperation
         } else if op_code.get_bits(25..=27) == 0b110 {
-            CoprocessorDataTransfer
+            let indexing: Indexing = op_code.get_bit(24).into();
+            let offsetting: Offsetting = op_code.get_bit(23).into();
+            let transfer_length = op_code.get_bit(22);
+            let write_back = op_code.get_bit(21);
+            let load_store: LoadStoreKind = op_code.get_bit(20).into();
+
+            let rn = op_code.get_bits(16..=19);
+            let crd = op_code.get_bits(12..=15);
+            let cp_number = op_code.get_bits(8..=11);
+            let offset = op_code.get_bits(0..=7);
+
+            CoprocessorDataTransfer {
+                condition,
+                indexing,
+                offsetting,
+                transfer_length,
+                write_back,
+                load_store,
+                rn,
+                crd,
+                cp_number,
+                offset,
+            }
         } else if op_code.get_bits(25..=27) == 0b100 {
             BlockDataTransfer
         } else if op_code.get_bits(25..=27) == 0b101 {
