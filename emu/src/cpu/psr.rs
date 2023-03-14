@@ -24,7 +24,7 @@ impl Psr {
             GE => self.sign_flag() == self.overflow_flag(), // Greater or equal (N=V)
             LT => self.sign_flag() != self.overflow_flag(), // Less than (N<>V)
             GT => !self.zero_flag() && (self.sign_flag() == self.overflow_flag()), // Greater than (Z=0 and N=V)
-            LE => self.zero_flag() && (self.sign_flag() != self.overflow_flag()), // Less or equal (Z=1 or N<>V)
+            LE => self.zero_flag() || (self.sign_flag() != self.overflow_flag()), // Less or equal (Z=1 or N<>V)
             AL => true,  // Always (the "AL" suffix can be omitted)
             NV => false, // Never (ARMv1, v2 only) (Reserved ARMv3 and up)
         }
