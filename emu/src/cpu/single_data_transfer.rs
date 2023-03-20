@@ -72,8 +72,8 @@ impl Arm7tdmi {
         &mut self,
         kind: SingleDataTransferKind,
         quantity: ReadWriteKind,
-        _write_back: bool,   // FIXME: should we use this?
-        _indexing: Indexing, // FIXME: should we use this?
+        write_back: bool,
+        indexing: Indexing,
         rd: u32,
         base_register: u32,
         offset_info: SingleDataTransferOffsetInfo,
@@ -105,12 +105,26 @@ impl Arm7tdmi {
             Offsetting::Up => address.wrapping_add(amount).try_into().unwrap(),
         };
 
+        let v = match indexing {
+            Indexing::Post => {
+                todo!()
+            }
+            Indexing::Pre => {
+                if write_back {
+                    todo!()
+                }
+                (address, write_back)
+            }
+        };
+
         let mut memory = self.memory.lock().unwrap();
         match kind {
             SingleDataTransferKind::Ldr => match quantity {
-                ReadWriteKind::Byte => self
-                    .registers
-                    .set_register_at(rd.try_into().unwrap(), memory.read_at(address) as u32),
+                ReadWriteKind::Byte => {
+                    let value = memory.read_at(v.0) as u32;
+                    self.registers
+                        .set_register_at(rd.try_into().unwrap(), value)
+                }
                 ReadWriteKind::Word => {
                     let part_0: u32 = memory.read_at(address).try_into().unwrap();
                     let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
