@@ -62,7 +62,7 @@ impl From<bool> for Indexing {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Offsetting {
-    /// Substract the offset from base.
+    /// Subtract the offset from base.
     Down,
 
     /// Add the offset to base.
