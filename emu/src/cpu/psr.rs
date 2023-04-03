@@ -133,7 +133,6 @@ impl Psr {
 
     /// The T Bit is used to set the current state of the CPU on ARM/THUMB mode (1 means ARM and 0 means THUMB).
     pub fn set_state_bit(&mut self, value: bool) {
-        // TODO: Must be changeed by BX instructions
         self.0.set_bit(5, value);
     }
 

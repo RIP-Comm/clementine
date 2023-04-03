@@ -122,7 +122,7 @@ impl Display for ThumbModeOpcode {
         let op_code_format: &str = match &self.instruction {
             ThumbModeInstruction::MoveShiftedRegister => "FMT: |0_0_1|Op_|__Offset_|_Rs__|_Rd__|",
             ThumbModeInstruction::AddSubtract => "FMT: |0_0_0_1_1|I|O|RnOff|_Rs__|_Rd__|",
-            ThumbModeInstruction::MoveCompareAddSubtractImm => {
+            ThumbModeInstruction::MoveCompareAddSubtractImm { .. } => {
                 "FMT: |0_0_1|Op_|_Rn__|____Offset_____|"
             }
             ThumbModeInstruction::AluOp => "FMT: |0_1_0_0_0_0|__Op___|_Rs__|_Rd__|",
