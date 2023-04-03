@@ -177,7 +177,11 @@ impl Arm7tdmi {
         let bytes_to_advance: Option<u32> = match op_code.instruction {
             MoveShiftedRegister => self.move_shifted_reg(op_code),
             AddSubtract => self.add_subtract(op_code),
-            MoveCompareAddSubtractImm => self.move_compare_add_sub_imm(op_code),
+            MoveCompareAddSubtractImm {
+                op,
+                r_destination,
+                offset,
+            } => self.move_compare_add_sub_imm(op, r_destination, offset),
             AluOp => self.alu_op(op_code),
             HiRegisterOpBX => self.hi_reg_operation_branch_ex(op_code),
             PCRelativeLoad => self.pc_relative_load(op_code),
@@ -478,9 +482,19 @@ impl Arm7tdmi {
     }
 
     fn branch_and_exchange(&mut self, register: usize) -> Option<u32> {
-        let rn = self.registers.register_at(register);
+        let mut rn = self.registers.register_at(register);
         let state: CpuState = rn.get_bit(0).into();
         self.cpsr.set_cpu_state(state);
+
+        println!("Branch and exchange {rn}");
+        match self.cpsr.cpu_state() {
+            CpuState::Thumb => rn.set_bit_off(0),
+            CpuState::Arm => {
+                rn.set_bit_off(0);
+                rn.set_bit_off(1);
+            }
+        }
+
         self.registers.set_program_counter(rn);
 
         None

@@ -1,15 +1,25 @@
-use crate::bitwise::Bits;
+use std::fmt;
 
-use super::{
-    arm7tdmi::{Arm7tdmi, SIZE_OF_THUMB_INSTRUCTION},
-    opcode::ThumbModeOpcode,
-};
+use super::arm7tdmi::{Arm7tdmi, SIZE_OF_THUMB_INSTRUCTION};
 
-enum Operation {
+/// Operation to perform in the Move Compare Add Subtract Immediate instruction.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Operation {
     Mov,
     Cmp,
     Add,
     Sub,
+}
+
+impl fmt::Display for Operation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Mov => f.write_str("MOV"),
+            Self::Cmp => f.write_str("CMP"),
+            Self::Add => f.write_str("ADD"),
+            Self::Sub => f.write_str("SUB"),
+        }
+    }
 }
 
 impl From<u16> for Operation {
@@ -25,21 +35,22 @@ impl From<u16> for Operation {
 }
 
 impl Arm7tdmi {
-    pub fn move_compare_add_sub_imm(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let op: Operation = op_code.get_bits(11..=12).into();
-        let rd = op_code.get_bits(8..=10);
-        let offset8 = op_code.get_bits(0..=7) as u32;
-
+    pub fn move_compare_add_sub_imm(
+        &mut self,
+        op: Operation,
+        r_destination: u16,
+        offset: u32,
+    ) -> Option<u32> {
+        let dest = r_destination.try_into().unwrap();
         match op {
             Operation::Mov => {
-                self.registers
-                    .set_register_at(rd.try_into().unwrap(), offset8);
+                self.registers.set_register_at(dest, offset);
 
                 // FIXME: Not sure if we should preserve the carry flag.
                 // Documentation says that this is equal to an ARM MOVS Rd, #offset8
                 // And in general MOV doesn't preserve the carry flag in ARM
                 self.cpsr.set_carry_flag(false);
-                self.cpsr.set_zero_flag(offset8 == 0);
+                self.cpsr.set_zero_flag(offset == 0);
 
                 // FIXME: Since we're using an 8bits immediate it can't be negative since it's zero-extended
                 // To check if it's zero-extended for real. Documentation says that this is equal to an
@@ -47,22 +58,20 @@ impl Arm7tdmi {
                 self.cpsr.set_sign_flag(false);
             }
             Operation::Cmp => {
-                let rd = self.registers.register_at(rd.try_into().unwrap());
-                let sub_result = Self::sub_inner_op(rd, offset8);
+                let rd = self.registers.register_at(dest);
+                let sub_result = Self::sub_inner_op(rd, offset);
                 self.cpsr.set_flags(sub_result);
             }
             Operation::Add => {
-                let rd_value = self.registers.register_at(rd.try_into().unwrap());
-                let add_result = Self::add_inner_op(rd_value, offset8);
-                self.registers
-                    .set_register_at(rd.try_into().unwrap(), add_result.result);
+                let rd_value = self.registers.register_at(dest);
+                let add_result = Self::add_inner_op(rd_value, offset);
+                self.registers.set_register_at(dest, add_result.result);
                 self.cpsr.set_flags(add_result);
             }
             Operation::Sub => {
-                let rd_value = self.registers.register_at(rd.try_into().unwrap());
-                let sub_result = Self::sub_inner_op(rd_value, offset8);
-                self.registers
-                    .set_register_at(rd.try_into().unwrap(), sub_result.result);
+                let rd_value = self.registers.register_at(dest);
+                let sub_result = Self::sub_inner_op(rd_value, offset);
+                self.registers.set_register_at(dest, sub_result.result);
                 self.cpsr.set_flags(sub_result);
             }
         };
@@ -73,6 +82,7 @@ impl Arm7tdmi {
 
 #[cfg(test)]
 mod tests {
+    use crate::cpu::move_compare_add_sub::Operation;
     use crate::cpu::{
         arm7tdmi::Arm7tdmi, instruction::ThumbModeInstruction, opcode::ThumbModeOpcode,
     };
@@ -84,7 +94,11 @@ mod tests {
         let op_code: ThumbModeOpcode = cpu.decode(op_code);
         assert_eq!(
             op_code.instruction,
-            ThumbModeInstruction::MoveCompareAddSubtractImm
+            ThumbModeInstruction::MoveCompareAddSubtractImm {
+                op: Operation::Mov,
+                r_destination: 0,
+                offset: 0,
+            }
         );
 
         cpu.execute_thumb(op_code);

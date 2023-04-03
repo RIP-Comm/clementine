@@ -6,6 +6,7 @@ use crate::bitwise::Bits;
 use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind};
 use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
 use crate::cpu::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
+use crate::cpu::move_compare_add_sub::Operation;
 use crate::cpu::single_data_transfer::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
 
 use super::condition::Condition;
@@ -342,7 +343,11 @@ impl Display for ArmModeInstruction {
 pub enum ThumbModeInstruction {
     MoveShiftedRegister,
     AddSubtract,
-    MoveCompareAddSubtractImm,
+    MoveCompareAddSubtractImm {
+        op: Operation,
+        r_destination: u16,
+        offset: u32,
+    },
     AluOp,
     HiRegisterOpBX,
     PCRelativeLoad,
@@ -374,6 +379,13 @@ pub enum ThumbModeInstruction {
 impl ThumbModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
+            Self::MoveCompareAddSubtractImm {
+                op,
+                r_destination,
+                offset,
+            } => {
+                format!("{op} R{r_destination}, #{offset}")
+            }
             Self::LoadStoreSignExtByteHalfword {
                 h_flag,
                 sign_extend_flag,
@@ -456,7 +468,15 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(13..=15) == 0b000 {
             MoveShiftedRegister
         } else if op_code.get_bits(13..=15) == 0b001 {
-            MoveCompareAddSubtractImm
+            let op: Operation = op_code.get_bits(11..=12).into();
+            let r_destination = op_code.get_bits(8..=10);
+            let offset = op_code.get_bits(0..=7) as u32;
+
+            MoveCompareAddSubtractImm {
+                op,
+                r_destination,
+                offset,
+            }
         } else if op_code.get_bits(13..=15) == 0b011 {
             LoadStoreImmOffset
         } else {
