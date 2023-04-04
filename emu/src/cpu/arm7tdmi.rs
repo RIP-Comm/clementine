@@ -176,7 +176,13 @@ impl Arm7tdmi {
         use ThumbModeInstruction::*;
         let bytes_to_advance: Option<u32> = match op_code.instruction {
             MoveShiftedRegister => self.move_shifted_reg(op_code),
-            AddSubtract => self.add_subtract(op_code),
+            AddSubtract {
+                operation_kind,
+                op,
+                rn_offset3,
+                rs,
+                rd,
+            } => self.add_subtract(operation_kind, op, rn_offset3, rs, rd),
             MoveCompareAddSubtractImm {
                 op,
                 r_destination,
@@ -382,19 +388,16 @@ impl Arm7tdmi {
         None
     }
 
-    fn add_subtract(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let i: OperandKind = op_code.get_bit(10).into();
-
-        // 0 - Add, 1 - Sub
-        let op = op_code.get_bit(9);
-
-        let rn_offset3 = op_code.get_bits(6..=8);
-        let rs = op_code.get_bits(3..=5);
+    fn add_subtract(
+        &mut self,
+        operation_kind: OperandKind,
+        op: bool,
+        rn_offset3: u16,
+        rs: u16,
+        rd: u16,
+    ) -> Option<u32> {
         let rs = self.registers.register_at(rs.try_into().unwrap());
-
-        let rd: usize = op_code.get_bits(0..=2).try_into().unwrap();
-
-        let offset = match i {
+        let offset = match operation_kind {
             OperandKind::Immediate => rn_offset3 as u32,
             OperandKind::Register => self.registers.register_at(rn_offset3.try_into().unwrap()),
         };
@@ -403,13 +406,15 @@ impl Arm7tdmi {
             // Add
             false => {
                 let add_result = Self::add_inner_op(rs, offset);
-                self.registers.set_register_at(rd, add_result.result);
+                self.registers
+                    .set_register_at(rd as usize, add_result.result);
                 self.cpsr.set_flags(add_result);
             }
             // Sub
             true => {
                 let sub_result = Self::sub_inner_op(rs, offset);
-                self.registers.set_register_at(rd, sub_result.result);
+                self.registers
+                    .set_register_at(rd as usize, sub_result.result);
                 self.cpsr.set_flags(sub_result);
             }
         };
