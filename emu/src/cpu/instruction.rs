@@ -355,7 +355,13 @@ pub enum ThumbModeInstruction {
         r_destination: u16,
         immediate_value: u16,
     },
-    LoadStoreRegisterOffset,
+    LoadStoreRegisterOffset {
+        load_store: LoadStoreKind,
+        byte_word: ReadWriteKind,
+        ro: u16,
+        rb: u16,
+        rd: u16,
+    },
     LoadStoreSignExtByteHalfword {
         h_flag: bool,
         sign_extend_flag: bool,
@@ -389,6 +395,21 @@ impl ThumbModeInstruction {
                 offset,
             } => {
                 format!("{op} R{r_destination}, #{offset}")
+            }
+            Self::LoadStoreRegisterOffset {
+                load_store,
+                byte_word,
+                ro,
+                rb,
+                rd,
+            } => {
+                let instr = match (load_store, byte_word) {
+                    (LoadStoreKind::Load, ReadWriteKind::Byte) => "LDRB",
+                    (LoadStoreKind::Load, ReadWriteKind::Word) => "LDR",
+                    (LoadStoreKind::Store, ReadWriteKind::Byte) => "STRB",
+                    (LoadStoreKind::Store, ReadWriteKind::Word) => "STR",
+                };
+                format!("{instr} R{rd}, [R{rb}, R{ro}]")
             }
             Self::PCRelativeLoad {
                 r_destination,
@@ -460,7 +481,19 @@ impl From<u16> for ThumbModeInstruction {
                 immediate_value,
             }
         } else if op_code.get_bits(12..=15) == 0b0101 && !op_code.get_bit(9) {
-            LoadStoreRegisterOffset
+            let load_store: LoadStoreKind = op_code.get_bit(11).into();
+            let byte_word: ReadWriteKind = op_code.get_bit(10).into();
+            let ro = op_code.get_bits(6..=8);
+            let rb = op_code.get_bits(3..=5);
+            let rd = op_code.get_bits(0..=2);
+
+            LoadStoreRegisterOffset {
+                load_store,
+                byte_word,
+                ro,
+                rb,
+                rd,
+            }
         } else if op_code.get_bits(12..=15) == 0b0101 && op_code.get_bit(9) {
             LoadStoreSignExtByteHalfword {
                 h_flag: op_code.get_bit(11),

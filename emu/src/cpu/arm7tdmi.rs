@@ -188,7 +188,13 @@ impl Arm7tdmi {
                 r_destination,
                 immediate_value,
             } => self.pc_relative_load(r_destination, immediate_value),
-            LoadStoreRegisterOffset => self.load_store_register_offset(op_code),
+            LoadStoreRegisterOffset {
+                load_store,
+                byte_word,
+                ro,
+                rb,
+                rd,
+            } => self.load_store_register_offset(load_store, byte_word, ro, rb, rd),
             LoadStoreSignExtByteHalfword {
                 h_flag,
                 sign_extend_flag,
@@ -411,21 +417,23 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
-    fn load_store_register_offset(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let load_store: LoadStoreKind = op_code.get_bit(11).into();
-        let byte_word: ReadWriteKind = op_code.get_bit(10).into();
-        let ro = op_code.get_bits(6..=8);
-        let ro = self.registers.register_at(ro.try_into().unwrap());
-
-        let rb = op_code.get_bits(3..=5);
-        let rb = self.registers.register_at(rb.try_into().unwrap());
-
-        let rd: usize = op_code.get_bits(0..=2).try_into().unwrap();
-
+    fn load_store_register_offset(
+        &mut self,
+        load_store: LoadStoreKind,
+        byte_word: ReadWriteKind,
+        offset_register: u16,
+        base_register: u16,
+        source_desitination_register: u16,
+    ) -> Option<u32> {
+        let ro = self
+            .registers
+            .register_at(offset_register.try_into().unwrap());
+        let rb = self
+            .registers
+            .register_at(base_register.try_into().unwrap());
         let address: usize = rb.wrapping_add(ro).try_into().unwrap();
-
         let mut mem = self.memory.lock().unwrap();
-
+        let rd: usize = source_desitination_register.try_into().unwrap();
         match (load_store, byte_word) {
             (LoadStoreKind::Store, ReadWriteKind::Byte) => {
                 let rd = (self.registers.register_at(rd) & 0xFF) as u8;
@@ -1622,10 +1630,13 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b0100_1001_0101_1000_u16;
         let op_code: ThumbModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ThumbModeInstruction::PCRelativeLoad{
-            r_destination: 1,
-            immediate_value: 88,
-        });
+        assert_eq!(
+            op_code.instruction,
+            ThumbModeInstruction::PCRelativeLoad {
+                r_destination: 1,
+                immediate_value: 88,
+            }
+        );
 
         cpu.registers.set_register_at(1, 10);
         cpu.memory.lock().unwrap().write_at(356, 1);
@@ -1642,6 +1653,16 @@ mod tests {
             let op_code = 0b0101_00_0_000_001_010;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
 
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::LoadStoreRegisterOffset {
+                    load_store: LoadStoreKind::Store,
+                    byte_word: Default::default(),
+                    ro: 0,
+                    rb: 1,
+                    rd: 2,
+                }
+            );
             cpu.registers.set_register_at(0, 100);
             cpu.registers.set_register_at(1, 100);
             cpu.registers.set_register_at(2, 0xFEEFAC1F);
