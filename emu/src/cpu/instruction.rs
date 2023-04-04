@@ -343,7 +343,13 @@ impl Display for ArmModeInstruction {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ThumbModeInstruction {
     MoveShiftedRegister,
-    AddSubtract,
+    AddSubtract {
+        operation_kind: OperandKind,
+        op: bool,
+        rn_offset3: u16,
+        rs: u16,
+        rd: u16,
+    },
     MoveCompareAddSubtractImm {
         op: Operation,
         r_destination: u16,
@@ -389,6 +395,25 @@ pub enum ThumbModeInstruction {
 impl ThumbModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
+            Self::AddSubtract {
+                operation_kind,
+                op,
+                rn_offset3,
+                rs,
+                rd,
+            } => {
+                let o = match *op {
+                    true => "SUB",
+                    false => "ADD",
+                };
+
+                let rr = match operation_kind {
+                    OperandKind::Immediate => format!("#{rn_offset3}"),
+                    OperandKind::Register => format!("R{rn_offset3}"),
+                };
+
+                format!("{o} R{rd}, R{rs}, {rr}")
+            }
             Self::MoveCompareAddSubtractImm {
                 op,
                 r_destination,
@@ -471,7 +496,20 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(12..=15) == 0b1011 && op_code.get_bits(9..=10) == 0b10 {
             PushPopReg
         } else if op_code.get_bits(11..=15) == 0b00011 {
-            AddSubtract
+            let operation_kind: OperandKind = op_code.get_bit(10).into();
+            // 0 - Add, 1 - Sub
+            let op = op_code.get_bit(9);
+            let rn_offset3 = op_code.get_bits(6..=8);
+            let rs = op_code.get_bits(3..=5);
+            let rd = op_code.get_bits(0..=2);
+
+            AddSubtract {
+                operation_kind,
+                op,
+                rn_offset3,
+                rs,
+                rd,
+            }
         } else if op_code.get_bits(11..=15) == 0b01001 {
             let r_destination = op_code.get_bits(8..=10);
             let immediate_value = op_code.get_bits(0..=7);
