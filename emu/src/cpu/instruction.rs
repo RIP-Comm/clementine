@@ -4,6 +4,7 @@ use logger::log;
 
 use crate::bitwise::Bits;
 use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind};
+use crate::cpu::arm7tdmi::REG_PROGRAM_COUNTER;
 use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
 use crate::cpu::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
 use crate::cpu::move_compare_add_sub::Operation;
@@ -350,7 +351,10 @@ pub enum ThumbModeInstruction {
     },
     AluOp,
     HiRegisterOpBX,
-    PCRelativeLoad,
+    PCRelativeLoad {
+        r_destination: u16,
+        immediate_value: u16,
+    },
     LoadStoreRegisterOffset,
     LoadStoreSignExtByteHalfword {
         h_flag: bool,
@@ -385,6 +389,18 @@ impl ThumbModeInstruction {
                 offset,
             } => {
                 format!("{op} R{r_destination}, #{offset}")
+            }
+            Self::PCRelativeLoad {
+                r_destination,
+                immediate_value,
+            } => {
+                let r = if *r_destination as u32 == REG_PROGRAM_COUNTER {
+                    "PC"
+                } else {
+                    "R"
+                };
+                let immediate_value = immediate_value << 2;
+                format!("LDR R{r_destination}, [{r}, #{immediate_value}]")
             }
             Self::LoadStoreSignExtByteHalfword {
                 h_flag,
@@ -436,7 +452,13 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(11..=15) == 0b00011 {
             AddSubtract
         } else if op_code.get_bits(11..=15) == 0b01001 {
-            PCRelativeLoad
+            let r_destination = op_code.get_bits(8..=10);
+            let immediate_value = op_code.get_bits(0..=7);
+
+            PCRelativeLoad {
+                r_destination,
+                immediate_value,
+            }
         } else if op_code.get_bits(12..=15) == 0b0101 && !op_code.get_bit(9) {
             LoadStoreRegisterOffset
         } else if op_code.get_bits(12..=15) == 0b0101 && op_code.get_bit(9) {

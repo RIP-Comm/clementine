@@ -184,7 +184,10 @@ impl Arm7tdmi {
             } => self.move_compare_add_sub_imm(op, r_destination, offset),
             AluOp => self.alu_op(op_code),
             HiRegisterOpBX => self.hi_reg_operation_branch_ex(op_code),
-            PCRelativeLoad => self.pc_relative_load(op_code),
+            PCRelativeLoad {
+                r_destination,
+                immediate_value,
+            } => self.pc_relative_load(r_destination, immediate_value),
             LoadStoreRegisterOffset => self.load_store_register_offset(op_code),
             LoadStoreSignExtByteHalfword {
                 h_flag,
@@ -873,15 +876,14 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn pc_relative_load(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let rd = op_code.get_bits(8..=10);
-        let address = op_code.get_bits(0..=7) as usize;
+    pub fn pc_relative_load(&mut self, r_destination: u16, immediate_value: u16) -> Option<u32> {
         let mut pc = self.registers.program_counter() as u32;
         pc.set_bit_off(1);
-        let address = pc as usize + 4_usize + (address << 2);
+        let v = (immediate_value as usize) << 2;
+        let address = pc as usize + 4_usize + v;
         let value = self.memory.lock().unwrap().read_word(address);
-        self.registers
-            .set_register_at(rd.try_into().unwrap(), value);
+        let dest = r_destination.try_into().unwrap();
+        self.registers.set_register_at(dest, value);
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
@@ -1620,7 +1622,10 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b0100_1001_0101_1000_u16;
         let op_code: ThumbModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ThumbModeInstruction::PCRelativeLoad);
+        assert_eq!(op_code.instruction, ThumbModeInstruction::PCRelativeLoad{
+            r_destination: 1,
+            immediate_value: 88,
+        });
 
         cpu.registers.set_register_at(1, 10);
         cpu.memory.lock().unwrap().write_at(356, 1);
