@@ -141,7 +141,7 @@ impl Display for ThumbModeOpcode {
             ThumbModeInstruction::AddOffsetSP => "FMT: |1_0_1_1_0_0_0_0|S|____Word7____|",
             ThumbModeInstruction::PushPopReg => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
             ThumbModeInstruction::MultipleLoadStore => todo!(),
-            ThumbModeInstruction::CondBranch => "FMT: |1_1_0_1|_Cond__|_____Offset____|",
+            ThumbModeInstruction::CondBranch { .. } => "FMT: |1_1_0_1|_Cond__|_____Offset____|",
             ThumbModeInstruction::Swi => todo!(),
             ThumbModeInstruction::UncondBranch => "FMT: |1_1_1_0_0|________Offset11_____|",
             ThumbModeInstruction::LongBranchLink => "FMT: |1_1_1_1|H|_______Offset________|",

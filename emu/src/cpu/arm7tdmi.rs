@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use logger::log;
 
 use crate::bitwise::Bits;
+use crate::cpu::condition::Condition;
 use crate::cpu::cpu_modes::Mode;
 use crate::cpu::instruction::{ArmModeInstruction, ThumbModeInstruction};
 use crate::cpu::opcode::ArmModeOpcode;
@@ -225,7 +226,10 @@ impl Arm7tdmi {
             AddOffsetSP => self.add_offset_sp(op_code),
             PushPopReg => self.push_pop_register(op_code),
             MultipleLoadStore => unimplemented!(),
-            CondBranch => self.cond_branch(op_code),
+            CondBranch {
+                condition,
+                immediate_offset,
+            } => self.cond_branch(condition, immediate_offset),
             Swi => unimplemented!(),
             UncondBranch => self.uncond_branch(op_code),
             LongBranchLink => self.long_branch_link(op_code),
@@ -357,17 +361,10 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
-    fn cond_branch(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        // Encodes the condition
-        let cond = op_code.get_bits(8..=11) as u8;
-
-        // 9 bits signed offset (assembler puts `label` >> 1 in this field so we should <<1)
-        let offset = (op_code.get_bits(0..=7) << 1) as u32;
-        let offset = offset.sign_extended(9) as i32;
-
-        if self.cpsr.can_execute(cond.into()) {
+    fn cond_branch(&mut self, condition: Condition, immediate_offset: i32) -> Option<u32> {
+        if self.cpsr.can_execute(condition) {
             let pc = self.registers.program_counter() as i32;
-            let new_pc = pc + 4 + offset;
+            let new_pc = pc + 4 + immediate_offset;
 
             self.registers.set_program_counter(new_pc as u32);
 
