@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 /// In ARM state, all instructions are conditionally executed according to the state of the CPSR,
-///  condition codes and the instruction’s condition field.
+/// condition codes and the instruction’s condition field.
 /// This field (bits 31:28) determines the circumstances under which an instruction is to be executed.
 /// If the state of the C, N, Z and V flags fulfils the conditions encoded by the field,
 /// the instruction is executed, otherwise it is ignored.

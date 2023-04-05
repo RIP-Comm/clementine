@@ -386,7 +386,10 @@ pub enum ThumbModeInstruction {
     AddOffsetSP,
     PushPopReg,
     MultipleLoadStore,
-    CondBranch,
+    CondBranch {
+        condition: Condition,
+        immediate_offset: i32,
+    },
     Swi,
     UncondBranch,
     LongBranchLink,
@@ -476,6 +479,12 @@ impl ThumbModeInstruction {
 
                 format!("ADD R{r_destination}, {source}, #{offset}")
             }
+            Self::CondBranch {
+                condition,
+                immediate_offset,
+            } => {
+                format!("{condition} #{immediate_offset}")
+            }
             _ => "".to_owned(),
         }
     }
@@ -555,7 +564,16 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(12..=15) == 0b1100 {
             MultipleLoadStore
         } else if op_code.get_bits(12..=15) == 0b1101 {
-            CondBranch
+            let condition = op_code.get_bits(8..=11) as u8;
+            // 9 bits signed offset (assembler puts `label` >> 1 in this field so we should <<1)
+            let offset = (op_code.get_bits(0..=7) << 1) as u32;
+            let immediate_offset = offset.sign_extended(9) as i32;
+            let condition = Condition::from(condition);
+
+            CondBranch {
+                condition,
+                immediate_offset,
+            }
         } else if op_code.get_bits(12..=15) == 0b1111 {
             LongBranchLink
         } else if op_code.get_bits(13..=15) == 0b000 {
