@@ -384,7 +384,11 @@ pub enum ThumbModeInstruction {
         offset: u32,
     },
     AddOffsetSP,
-    PushPopReg,
+    PushPopReg {
+        load_store: LoadStoreKind,
+        pc_lr: bool,
+        register_list: u16,
+    },
     MultipleLoadStore,
     CondBranch {
         condition: Condition,
@@ -398,6 +402,7 @@ pub enum ThumbModeInstruction {
 impl ThumbModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
+            Self::MoveShiftedRegister => "".to_string(),
             Self::AddSubtract {
                 operation_kind,
                 op,
@@ -424,6 +429,20 @@ impl ThumbModeInstruction {
             } => {
                 format!("{op} R{r_destination}, #{offset}")
             }
+            Self::AluOp => "".to_string(),
+            Self::HiRegisterOpBX => "".to_string(),
+            Self::PCRelativeLoad {
+                r_destination,
+                immediate_value,
+            } => {
+                let r = if *r_destination as u32 == REG_PROGRAM_COUNTER {
+                    "PC"
+                } else {
+                    "R"
+                };
+                let immediate_value = immediate_value << 2;
+                format!("LDR R{r_destination}, [{r}, #{immediate_value}]")
+            }
             Self::LoadStoreRegisterOffset {
                 load_store,
                 byte_word,
@@ -438,18 +457,6 @@ impl ThumbModeInstruction {
                     (LoadStoreKind::Store, ReadWriteKind::Word) => "STR",
                 };
                 format!("{instr} R{rd}, [R{rb}, R{ro}]")
-            }
-            Self::PCRelativeLoad {
-                r_destination,
-                immediate_value,
-            } => {
-                let r = if *r_destination as u32 == REG_PROGRAM_COUNTER {
-                    "PC"
-                } else {
-                    "R"
-                };
-                let immediate_value = immediate_value << 2;
-                format!("LDR R{r_destination}, [{r}, #{immediate_value}]")
             }
             Self::LoadStoreSignExtByteHalfword {
                 h_flag,
@@ -467,6 +474,9 @@ impl ThumbModeInstruction {
 
                 format!("{instr} R{r_destination}, [R{r_base}, R{r_offset}]")
             }
+            Self::LoadStoreImmOffset => "".to_string(),
+            Self::LoadStoreHalfword => "".to_string(),
+            Self::SPRelativeLoadStore => "".to_string(),
             Self::LoadAddress {
                 sp,
                 r_destination,
@@ -479,13 +489,42 @@ impl ThumbModeInstruction {
 
                 format!("ADD R{r_destination}, {source}, #{offset}")
             }
+            Self::AddOffsetSP => "".to_string(),
+            Self::PushPopReg {
+                load_store,
+                pc_lr,
+                register_list,
+            } => {
+                let instr = match load_store {
+                    LoadStoreKind::Load => "POP",
+                    LoadStoreKind::Store => "PUSH",
+                };
+
+                let mut registers = String::new();
+                for i in 0..=7 {
+                    if register_list.get_bit(i) {
+                        registers.push_str(&format!("R{}, ", i));
+                    }
+                }
+
+                if *pc_lr {
+                    registers.push_str("PC");
+                } else {
+                    registers.push_str("LR");
+                }
+
+                format!("{instr} {{{registers}}}")
+            }
+            Self::MultipleLoadStore => "".to_string(),
             Self::CondBranch {
                 condition,
                 immediate_offset,
             } => {
                 format!("{condition} #{immediate_offset}")
             }
-            _ => "".to_owned(),
+            Self::Swi => "".to_string(),
+            Self::UncondBranch => "".to_string(),
+            Self::LongBranchLink => "".to_string(),
         }
     }
 }
@@ -503,7 +542,15 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(10..=15) == 0b010001 {
             HiRegisterOpBX
         } else if op_code.get_bits(12..=15) == 0b1011 && op_code.get_bits(9..=10) == 0b10 {
-            PushPopReg
+            let load_store: LoadStoreKind = op_code.get_bit(11).into();
+            let pc_lr = op_code.get_bit(8);
+            let register_list = op_code.get_bits(0..=7);
+
+            PushPopReg {
+                load_store,
+                pc_lr,
+                register_list,
+            }
         } else if op_code.get_bits(11..=15) == 0b00011 {
             let operation_kind: OperandKind = op_code.get_bit(10).into();
             // 0 - Add, 1 - Sub

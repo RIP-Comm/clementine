@@ -224,7 +224,11 @@ impl Arm7tdmi {
                 offset,
             } => self.load_address(sp, r_destination.try_into().unwrap(), offset),
             AddOffsetSP => self.add_offset_sp(op_code),
-            PushPopReg => self.push_pop_register(op_code),
+            PushPopReg {
+                load_store,
+                pc_lr,
+                register_list,
+            } => self.push_pop_register(load_store, pc_lr, register_list),
             MultipleLoadStore => unimplemented!(),
             CondBranch {
                 condition,
@@ -969,17 +973,18 @@ impl Arm7tdmi {
         }
     }
 
-    pub(crate) fn push_pop_register(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let load_store: LoadStoreKind = op_code.get_bit(11).into();
-        let store_or_not_reg_lr = op_code.get_bit(8);
-        let rlist = op_code.get_bits(0..=7);
+    pub(crate) fn push_pop_register(
+        &mut self,
+        load_store: LoadStoreKind,
+        pc_lr: bool,
+        register_list: u16,
+    ) -> Option<u32> {
         let mut reg_sp = self.registers.register_at(REG_SP);
-
         let mut memory = self.memory.lock().unwrap();
 
         match load_store {
             LoadStoreKind::Store => {
-                if store_or_not_reg_lr {
+                if pc_lr {
                     reg_sp -= 4;
                     memory.write_word(
                         reg_sp.try_into().unwrap(),
@@ -988,7 +993,7 @@ impl Arm7tdmi {
                 }
 
                 for r in (0..=7).rev() {
-                    if rlist.get_bit(r) {
+                    if register_list.get_bit(r) {
                         reg_sp -= 4;
                         memory.write_word(
                             reg_sp.try_into().unwrap(),
@@ -999,7 +1004,7 @@ impl Arm7tdmi {
             }
             LoadStoreKind::Load => {
                 for r in 0..=7 {
-                    if rlist.get_bit(r) {
+                    if register_list.get_bit(r) {
                         self.registers.set_register_at(
                             r.try_into().unwrap(),
                             memory.read_word(reg_sp.try_into().unwrap()),
@@ -1009,7 +1014,7 @@ impl Arm7tdmi {
                     }
                 }
 
-                if store_or_not_reg_lr {
+                if pc_lr {
                     self.registers
                         .set_program_counter(memory.read_word(reg_sp.try_into().unwrap()));
 
@@ -1020,7 +1025,7 @@ impl Arm7tdmi {
 
         self.registers.set_register_at(REG_SP, reg_sp);
 
-        if load_store == LoadStoreKind::Load && store_or_not_reg_lr {
+        if load_store == LoadStoreKind::Load && pc_lr {
             None
         } else {
             Some(SIZE_OF_THUMB_INSTRUCTION)
@@ -2055,7 +2060,19 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1011_0101_1111_0000;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::PushPopReg);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::PushPopReg {
+                    load_store: LoadStoreKind::Store,
+                    pc_lr: true,
+                    register_list: 240,
+                }
+            );
+
+            assert_eq!(
+                op_code.instruction.disassembler(),
+                "PUSH {R4, R5, R6, R7, PC}"
+            );
 
             cpu.registers.set_program_counter(1000);
             cpu.registers.set_register_at(REG_LR, 1000);

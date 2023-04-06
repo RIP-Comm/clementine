@@ -139,7 +139,7 @@ impl Display for ThumbModeOpcode {
             ThumbModeInstruction::SPRelativeLoadStore => "FMT: |1_0_0_1|L|_Rd__|_____Word8_____|",
             ThumbModeInstruction::LoadAddress { .. } => "FMT: |1_0_0_1|S|_Rd__|_____Word8_____|",
             ThumbModeInstruction::AddOffsetSP => "FMT: |1_0_1_1_0_0_0_0|S|____Word7____|",
-            ThumbModeInstruction::PushPopReg => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
+            ThumbModeInstruction::PushPopReg { .. } => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
             ThumbModeInstruction::MultipleLoadStore => todo!(),
             ThumbModeInstruction::CondBranch { .. } => "FMT: |1_1_0_1|_Cond__|_____Offset____|",
             ThumbModeInstruction::Swi => todo!(),
