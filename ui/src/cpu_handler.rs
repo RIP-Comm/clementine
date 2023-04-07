@@ -103,7 +103,7 @@ impl UiTool for CpuHandler {
         ui.heading("Breakpoints");
         ui.add_space(12.0);
         ui.horizontal(|ui| {
-            ui.label("Address: ");
+            ui.label("Address (hex) : ");
             ui.text_edit_singleline(&mut self.b_address);
 
             if ui.button("Add").clicked() {

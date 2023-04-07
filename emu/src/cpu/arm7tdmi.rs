@@ -190,7 +190,11 @@ impl Arm7tdmi {
                 offset,
             } => self.move_compare_add_sub_imm(op, r_destination, offset),
             AluOp => self.alu_op(op_code),
-            HiRegisterOpBX => self.hi_reg_operation_branch_ex(op_code),
+            HiRegisterOpBX {
+                op,
+                reg_source,
+                reg_destination,
+            } => self.hi_reg_operation_branch_ex(op, reg_source, reg_destination),
             PCRelativeLoad {
                 r_destination,
                 immediate_value,
@@ -902,41 +906,23 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
-    pub(crate) fn hi_reg_operation_branch_ex(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let op = op_code.get_bits(8..=9);
-        let h1 = op_code.get_bit(7);
-        let h2 = op_code.get_bit(6);
-        let rs_hs = op_code.get_bits(3..=5);
-        let rd_hd = op_code.get_bits(0..=2);
-
-        if !h1 && !h2 && (op == 0b00 || op == 0b01 || op == 0b10) {
-            panic!("H1=0 H2=0 is not supported with ADD, CMP, MOV");
-        } else if h1 && op == 0b11 {
-            panic!("H1=1 is not supported with BX")
-        }
-
-        let destination_register: usize = (h1 as u16 * 8 + rd_hd).try_into().unwrap();
-        let source_register: usize = (h2 as u16 * 8 + rs_hs).try_into().unwrap();
-
-        let first_op = self.registers.register_at(destination_register)
-            + match destination_register as u32 {
-                REG_PROGRAM_COUNTER => 4,
-                _ => 0,
-            };
-
-        let second_op = self.registers.register_at(source_register)
-            + match source_register as u32 {
-                REG_PROGRAM_COUNTER => 4,
-                _ => 0,
-            };
+    pub(crate) fn hi_reg_operation_branch_ex(
+        &mut self,
+        op: u16,
+        reg_source: u16,
+        reg_destination: u16,
+    ) -> Option<u32> {
+        let d_value = self.registers.register_at(reg_destination as usize);
+        let s_value = self.registers.register_at(reg_source as usize);
 
         match op {
             // Add
             0b00 => {
-                self.registers
-                    .set_register_at(destination_register, first_op + second_op);
+                let r = d_value.wrapping_add(s_value);
+                self.registers.set_register_at(reg_destination as usize, r);
 
-                if destination_register == REG_PROGRAM_COUNTER as usize {
+                if reg_destination == REG_PROGRAM_COUNTER as u16 {
+                    self.registers.set_program_counter(r + 4);
                     None
                 } else {
                     Some(SIZE_OF_THUMB_INSTRUCTION)
@@ -944,6 +930,18 @@ impl Arm7tdmi {
             }
             // Cmp
             0b01 => {
+                let first_op = d_value
+                    + match reg_destination as u32 {
+                        REG_PROGRAM_COUNTER => 4,
+                        _ => 0,
+                    };
+
+                let second_op = s_value
+                    + match reg_source as u32 {
+                        REG_PROGRAM_COUNTER => 4,
+                        _ => 0,
+                    };
+
                 let sub_result = Self::sub_inner_op(first_op, second_op);
 
                 self.cpsr.set_flags(sub_result);
@@ -952,10 +950,16 @@ impl Arm7tdmi {
             }
             // Mov
             0b10 => {
-                self.registers
-                    .set_register_at(destination_register, second_op);
+                let second_op = s_value
+                    + match reg_source as u32 {
+                        REG_PROGRAM_COUNTER => 4,
+                        _ => 0,
+                    };
 
-                if destination_register == REG_PROGRAM_COUNTER as usize {
+                self.registers
+                    .set_register_at(reg_destination as usize, second_op);
+
+                if reg_destination == REG_PROGRAM_COUNTER as u16 {
                     None
                 } else {
                     Some(SIZE_OF_THUMB_INSTRUCTION)
@@ -963,6 +967,12 @@ impl Arm7tdmi {
             }
             // Bx
             0b11 => {
+                let second_op = s_value
+                    + match reg_source as u32 {
+                        REG_PROGRAM_COUNTER => 4,
+                        _ => 0,
+                    };
+
                 self.cpsr.set_cpu_state(second_op.get_bit(0).into());
 
                 self.registers.set_program_counter(second_op);
@@ -1862,7 +1872,11 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code: u16 = 0b0100_0111_0111_0000;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::HiRegisterOpBX);
+            assert_eq!(op_code.instruction, ThumbModeInstruction::HiRegisterOpBX{
+                op: 0b11,
+                reg_source: 14,
+                reg_destination: 0,
+            });
 
             cpu.registers.set_register_at(14, 123);
             cpu.execute_thumb(op_code);

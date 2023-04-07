@@ -356,7 +356,11 @@ pub enum ThumbModeInstruction {
         offset: u32,
     },
     AluOp,
-    HiRegisterOpBX,
+    HiRegisterOpBX {
+        op: u16,
+        reg_source: u16,
+        reg_destination: u16,
+    },
     PCRelativeLoad {
         r_destination: u16,
         immediate_value: u16,
@@ -430,7 +434,21 @@ impl ThumbModeInstruction {
                 format!("{op} R{r_destination}, #{offset}")
             }
             Self::AluOp => "".to_string(),
-            Self::HiRegisterOpBX => "".to_string(),
+            Self::HiRegisterOpBX {
+                op,
+                reg_source,
+                reg_destination,
+            } => {
+                let op = match *op {
+                    0b00 => "ADD",
+                    0b01 => "CMP",
+                    0b10 => "MOV",
+                    0b11 => "BX",
+                    _ => unimplemented!(),
+                };
+
+                format!("{op} {reg_destination}, {reg_source}")
+            }
             Self::PCRelativeLoad {
                 r_destination,
                 immediate_value,
@@ -540,7 +558,18 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(10..=15) == 0b010000 {
             AluOp
         } else if op_code.get_bits(10..=15) == 0b010001 {
-            HiRegisterOpBX
+            let op = op_code.get_bits(8..=9);
+            let h1 = op_code.get_bit(7);
+            let reg_source = op_code.get_bits(3..=6);
+            let rd_hd = op_code.get_bits(0..=2);
+
+            let reg_destination = if h1 { rd_hd | (1 << 3) } else { rd_hd };
+
+            HiRegisterOpBX {
+                op,
+                reg_source,
+                reg_destination,
+            }
         } else if op_code.get_bits(12..=15) == 0b1011 && op_code.get_bits(9..=10) == 0b10 {
             let load_store: LoadStoreKind = op_code.get_bit(11).into();
             let pc_lr = op_code.get_bit(8);
