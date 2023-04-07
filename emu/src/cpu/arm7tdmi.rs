@@ -1872,15 +1872,6 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code: u16 = 0b0100_0111_0111_0000;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-<<<<<<< HEAD
-            assert_eq!(op_code.instruction, ThumbModeInstruction::HiRegisterOpBX{
-                op: 0b11,
-                reg_source: 14,
-                reg_destination: 0,
-            });
-||||||| parent of 98f86d9 (Thumb: Add ASM for `HiRegisterOpBX`)
-            assert_eq!(op_code.instruction, ThumbModeInstruction::HiRegisterOpBX);
-=======
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::HiRegisterOpBX {
@@ -1889,7 +1880,14 @@ mod tests {
                     reg_destination: 0,
                 }
             );
->>>>>>> 98f86d9 (Thumb: Add ASM for `HiRegisterOpBX`)
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::HiRegisterOpBX {
+                    op: 0b11,
+                    reg_source: 14,
+                    reg_destination: 0,
+                }
+            );
 
             cpu.registers.set_register_at(14, 123);
             cpu.execute_thumb(op_code);
