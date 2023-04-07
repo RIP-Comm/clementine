@@ -38,11 +38,13 @@ impl UiTool for Disassembler {
                     .interactive(false)
                     .font(TextStyle::Monospace)
                     .layouter(&mut |ui, val, _| {
-                        ui.fonts().layout_no_wrap(
-                            val.to_string(),
-                            TextStyle::Monospace.resolve(ui.style()),
-                            ui.visuals().widgets.inactive.text_color(),
-                        )
+                        ui.fonts(|fonts| {
+                            fonts.layout_no_wrap(
+                                val.to_string(),
+                                TextStyle::Monospace.resolve(ui.style()),
+                                ui.visuals().widgets.inactive.text_color(),
+                            )
+                        })
                     }),
             );
         });
