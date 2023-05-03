@@ -381,7 +381,11 @@ pub enum ThumbModeInstruction {
     },
     LoadStoreImmOffset,
     LoadStoreHalfword,
-    SPRelativeLoadStore,
+    SPRelativeLoadStore {
+        load_store: LoadStoreKind,
+        r_destination: u16,
+        word8: u16,
+    },
     LoadAddress {
         sp: bool,
         r_destination: u32,
@@ -494,7 +498,18 @@ impl ThumbModeInstruction {
             }
             Self::LoadStoreImmOffset => "".to_string(),
             Self::LoadStoreHalfword => "".to_string(),
-            Self::SPRelativeLoadStore => "".to_string(),
+            Self::SPRelativeLoadStore {
+                load_store,
+                r_destination,
+                word8,
+            } => {
+                let instr = match load_store {
+                    LoadStoreKind::Load => "LDR",
+                    LoadStoreKind::Store => "STR",
+                };
+
+                format!("{instr} R{r_destination}, [SP, #{word8}]")
+            }
             Self::LoadAddress {
                 sp,
                 r_destination,
@@ -630,7 +645,14 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(12..=15) == 0b1000 {
             LoadStoreHalfword
         } else if op_code.get_bits(12..=15) == 0b1001 {
-            SPRelativeLoadStore
+            let load_store: LoadStoreKind = op_code.get_bit(11).into();
+            let r_destination = op_code.get_bits(8..=10);
+            let word8 = op_code.get_bits(0..=7);
+            SPRelativeLoadStore {
+                load_store,
+                r_destination,
+                word8,
+            }
         } else if op_code.get_bits(12..=15) == 0b1010 {
             LoadAddress {
                 sp: op_code.get_bit(11),

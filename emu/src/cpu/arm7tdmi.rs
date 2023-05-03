@@ -221,7 +221,11 @@ impl Arm7tdmi {
             ),
             LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
             LoadStoreHalfword => self.load_store_halfword(op_code),
-            SPRelativeLoadStore => self.sp_relative_load_store(op_code),
+            SPRelativeLoadStore {
+                load_store,
+                r_destination,
+                word8,
+            } => self.sp_relative_load_store(load_store, r_destination, word8),
             LoadAddress {
                 sp,
                 r_destination,
@@ -507,7 +511,6 @@ impl Arm7tdmi {
         let state: CpuState = rn.get_bit(0).into();
         self.cpsr.set_cpu_state(state);
 
-        println!("Branch and exchange {rn}");
         match self.cpsr.cpu_state() {
             CpuState::Thumb => rn.set_bit_off(0),
             CpuState::Arm => {
@@ -789,6 +792,7 @@ impl Arm7tdmi {
                 let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
                 let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
                 let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
+                drop(memory);
                 let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
                 arm.registers.set_register_at(reg_destination, v);
             };
@@ -1056,13 +1060,15 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
-    fn sp_relative_load_store(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let load_store: LoadStoreKind = op_code.get_bit(11).into();
-        let rd: usize = op_code.get_bits(8..=10).try_into().unwrap();
-        let word8 = op_code.get_bits(0..=7);
-
+    fn sp_relative_load_store(
+        &mut self,
+        load_store: LoadStoreKind,
+        r_destination: u16,
+        word8: u16,
+    ) -> Option<u32> {
         let address = self.registers.register_at(REG_SP) + ((word8 as u32) << 2);
 
+        let rd = r_destination.try_into().unwrap();
         match load_store {
             LoadStoreKind::Load => {
                 self.registers.set_register_at(
