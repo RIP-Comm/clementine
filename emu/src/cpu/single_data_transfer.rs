@@ -117,26 +117,27 @@ impl Arm7tdmi {
             }
         };
 
-        let mut memory = self.memory.lock().unwrap();
+        // #[allow(clippy::significant_drop_tightening)]
         match kind {
             SingleDataTransferKind::Ldr => match quantity {
                 ReadWriteKind::Byte => {
-                    let value = memory.read_at(v.0) as u32;
+                    let value = self.memory.lock().unwrap().read_at(v.0) as u32;
                     self.registers
                         .set_register_at(rd.try_into().unwrap(), value)
                 }
                 ReadWriteKind::Word => {
-                    let part_0: u32 = memory.read_at(address).try_into().unwrap();
-                    let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
-                    let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
-                    let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
-
+                    let mem = self.memory.lock().unwrap();
+                    let part_0: u32 = mem.read_at(address).try_into().unwrap();
+                    let part_1: u32 = mem.read_at(address + 1).try_into().unwrap();
+                    let part_2: u32 = mem.read_at(address + 2).try_into().unwrap();
+                    let part_3: u32 = mem.read_at(address + 3).try_into().unwrap();
+                    drop(mem);
                     let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
                     self.registers.set_register_at(rd.try_into().unwrap(), v);
                 }
             },
             SingleDataTransferKind::Str => match quantity {
-                ReadWriteKind::Byte => memory.write_at(address, rd as u8),
+                ReadWriteKind::Byte => self.memory.lock().unwrap().write_at(address, rd as u8),
                 ReadWriteKind::Word => {
                     let mut v = self.registers.register_at(rd.try_into().unwrap());
 
@@ -145,10 +146,22 @@ impl Arm7tdmi {
                         v += 12;
                     }
 
-                    memory.write_at(address, v.get_bits(0..=7) as u8);
-                    memory.write_at(address + 1, v.get_bits(8..=15) as u8);
-                    memory.write_at(address + 2, v.get_bits(16..=23) as u8);
-                    memory.write_at(address + 3, v.get_bits(24..=31) as u8);
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .write_at(address, v.get_bits(0..=7) as u8);
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .write_at(address + 1, v.get_bits(8..=15) as u8);
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .write_at(address + 2, v.get_bits(16..=23) as u8);
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .write_at(address + 3, v.get_bits(24..=31) as u8);
                 }
             },
             _ => todo!("implement single data transfer operation"),

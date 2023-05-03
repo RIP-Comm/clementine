@@ -33,11 +33,13 @@ impl PixelProcessUnit {
     }
 
     pub fn render(&self) {
-        let memory = self.internal_memory.lock().unwrap();
-        let mut gba_lcd = self.gba_lcd.lock().unwrap();
-
         #[allow(unused_assignments)]
-        let mut bg_mode = memory.lcd_registers.get_bg_mode();
+        let mut bg_mode = self
+            .internal_memory
+            .lock()
+            .unwrap()
+            .lcd_registers
+            .get_bg_mode();
 
         // BG_MODE_3 forced for now.
         bg_mode = 3;
@@ -63,6 +65,8 @@ impl PixelProcessUnit {
                 todo!("BG_MODE 2 not implemented yet")
             }
             3 => {
+                let memory = self.internal_memory.lock().unwrap();
+                let mut gba_lcd = self.gba_lcd.lock().unwrap();
                 // Bitmap mode
                 for x in 0..LCD_HEIGHT {
                     for y in 0..LCD_WIDTH {
@@ -75,6 +79,7 @@ impl PixelProcessUnit {
                         gba_lcd.set_pixel(x, y, color);
                     }
                 }
+                drop(memory)
             }
             4 => {
                 todo!("BG_MODE 4 not implemented yet")

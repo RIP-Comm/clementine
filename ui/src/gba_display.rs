@@ -57,6 +57,8 @@ impl GbaDisplay {
             })
             .collect::<Vec<_>>();
 
+        drop(gba);
+
         let image = ColorImage::from_rgb([LCD_WIDTH, LCD_HEIGHT], &rgb_data);
 
         let texture = ui
