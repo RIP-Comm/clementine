@@ -391,7 +391,10 @@ pub enum ThumbModeInstruction {
         r_destination: u32,
         offset: u32,
     },
-    AddOffsetSP,
+    AddOffsetSP {
+        s: bool,
+        word7: u16,
+    },
     PushPopReg {
         load_store: LoadStoreKind,
         pc_lr: bool,
@@ -522,7 +525,13 @@ impl ThumbModeInstruction {
 
                 format!("ADD R{r_destination}, {source}, #{offset}")
             }
-            Self::AddOffsetSP => "".to_string(),
+            Self::AddOffsetSP { s, word7 } => {
+                let op = match s {
+                    false => "ADD",
+                    true => "SUB",
+                };
+                format!("{op} SP, #{word7}")
+            }
             Self::PushPopReg {
                 load_store,
                 pc_lr,
@@ -569,7 +578,11 @@ impl From<u16> for ThumbModeInstruction {
         if op_code.get_bits(8..=15) == 0b11011111 {
             Swi
         } else if op_code.get_bits(8..=15) == 0b10110000 {
-            AddOffsetSP
+            // 0 - positive, 1 - negative
+            let s = op_code.get_bit(7);
+            let word7 = op_code.get_bits(0..=6);
+
+            AddOffsetSP { s, word7 }
         } else if op_code.get_bits(10..=15) == 0b010000 {
             AluOp
         } else if op_code.get_bits(10..=15) == 0b010001 {

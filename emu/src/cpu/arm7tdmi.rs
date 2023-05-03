@@ -231,7 +231,7 @@ impl Arm7tdmi {
                 r_destination,
                 offset,
             } => self.load_address(sp, r_destination.try_into().unwrap(), offset),
-            AddOffsetSP => self.add_offset_sp(op_code),
+            AddOffsetSP { s, word7 } => self.add_offset_sp(s, word7),
             PushPopReg {
                 load_store,
                 pc_lr,
@@ -1046,11 +1046,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn add_offset_sp(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        // 0 - positive, 1 - negative
-        let s = op_code.get_bit(7);
-        let word7 = op_code.get_bits(0..=6);
-
+    fn add_offset_sp(&mut self, s: bool, word7: u16) -> Option<u32> {
         let value = ((word7 as i32) << 2).mul(if s { -1 } else { 1 });
         let old_sp = self.registers.register_at(REG_SP) as i32;
         let new_sp = old_sp + value;
