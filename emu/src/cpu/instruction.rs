@@ -580,7 +580,10 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(8..=15) == 0b10110000 {
             // 0 - positive, 1 - negative
             let s = op_code.get_bit(7);
-            let word7 = op_code.get_bits(0..=6);
+            // The offset supplied in #Imm is a full 10-bit address,
+            // but must always be word-aligned (ie bits 1:0 set to 0),
+            // since the assembler places #Imm >> 2 in the Word8 field.
+            let word7 = op_code.get_bits(0..=6) << 2;
 
             AddOffsetSP { s, word7 }
         } else if op_code.get_bits(10..=15) == 0b010000 {
@@ -660,7 +663,10 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(12..=15) == 0b1001 {
             let load_store: LoadStoreKind = op_code.get_bit(11).into();
             let r_destination = op_code.get_bits(8..=10);
-            let word8 = op_code.get_bits(0..=7);
+            // The offset supplied in #Imm is a full 10-bit address,
+            // but must always be word-aligned (ie bits 1:0 set to 0),
+            // since the assembler places #Imm >> 2 in the Word8 field.
+            let word8 = op_code.get_bits(0..=7) << 2;
             SPRelativeLoadStore {
                 load_store,
                 r_destination,

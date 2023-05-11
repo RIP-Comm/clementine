@@ -1047,7 +1047,7 @@ impl Arm7tdmi {
     }
 
     fn add_offset_sp(&mut self, s: bool, word7: u16) -> Option<u32> {
-        let value = ((word7 as i32) << 2).mul(if s { -1 } else { 1 });
+        let value = (word7 as i32).mul(if s { -1 } else { 1 });
         let old_sp = self.registers.register_at(REG_SP) as i32;
         let new_sp = old_sp + value;
 
