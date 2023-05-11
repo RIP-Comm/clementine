@@ -244,7 +244,7 @@ impl Arm7tdmi {
             } => self.cond_branch(condition, immediate_offset),
             Swi => unimplemented!(),
             UncondBranch => self.uncond_branch(op_code),
-            LongBranchLink => self.long_branch_link(op_code),
+            LongBranchLink { h, offset } => self.long_branch_link(h, offset),
         };
 
         self.registers
@@ -1145,10 +1145,7 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
-    fn long_branch_link(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let h = op_code.get_bit(11);
-        let offset = op_code.get_bits(0..=10) as u32;
-
+    fn long_branch_link(&mut self, h: bool, offset: u32) -> Option<u32> {
         if h {
             let next_instruction =
                 self.registers.program_counter() as u32 + SIZE_OF_THUMB_INSTRUCTION;
@@ -2326,7 +2323,13 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b1111_1000_0100_0000;
         let op_code: ThumbModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ThumbModeInstruction::LongBranchLink);
+        assert_eq!(
+            op_code.instruction,
+            ThumbModeInstruction::LongBranchLink {
+                h: true,
+                offset: 64
+            }
+        );
 
         cpu.registers.set_program_counter(100);
         cpu.registers.set_register_at(REG_LR, 200);

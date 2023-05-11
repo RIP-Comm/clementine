@@ -411,7 +411,10 @@ pub enum ThumbModeInstruction {
     },
     Swi,
     UncondBranch,
-    LongBranchLink,
+    LongBranchLink {
+        h: bool,
+        offset: u32,
+    },
 }
 
 impl ThumbModeInstruction {
@@ -591,7 +594,7 @@ impl ThumbModeInstruction {
             }
             Self::Swi => "".to_string(),
             Self::UncondBranch => "".to_string(),
-            Self::LongBranchLink => "".to_string(),
+            Self::LongBranchLink { .. } => "".to_string(),
         }
     }
 }
@@ -721,7 +724,10 @@ impl From<u16> for ThumbModeInstruction {
                 immediate_offset,
             }
         } else if op_code.get_bits(12..=15) == 0b1111 {
-            LongBranchLink
+            let h = op_code.get_bit(11);
+            let offset = op_code.get_bits(0..=10) as u32;
+
+            LongBranchLink { h, offset }
         } else if op_code.get_bits(13..=15) == 0b000 {
             MoveShiftedRegister
         } else if op_code.get_bits(13..=15) == 0b001 {

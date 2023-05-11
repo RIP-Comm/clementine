@@ -146,7 +146,7 @@ impl Display for ThumbModeOpcode {
             ThumbModeInstruction::CondBranch { .. } => "FMT: |1_1_0_1|_Cond__|_____Offset____|",
             ThumbModeInstruction::Swi => todo!(),
             ThumbModeInstruction::UncondBranch => "FMT: |1_1_1_0_0|________Offset11_____|",
-            ThumbModeInstruction::LongBranchLink => "FMT: |1_1_1_1|H|_______Offset________|",
+            ThumbModeInstruction::LongBranchLink { .. } => "FMT: |1_1_1_1|H|_______Offset________|",
         };
 
         let mut raw_bits = String::new();
