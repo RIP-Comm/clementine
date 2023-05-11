@@ -189,7 +189,7 @@ impl Arm7tdmi {
                 r_destination,
                 offset,
             } => self.move_compare_add_sub_imm(op, r_destination, offset),
-            AluOp => self.alu_op(op_code),
+            AluOp { op, rs, rd } => self.alu_op(op, rs, rd),
             HiRegisterOpBX {
                 op,
                 reg_source,
@@ -1062,7 +1062,7 @@ impl Arm7tdmi {
         r_destination: u16,
         word8: u16,
     ) -> Option<u32> {
-        let address = self.registers.register_at(REG_SP) + ((word8 as u32) << 2);
+        let address = self.registers.register_at(REG_SP) + (word8 as u32);
 
         let rd = r_destination.try_into().unwrap();
         match load_store {
@@ -1101,13 +1101,8 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
-    fn alu_op(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let op: ThumbModeAluInstruction = op_code.get_bits(6..=9).into();
-        let rs = op_code.get_bits(3..=5);
+    fn alu_op(&mut self, op: ThumbModeAluInstruction, rs: u16, rd: u16) -> Option<u32> {
         let rs = self.registers.register_at(rs.try_into().unwrap());
-
-        let rd = op_code.get_bits(0..=2);
-
         match op {
             ThumbModeAluInstruction::And => self.and(
                 rd.into(),
@@ -2218,7 +2213,14 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b0100_0011_0110_0000;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::AluOp {
+                    op: ThumbModeAluInstruction::Mul,
+                    rs: 4,
+                    rd: 0,
+                }
+            );
 
             cpu.cpsr.set_sign_flag(true);
             cpu.cpsr.set_zero_flag(true);
@@ -2235,7 +2237,14 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b0100_0000_0001_1000;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::AluOp {
+                    op: ThumbModeAluInstruction::And,
+                    rs: 3,
+                    rd: 0,
+                }
+            );
 
             cpu.cpsr.set_sign_flag(true);
             cpu.cpsr.set_zero_flag(true);
@@ -2252,7 +2261,14 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b0100_0010_0011_1110;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::AluOp {
+                    op: ThumbModeAluInstruction::Tst,
+                    rs: 7,
+                    rd: 6,
+                }
+            );
 
             cpu.execute_thumb(op_code);
 
@@ -2264,7 +2280,14 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b0100_0011_0010_1010;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::AluOp {
+                    op: ThumbModeAluInstruction::Orr,
+                    rs: 5,
+                    rd: 2,
+                }
+            );
 
             cpu.registers.set_register_at(2, 90);
             cpu.registers.set_register_at(5, 97);
@@ -2281,7 +2304,14 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b0100_0011_1100_1111;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::AluOp);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::AluOp {
+                    op: ThumbModeAluInstruction::Mvn,
+                    rs: 1,
+                    rd: 7,
+                }
+            );
 
             cpu.execute_thumb(op_code);
 

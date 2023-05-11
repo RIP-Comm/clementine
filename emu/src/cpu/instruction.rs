@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use logger::log;
 
 use crate::bitwise::Bits;
-use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind};
+use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind, ThumbModeAluInstruction};
 use crate::cpu::arm7tdmi::REG_PROGRAM_COUNTER;
 use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
 use crate::cpu::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
@@ -355,7 +355,11 @@ pub enum ThumbModeInstruction {
         r_destination: u16,
         offset: u32,
     },
-    AluOp,
+    AluOp {
+        op: ThumbModeAluInstruction,
+        rs: u16,
+        rd: u16,
+    },
     HiRegisterOpBX {
         op: u16,
         reg_source: u16,
@@ -440,7 +444,28 @@ impl ThumbModeInstruction {
             } => {
                 format!("{op} R{r_destination}, #{offset}")
             }
-            Self::AluOp => "".to_string(),
+            Self::AluOp { op, rs, rd } => {
+                let op = match *op {
+                    ThumbModeAluInstruction::And => "AND",
+                    ThumbModeAluInstruction::Eor => "EOR",
+                    ThumbModeAluInstruction::Lsl => "LSL",
+                    ThumbModeAluInstruction::Lsr => "LSR",
+                    ThumbModeAluInstruction::Asr => "ASR",
+                    ThumbModeAluInstruction::Adc => "ADC",
+                    ThumbModeAluInstruction::Sbc => "SBC",
+                    ThumbModeAluInstruction::Ror => "ROR",
+                    ThumbModeAluInstruction::Tst => "TST",
+                    ThumbModeAluInstruction::Neg => "NEG",
+                    ThumbModeAluInstruction::Cmp => "CMP",
+                    ThumbModeAluInstruction::Cmn => "CMN",
+                    ThumbModeAluInstruction::Orr => "ORR",
+                    ThumbModeAluInstruction::Mul => "MUL",
+                    ThumbModeAluInstruction::Bic => "BIC",
+                    ThumbModeAluInstruction::Mvn => "MVN",
+                };
+
+                format!("{op} R{rd}, R{rs}")
+            }
             Self::HiRegisterOpBX {
                 op,
                 reg_source,
@@ -587,7 +612,11 @@ impl From<u16> for ThumbModeInstruction {
 
             AddOffsetSP { s, word7 }
         } else if op_code.get_bits(10..=15) == 0b010000 {
-            AluOp
+            let op: ThumbModeAluInstruction = op_code.get_bits(6..=9).into();
+            let rs = op_code.get_bits(3..=5);
+            let rd = op_code.get_bits(0..=2);
+
+            AluOp { op, rs, rd }
         } else if op_code.get_bits(10..=15) == 0b010001 {
             let op = op_code.get_bits(8..=9);
             let h1 = op_code.get_bit(7);
