@@ -342,7 +342,12 @@ impl Display for ArmModeInstruction {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ThumbModeInstruction {
-    MoveShiftedRegister,
+    MoveShiftedRegister {
+        op: ShiftKind,
+        offset5: u16,
+        rs: u16,
+        rd: u16,
+    },
     AddSubtract {
         operation_kind: OperandKind,
         op: bool,
@@ -420,7 +425,9 @@ pub enum ThumbModeInstruction {
 impl ThumbModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
-            Self::MoveShiftedRegister => "".to_string(),
+            Self::MoveShiftedRegister { op, offset5, rs, rd } => {
+                format!("{op} R{rd}, R{rs}, #{offset5}")
+            }
             Self::AddSubtract {
                 operation_kind,
                 op,
@@ -729,7 +736,16 @@ impl From<u16> for ThumbModeInstruction {
 
             LongBranchLink { h, offset }
         } else if op_code.get_bits(13..=15) == 0b000 {
-            MoveShiftedRegister
+            let op = op_code.get_bits(11..=12);
+            let offset5 = op_code.get_bits(6..=10);
+            let rs = op_code.get_bits(3..=5);
+            let rd = op_code.get_bits(0..=2);
+            MoveShiftedRegister {
+                op: op.into(),
+                offset5,
+                rs,
+                rd,
+            }
         } else if op_code.get_bits(13..=15) == 0b001 {
             let op: Operation = op_code.get_bits(11..=12).into();
             let r_destination = op_code.get_bits(8..=10);

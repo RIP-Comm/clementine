@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use logger::log;
 
 use crate::bitwise::Bits;
+use crate::cpu::alu_instruction::ShiftKind;
 use crate::cpu::condition::Condition;
 use crate::cpu::cpu_modes::Mode;
 use crate::cpu::instruction::{ArmModeInstruction, ThumbModeInstruction};
@@ -176,7 +177,12 @@ impl Arm7tdmi {
 
         use ThumbModeInstruction::*;
         let bytes_to_advance: Option<u32> = match op_code.instruction {
-            MoveShiftedRegister => self.move_shifted_reg(op_code),
+            MoveShiftedRegister {
+                op,
+                offset5,
+                rs,
+                rd,
+            } => self.move_shifted_reg(op, offset5, rs, rd),
             AddSubtract {
                 operation_kind,
                 op,
@@ -1167,14 +1173,15 @@ impl Arm7tdmi {
         }
     }
 
-    pub(crate) fn move_shifted_reg(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let op = op_code.get_bits(11..=12);
-        let offset = op_code.get_bits(6..=10);
-        let rs = op_code.get_bits(3..=5);
-        let rd = op_code.get_bits(0..=2);
+    pub(crate) fn move_shifted_reg(
+        &mut self,
+        op: ShiftKind,
+        offset5: u16,
+        rs: u16,
+        rd: u16,
+    ) -> Option<u32> {
         let source = self.registers.register_at(rs.try_into().unwrap());
-
-        let r = alu_instruction::shift(op.into(), offset.into(), source, self.cpsr.carry_flag());
+        let r = alu_instruction::shift(op, offset5.into(), source, self.cpsr.carry_flag());
         self.registers
             .set_register_at(rd.try_into().unwrap(), r.result);
         self.cpsr.set_flags(r);
