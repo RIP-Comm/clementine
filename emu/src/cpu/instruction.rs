@@ -42,7 +42,11 @@ pub enum ArmModeInstruction {
     },
     Undefined,
     BlockDataTransfer,
-    Branch(Condition, bool, u32),
+    Branch {
+        condition: Condition,
+        link: bool,
+        offset: u32,
+    },
     CoprocessorDataTransfer {
         condition: Condition,
         indexing: Indexing,
@@ -137,9 +141,13 @@ impl ArmModeInstruction {
             }
             Self::Undefined => "".to_owned(),
             Self::BlockDataTransfer => "".to_owned(),
-            Self::Branch(condition, is_link, address) => {
-                let link = if *is_link { "L" } else { "" };
-                format!("B{link}{condition} 0x{address:08X}")
+            Self::Branch {
+                condition,
+                link,
+                offset,
+            } => {
+                let link = if *link { "L" } else { "" };
+                format!("B{link}{condition} 0x{offset:08X}")
             }
             Self::CoprocessorDataTransfer {
                 condition,
@@ -243,9 +251,13 @@ impl From<u32> for ArmModeInstruction {
         } else if op_code.get_bits(25..=27) == 0b100 {
             BlockDataTransfer
         } else if op_code.get_bits(25..=27) == 0b101 {
-            let is_link = op_code.get_bit(24);
+            let link = op_code.get_bit(24);
             let offset = op_code.get_bits(0..=23) << 2;
-            Branch(condition, is_link, offset)
+            Branch {
+                condition,
+                link,
+                offset,
+            }
         } else if op_code.get_bits(26..=27) == 0b01 {
             // NOTE: This bit is negated because the meaning is inverted in SingleDataTransfer then other istructions.
             let op_kind: OperandKind = (!op_code.get_bit(25)).into();
@@ -425,7 +437,12 @@ pub enum ThumbModeInstruction {
 impl ThumbModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
-            Self::MoveShiftedRegister { op, offset5, rs, rd } => {
+            Self::MoveShiftedRegister {
+                op,
+                offset5,
+                rs,
+                rd,
+            } => {
                 format!("{op} R{rd}, R{rs}, #{offset5}")
             }
             Self::AddSubtract {
@@ -489,7 +506,7 @@ impl ThumbModeInstruction {
                     _ => unimplemented!(),
                 };
 
-                format!("{op} {reg_destination}, {reg_source}")
+                format!("{op} R{reg_destination}, R{reg_source}")
             }
             Self::PCRelativeLoad {
                 r_destination,
@@ -601,7 +618,11 @@ impl ThumbModeInstruction {
             }
             Self::Swi => "".to_string(),
             Self::UncondBranch => "".to_string(),
-            Self::LongBranchLink { .. } => "".to_string(),
+            Self::LongBranchLink { h, offset } => {
+                let offset = offset << 1;
+                let h = if *h { "H" } else { "" };
+                format!("BL{h} #{offset}")
+            }
         }
     }
 }
@@ -783,13 +804,24 @@ mod tests {
         {
             let cpu = Arm7tdmi::default();
             let output: ArmModeInstruction = cpu.decode(0b1110_1011_0000_0000_0000_0000_0111_1111);
-            assert_eq!(ArmModeInstruction::Branch(Condition::AL, true, 508), output);
+            assert_eq!(
+                ArmModeInstruction::Branch {
+                    condition: Condition::AL,
+                    link: true,
+                    offset: 508,
+                },
+                output
+            );
         }
         {
             let cpu = Arm7tdmi::default();
             let output: ArmModeInstruction = cpu.decode(0b1110_1010_0000_0000_0000_0000_0111_1111);
             assert_eq!(
-                ArmModeInstruction::Branch(Condition::AL, false, 508),
+                ArmModeInstruction::Branch {
+                    condition: Condition::AL,
+                    link: false,
+                    offset: 508,
+                },
                 output
             );
         }
@@ -797,7 +829,11 @@ mod tests {
             let cpu = Arm7tdmi::default();
             let output: ArmModeInstruction = cpu.decode(0b0000_1010_0000_0000_0000_0000_0111_1111);
             assert_eq!(
-                ArmModeInstruction::Branch(Condition::EQ, false, 508),
+                ArmModeInstruction::Branch {
+                    condition: Condition::EQ,
+                    link: false,
+                    offset: 508,
+                },
                 output
             );
         }
