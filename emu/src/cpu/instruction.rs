@@ -427,7 +427,9 @@ pub enum ThumbModeInstruction {
         immediate_offset: i32,
     },
     Swi,
-    UncondBranch,
+    UncondBranch {
+        offset: u32,
+    },
     LongBranchLink {
         h: bool,
         offset: u32,
@@ -617,7 +619,10 @@ impl ThumbModeInstruction {
                 format!("{condition} #{immediate_offset}")
             }
             Self::Swi => "".to_string(),
-            Self::UncondBranch => "".to_string(),
+            Self::UncondBranch { offset } => {
+                let offset = offset << 1;
+                format!("B #{offset}")
+            }
             Self::LongBranchLink { h, offset } => {
                 let offset = offset << 1;
                 let h = if *h { "H" } else { "" };
@@ -717,7 +722,8 @@ impl From<u16> for ThumbModeInstruction {
                 r_destination: op_code.get_bits(0..=2) as u32,
             }
         } else if op_code.get_bits(11..=15) == 0b11100 {
-            UncondBranch
+            let offset = (op_code.get_bits(0..=10) << 1) as u32;
+            UncondBranch { offset }
         } else if op_code.get_bits(12..=15) == 0b1000 {
             LoadStoreHalfword
         } else if op_code.get_bits(12..=15) == 0b1001 {

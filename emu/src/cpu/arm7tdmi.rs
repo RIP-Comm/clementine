@@ -253,7 +253,7 @@ impl Arm7tdmi {
                 immediate_offset,
             } => self.cond_branch(condition, immediate_offset),
             Swi => unimplemented!(),
-            UncondBranch => self.uncond_branch(op_code),
+            UncondBranch { offset } => self.uncond_branch(offset),
             LongBranchLink { h, offset } => self.long_branch_link(h, offset),
         };
 
@@ -396,10 +396,8 @@ impl Arm7tdmi {
         }
     }
 
-    fn uncond_branch(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let offset = (op_code.get_bits(0..=10) << 1) as u32;
+    fn uncond_branch(&mut self, offset: u32) -> Option<u32> {
         let offset = offset.sign_extended(12) as i32;
-
         let pc = self.registers.program_counter() as i32 + 4; // NOTE: Emulating prefetch with this +4.
         let new_pc = pc + offset;
         self.registers.set_program_counter(new_pc as u32);
@@ -1875,7 +1873,10 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b1110_0001_0010_1111;
         let op_code: ThumbModeOpcode = cpu.decode(op_code);
-        assert_eq!(op_code.instruction, ThumbModeInstruction::UncondBranch);
+        assert_eq!(
+            op_code.instruction,
+            ThumbModeInstruction::UncondBranch { offset: 606 }
+        );
 
         cpu.registers.set_program_counter(1000);
 
