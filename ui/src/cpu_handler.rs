@@ -91,9 +91,22 @@ impl UiTool for CpuHandler {
                 self.play.swap(false, std::sync::atomic::Ordering::Relaxed);
                 self.thread_handle = None;
             }
-            if ui.button("⏭").clicked() {
+
+            if ui.button("⏭x1").clicked() {
                 if let Ok(mut gba) = self.gba.lock() {
                     gba.cpu.step()
+                }
+            }
+
+            if ui.button("⏭x10").clicked() {
+                if let Ok(mut gba) = self.gba.lock() {
+                    (0..10).for_each(|_| gba.cpu.step());
+                }
+            }
+
+            if ui.button("⏭x100").clicked() {
+                if let Ok(mut gba) = self.gba.lock() {
+                    (0..100).for_each(|_| gba.cpu.step());
                 }
             }
         });
