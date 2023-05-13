@@ -109,6 +109,12 @@ impl UiTool for CpuHandler {
                     (0..100).for_each(|_| gba.cpu.step());
                 }
             }
+
+            if ui.button("⏭x500").clicked() {
+                if let Ok(mut gba) = self.gba.lock() {
+                    (0..500).for_each(|_| gba.cpu.step());
+                }
+            }
         });
 
         ui.add_space(20.0);

@@ -786,7 +786,7 @@ impl From<u16> for ThumbModeInstruction {
         } else if op_code.get_bits(13..=15) == 0b011 {
             LoadStoreImmOffset
         } else {
-            log("not identified instruction");
+            log(format!("not identified instruction {op_code} "));
             unimplemented!()
         }
     }

@@ -1155,10 +1155,12 @@ impl Arm7tdmi {
 
     fn long_branch_link(&mut self, h: bool, offset: u32) -> Option<u32> {
         if h {
+            let offset = offset << 1;
+
             let next_instruction =
                 self.registers.program_counter() as u32 + SIZE_OF_THUMB_INSTRUCTION;
             let lr = self.registers.register_at(REG_LR);
-            let offset = offset << 1;
+
             self.registers.set_program_counter(lr.wrapping_add(offset));
             self.registers.set_register_at(REG_LR, next_instruction | 1);
             None
