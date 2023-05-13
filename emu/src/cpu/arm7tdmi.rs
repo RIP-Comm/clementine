@@ -91,8 +91,13 @@ impl Arm7tdmi {
         let bytes_to_advance = if !self.cpsr.can_execute(op_code.condition) {
             Some(SIZE_OF_ARM_INSTRUCTION)
         } else {
-            self.disassembler_buffer
-                .push(op_code.instruction.disassembler());
+            let decimal_value = self.registers.program_counter();
+            let padded_hex_value = format!("{:#04X}", decimal_value);
+            self.disassembler_buffer.push(format!(
+                "{}: {}",
+                padded_hex_value,
+                op_code.instruction.disassembler()
+            ));
             match op_code.instruction {
                 DataProcessing {
                     condition: _,
