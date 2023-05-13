@@ -58,7 +58,7 @@ impl Display for ArmModeOpcode {
                 "FMT: |_Cond__|0_1|I|P|U|B|W|L|__Rn___|__Rd___|________Offset_________|"
             }
             ArmModeInstruction::Undefined => "FMT: |_Cond__|",
-            ArmModeInstruction::BlockDataTransfer => {
+            ArmModeInstruction::BlockDataTransfer { .. } => {
                 "FMT: |_Cond__|1_0_0|P|U|S|W|L|__Rn___|_____________Reg_List__________|"
             }
             ArmModeInstruction::Branch { .. } => {

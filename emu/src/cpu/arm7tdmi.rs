@@ -137,7 +137,18 @@ impl Arm7tdmi {
                     offsetting,
                 ),
                 Undefined => todo!(),
-                BlockDataTransfer => self.block_data_transfer(op_code),
+                BlockDataTransfer {
+                    condition: _,
+                    indexing,
+                    offsetting,
+                    load_psr,
+                    write_back,
+                    load_store,
+                    rn,
+                    register_list: reg_list,
+                } => self.block_data_transfer(
+                    indexing, offsetting, load_psr, write_back, load_store, rn, reg_list,
+                ),
                 Branch {
                     condition: _,
                     link,
@@ -777,52 +788,58 @@ impl Arm7tdmi {
         None
     }
 
-    fn block_data_transfer(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
-        let indexing: Indexing = op_code.get_bit(24).into();
-        let offsetting: Offsetting = op_code.get_bit(23).into();
-        let s = op_code.get_bit(22);
-        if s {
-            todo!()
-        }
-        let write_back = op_code.get_bit(21);
-        let load_store = op_code.get_bit(20);
-        let rn = op_code.get_bits(16..=19);
-        let reg_list = op_code.get_bits(0..=15);
-
+    #[allow(clippy::too_many_arguments)]
+    fn block_data_transfer(
+        &mut self,
+        indexing: Indexing,
+        offsetting: Offsetting,
+        load_psr: bool,
+        write_back: bool,
+        load_store: LoadStoreKind,
+        rn: u32,
+        reg_list: u32,
+    ) -> Option<u32> {
         let memory_base = self.registers.register_at(rn.try_into().unwrap());
         let mut address = memory_base.try_into().unwrap();
 
-        if load_store {
-            let transfer = |arm: &mut Self, address: usize, reg_destination: usize| {
-                let memory = arm.memory.lock().unwrap();
+        if load_psr {
+            unimplemented!();
+        }
 
-                let part_0: u32 = memory.read_at(address).try_into().unwrap();
-                let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
-                let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
-                let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
-                drop(memory);
-                let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
-                arm.registers.set_register_at(reg_destination, v);
-            };
+        match load_store {
+            LoadStoreKind::Store => {
+                let transfer = |arm: &mut Self, address: usize, reg_source: usize| {
+                    let mut value = arm.registers.register_at(reg_source);
 
-            self.exec_data_trasfer(reg_list, indexing, &mut address, offsetting, transfer);
-        } else {
-            let transfer = |arm: &mut Self, address: usize, reg_source: usize| {
-                let mut value = arm.registers.register_at(reg_source);
+                    // If R15 we get the value of the current instruction + 12
+                    if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
+                        value += 12;
+                    }
+                    let mut memory = arm.memory.lock().unwrap();
 
-                // If R15 we get the value of the current instruction + 12
-                if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
-                    value += 12;
-                }
-                let mut memory = arm.memory.lock().unwrap();
+                    memory.write_at(address, value.get_bits(0..=7) as u8);
+                    memory.write_at(address + 1, value.get_bits(8..=15) as u8);
+                    memory.write_at(address + 2, value.get_bits(16..=23) as u8);
+                    memory.write_at(address + 3, value.get_bits(24..=31) as u8);
+                };
 
-                memory.write_at(address, value.get_bits(0..=7) as u8);
-                memory.write_at(address + 1, value.get_bits(8..=15) as u8);
-                memory.write_at(address + 2, value.get_bits(16..=23) as u8);
-                memory.write_at(address + 3, value.get_bits(24..=31) as u8);
-            };
+                self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
+            }
+            LoadStoreKind::Load => {
+                let transfer = |arm: &mut Self, address: usize, reg_destination: usize| {
+                    let memory = arm.memory.lock().unwrap();
 
-            self.exec_data_trasfer(reg_list, indexing, &mut address, offsetting, transfer);
+                    let part_0: u32 = memory.read_at(address).try_into().unwrap();
+                    let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
+                    let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
+                    let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
+                    drop(memory);
+                    let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
+                    arm.registers.set_register_at(reg_destination, v);
+                };
+
+                self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
+            }
         }
 
         if write_back {
@@ -831,7 +848,7 @@ impl Arm7tdmi {
         };
 
         // If LDM and R15 is in register list we don't advance PC
-        if !(load_store && reg_list.is_bit_on(15)) {
+        if !(load_store == LoadStoreKind::Load && reg_list.is_bit_on(15)) {
             Some(SIZE_OF_ARM_INSTRUCTION)
         } else {
             None
@@ -867,7 +884,7 @@ impl Arm7tdmi {
         // Some(SIZE_OF_ARM_INSTRUCTION)
     }
 
-    fn exec_data_trasfer<F>(
+    fn exec_data_transfer<F>(
         &mut self,
         reg_list: u32,
         indexing: Indexing,

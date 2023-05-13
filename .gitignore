@@ -43,3 +43,4 @@ target/
 
 # Ignore Visual Studio
 .vs/
+gba_bios.bin

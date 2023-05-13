@@ -41,7 +41,16 @@ pub enum ArmModeInstruction {
         offsetting: Offsetting,
     },
     Undefined,
-    BlockDataTransfer,
+    BlockDataTransfer {
+        condition: Condition,
+        indexing: Indexing,
+        offsetting: Offsetting,
+        load_psr: bool,
+        write_back: bool,
+        load_store: LoadStoreKind,
+        rn: u32,
+        register_list: u32,
+    },
     Branch {
         condition: Condition,
         link: bool,
@@ -140,7 +149,41 @@ impl ArmModeInstruction {
                 format!("{op}{condition}{b} R{rd}, {offset_info}")
             }
             Self::Undefined => "".to_owned(),
-            Self::BlockDataTransfer => "".to_owned(),
+            Self::BlockDataTransfer {
+                condition,
+                indexing,
+                offsetting,
+                load_psr,
+                write_back,
+                load_store,
+                rn,
+                register_list,
+            } => {
+                let op = match load_store {
+                    LoadStoreKind::Store => "STM",
+                    LoadStoreKind::Load => "LDM",
+                };
+
+                let offset_modifier = match offsetting {
+                    Offsetting::Down => "D",
+                    Offsetting::Up => "I",
+                };
+                let index_type = match indexing {
+                    Indexing::Pre => "B",
+                    Indexing::Post => "A",
+                };
+
+                let mut registers = String::new();
+                for i in 0..=15 {
+                    if register_list.get_bit(i) {
+                        registers.push_str(&format!("R{}, ", i));
+                    }
+                }
+
+                let w = if *write_back { "!" } else { "" };
+                let f = if *load_psr { "^" } else { "" };
+                format!("{op}{condition}{offset_modifier}{index_type}, R{rn}{w} {{{registers}}}{f}")
+            }
             Self::Branch {
                 condition,
                 link,
@@ -249,7 +292,24 @@ impl From<u32> for ArmModeInstruction {
                 offset,
             }
         } else if op_code.get_bits(25..=27) == 0b100 {
-            BlockDataTransfer
+            let indexing = op_code.get_bit(24).into();
+            let offsetting = op_code.get_bit(23).into();
+            let load_psr = op_code.get_bit(22);
+            let write_back = op_code.get_bit(21);
+            let load_store = op_code.get_bit(20).into();
+            let rn = op_code.get_bits(16..=19);
+            let reg_list = op_code.get_bits(0..=15);
+
+            BlockDataTransfer {
+                condition,
+                indexing,
+                offsetting,
+                load_psr,
+                write_back,
+                load_store,
+                rn,
+                register_list: reg_list,
+            }
         } else if op_code.get_bits(25..=27) == 0b101 {
             let link = op_code.get_bit(24);
             let offset = op_code.get_bits(0..=23) << 2;
@@ -616,7 +676,7 @@ impl ThumbModeInstruction {
                 condition,
                 immediate_offset,
             } => {
-                format!("{condition} #{immediate_offset}")
+                format!("B{condition} #{immediate_offset}")
             }
             Self::Swi => "".to_string(),
             Self::UncondBranch { offset } => {
