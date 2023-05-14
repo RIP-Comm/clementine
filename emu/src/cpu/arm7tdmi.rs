@@ -799,16 +799,17 @@ impl Arm7tdmi {
         rn: u32,
         reg_list: u32,
     ) -> Option<u32> {
-        let memory_base = self.registers.register_at(rn.try_into().unwrap());
+        let base_register = rn.try_into().unwrap();
+        let memory_base = self.registers.register_at(base_register);
         let mut address = memory_base.try_into().unwrap();
 
         if load_psr {
             unimplemented!();
         }
 
-        match load_store {
+        let transfer = match load_store {
             LoadStoreKind::Store => {
-                let transfer = |arm: &mut Self, address: usize, reg_source: usize| {
+                |arm: &mut Self, address: usize, reg_source: usize| {
                     let mut value = arm.registers.register_at(reg_source);
 
                     // If R15 we get the value of the current instruction + 12
@@ -821,30 +822,25 @@ impl Arm7tdmi {
                     memory.write_at(address + 1, value.get_bits(8..=15) as u8);
                     memory.write_at(address + 2, value.get_bits(16..=23) as u8);
                     memory.write_at(address + 3, value.get_bits(24..=31) as u8);
-                };
-
-                self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
+                }
             }
-            LoadStoreKind::Load => {
-                let transfer = |arm: &mut Self, address: usize, reg_destination: usize| {
-                    let memory = arm.memory.lock().unwrap();
+            LoadStoreKind::Load => |arm: &mut Self, address: usize, reg_destination: usize| {
+                let memory = arm.memory.lock().unwrap();
+                let part_0: u32 = memory.read_at(address).try_into().unwrap();
+                let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
+                let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
+                let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
+                drop(memory);
+                let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
+                arm.registers.set_register_at(reg_destination, v);
+            },
+        };
 
-                    let part_0: u32 = memory.read_at(address).try_into().unwrap();
-                    let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
-                    let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
-                    let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
-                    drop(memory);
-                    let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
-                    arm.registers.set_register_at(reg_destination, v);
-                };
-
-                self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
-            }
-        }
+        self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
 
         if write_back {
             self.registers
-                .set_register_at(rn.try_into().unwrap(), address.try_into().unwrap());
+                .set_register_at(base_register, address.try_into().unwrap());
         };
 
         // If LDM and R15 is in register list we don't advance PC

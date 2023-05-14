@@ -680,7 +680,6 @@ impl ThumbModeInstruction {
             }
             Self::Swi => "".to_string(),
             Self::UncondBranch { offset } => {
-                let offset = offset << 1;
                 format!("B #{offset}")
             }
             Self::LongBranchLink { h, offset } => {
