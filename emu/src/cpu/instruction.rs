@@ -461,7 +461,12 @@ pub enum ThumbModeInstruction {
         r_destination: u32,
     },
     LoadStoreImmOffset,
-    LoadStoreHalfword,
+    LoadStoreHalfword {
+        load_store: LoadStoreKind,
+        offset: u16,
+        base_register: u16,
+        source_destination_register: u16,
+    },
     SPRelativeLoadStore {
         load_store: LoadStoreKind,
         r_destination: u16,
@@ -614,7 +619,19 @@ impl ThumbModeInstruction {
                 format!("{instr} R{r_destination}, [R{r_base}, R{r_offset}]")
             }
             Self::LoadStoreImmOffset => "".to_string(),
-            Self::LoadStoreHalfword => "".to_string(),
+            Self::LoadStoreHalfword {
+                load_store,
+                offset,
+                base_register,
+                source_destination_register,
+            } => {
+                let instr = match load_store {
+                    LoadStoreKind::Load => "LDRH",
+                    LoadStoreKind::Store => "STRH",
+                };
+
+                format!("{instr} R{source_destination_register}, [R{base_register}, #{offset}]")
+            }
             Self::SPRelativeLoadStore {
                 load_store,
                 r_destination,
@@ -784,7 +801,17 @@ impl From<u16> for ThumbModeInstruction {
             let offset = (op_code.get_bits(0..=10) << 1) as u32;
             UncondBranch { offset }
         } else if op_code.get_bits(12..=15) == 0b1000 {
-            LoadStoreHalfword
+            let load_store: LoadStoreKind = op_code.get_bit(11).into();
+            let offset = op_code.get_bits(6..=10) << 1;
+            let base_register = op_code.get_bits(3..=5);
+            let source_destination_register = op_code.get_bits(0..=2);
+
+            LoadStoreHalfword {
+                load_store,
+                offset,
+                base_register,
+                source_destination_register,
+            }
         } else if op_code.get_bits(12..=15) == 0b1001 {
             let load_store: LoadStoreKind = op_code.get_bit(11).into();
             let r_destination = op_code.get_bits(8..=10);

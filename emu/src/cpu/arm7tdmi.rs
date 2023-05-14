@@ -241,7 +241,17 @@ impl Arm7tdmi {
                 r_destination,
             ),
             LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
-            LoadStoreHalfword => self.load_store_halfword(op_code),
+            LoadStoreHalfword {
+                load_store,
+                offset,
+                base_register,
+                source_destination_register,
+            } => self.load_store_halfword(
+                load_store,
+                offset,
+                base_register,
+                source_destination_register,
+            ),
             SPRelativeLoadStore {
                 load_store,
                 r_destination,
@@ -370,24 +380,33 @@ impl Arm7tdmi {
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
-    fn load_store_halfword(&mut self, op_code: ThumbModeOpcode) -> Option<u32> {
-        let load_store: LoadStoreKind = op_code.get_bit(11).into();
-        let offset = op_code.get_bits(6..=10) << 1;
-        let rb = op_code.get_bits(3..=5);
-        let rb = self.registers.register_at(rb.try_into().unwrap());
-        let rd: usize = op_code.get_bits(0..=2).try_into().unwrap();
-
+    fn load_store_halfword(
+        &mut self,
+        load_store: LoadStoreKind,
+        offset: u16,
+        base_register: u16,
+        source_destination_register: u16,
+    ) -> Option<u32> {
+        let rb = self
+            .registers
+            .register_at(base_register.try_into().unwrap());
         let address: usize = rb.wrapping_add(offset as u32).try_into().unwrap();
-
         let mut mem = self.memory.lock().unwrap();
 
         match load_store {
             LoadStoreKind::Load => {
-                self.registers
-                    .set_register_at(rd, mem.read_half_word(address) as u32);
+                self.registers.set_register_at(
+                    source_destination_register as usize,
+                    mem.read_half_word(address) as u32,
+                );
             }
             LoadStoreKind::Store => {
-                mem.write_half_word(address, self.registers.register_at(rd) as u16);
+                mem.write_half_word(
+                    address,
+                    self.registers
+                        .register_at(source_destination_register as usize)
+                        as u16,
+                );
             }
         }
 
@@ -398,9 +417,8 @@ impl Arm7tdmi {
         if self.cpsr.can_execute(condition) {
             let pc = self.registers.program_counter() as i32;
             let new_pc = pc + 4 + immediate_offset;
-
             self.registers.set_program_counter(new_pc as u32);
-
+            log("cond branch can execute");
             None
         } else {
             Some(SIZE_OF_THUMB_INSTRUCTION)
@@ -2387,7 +2405,15 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1000_1_00001_000_001;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::LoadStoreHalfword);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::LoadStoreHalfword {
+                    load_store: LoadStoreKind::Load,
+                    offset: 2,
+                    base_register: 0,
+                    source_destination_register: 1,
+                }
+            );
 
             cpu.registers.set_register_at(0, 100);
             cpu.memory.lock().unwrap().write_half_word(102, 0xFF);
@@ -2401,7 +2427,15 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1000_0_00001_000_001;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, ThumbModeInstruction::LoadStoreHalfword);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::LoadStoreHalfword {
+                    load_store: LoadStoreKind::Store,
+                    offset: 2,
+                    base_register: 0,
+                    source_destination_register: 1,
+                }
+            );
 
             cpu.registers.set_register_at(0, 100);
             cpu.registers.set_register_at(1, 0xFF);
