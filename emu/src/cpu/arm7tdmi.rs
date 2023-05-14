@@ -939,9 +939,10 @@ impl Arm7tdmi {
 
     pub fn pc_relative_load(&mut self, r_destination: u16, immediate_value: u16) -> Option<u32> {
         let mut pc = self.registers.program_counter() as u32;
+        // word alignment
         pc.set_bit_off(1);
-        let v = (immediate_value as usize) << 2;
-        let address = pc as usize + 4_usize + v;
+        pc.set_bit_off(0);
+        let address = pc as usize + 4_usize + immediate_value as usize;
         let value = self.memory.lock().unwrap().read_word(address);
         let dest = r_destination.try_into().unwrap();
         self.registers.set_register_at(dest, value);

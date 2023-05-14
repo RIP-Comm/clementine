@@ -769,7 +769,7 @@ impl From<u16> for ThumbModeInstruction {
             }
         } else if op_code.get_bits(11..=15) == 0b01001 {
             let r_destination = op_code.get_bits(8..=10);
-            let immediate_value = op_code.get_bits(0..=7);
+            let immediate_value = op_code.get_bits(0..=7) << 2;
 
             PCRelativeLoad {
                 r_destination,
