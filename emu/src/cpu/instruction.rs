@@ -26,7 +26,10 @@ pub enum ArmModeInstruction {
     Multiply,
     MultiplyLong,
     SingleDataSwap,
-    BranchAndExchange(Condition, usize),
+    BranchAndExchange {
+        condition: Condition,
+        register: usize,
+    },
     HalfwordDataTransferRegisterOffset,
     HalfwordDataTransferImmediateOffset,
     SingleDataTransfer {
@@ -115,7 +118,10 @@ impl ArmModeInstruction {
             Self::Multiply => "".to_owned(),
             Self::MultiplyLong => "".to_owned(),
             Self::SingleDataSwap => "".to_owned(),
-            Self::BranchAndExchange(condition, reg) => format!("BX{condition} R{reg}"),
+            Self::BranchAndExchange {
+                condition,
+                register,
+            } => format!("BX{condition} R{register}"),
             Self::HalfwordDataTransferRegisterOffset => "".to_owned(),
             Self::HalfwordDataTransferImmediateOffset => "".to_owned(),
             Self::SingleDataTransfer {
@@ -235,8 +241,11 @@ impl From<u32> for ArmModeInstruction {
         // It can happen `op_code` coalesced into one/two or more than two possible solution, that's because
         // we tried to order with this priority.
         if op_code.get_bits(4..=27) == 0b0001_0010_1111_1111_1111_0001 {
-            let rn = op_code.get_bits(0..=3) as usize;
-            BranchAndExchange(condition, rn)
+            let register = op_code.get_bits(0..=3) as usize;
+            BranchAndExchange {
+                condition,
+                register,
+            }
         } else if op_code.get_bits(23..=27) == 0b00010
             && op_code.get_bits(20..=21) == 0b00
             && op_code.get_bits(4..=11) == 0b0000_1001
@@ -937,7 +946,10 @@ mod tests {
             let cpu = Arm7tdmi::default();
             let output: ArmModeInstruction = cpu.decode(0b1110_0001_0010_1111_1111_1111_0001_0001);
             assert_eq!(
-                ArmModeInstruction::BranchAndExchange(Condition::AL, 1),
+                ArmModeInstruction::BranchAndExchange {
+                    condition: Condition::AL,
+                    register: 1
+                },
                 output
             );
         }
@@ -945,7 +957,10 @@ mod tests {
             let cpu = Arm7tdmi::default();
             let output: ArmModeInstruction = cpu.decode(0b0000_0001_0010_1111_1111_1111_0001_0001);
             assert_eq!(
-                ArmModeInstruction::BranchAndExchange(Condition::EQ, 1),
+                ArmModeInstruction::BranchAndExchange {
+                    condition: Condition::EQ,
+                    register: 1
+                },
                 output
             );
         }

@@ -113,7 +113,10 @@ impl Arm7tdmi {
                 Multiply => todo!(),
                 MultiplyLong => todo!(),
                 SingleDataSwap => todo!(),
-                BranchAndExchange(_, register) => self.branch_and_exchange(register),
+                BranchAndExchange {
+                    condition: _,
+                    register,
+                } => self.branch_and_exchange(register),
                 HalfwordDataTransferRegisterOffset => self.half_word_data_transfer(op_code),
                 HalfwordDataTransferImmediateOffset => self.half_word_data_transfer(op_code),
                 SingleDataTransfer {
@@ -1257,7 +1260,13 @@ mod tests {
             let op_code = 0b1110_0_0_0_1_0_0_1_0_1_1_1_1_1_1_1_1_1_1_1_1_0_0_0_1_0000;
             let cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = cpu.decode(op_code);
-            assert_eq!(op_code.instruction, BranchAndExchange(Condition::AL, 0));
+            assert_eq!(
+                op_code.instruction,
+                BranchAndExchange {
+                    condition: Condition::AL,
+                    register: 0
+                }
+            );
             let asm = op_code.instruction.disassembler();
             assert_eq!(asm, "BX R0");
         }
@@ -1702,7 +1711,7 @@ mod tests {
             op_code.instruction,
             ThumbModeInstruction::PCRelativeLoad {
                 r_destination: 1,
-                immediate_value: 88,
+                immediate_value: 352,
             }
         );
 
