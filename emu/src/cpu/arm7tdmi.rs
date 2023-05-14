@@ -192,9 +192,13 @@ impl Arm7tdmi {
     }
 
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
-        self.disassembler_buffer
-            .push(op_code.instruction.disassembler());
-
+        let decimal_value = self.registers.program_counter();
+        let padded_hex_value = format!("{:#04X}", decimal_value);
+        self.disassembler_buffer.push(format!(
+            "{}: {}",
+            padded_hex_value,
+            op_code.instruction.disassembler()
+        ));
         use ThumbModeInstruction::*;
         let bytes_to_advance: Option<u32> = match op_code.instruction {
             MoveShiftedRegister {
