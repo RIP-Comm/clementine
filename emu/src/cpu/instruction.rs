@@ -7,7 +7,7 @@ use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind, ThumbModeAlu
 use crate::cpu::arm7tdmi::REG_PROGRAM_COUNTER;
 use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
 use crate::cpu::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
-use crate::cpu::move_compare_add_sub::Operation;
+use crate::cpu::move_compare_add_sub::{Operation, ThumbHighRegisterOperation};
 use crate::cpu::single_data_transfer::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
 
 use super::condition::Condition;
@@ -447,9 +447,9 @@ pub enum ThumbModeInstruction {
         rd: u16,
     },
     HiRegisterOpBX {
-        op: u16,
-        reg_source: u16,
-        reg_destination: u16,
+        op: ThumbHighRegisterOperation,
+        source_register: u16,
+        destination_register: u16,
     },
     PCRelativeLoad {
         r_destination: u16,
@@ -571,18 +571,10 @@ impl ThumbModeInstruction {
             }
             Self::HiRegisterOpBX {
                 op,
-                reg_source,
-                reg_destination,
+                source_register,
+                destination_register,
             } => {
-                let op = match *op {
-                    0b00 => "ADD",
-                    0b01 => "CMP",
-                    0b10 => "MOV",
-                    0b11 => "BX",
-                    _ => unimplemented!(),
-                };
-
-                format!("{op} R{reg_destination}, R{reg_source}")
+                format!("{op} R{destination_register}, R{source_register}")
             }
             Self::PCRelativeLoad {
                 r_destination,
@@ -739,17 +731,17 @@ impl From<u16> for ThumbModeInstruction {
 
             AluOp { op, rs, rd }
         } else if op_code.get_bits(10..=15) == 0b010001 {
-            let op = op_code.get_bits(8..=9);
+            let op = op_code.get_bits(8..=9).into();
             let h1 = op_code.get_bit(7);
-            let reg_source = op_code.get_bits(3..=6);
+            let source_register = op_code.get_bits(3..=6);
             let rd_hd = op_code.get_bits(0..=2);
 
-            let reg_destination = if h1 { rd_hd | (1 << 3) } else { rd_hd };
+            let destination_register = if h1 { rd_hd | (1 << 3) } else { rd_hd };
 
             HiRegisterOpBX {
                 op,
-                reg_source,
-                reg_destination,
+                source_register,
+                destination_register,
             }
         } else if op_code.get_bits(12..=15) == 0b1011 && op_code.get_bits(9..=10) == 0b10 {
             let load_store: LoadStoreKind = op_code.get_bit(11).into();

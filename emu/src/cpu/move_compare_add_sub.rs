@@ -2,6 +2,37 @@ use std::fmt;
 
 use super::arm7tdmi::{Arm7tdmi, SIZE_OF_THUMB_INSTRUCTION};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThumbHighRegisterOperation {
+    Add,
+    Cmp,
+    Mov,
+    BxOrBlx,
+}
+
+impl fmt::Display for ThumbHighRegisterOperation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Mov => f.write_str("MOV"),
+            Self::Cmp => f.write_str("CMP"),
+            Self::Add => f.write_str("ADD"),
+            Self::BxOrBlx => f.write_str("BX/BLX"),
+        }
+    }
+}
+
+impl From<u16> for ThumbHighRegisterOperation {
+    fn from(op: u16) -> Self {
+        match op {
+            0 => Self::Add,
+            1 => Self::Cmp,
+            2 => Self::Mov,
+            3 => Self::BxOrBlx,
+            _ => unreachable!(),
+        }
+    }
+}
+
 /// Operation to perform in the Move Compare Add Subtract Immediate instruction.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operation {

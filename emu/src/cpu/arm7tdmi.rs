@@ -9,6 +9,7 @@ use crate::cpu::alu_instruction::ShiftKind;
 use crate::cpu::condition::Condition;
 use crate::cpu::cpu_modes::Mode;
 use crate::cpu::instruction::{ArmModeInstruction, ThumbModeInstruction};
+use crate::cpu::move_compare_add_sub::ThumbHighRegisterOperation;
 use crate::cpu::opcode::ArmModeOpcode;
 use crate::cpu::psr::Psr;
 use crate::cpu::register_bank::RegisterBank;
@@ -216,9 +217,9 @@ impl Arm7tdmi {
             AluOp { op, rs, rd } => self.alu_op(op, rs, rd),
             HiRegisterOpBX {
                 op,
-                reg_source,
-                reg_destination,
-            } => self.hi_reg_operation_branch_ex(op, reg_source, reg_destination),
+                source_register,
+                destination_register,
+            } => self.hi_reg_operation_branch_ex(op, source_register, destination_register),
             PCRelativeLoad {
                 r_destination,
                 immediate_value,
@@ -955,7 +956,7 @@ impl Arm7tdmi {
 
     pub(crate) fn hi_reg_operation_branch_ex(
         &mut self,
-        op: u16,
+        op: ThumbHighRegisterOperation,
         reg_source: u16,
         reg_destination: u16,
     ) -> Option<u32> {
@@ -963,8 +964,7 @@ impl Arm7tdmi {
         let s_value = self.registers.register_at(reg_source as usize);
 
         match op {
-            // Add
-            0b00 => {
+            ThumbHighRegisterOperation::Add => {
                 let r = d_value.wrapping_add(s_value);
                 self.registers.set_register_at(reg_destination as usize, r);
 
@@ -975,8 +975,7 @@ impl Arm7tdmi {
                     Some(SIZE_OF_THUMB_INSTRUCTION)
                 }
             }
-            // Cmp
-            0b01 => {
+            ThumbHighRegisterOperation::Cmp => {
                 let first_op = d_value
                     + match reg_destination as u32 {
                         REG_PROGRAM_COUNTER => 4,
@@ -995,8 +994,7 @@ impl Arm7tdmi {
 
                 Some(SIZE_OF_THUMB_INSTRUCTION)
             }
-            // Mov
-            0b10 => {
+            ThumbHighRegisterOperation::Mov => {
                 let second_op = s_value
                     + match reg_source as u32 {
                         REG_PROGRAM_COUNTER => 4,
@@ -1012,21 +1010,19 @@ impl Arm7tdmi {
                     Some(SIZE_OF_THUMB_INSTRUCTION)
                 }
             }
-            // Bx
-            0b11 => {
-                let second_op = s_value
+            ThumbHighRegisterOperation::BxOrBlx => {
+                let value = s_value
                     + match reg_source as u32 {
                         REG_PROGRAM_COUNTER => 4,
                         _ => 0,
                     };
-
-                self.cpsr.set_cpu_state(second_op.get_bit(0).into());
-
-                self.registers.set_program_counter(second_op);
+                let new_state = value.get_bit(0);
+                self.cpsr.set_cpu_state(new_state.into());
+                let new_pc = value & !1;
+                self.registers.set_program_counter(new_pc);
 
                 None
             }
-            _ => unreachable!(),
         }
     }
 
@@ -1938,24 +1934,24 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::HiRegisterOpBX {
-                    op: 0b11,
-                    reg_source: 14,
-                    reg_destination: 0,
+                    op: ThumbHighRegisterOperation::BxOrBlx,
+                    source_register: 14,
+                    destination_register: 0,
                 }
             );
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::HiRegisterOpBX {
-                    op: 0b11,
-                    reg_source: 14,
-                    reg_destination: 0,
+                    op: ThumbHighRegisterOperation::BxOrBlx,
+                    source_register: 14,
+                    destination_register: 0,
                 }
             );
 
             cpu.registers.set_register_at(14, 123);
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.registers.program_counter(), 123);
+            assert_eq!(cpu.registers.program_counter(), 122);
         }
         {
             // Add Rd, Hs
