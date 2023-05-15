@@ -1206,13 +1206,13 @@ impl Arm7tdmi {
             None
         } else {
             let offset = offset << 12;
-            let offset = offset.sign_extended(23) as i32;
+            let offset = offset.sign_extended(23);
 
             let pc = self.registers.program_counter() as u32
                 + SIZE_OF_THUMB_INSTRUCTION
                 + SIZE_OF_THUMB_INSTRUCTION;
             self.registers
-                .set_register_at(REG_LR, ((pc as i32) + offset) as u32);
+                .set_register_at(REG_LR, pc.wrapping_add(offset));
             Some(SIZE_OF_THUMB_INSTRUCTION)
         }
     }
@@ -1228,7 +1228,10 @@ impl Arm7tdmi {
         let r = alu_instruction::shift(op, offset5.into(), source, self.cpsr.carry_flag());
         self.registers
             .set_register_at(rd.try_into().unwrap(), r.result);
-        self.cpsr.set_flags(r);
+
+        self.cpsr.set_carry_flag(r.carry);
+        self.cpsr.set_zero_flag(r.result == 0);
+        self.cpsr.set_sign_flag(r.result.get_bit(31));
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
