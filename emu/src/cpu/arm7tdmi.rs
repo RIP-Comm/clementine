@@ -281,7 +281,11 @@ impl Arm7tdmi {
                 pc_lr,
                 register_list,
             } => self.push_pop_register(load_store, pc_lr, register_list),
-            MultipleLoadStore => unimplemented!(),
+            MultipleLoadStore {
+                load_store,
+                base_register,
+                register_list,
+            } => self.multiple_load_store(load_store, base_register as usize, register_list),
             CondBranch {
                 condition,
                 immediate_offset,
@@ -917,7 +921,7 @@ impl Arm7tdmi {
         indexing: Indexing,
         address: &mut usize,
         offsetting: Offsetting,
-        trasfer: F,
+        transfer: F,
     ) where
         F: Fn(&mut Self, usize, usize),
     {
@@ -941,7 +945,7 @@ impl Arm7tdmi {
                     *address = change_address(*address);
                 }
 
-                trasfer(self, *address, reg_source.into());
+                transfer(self, *address, reg_source.into());
 
                 if indexing == Indexing::Post {
                     *address = change_address(*address);
@@ -1092,6 +1096,32 @@ impl Arm7tdmi {
         } else {
             Some(SIZE_OF_THUMB_INSTRUCTION)
         }
+    }
+
+    pub(crate) fn multiple_load_store(
+        &mut self,
+        load_store: LoadStoreKind,
+        base_register: usize,
+        register_list: u16,
+    ) -> Option<u32> {
+        match load_store {
+            LoadStoreKind::Store => unimplemented!("multiple store"),
+            LoadStoreKind::Load => {
+                let base_address = self.registers.register_at(base_register);
+                let mut address = base_address;
+                for r in 0..=7 {
+                    if register_list.get_bit(r) {
+                        let value = self.memory.lock().unwrap().read_word(address as usize);
+                        self.registers.set_register_at(r as usize, value);
+                        address += 4;
+                    }
+                }
+
+                self.registers.set_register_at(base_register, address);
+            }
+        }
+
+        Some(SIZE_OF_THUMB_INSTRUCTION)
     }
 
     fn add_offset_sp(&mut self, s: bool, word7: u16) -> Option<u32> {
@@ -2603,6 +2633,46 @@ mod tests {
                 }),
             },
         ] {
+            let mut cpu = Arm7tdmi::default();
+            let op_code = case.opcode;
+            let op_code: ThumbModeOpcode = cpu.decode(op_code);
+            assert_eq!(op_code.instruction, case.expected_decode);
+
+            (*case.prepare_fn)(&mut cpu);
+
+            cpu.execute_thumb(op_code);
+
+            (*case.check_fn)(cpu);
+        }
+    }
+
+    #[test]
+    fn check_multiple_load_store() {
+        struct Test {
+            opcode: u16,
+            expected_decode: ThumbModeInstruction,
+            prepare_fn: Box<dyn Fn(&mut Arm7tdmi)>,
+            check_fn: Box<dyn Fn(Arm7tdmi)>,
+        }
+
+        for case in [Test {
+            opcode: 0b1100_1_001_10100000,
+            expected_decode: ThumbModeInstruction::MultipleLoadStore {
+                load_store: LoadStoreKind::Load,
+                base_register: 1,
+                register_list: 160,
+            },
+            prepare_fn: Box::new(|cpu| {
+                cpu.registers.set_register_at(1, 100);
+                cpu.memory.lock().unwrap().write_at(100, 0xFF);
+                cpu.memory.lock().unwrap().write_at(104, 0xFF);
+            }),
+            check_fn: Box::new(|cpu| {
+                assert_eq!(cpu.registers.register_at(5), 0xFF);
+                assert_eq!(cpu.registers.register_at(7), 0xFF);
+                assert_eq!(cpu.registers.register_at(1), 108);
+            }),
+        }] {
             let mut cpu = Arm7tdmi::default();
             let op_code = case.opcode;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);

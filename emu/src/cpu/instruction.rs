@@ -495,7 +495,11 @@ pub enum ThumbModeInstruction {
         pc_lr: bool,
         register_list: u16,
     },
-    MultipleLoadStore,
+    MultipleLoadStore {
+        load_store: LoadStoreKind,
+        base_register: u16,
+        register_list: u16,
+    },
     CondBranch {
         condition: Condition,
         immediate_offset: i32,
@@ -689,7 +693,25 @@ impl ThumbModeInstruction {
 
                 format!("{instr} {{{registers}}}")
             }
-            Self::MultipleLoadStore => "".to_string(),
+            Self::MultipleLoadStore {
+                load_store,
+                base_register,
+                register_list,
+            } => {
+                let instr = match load_store {
+                    LoadStoreKind::Load => "LDMIA",
+                    LoadStoreKind::Store => "STMIA",
+                };
+
+                let mut registers = String::new();
+                for i in 0..=7 {
+                    if register_list.get_bit(i) {
+                        registers.push_str(&format!("R{}, ", i));
+                    }
+                }
+
+                format!("{instr} R{base_register}!, {{{registers}}}")
+            }
             Self::CondBranch {
                 condition,
                 immediate_offset,
@@ -832,7 +854,14 @@ impl From<u16> for ThumbModeInstruction {
                 offset: (op_code.get_bits(0..=7) as u32) << 2,
             }
         } else if op_code.get_bits(12..=15) == 0b1100 {
-            MultipleLoadStore
+            let load_store = op_code.get_bit(11).into();
+            let base_register = op_code.get_bits(8..=10);
+            let register_list = op_code.get_bits(0..=7);
+            MultipleLoadStore {
+                load_store,
+                base_register,
+                register_list,
+            }
         } else if op_code.get_bits(12..=15) == 0b1101 {
             let condition = op_code.get_bits(8..=11) as u8;
             // 9 bits signed offset (assembler puts `label` >> 1 in this field so we should <<1)
@@ -992,6 +1021,20 @@ mod tests {
         let output: ArmModeInstruction = cpu.decode(0b1110_0001_1100_0001_0000_0000_1011_0000);
         assert_eq!(
             ArmModeInstruction::HalfwordDataTransferImmediateOffset,
+            output
+        );
+    }
+
+    #[test]
+    fn decode_multiple_load_store() {
+        let cpu = Arm7tdmi::default();
+        let output: ThumbModeInstruction = cpu.decode(0b1100_1001_1010_0000);
+        assert_eq!(
+            ThumbModeInstruction::MultipleLoadStore {
+                load_store: LoadStoreKind::Load,
+                base_register: 1,
+                register_list: 160,
+            },
             output
         );
     }
