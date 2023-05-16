@@ -93,7 +93,7 @@ impl Arm7tdmi {
             Some(SIZE_OF_ARM_INSTRUCTION)
         } else {
             let decimal_value = self.registers.program_counter();
-            let padded_hex_value = format!("{:#04X}", decimal_value);
+            let padded_hex_value = format!("{decimal_value:#04X}");
             self.disassembler_buffer.push(format!(
                 "{}: {}",
                 padded_hex_value,
@@ -197,7 +197,7 @@ impl Arm7tdmi {
 
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
         let decimal_value = self.registers.program_counter();
-        let padded_hex_value = format!("{:#04X}", decimal_value);
+        let padded_hex_value = format!("{decimal_value:#04X}");
         self.disassembler_buffer.push(format!(
             "{}: {}",
             padded_hex_value,
@@ -2670,22 +2670,22 @@ mod tests {
 
         let cases = vec![
             Test {
-            opcode: 0b1100_1_001_10100000,
-            expected_decode: ThumbModeInstruction::MultipleLoadStore {
-                load_store: LoadStoreKind::Load,
-                base_register: 1,
-                register_list: 160,
-            },
-            prepare_fn: Box::new(|cpu| {
-                cpu.registers.set_register_at(1, 100);
+                opcode: 0b1100_1_001_10100000,
+                expected_decode: ThumbModeInstruction::MultipleLoadStore {
+                    load_store: LoadStoreKind::Load,
+                    base_register: 1,
+                    register_list: 160,
+                },
+                prepare_fn: Box::new(|cpu| {
+                    cpu.registers.set_register_at(1, 100);
                     cpu.memory.lock().unwrap().write_word(100, 0xFF);
                     cpu.memory.lock().unwrap().write_word(104, 0xFF);
-            }),
-            check_fn: Box::new(|cpu| {
-                assert_eq!(cpu.registers.register_at(5), 0xFF);
-                assert_eq!(cpu.registers.register_at(7), 0xFF);
-                assert_eq!(cpu.registers.register_at(1), 108);
-            }),
+                }),
+                check_fn: Box::new(|cpu| {
+                    assert_eq!(cpu.registers.register_at(5), 0xFF);
+                    assert_eq!(cpu.registers.register_at(7), 0xFF);
+                    assert_eq!(cpu.registers.register_at(1), 108);
+                }),
             },
             Test {
                 opcode: 0b1100_0_001_10100000,
