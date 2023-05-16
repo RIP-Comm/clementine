@@ -1104,22 +1104,35 @@ impl Arm7tdmi {
         base_register: usize,
         register_list: u16,
     ) -> Option<u32> {
+        let mut address = self.registers.register_at(base_register);
+
         match load_store {
-            LoadStoreKind::Store => unimplemented!("multiple store"),
+            LoadStoreKind::Store => {
+                for r in 0..=7 {
+                    if register_list.is_bit_on(r) {
+                        let value = self.registers.register_at(r as usize);
+                        self.memory
+                            .lock()
+                            .unwrap()
+                            .write_word(address as usize, value);
+
+                        address += 4;
+                    }
+                }
+            }
             LoadStoreKind::Load => {
-                let base_address = self.registers.register_at(base_register);
-                let mut address = base_address;
                 for r in 0..=7 {
                     if register_list.get_bit(r) {
                         let value = self.memory.lock().unwrap().read_word(address as usize);
                         self.registers.set_register_at(r as usize, value);
+
                         address += 4;
                     }
                 }
-
-                self.registers.set_register_at(base_register, address);
             }
         }
+
+        self.registers.set_register_at(base_register, address);
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
     }
@@ -2655,7 +2668,8 @@ mod tests {
             check_fn: Box<dyn Fn(Arm7tdmi)>,
         }
 
-        for case in [Test {
+        let cases = vec![
+            Test {
             opcode: 0b1100_1_001_10100000,
             expected_decode: ThumbModeInstruction::MultipleLoadStore {
                 load_store: LoadStoreKind::Load,
@@ -2664,15 +2678,36 @@ mod tests {
             },
             prepare_fn: Box::new(|cpu| {
                 cpu.registers.set_register_at(1, 100);
-                cpu.memory.lock().unwrap().write_at(100, 0xFF);
-                cpu.memory.lock().unwrap().write_at(104, 0xFF);
+                    cpu.memory.lock().unwrap().write_word(100, 0xFF);
+                    cpu.memory.lock().unwrap().write_word(104, 0xFF);
             }),
             check_fn: Box::new(|cpu| {
                 assert_eq!(cpu.registers.register_at(5), 0xFF);
                 assert_eq!(cpu.registers.register_at(7), 0xFF);
                 assert_eq!(cpu.registers.register_at(1), 108);
             }),
-        }] {
+            },
+            Test {
+                opcode: 0b1100_0_001_10100000,
+                expected_decode: ThumbModeInstruction::MultipleLoadStore {
+                    load_store: LoadStoreKind::Store,
+                    base_register: 1,
+                    register_list: 160,
+                },
+                prepare_fn: Box::new(|cpu| {
+                    cpu.registers.set_register_at(1, 100);
+                    cpu.registers.set_register_at(5, 10);
+                    cpu.registers.set_register_at(7, 20);
+                }),
+                check_fn: Box::new(|cpu| {
+                    assert_eq!(cpu.memory.lock().unwrap().read_word(100), 10);
+                    assert_eq!(cpu.memory.lock().unwrap().read_word(104), 20);
+                    assert_eq!(cpu.registers.register_at(1), 108);
+                }),
+            },
+        ];
+
+        for case in cases {
             let mut cpu = Arm7tdmi::default();
             let op_code = case.opcode;
             let op_code: ThumbModeOpcode = cpu.decode(op_code);
