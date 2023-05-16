@@ -182,7 +182,7 @@ impl ArmModeInstruction {
                 let mut registers = String::new();
                 for i in 0..=15 {
                     if register_list.get_bit(i) {
-                        registers.push_str(&format!("R{}, ", i));
+                        registers.push_str(&format!("R{i}, "));
                     }
                 }
 
@@ -681,7 +681,7 @@ impl ThumbModeInstruction {
                 let mut registers = String::new();
                 for i in 0..=7 {
                     if register_list.get_bit(i) {
-                        registers.push_str(&format!("R{}, ", i));
+                        registers.push_str(&format!("R{i}, "));
                     }
                 }
 
@@ -706,7 +706,7 @@ impl ThumbModeInstruction {
                 let mut registers = String::new();
                 for i in 0..=7 {
                     if register_list.get_bit(i) {
-                        registers.push_str(&format!("R{}, ", i));
+                        registers.push_str(&format!("R{i}, "));
                     }
                 }
 
