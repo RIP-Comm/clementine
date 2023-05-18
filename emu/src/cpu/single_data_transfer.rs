@@ -1,13 +1,11 @@
-use crate::cpu::alu_instruction::{shift, ShiftKind};
-use crate::cpu::flags::{Indexing, Offsetting};
+use crate::cpu::alu_instruction::shift;
+use crate::cpu::flags::{Indexing, Offsetting, ShiftKind};
+use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::{bitwise::Bits, cpu::arm7tdmi::Arm7tdmi, memory::io_device::IoDevice};
 
-use super::{
-    arm7tdmi::{REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION},
-    flags::ReadWriteKind,
-};
+use super::{arm7tdmi::SIZE_OF_ARM_INSTRUCTION, flags::ReadWriteKind};
 
-/// Possible opeartion on transfer data.
+/// Possible operation on transfer data.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SingleDataTransferKind {
     /// Load from memory into a register.
@@ -117,7 +115,6 @@ impl Arm7tdmi {
             }
         };
 
-        // #[allow(clippy::significant_drop_tightening)]
         match kind {
             SingleDataTransferKind::Ldr => match quantity {
                 ReadWriteKind::Byte => {
