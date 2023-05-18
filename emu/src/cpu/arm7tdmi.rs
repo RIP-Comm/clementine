@@ -535,26 +535,28 @@ impl Arm7tdmi {
             };
 
         let rb = op_code.get_bits(3..=5);
-        let rd = op_code.get_bits(0..=2);
+        let rd = op_code.get_bits(0..=2).try_into().unwrap();
 
         let base = self.registers.register_at(rb.try_into().unwrap());
-        let address = base.wrapping_add(offset);
-
+        let address = base.wrapping_add(offset).try_into().unwrap();
         let mut mem = self.memory.lock().unwrap();
         match (load_store, byte_word) {
             (LoadStoreKind::Store, ReadWriteKind::Word) => {
-                let v = self.registers.register_at(rd.try_into().unwrap());
-                mem.write_word(address.try_into().unwrap(), v)
+                let v = self.registers.register_at(rd);
+                mem.write_word(address, v)
             }
             (LoadStoreKind::Store, ReadWriteKind::Byte) => {
-                let v = self.registers.register_at(rd.try_into().unwrap());
-                mem.write_at(address.try_into().unwrap(), v as u8)
+                let v = self.registers.register_at(rd);
+                mem.write_at(address, v as u8)
             }
             (LoadStoreKind::Load, ReadWriteKind::Word) => {
-                let v = mem.read_word(address.try_into().unwrap());
-                self.registers.set_register_at(rd.try_into().unwrap(), v);
+                let v = mem.read_word(address);
+                self.registers.set_register_at(rd, v);
             }
-            (LoadStoreKind::Load, ReadWriteKind::Byte) => todo!(),
+            (LoadStoreKind::Load, ReadWriteKind::Byte) => {
+                let v = mem.read_at(address);
+                self.registers.set_register_at(rd, v as u32);
+            }
         }
 
         Some(SIZE_OF_THUMB_INSTRUCTION)
