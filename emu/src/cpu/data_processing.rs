@@ -1,6 +1,7 @@
 use logger::log;
 
-use crate::cpu::alu_instruction::ShiftKind;
+use crate::cpu::flags::ShiftKind;
+use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::{
     bitwise::Bits,
     cpu::alu_instruction::{AluInstructionKind, ArmModeAluInstruction, Kind},
@@ -10,7 +11,7 @@ use crate::{
 
 use super::{
     alu_instruction::{self, ArithmeticOpResult},
-    arm7tdmi::{REG_PROGRAM_COUNTER, SIZE_OF_ARM_INSTRUCTION},
+    arm7tdmi::SIZE_OF_ARM_INSTRUCTION,
     cpu_modes::Mode,
     flags::OperandKind,
 };
@@ -659,9 +660,9 @@ mod tests {
         cpu::{cpu_modes::Mode, instruction::ArmModeInstruction},
     };
 
-    use crate::cpu::alu_instruction::{ArmModeAluInstruction, ShiftKind};
+    use crate::cpu::alu_instruction::ArmModeAluInstruction;
     use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
-    use crate::cpu::flags::OperandKind;
+    use crate::cpu::flags::{OperandKind, ShiftKind};
     use crate::cpu::opcode::ArmModeOpcode;
     use pretty_assertions::assert_eq;
 

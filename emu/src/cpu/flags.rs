@@ -1,5 +1,95 @@
 use crate::bitwise::Bits;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OperandKind {
+    Immediate,
+    Register,
+}
+
+impl From<bool> for OperandKind {
+    fn from(b: bool) -> Self {
+        match b {
+            false => Self::Register,
+            true => Self::Immediate,
+        }
+    }
+}
+
+/// Operation to perform in the Move Compare Add Subtract Immediate instruction.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Operation {
+    Mov,
+    Cmp,
+    Add,
+    Sub,
+}
+
+impl std::fmt::Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Mov => f.write_str("MOV"),
+            Self::Cmp => f.write_str("CMP"),
+            Self::Add => f.write_str("ADD"),
+            Self::Sub => f.write_str("SUB"),
+        }
+    }
+}
+
+impl From<u16> for Operation {
+    fn from(op: u16) -> Self {
+        match op {
+            0 => Self::Mov,
+            1 => Self::Cmp,
+            2 => Self::Add,
+            3 => Self::Sub,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ShiftKind {
+    Lsl,
+    Lsr,
+    Asr,
+    Ror,
+}
+
+impl From<u16> for ShiftKind {
+    fn from(op: u16) -> Self {
+        match op {
+            0 => Self::Lsl,
+            1 => Self::Lsr,
+            2 => Self::Asr,
+            3 => Self::Ror,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<u32> for ShiftKind {
+    fn from(op: u32) -> Self {
+        match op {
+            0 => Self::Lsl,
+            1 => Self::Lsr,
+            2 => Self::Asr,
+            3 => Self::Ror,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl std::fmt::Display for ShiftKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Lsl => f.write_str("LSL"),
+            Self::Lsr => f.write_str("LSR"),
+            Self::Asr => f.write_str("ASR"),
+            Self::Ror => f.write_str("ROR"),
+        }
+    }
+}
+
 /// There two different kind of write or read for memory.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ReadWriteKind {
@@ -74,21 +164,6 @@ impl From<bool> for Offsetting {
         match state {
             false => Self::Down,
             true => Self::Up,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum OperandKind {
-    Immediate,
-    Register,
-}
-
-impl From<bool> for OperandKind {
-    fn from(b: bool) -> Self {
-        match b {
-            false => Self::Register,
-            true => Self::Immediate,
         }
     }
 }

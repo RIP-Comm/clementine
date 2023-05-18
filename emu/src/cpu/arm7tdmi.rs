@@ -5,26 +5,25 @@ use std::sync::{Arc, Mutex};
 use logger::log;
 
 use crate::bitwise::Bits;
-use crate::cpu::alu_instruction::ShiftKind;
+use crate::cpu::alu_instruction;
 use crate::cpu::condition::Condition;
 use crate::cpu::cpu_modes::Mode;
-use crate::cpu::instruction::{ArmModeInstruction, ThumbModeInstruction};
-use crate::cpu::move_compare_add_sub::ThumbHighRegisterOperation;
+use crate::cpu::flags::ShiftKind;
+use crate::cpu::instruction::ArmModeInstruction;
 use crate::cpu::opcode::ArmModeOpcode;
 use crate::cpu::psr::Psr;
 use crate::cpu::register_bank::RegisterBank;
+use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
+use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
+use crate::cpu::thumb::instruction::ThumbModeInstruction;
+use crate::cpu::thumb::mode::ThumbModeOpcode;
 use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
-use super::alu_instruction::{self, ThumbModeAluInstruction};
 use super::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
-use super::opcode::ThumbModeOpcode;
 use super::psr::CpuState;
 use super::registers::Registers;
 
-pub const REG_SP: usize = 0xD;
-pub const REG_LR: usize = 0xE;
-pub const REG_PROGRAM_COUNTER: u32 = 0xF;
 pub const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
 pub const SIZE_OF_THUMB_INSTRUCTION: u32 = 2;
 
@@ -86,7 +85,6 @@ impl Arm7tdmi {
     }
 
     pub fn execute_arm(&mut self, op_code: ArmModeOpcode) {
-        use ArmModeInstruction::*;
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
         let bytes_to_advance = if !self.cpsr.can_execute(op_code.condition) {
@@ -100,7 +98,7 @@ impl Arm7tdmi {
                 op_code.instruction.disassembler()
             ));
             match op_code.instruction {
-                DataProcessing {
+                ArmModeInstruction::DataProcessing {
                     condition: _,
                     alu_instruction,
                     set_conditions,
@@ -116,16 +114,20 @@ impl Arm7tdmi {
                     rn,
                     destination,
                 ),
-                Multiply => todo!(),
-                MultiplyLong => todo!(),
-                SingleDataSwap => todo!(),
-                BranchAndExchange {
+                ArmModeInstruction::Multiply => todo!(),
+                ArmModeInstruction::MultiplyLong => todo!(),
+                ArmModeInstruction::SingleDataSwap => todo!(),
+                ArmModeInstruction::BranchAndExchange {
                     condition: _,
                     register,
                 } => self.branch_and_exchange(register),
-                HalfwordDataTransferRegisterOffset => self.half_word_data_transfer(op_code),
-                HalfwordDataTransferImmediateOffset => self.half_word_data_transfer(op_code),
-                SingleDataTransfer {
+                ArmModeInstruction::HalfwordDataTransferRegisterOffset => {
+                    self.half_word_data_transfer(op_code)
+                }
+                ArmModeInstruction::HalfwordDataTransferImmediateOffset => {
+                    self.half_word_data_transfer(op_code)
+                }
+                ArmModeInstruction::SingleDataTransfer {
                     condition: _,
                     kind,
                     quantity,
@@ -145,8 +147,8 @@ impl Arm7tdmi {
                     offset_info,
                     offsetting,
                 ),
-                Undefined => todo!(),
-                BlockDataTransfer {
+                ArmModeInstruction::Undefined => todo!(),
+                ArmModeInstruction::BlockDataTransfer {
                     condition: _,
                     indexing,
                     offsetting,
@@ -158,12 +160,12 @@ impl Arm7tdmi {
                 } => self.block_data_transfer(
                     indexing, offsetting, load_psr, write_back, load_store, rn, reg_list,
                 ),
-                Branch {
+                ArmModeInstruction::Branch {
                     condition: _,
                     link,
                     offset,
                 } => self.branch(link, offset),
-                CoprocessorDataTransfer {
+                ArmModeInstruction::CoprocessorDataTransfer {
                     condition: _,
                     indexing,
                     offsetting,
@@ -185,9 +187,9 @@ impl Arm7tdmi {
                     cp_number,
                     offset,
                 ),
-                CoprocessorDataOperation => todo!(),
-                CoprocessorRegisterTrasfer => todo!(),
-                SoftwareInterrupt => todo!(),
+                ArmModeInstruction::CoprocessorDataOperation => todo!(),
+                ArmModeInstruction::CoprocessorRegisterTrasfer => todo!(),
+                ArmModeInstruction::SoftwareInterrupt => todo!(),
             }
         };
 
@@ -203,49 +205,52 @@ impl Arm7tdmi {
             padded_hex_value,
             op_code.instruction.disassembler()
         ));
-        use ThumbModeInstruction::*;
         let bytes_to_advance: Option<u32> = match op_code.instruction {
-            MoveShiftedRegister {
-                op,
+            ThumbModeInstruction::MoveShiftedRegister {
+                shift_operation: op,
                 offset5,
-                rs,
-                rd,
-            } => self.move_shifted_reg(op, offset5, rs, rd),
-            AddSubtract {
+                source_register,
+                destination_register,
+            } => self.move_shifted_reg(op, offset5, source_register, destination_register),
+            ThumbModeInstruction::AddSubtract {
                 operation_kind,
                 op,
                 rn_offset3,
-                rs,
-                rd,
+                source_register: rs,
+                destination_register: rd,
             } => self.add_subtract(operation_kind, op, rn_offset3, rs, rd),
-            MoveCompareAddSubtractImm {
-                op,
-                r_destination,
+            ThumbModeInstruction::MoveCompareAddSubtractImm {
+                operation: op,
+                destination_register: r_destination,
                 offset,
             } => self.move_compare_add_sub_imm(op, r_destination, offset),
-            AluOp { op, rs, rd } => self.alu_op(op, rs, rd),
-            HiRegisterOpBX {
-                op,
+            ThumbModeInstruction::AluOp {
+                alu_operation: op,
+                source_register: rs,
+                destination_register: rd,
+            } => self.alu_op(op, rs, rd),
+            ThumbModeInstruction::HiRegisterOpBX {
+                register_operation: op,
                 source_register,
                 destination_register,
             } => self.hi_reg_operation_branch_ex(op, source_register, destination_register),
-            PCRelativeLoad {
-                r_destination,
+            ThumbModeInstruction::PCRelativeLoad {
+                destination_register: r_destination,
                 immediate_value,
             } => self.pc_relative_load(r_destination, immediate_value),
-            LoadStoreRegisterOffset {
+            ThumbModeInstruction::LoadStoreRegisterOffset {
                 load_store,
                 byte_word,
                 ro,
-                rb,
-                rd,
+                base_register: rb,
+                destination_register: rd,
             } => self.load_store_register_offset(load_store, byte_word, ro, rb, rd),
-            LoadStoreSignExtByteHalfword {
-                h_flag,
+            ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                h: h_flag,
                 sign_extend_flag,
-                r_offset,
-                r_base,
-                r_destination,
+                offset_register: r_offset,
+                base_register: r_base,
+                destination_register: r_destination,
             } => self.load_store_sign_extend_byte_halfword(
                 h_flag,
                 sign_extend_flag,
@@ -253,8 +258,8 @@ impl Arm7tdmi {
                 r_base,
                 r_destination,
             ),
-            LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
-            LoadStoreHalfword {
+            ThumbModeInstruction::LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
+            ThumbModeInstruction::LoadStoreHalfword {
                 load_store,
                 offset,
                 base_register,
@@ -265,34 +270,34 @@ impl Arm7tdmi {
                 base_register,
                 source_destination_register,
             ),
-            SPRelativeLoadStore {
+            ThumbModeInstruction::SPRelativeLoadStore {
                 load_store,
-                r_destination,
+                destination_register: r_destination,
                 word8,
             } => self.sp_relative_load_store(load_store, r_destination, word8),
-            LoadAddress {
+            ThumbModeInstruction::LoadAddress {
                 sp,
-                r_destination,
+                destination_register: r_destination,
                 offset,
             } => self.load_address(sp, r_destination.try_into().unwrap(), offset),
-            AddOffsetSP { s, word7 } => self.add_offset_sp(s, word7),
-            PushPopReg {
+            ThumbModeInstruction::AddOffsetSP { s, word7 } => self.add_offset_sp(s, word7),
+            ThumbModeInstruction::PushPopReg {
                 load_store,
                 pc_lr,
                 register_list,
             } => self.push_pop_register(load_store, pc_lr, register_list),
-            MultipleLoadStore {
+            ThumbModeInstruction::MultipleLoadStore {
                 load_store,
                 base_register,
                 register_list,
             } => self.multiple_load_store(load_store, base_register as usize, register_list),
-            CondBranch {
+            ThumbModeInstruction::CondBranch {
                 condition,
                 immediate_offset,
             } => self.cond_branch(condition, immediate_offset),
-            Swi => unimplemented!(),
-            UncondBranch { offset } => self.uncond_branch(offset),
-            LongBranchLink { h, offset } => self.long_branch_link(h, offset),
+            ThumbModeInstruction::Swi => unimplemented!(),
+            ThumbModeInstruction::UncondBranch { offset } => self.uncond_branch(offset),
+            ThumbModeInstruction::LongBranchLink { h, offset } => self.long_branch_link(h, offset),
         };
 
         self.registers
@@ -1302,7 +1307,10 @@ impl From<u8> for HalfwordTransferType {
 #[cfg(test)]
 mod tests {
     use crate::cpu::condition::Condition;
+    use crate::cpu::instruction::ArmModeInstruction;
     use crate::cpu::instruction::ArmModeInstruction::{Branch, BranchAndExchange};
+    use crate::cpu::registers::REG_SP;
+    use crate::cpu::thumb::instruction::ThumbModeInstruction;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -1763,7 +1771,7 @@ mod tests {
         assert_eq!(
             op_code.instruction,
             ThumbModeInstruction::PCRelativeLoad {
-                r_destination: 1,
+                destination_register: 1,
                 immediate_value: 352,
             }
         );
@@ -1789,8 +1797,8 @@ mod tests {
                     load_store: LoadStoreKind::Store,
                     byte_word: Default::default(),
                     ro: 0,
-                    rb: 1,
-                    rd: 2,
+                    base_register: 1,
+                    destination_register: 2,
                 }
             );
             cpu.registers.set_register_at(0, 100);
@@ -1991,7 +1999,7 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::HiRegisterOpBX {
-                    op: ThumbHighRegisterOperation::BxOrBlx,
+                    register_operation: ThumbHighRegisterOperation::BxOrBlx,
                     source_register: 14,
                     destination_register: 0,
                 }
@@ -1999,7 +2007,7 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::HiRegisterOpBX {
-                    op: ThumbHighRegisterOperation::BxOrBlx,
+                    register_operation: ThumbHighRegisterOperation::BxOrBlx,
                     source_register: 14,
                     destination_register: 0,
                 }
@@ -2335,9 +2343,9 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::AluOp {
-                    op: ThumbModeAluInstruction::Mul,
-                    rs: 4,
-                    rd: 0,
+                    alu_operation: ThumbModeAluInstruction::Mul,
+                    source_register: 4,
+                    destination_register: 0,
                 }
             );
 
@@ -2359,9 +2367,9 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::AluOp {
-                    op: ThumbModeAluInstruction::And,
-                    rs: 3,
-                    rd: 0,
+                    alu_operation: ThumbModeAluInstruction::And,
+                    source_register: 3,
+                    destination_register: 0,
                 }
             );
 
@@ -2383,9 +2391,9 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::AluOp {
-                    op: ThumbModeAluInstruction::Tst,
-                    rs: 7,
-                    rd: 6,
+                    alu_operation: ThumbModeAluInstruction::Tst,
+                    source_register: 7,
+                    destination_register: 6,
                 }
             );
 
@@ -2402,9 +2410,9 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::AluOp {
-                    op: ThumbModeAluInstruction::Orr,
-                    rs: 5,
-                    rd: 2,
+                    alu_operation: ThumbModeAluInstruction::Orr,
+                    source_register: 5,
+                    destination_register: 2,
                 }
             );
 
@@ -2426,9 +2434,9 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ThumbModeInstruction::AluOp {
-                    op: ThumbModeAluInstruction::Mvn,
-                    rs: 1,
-                    rd: 7,
+                    alu_operation: ThumbModeAluInstruction::Mvn,
+                    source_register: 1,
+                    destination_register: 7,
                 }
             );
 
@@ -2522,11 +2530,11 @@ mod tests {
             Test {
                 opcode: 0b0101_0_0_1_000_001_010,
                 expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
-                    h_flag: false,
+                    h: false,
                     sign_extend_flag: false,
-                    r_offset: 0,
-                    r_base: 1,
-                    r_destination: 2,
+                    offset_register: 0,
+                    base_register: 1,
+                    destination_register: 2,
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
@@ -2540,11 +2548,11 @@ mod tests {
             Test {
                 opcode: 0b0101_1_0_1_000_001_010,
                 expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
-                    h_flag: true,
+                    h: true,
                     sign_extend_flag: false,
-                    r_offset: 0,
-                    r_base: 1,
-                    r_destination: 2,
+                    offset_register: 0,
+                    base_register: 1,
+                    destination_register: 2,
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
@@ -2558,11 +2566,11 @@ mod tests {
             Test {
                 opcode: 0b0101_0_1_1_000_001_010,
                 expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
-                    h_flag: false,
+                    h: false,
                     sign_extend_flag: true,
-                    r_offset: 0,
-                    r_base: 1,
-                    r_destination: 2,
+                    offset_register: 0,
+                    base_register: 1,
+                    destination_register: 2,
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
@@ -2576,11 +2584,11 @@ mod tests {
             Test {
                 opcode: 0b0101_1_1_1_000_001_010,
                 expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
-                    h_flag: true,
+                    h: true,
                     sign_extend_flag: true,
-                    r_offset: 0,
-                    r_base: 1,
-                    r_destination: 2,
+                    offset_register: 0,
+                    base_register: 1,
+                    destination_register: 2,
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
@@ -2621,7 +2629,7 @@ mod tests {
                 opcode: 0b1010_1_001_00000010,
                 expected_decode: ThumbModeInstruction::LoadAddress {
                     sp: true,
-                    r_destination: 1,
+                    destination_register: 1,
                     offset: 8,
                 },
                 prepare_fn: Box::new(|cpu| {
@@ -2636,7 +2644,7 @@ mod tests {
                 opcode: 0b1010_0_001_00000010,
                 expected_decode: ThumbModeInstruction::LoadAddress {
                     sp: false,
-                    r_destination: 1,
+                    destination_register: 1,
                     offset: 8,
                 },
                 prepare_fn: Box::new(|cpu| {

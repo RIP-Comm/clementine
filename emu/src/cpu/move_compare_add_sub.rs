@@ -1,69 +1,5 @@
-use std::fmt;
-
 use super::arm7tdmi::{Arm7tdmi, SIZE_OF_THUMB_INSTRUCTION};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ThumbHighRegisterOperation {
-    Add,
-    Cmp,
-    Mov,
-    BxOrBlx,
-}
-
-impl fmt::Display for ThumbHighRegisterOperation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Mov => f.write_str("MOV"),
-            Self::Cmp => f.write_str("CMP"),
-            Self::Add => f.write_str("ADD"),
-            Self::BxOrBlx => f.write_str("BX/BLX"),
-        }
-    }
-}
-
-impl From<u16> for ThumbHighRegisterOperation {
-    fn from(op: u16) -> Self {
-        match op {
-            0 => Self::Add,
-            1 => Self::Cmp,
-            2 => Self::Mov,
-            3 => Self::BxOrBlx,
-            _ => unreachable!(),
-        }
-    }
-}
-
-/// Operation to perform in the Move Compare Add Subtract Immediate instruction.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Operation {
-    Mov,
-    Cmp,
-    Add,
-    Sub,
-}
-
-impl fmt::Display for Operation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Mov => f.write_str("MOV"),
-            Self::Cmp => f.write_str("CMP"),
-            Self::Add => f.write_str("ADD"),
-            Self::Sub => f.write_str("SUB"),
-        }
-    }
-}
-
-impl From<u16> for Operation {
-    fn from(op: u16) -> Self {
-        match op {
-            0 => Self::Mov,
-            1 => Self::Cmp,
-            2 => Self::Add,
-            3 => Self::Sub,
-            _ => unreachable!(),
-        }
-    }
-}
+use crate::cpu::flags::Operation;
 
 impl Arm7tdmi {
     pub fn move_compare_add_sub_imm(
@@ -113,10 +49,10 @@ impl Arm7tdmi {
 
 #[cfg(test)]
 mod tests {
+    use crate::cpu::arm7tdmi::Arm7tdmi;
     use crate::cpu::move_compare_add_sub::Operation;
-    use crate::cpu::{
-        arm7tdmi::Arm7tdmi, instruction::ThumbModeInstruction, opcode::ThumbModeOpcode,
-    };
+    use crate::cpu::thumb::instruction::ThumbModeInstruction;
+    use crate::cpu::thumb::mode::ThumbModeOpcode;
 
     #[test]
     fn check_move_compare_add_sub_imm() {
@@ -126,8 +62,8 @@ mod tests {
         assert_eq!(
             op_code.instruction,
             ThumbModeInstruction::MoveCompareAddSubtractImm {
-                op: Operation::Mov,
-                r_destination: 0,
+                operation: Operation::Mov,
+                destination_register: 0,
                 offset: 0,
             }
         );

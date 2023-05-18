@@ -1,3 +1,7 @@
+pub const REG_SP: usize = 0xD;
+pub const REG_LR: usize = 0xE;
+pub const REG_PROGRAM_COUNTER: u32 = 0xF;
+
 /// Contains the 16 registers for the CPU, latest (R15) is special because
 /// is the program counter.
 #[derive(Default)]

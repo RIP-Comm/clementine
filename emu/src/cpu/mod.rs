@@ -11,3 +11,4 @@ mod psr;
 mod register_bank;
 mod registers;
 mod single_data_transfer;
+mod thumb;
