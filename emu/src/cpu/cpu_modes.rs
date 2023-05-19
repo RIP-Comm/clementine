@@ -44,3 +44,31 @@ impl TryFrom<u32> for Mode {
         }
     }
 }
+
+/// Represents the CPU state (ARM/THUMB).
+pub enum CpuState {
+    /// Which operates with 16-bit, halfword-aligned THUMB instructions.
+    /// In this state, the PC uses bit 1 to select between alternate halfwords.
+    Thumb,
+
+    /// Which executes 32-bit, word-aligned ARM instructions.
+    Arm,
+}
+
+impl From<CpuState> for bool {
+    fn from(state: CpuState) -> Self {
+        match state {
+            CpuState::Arm => false,
+            CpuState::Thumb => true,
+        }
+    }
+}
+
+impl From<bool> for CpuState {
+    fn from(state: bool) -> Self {
+        match state {
+            true => Self::Thumb,
+            false => Self::Arm,
+        }
+    }
+}

@@ -1,17 +1,70 @@
-use std::fmt::{Display, Formatter};
-
-use logger::log;
-
 use crate::bitwise::Bits;
-use crate::cpu::alu_instruction::ArmModeAluInstruction;
+use crate::cpu::arm::alu_instruction::ArmModeAluInstruction;
+use crate::cpu::condition::Condition;
 use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
 use crate::cpu::flags::{
     Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind, ShiftKind,
 };
-use crate::cpu::single_data_transfer::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
+use logger::log;
 
-use super::condition::Condition;
+/// Possible operation on transfer data.
+#[derive(Debug, Eq, PartialEq)]
+pub enum SingleDataTransferKind {
+    /// Load from memory into a register.
+    Ldr,
 
+    /// Store from a register into memory.
+    Str,
+    Pld,
+}
+
+impl From<u32> for SingleDataTransferKind {
+    fn from(op_code: u32) -> Self {
+        let must_for_pld = op_code.are_bits_on(28..=31);
+        if op_code.get_bit(20) {
+            if must_for_pld {
+                Self::Pld
+            } else {
+                Self::Ldr
+            }
+        } else {
+            Self::Str
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SingleDataTransferOffsetInfo {
+    Immediate {
+        offset: u32,
+    },
+    RegisterImmediate {
+        shift_amount: u32,
+        shift_kind: ShiftKind,
+        reg_offset: u32,
+    },
+}
+
+impl std::fmt::Display for SingleDataTransferOffsetInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Immediate { offset } => {
+                f.write_str("#")?;
+                // FIXME: should we put the sign?
+                write!(f, "{offset}")?;
+            }
+            Self::RegisterImmediate {
+                shift_amount,
+                shift_kind,
+                reg_offset,
+            } => {
+                write!(f, "{reg_offset}, {shift_kind} #{shift_amount}")?;
+            }
+        };
+
+        Ok(())
+    }
+}
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArmModeInstruction {
     DataProcessing {
@@ -72,7 +125,7 @@ pub enum ArmModeInstruction {
         offset: u32,
     },
     CoprocessorDataOperation,
-    CoprocessorRegisterTrasfer,
+    CoprocessorRegisterTransfer,
     SoftwareInterrupt,
 }
 
@@ -226,7 +279,7 @@ impl ArmModeInstruction {
                 format!("{op}{condition}{long_transfer} p{cp_number},{crd},{address:08X}")
             }
             Self::CoprocessorDataOperation => "".to_owned(),
-            Self::CoprocessorRegisterTrasfer => "".to_owned(),
+            Self::CoprocessorRegisterTransfer => "".to_owned(),
             Self::SoftwareInterrupt => "".to_owned(),
         }
     }
@@ -273,7 +326,7 @@ impl From<u32> for ArmModeInstruction {
         } else if op_code.get_bits(24..=27) == 0b1111 {
             SoftwareInterrupt
         } else if op_code.get_bits(24..=27) == 0b1110 && op_code.get_bit(4) {
-            CoprocessorRegisterTrasfer
+            CoprocessorRegisterTransfer
         } else if op_code.get_bits(24..=27) == 0b1110 && !op_code.get_bit(4) {
             CoprocessorDataOperation
         } else if op_code.get_bits(25..=27) == 0b110 {
@@ -415,8 +468,8 @@ impl From<u32> for ArmModeInstruction {
     }
 }
 
-impl Display for ArmModeInstruction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl std::fmt::Display for ArmModeInstruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
 }
@@ -424,9 +477,9 @@ impl Display for ArmModeInstruction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::arm::mode::ArmModeOpcode;
     use crate::cpu::arm7tdmi::Arm7tdmi;
     use crate::cpu::flags::ShiftKind;
-    use crate::cpu::opcode::ArmModeOpcode;
     use pretty_assertions::assert_eq;
 
     #[test]

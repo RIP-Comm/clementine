@@ -5,12 +5,12 @@ use std::sync::{Arc, Mutex};
 use logger::log;
 
 use crate::bitwise::Bits;
-use crate::cpu::alu_instruction;
+use crate::cpu::arm::alu_instruction::shift;
+use crate::cpu::arm::instructions::ArmModeInstruction;
+use crate::cpu::arm::mode::ArmModeOpcode;
 use crate::cpu::condition::Condition;
-use crate::cpu::cpu_modes::Mode;
+use crate::cpu::cpu_modes::{CpuState, Mode};
 use crate::cpu::flags::ShiftKind;
-use crate::cpu::instruction::ArmModeInstruction;
-use crate::cpu::opcode::ArmModeOpcode;
 use crate::cpu::psr::Psr;
 use crate::cpu::register_bank::RegisterBank;
 use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
@@ -21,7 +21,6 @@ use crate::memory::internal_memory::InternalMemory;
 use crate::memory::io_device::IoDevice;
 
 use super::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
-use super::psr::CpuState;
 use super::registers::Registers;
 
 pub const SIZE_OF_ARM_INSTRUCTION: u32 = 4;
@@ -188,7 +187,7 @@ impl Arm7tdmi {
                     offset,
                 ),
                 ArmModeInstruction::CoprocessorDataOperation => todo!(),
-                ArmModeInstruction::CoprocessorRegisterTrasfer => todo!(),
+                ArmModeInstruction::CoprocessorRegisterTransfer => todo!(),
                 ArmModeInstruction::SoftwareInterrupt => todo!(),
             }
         };
@@ -1275,7 +1274,7 @@ impl Arm7tdmi {
         rd: u16,
     ) -> Option<u32> {
         let source = self.registers.register_at(rs.try_into().unwrap());
-        let r = alu_instruction::shift(op, offset5.into(), source, self.cpsr.carry_flag());
+        let r = shift(op, offset5.into(), source, self.cpsr.carry_flag());
         self.registers
             .set_register_at(rd.try_into().unwrap(), r.result);
 
@@ -1306,9 +1305,8 @@ impl From<u8> for HalfwordTransferType {
 
 #[cfg(test)]
 mod tests {
+    use crate::cpu::arm::instructions::ArmModeInstruction::{Branch, BranchAndExchange};
     use crate::cpu::condition::Condition;
-    use crate::cpu::instruction::ArmModeInstruction;
-    use crate::cpu::instruction::ArmModeInstruction::{Branch, BranchAndExchange};
     use crate::cpu::registers::REG_SP;
     use crate::cpu::thumb::instruction::ThumbModeInstruction;
     use pretty_assertions::assert_eq;

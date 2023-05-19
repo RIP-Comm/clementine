@@ -1,68 +1,10 @@
-use crate::cpu::alu_instruction::shift;
-use crate::cpu::flags::{Indexing, Offsetting, ShiftKind};
+use crate::cpu::arm::alu_instruction::shift;
+use crate::cpu::arm::instructions::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
+use crate::cpu::flags::{Indexing, Offsetting};
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::{bitwise::Bits, cpu::arm7tdmi::Arm7tdmi, memory::io_device::IoDevice};
 
 use super::{arm7tdmi::SIZE_OF_ARM_INSTRUCTION, flags::ReadWriteKind};
-
-/// Possible operation on transfer data.
-#[derive(Debug, Eq, PartialEq)]
-pub enum SingleDataTransferKind {
-    /// Load from memory into a register.
-    Ldr,
-
-    /// Store from a register into memory.
-    Str,
-    Pld,
-}
-
-impl From<u32> for SingleDataTransferKind {
-    fn from(op_code: u32) -> Self {
-        let must_for_pld = op_code.are_bits_on(28..=31);
-        if op_code.get_bit(20) {
-            if must_for_pld {
-                Self::Pld
-            } else {
-                Self::Ldr
-            }
-        } else {
-            Self::Str
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SingleDataTransferOffsetInfo {
-    Immediate {
-        offset: u32,
-    },
-    RegisterImmediate {
-        shift_amount: u32,
-        shift_kind: ShiftKind,
-        reg_offset: u32,
-    },
-}
-
-impl std::fmt::Display for SingleDataTransferOffsetInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Immediate { offset } => {
-                f.write_str("#")?;
-                // FIXME: should we put the sign?
-                write!(f, "{offset}")?;
-            }
-            Self::RegisterImmediate {
-                shift_amount,
-                shift_kind,
-                reg_offset,
-            } => {
-                write!(f, "{reg_offset}, {shift_kind} #{shift_amount}")?;
-            }
-        };
-
-        Ok(())
-    }
-}
 
 impl Arm7tdmi {
     #[allow(clippy::too_many_arguments)]
@@ -176,9 +118,9 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::arm::instructions::ArmModeInstruction::SingleDataTransfer;
+    use crate::cpu::arm::mode::ArmModeOpcode;
     use crate::cpu::condition::Condition;
-    use crate::cpu::instruction::ArmModeInstruction::SingleDataTransfer;
-    use crate::cpu::opcode::ArmModeOpcode;
     use pretty_assertions::assert_eq;
 
     #[test]
