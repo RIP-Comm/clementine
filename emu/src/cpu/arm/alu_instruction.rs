@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use crate::bitwise::Bits;
 use crate::cpu::flags::ShiftKind;
 
@@ -23,7 +21,7 @@ pub enum ArmModeAluInstruction {
     Mvn = 0xF,
 }
 
-impl Display for ArmModeAluInstruction {
+impl std::fmt::Display for ArmModeAluInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::And => f.write_str("AND"),
@@ -157,6 +155,96 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
             },
         },
         ShiftKind::Ror => todo!(),
+    }
+}
+
+/// Represents the kind of PSR operation
+pub enum PsrOpKind {
+    /// MSR operation (transfer PSR contents to a register)
+    Mrs,
+    /// MSR operation (transfer register contents to PSR)
+    Msr,
+    /// MSR flags operation (transfer register contents or immediate value to PSR flag bits only)
+    MsrFlg,
+}
+
+impl From<u32> for PsrOpKind {
+    fn from(op_code: u32) -> Self {
+        if op_code.get_bits(23..=27) == 0b00010
+            && op_code.get_bits(16..=21) == 0b001111
+            && op_code.get_bits(0..=11) == 0b0000_0000_0000
+        {
+            Self::Mrs
+        } else if op_code.get_bits(23..=27) == 0b00010
+            && op_code.get_bits(12..=21) == 0b10_1001_1111
+            && op_code.get_bits(4..=11) == 0b0000_0000
+        {
+            Self::Msr
+        } else if op_code.get_bits(26..=27) == 0b00
+            && op_code.get_bits(23..=24) == 0b10
+            && op_code.get_bits(12..=21) == 0b10_1000_1111
+        {
+            Self::MsrFlg
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ShiftOperator {
+    Immediate(u32),
+    Register(u32),
+}
+
+impl std::fmt::Display for ShiftOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Immediate(value) => write!(f, "#{value}"),
+            Self::Register(register) => write!(f, "R{register}"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AluSecondOperandInfo {
+    Register {
+        shift_op: ShiftOperator,
+        shift_kind: ShiftKind,
+        register: u32,
+    },
+    Immediate {
+        base: u32,
+        shift: u32,
+    },
+}
+
+impl std::fmt::Display for AluSecondOperandInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Self::Register {
+                shift_op,
+                shift_kind,
+                register,
+            } => {
+                if let ShiftOperator::Immediate(shift) = shift_op {
+                    if shift == 0 {
+                        return if shift_kind == ShiftKind::Lsl {
+                            write!(f, "R{register}")
+                        } else if shift_kind == ShiftKind::Ror {
+                            write!(f, "R{register}, RRX")
+                        } else {
+                            write!(f, "R{register}, {shift_kind} #32")
+                        };
+                    }
+                }
+
+                write!(f, "R{register}, {shift_kind} {shift_op}")
+            }
+            Self::Immediate { base, shift } => {
+                write!(f, "#{}", base.rotate_right(shift))
+            }
+        }
     }
 }
 

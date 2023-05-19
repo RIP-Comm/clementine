@@ -1,84 +1,212 @@
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::{
-    shift, AluInstructionKind, ArithmeticOpResult, ArmModeAluInstruction, Kind,
+    shift, AluInstructionKind, ArithmeticOpResult, ArmModeAluInstruction, Kind, PsrOpKind,
 };
+use crate::cpu::arm::instructions::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
 use crate::cpu::arm::mode::ArmModeOpcode;
-use crate::cpu::arm7tdmi::Arm7tdmi;
+use crate::cpu::arm7tdmi::{Arm7tdmi, HalfwordTransferType, SIZE_OF_ARM_INSTRUCTION};
+use crate::cpu::cpu_modes::Mode;
+use crate::cpu::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
+use crate::cpu::psr::CpuState;
+use crate::cpu::registers::REG_PROGRAM_COUNTER;
+use crate::memory::io_device::IoDevice;
 use logger::log;
 
-use crate::cpu::flags::ShiftKind;
-use crate::cpu::registers::REG_PROGRAM_COUNTER;
+impl Arm7tdmi {
+    pub fn data_processing(
+        &mut self,
+        op_code: ArmModeOpcode, // FIXME: This parameter will be remove after change `psr_transfer`.
+        alu_instruction: ArmModeAluInstruction,
+        set_conditions: bool,
+        op_kind: OperandKind,
+        rn: u32,
+        destination: u32,
+    ) -> Option<u32> {
+        let offset = match rn {
+            // if Rn is R15(PC) we need to offset its value because of
+            // instruction pipelining
+            REG_PROGRAM_COUNTER => self.get_pc_offset_alu(op_kind, op_code.get_bit(4)),
+            _ => 0,
+        };
+        let op1 = self.registers.register_at(rn.try_into().unwrap()) + offset;
 
-use super::{arm7tdmi::SIZE_OF_ARM_INSTRUCTION, cpu_modes::Mode, flags::OperandKind};
+        let op2 = self.get_operand(
+            alu_instruction,
+            set_conditions,
+            op_kind,
+            op_code.get_bits(0..=11),
+        );
+        // S = 1 and Rd = 0xF should not be allowed in User Mode.
+        // TODO: When in other modes it should load SPSR_<current_mode> into CPSR
+        if set_conditions && destination == REG_PROGRAM_COUNTER {
+            unimplemented!("Implement cases when S=1 and Rd=0xF");
+        }
 
-/// Represents the kind of PSR operation
-enum PsrOpKind {
-    /// MSR operation (transfer PSR contents to a register)
-    Mrs,
-    /// MSR operation (transfer register contents to PSR)
-    Msr,
-    /// MSR flags operation (transfer register contents or immediate value to PSR flag bits only)
-    MsrFlg,
-}
+        use ArmModeAluInstruction::*;
+        match alu_instruction {
+            And => self.and(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Eor => self.eor(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Sub => self.sub(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Rsb => self.rsb(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Add => self.add(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Adc => self.adc(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Sbc => self.sbc(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Rsc => self.rsc(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Tst => {
+                if set_conditions {
+                    self.tst(op1, op2)
+                } else {
+                    self.psr_transfer(op_code);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ShiftOperator {
-    Immediate(u32),
-    Register(u32),
-}
+                    return Some(SIZE_OF_ARM_INSTRUCTION);
+                }
+            }
+            Teq => {
+                if set_conditions {
+                    self.teq(op1, op2)
+                } else {
+                    self.psr_transfer(op_code);
 
-impl std::fmt::Display for ShiftOperator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Immediate(value) => write!(f, "#{value}"),
-            Self::Register(register) => write!(f, "R{register}"),
+                    return Some(SIZE_OF_ARM_INSTRUCTION);
+                }
+            }
+            Cmp => {
+                if set_conditions {
+                    self.cmp(op1, op2)
+                } else {
+                    self.psr_transfer(op_code);
+
+                    return Some(SIZE_OF_ARM_INSTRUCTION);
+                }
+            }
+            Cmn => {
+                if set_conditions {
+                    self.cmn(op1, op2)
+                } else {
+                    self.psr_transfer(op_code);
+
+                    return Some(SIZE_OF_ARM_INSTRUCTION);
+                }
+            }
+            Orr => self.orr(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Mov => self.mov(destination.try_into().unwrap(), op2, set_conditions),
+            Bic => self.bic(destination.try_into().unwrap(), op1, op2, set_conditions),
+            Mvn => self.mvn(destination.try_into().unwrap(), op2, set_conditions),
+        };
+
+        // If is a "test" ALU instruction we ever advance PC.
+        match alu_instruction {
+            Teq | Cmn | Cmp | Tst => Some(SIZE_OF_ARM_INSTRUCTION),
+            _ if destination != REG_PROGRAM_COUNTER => Some(SIZE_OF_ARM_INSTRUCTION),
+            _ => None,
         }
     }
-}
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AluSecondOperandInfo {
-    Register {
-        shift_op: ShiftOperator,
-        shift_kind: ShiftKind,
-        register: u32,
-    },
-    Immediate {
-        base: u32,
-        shift: u32,
-    },
-}
+    fn psr_transfer(&mut self, op_code: ArmModeOpcode) {
+        let psr_kind = PsrOpKind::from(op_code.raw);
 
-impl std::fmt::Display for AluSecondOperandInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Self::Register {
-                shift_op,
-                shift_kind,
-                register,
-            } => {
-                if let ShiftOperator::Immediate(shift) = shift_op {
-                    if shift == 0 {
-                        if shift_kind == ShiftKind::Lsl {
-                            return write!(f, "R{register}");
-                        } else if shift_kind == ShiftKind::Ror {
-                            return write!(f, "R{register}, RRX");
-                        } else {
-                            return write!(f, "R{register}, {shift_kind} #32");
+        // P = 0 means CPSR, P = 1 means SPSR_mode
+        let p = op_code.get_bit(22);
+
+        match psr_kind {
+            PsrOpKind::Mrs => {
+                let rd = op_code.get_bits(12..=15);
+
+                if rd == REG_PROGRAM_COUNTER {
+                    panic!("PSR transfer should not use R15 as source/destination");
+                }
+
+                let psr = match p {
+                    false => self.cpsr,
+                    true => self.get_spsr(),
+                };
+
+                self.registers
+                    .set_register_at(rd.try_into().unwrap(), psr.into());
+            }
+            PsrOpKind::Msr => {
+                let rm = op_code.get_bits(0..=3);
+                if rm == REG_PROGRAM_COUNTER {
+                    panic!("PSR transfer should not use R15 as source/destination");
+                }
+
+                let rm = self.registers.register_at(rm.try_into().unwrap());
+
+                let current_mode = self.cpsr.mode();
+
+                if matches!(self.cpsr.mode(), Mode::System | Mode::User) && p {
+                    panic!("Can't access SPSR in System/User mode")
+                }
+
+                {
+                    let psr = match p {
+                        false => &mut self.cpsr,
+                        true => &mut self.spsr,
+                    };
+                    // Setting flags
+                    psr.set_sign_flag(rm.get_bit(31));
+                    psr.set_zero_flag(rm.get_bit(30));
+                    psr.set_carry_flag(rm.get_bit(29));
+                    psr.set_overflow_flag(rm.get_bit(28));
+
+                    // In User mode we can only set the flags so we don't touch the other bits
+                    if current_mode != Mode::User {
+                        psr.set_irq_disable(rm.get_bit(7));
+                        psr.set_fiq_disable(rm.get_bit(6));
+
+                        // Documentation says that software should never touch T (state) bit
+                        // Should we set it? I guess software are written in order to not switch this bit
+                        // but who knows?
+                        if psr.state_bit() != rm.get_bit(5) {
+                            log("WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.")
                         }
+                        psr.set_state_bit(rm.get_bit(5));
                     }
                 }
 
-                write!(f, "R{register}, {shift_kind} {shift_op}")
+                // If we're modifying CPSR we need to be sure we're not in User mode.
+                // Since in User mode we can only modify flags.
+                if !p && self.cpsr.mode() != Mode::User {
+                    self.swap_mode(rm.get_bits(0..=4).try_into().unwrap());
+                } else if p {
+                    // If we're modifying SPSR we're sure we're not in System|User (checked before)
+                    // We use `set_mode_raw` since the BIOS sometimes writes 0 in the SPSR.
+                    self.spsr.set_mode_raw(rm.get_bits(0..=4));
+                }
             }
-            Self::Immediate { base, shift } => {
-                write!(f, "#{}", base.rotate_right(shift))
+            PsrOpKind::MsrFlg => {
+                // Immediate: 0 register, 1 immediate
+                let i: OperandKind = op_code.get_bit(25).into();
+
+                let op = match i {
+                    OperandKind::Register => {
+                        let rm = op_code.get_bits(0..=3);
+                        self.registers.register_at(rm.try_into().unwrap())
+                    }
+                    OperandKind::Immediate => {
+                        let imm = op_code.get_bits(0..=7);
+                        let rotate = op_code.get_bits(8..=11);
+
+                        // FIXME: Is the *2 correct? Documentation doesn't specify it but
+                        // GBATEK says: 11-8    Shift applied to Imm   (ROR in steps of two 0-30)
+                        imm.rotate_right(rotate * 2)
+                    }
+                };
+
+                let psr = match p {
+                    false => &mut self.cpsr,
+                    true => &mut self.spsr,
+                };
+
+                // Setting flags
+                psr.set_sign_flag(op.get_bit(31));
+                psr.set_zero_flag(op.get_bit(30));
+                psr.set_carry_flag(op.get_bit(29));
+                psr.set_overflow_flag(op.get_bit(28));
             }
         }
     }
-}
 
-impl Arm7tdmi {
     pub fn shift_operand(
         &mut self,
         alu_instruction: ArmModeAluInstruction,
@@ -216,217 +344,6 @@ impl Arm7tdmi {
             12
         } else {
             8
-        }
-    }
-
-    fn psr_transfer(&mut self, op_code: ArmModeOpcode) {
-        let psr_kind = if op_code.get_bits(23..=27) == 0b00010
-            && op_code.get_bits(16..=21) == 0b001111
-            && op_code.get_bits(0..=11) == 0b0000_0000_0000
-        {
-            PsrOpKind::Mrs
-        } else if op_code.get_bits(23..=27) == 0b00010
-            && op_code.get_bits(12..=21) == 0b10_1001_1111
-            && op_code.get_bits(4..=11) == 0b0000_0000
-        {
-            PsrOpKind::Msr
-        } else if op_code.get_bits(26..=27) == 0b00
-            && op_code.get_bits(23..=24) == 0b10
-            && op_code.get_bits(12..=21) == 0b10_1000_1111
-        {
-            PsrOpKind::MsrFlg
-        } else {
-            unreachable!()
-        };
-
-        // P = 0 means CPSR, P = 1 means SPSR_mode
-        let p = op_code.get_bit(22);
-
-        match psr_kind {
-            PsrOpKind::Mrs => {
-                let rd = op_code.get_bits(12..=15);
-
-                if rd == REG_PROGRAM_COUNTER {
-                    panic!("PSR transfer should not use R15 as source/destination");
-                }
-
-                let psr = match p {
-                    false => self.cpsr,
-                    true => self.get_spsr(),
-                };
-
-                self.registers
-                    .set_register_at(rd.try_into().unwrap(), psr.into());
-            }
-            PsrOpKind::Msr => {
-                let rm = op_code.get_bits(0..=3);
-                if rm == REG_PROGRAM_COUNTER {
-                    panic!("PSR transfer should not use R15 as source/destination");
-                }
-
-                let rm = self.registers.register_at(rm.try_into().unwrap());
-
-                let current_mode = self.cpsr.mode();
-
-                if matches!(self.cpsr.mode(), Mode::System | Mode::User) && p {
-                    panic!("Can't access SPSR in System/User mode")
-                }
-
-                {
-                    let psr = match p {
-                        false => &mut self.cpsr,
-                        true => &mut self.spsr,
-                    };
-                    // Setting flags
-                    psr.set_sign_flag(rm.get_bit(31));
-                    psr.set_zero_flag(rm.get_bit(30));
-                    psr.set_carry_flag(rm.get_bit(29));
-                    psr.set_overflow_flag(rm.get_bit(28));
-
-                    // In User mode we can only set the flags so we don't touch the other bits
-                    if current_mode != Mode::User {
-                        psr.set_irq_disable(rm.get_bit(7));
-                        psr.set_fiq_disable(rm.get_bit(6));
-
-                        // Documentation says that software should never touch T (state) bit
-                        // Should we set it? I guess software are written in order to not switch this bit
-                        // but who knows?
-                        if psr.state_bit() != rm.get_bit(5) {
-                            log("WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.")
-                        }
-                        psr.set_state_bit(rm.get_bit(5));
-                    }
-                }
-
-                // If we're modifying CPSR we need to be sure we're not in User mode.
-                // Since in User mode we can only modify flags.
-                if !p && self.cpsr.mode() != Mode::User {
-                    self.swap_mode(rm.get_bits(0..=4).try_into().unwrap());
-                } else if p {
-                    // If we're modifying SPSR we're sure we're not in System|User (checked before)
-                    // We use `set_mode_raw` since the BIOS sometimes writes 0 in the SPSR.
-                    self.spsr.set_mode_raw(rm.get_bits(0..=4));
-                }
-            }
-            PsrOpKind::MsrFlg => {
-                // Immediate: 0 register, 1 immediate
-                let i: OperandKind = op_code.get_bit(25).into();
-
-                let op = match i {
-                    OperandKind::Register => {
-                        let rm = op_code.get_bits(0..=3);
-                        self.registers.register_at(rm.try_into().unwrap())
-                    }
-                    OperandKind::Immediate => {
-                        let imm = op_code.get_bits(0..=7);
-                        let rotate = op_code.get_bits(8..=11);
-
-                        // FIXME: Is the *2 correct? Documentation doesn't specify it but
-                        // GBATEK says: 11-8    Shift applied to Imm   (ROR in steps of two 0-30)
-                        imm.rotate_right(rotate * 2)
-                    }
-                };
-
-                let psr = match p {
-                    false => &mut self.cpsr,
-                    true => &mut self.spsr,
-                };
-
-                // Setting flags
-                psr.set_sign_flag(op.get_bit(31));
-                psr.set_zero_flag(op.get_bit(30));
-                psr.set_carry_flag(op.get_bit(29));
-                psr.set_overflow_flag(op.get_bit(28));
-            }
-        }
-    }
-
-    pub fn data_processing(
-        &mut self,
-        op_code: ArmModeOpcode, // FIXME: This parameter will be remove after change `psr_transfer`.
-        alu_instruction: ArmModeAluInstruction,
-        set_conditions: bool,
-        op_kind: OperandKind,
-        rn: u32,
-        destination: u32,
-    ) -> Option<u32> {
-        let offset = match rn {
-            // if Rn is R15(PC) we need to offset its value because of
-            // instruction pipelining
-            REG_PROGRAM_COUNTER => self.get_pc_offset_alu(op_kind, op_code.get_bit(4)),
-            _ => 0,
-        };
-        let op1 = self.registers.register_at(rn.try_into().unwrap()) + offset;
-
-        let op2 = self.get_operand(
-            alu_instruction,
-            set_conditions,
-            op_kind,
-            op_code.get_bits(0..=11),
-        );
-        // S = 1 and Rd = 0xF should not be allowed in User Mode.
-        // TODO: When in other modes it should load SPSR_<current_mode> into CPSR
-        if set_conditions && destination == REG_PROGRAM_COUNTER {
-            unimplemented!("Implement cases when S=1 and Rd=0xF");
-        }
-
-        use ArmModeAluInstruction::*;
-        match alu_instruction {
-            And => self.and(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Eor => self.eor(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Sub => self.sub(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Rsb => self.rsb(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Add => self.add(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Adc => self.adc(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Sbc => self.sbc(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Rsc => self.rsc(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Tst => {
-                if set_conditions {
-                    self.tst(op1, op2)
-                } else {
-                    self.psr_transfer(op_code);
-
-                    return Some(SIZE_OF_ARM_INSTRUCTION);
-                }
-            }
-            Teq => {
-                if set_conditions {
-                    self.teq(op1, op2)
-                } else {
-                    self.psr_transfer(op_code);
-
-                    return Some(SIZE_OF_ARM_INSTRUCTION);
-                }
-            }
-            Cmp => {
-                if set_conditions {
-                    self.cmp(op1, op2)
-                } else {
-                    self.psr_transfer(op_code);
-
-                    return Some(SIZE_OF_ARM_INSTRUCTION);
-                }
-            }
-            Cmn => {
-                if set_conditions {
-                    self.cmn(op1, op2)
-                } else {
-                    self.psr_transfer(op_code);
-
-                    return Some(SIZE_OF_ARM_INSTRUCTION);
-                }
-            }
-            Orr => self.orr(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Mov => self.mov(destination.try_into().unwrap(), op2, set_conditions),
-            Bic => self.bic(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Mvn => self.mvn(destination.try_into().unwrap(), op2, set_conditions),
-        };
-
-        // If is a "test" ALU instruction we ever advance PC.
-        match alu_instruction {
-            Teq | Cmn | Cmp | Tst => Some(SIZE_OF_ARM_INSTRUCTION),
-            _ if destination != REG_PROGRAM_COUNTER => Some(SIZE_OF_ARM_INSTRUCTION),
-            _ => None,
         }
     }
 
@@ -640,14 +557,396 @@ impl Arm7tdmi {
         self.cpsr.set_zero_flag(result == 0);
         self.cpsr.set_sign_flag(result.get_bit(31));
     }
+
+    pub fn branch_and_exchange(&mut self, register: usize) -> Option<u32> {
+        let mut rn = self.registers.register_at(register);
+        let state: CpuState = rn.get_bit(0).into();
+        self.cpsr.set_cpu_state(state);
+
+        match self.cpsr.cpu_state() {
+            CpuState::Thumb => rn.set_bit_off(0),
+            CpuState::Arm => {
+                rn.set_bit_off(0);
+                rn.set_bit_off(1);
+            }
+        }
+
+        self.registers.set_program_counter(rn);
+
+        None
+    }
+
+    pub fn half_word_data_transfer(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
+        let indexing: Indexing = op_code.get_bit(24).into();
+        let offsetting: Offsetting = op_code.get_bit(23).into();
+        let write_back = op_code.get_bit(21);
+        let load_store: LoadStoreKind = op_code.get_bit(20).into();
+        let rn_base_register = op_code.get_bits(16..=19);
+        let rd_source_destination_register = op_code.get_bits(12..=15);
+        let transfer_type = HalfwordTransferType::from(op_code.get_bits(5..=6) as u8);
+
+        let operand_kind: OperandKind = op_code.get_bit(22).into();
+
+        let offset = match operand_kind {
+            OperandKind::Immediate => {
+                let immediate_offset_high = op_code.get_bits(8..=11);
+                let immediate_offset_low = op_code.get_bits(0..=3);
+                (immediate_offset_high << 4) | immediate_offset_low
+            }
+            OperandKind::Register => {
+                let rm: usize = op_code.get_bits(0..=3).try_into().unwrap();
+                self.registers.register_at(rm)
+            }
+        };
+
+        let mut address = self
+            .registers
+            .register_at(rn_base_register.try_into().unwrap());
+
+        if rn_base_register == REG_PROGRAM_COUNTER {
+            // prefetching
+            address = address.wrapping_add(8);
+
+            if write_back {
+                panic!("WriteBack should not be specified when using R15 as base register.");
+            }
+
+            if indexing == Indexing::Post {
+                panic!("Post indexing uses write back but we're using R15 as base register.
+                Documentation says that when using R15 as base register WB should not be used. What should we do?");
+            }
+        }
+
+        let effective = match offsetting {
+            Offsetting::Down => address.wrapping_sub(offset),
+            Offsetting::Up => address.wrapping_add(offset),
+        };
+
+        let address: usize = match indexing {
+            Indexing::Pre => effective.try_into().unwrap(),
+            Indexing::Post => address.try_into().unwrap(),
+        };
+
+        let mut mem = self.memory.lock().unwrap();
+
+        match load_store {
+            LoadStoreKind::Store => {
+                let value = if rd_source_destination_register == REG_PROGRAM_COUNTER {
+                    let pc: u32 = self.registers.program_counter().try_into().unwrap();
+                    pc + 12
+                } else {
+                    self.registers
+                        .register_at(rd_source_destination_register as usize)
+                };
+
+                match transfer_type {
+                    HalfwordTransferType::UnsignedHalfwords => {
+                        mem.write_at(address, value.get_bits(0..=7) as u8);
+                        mem.write_at(address + 1, value.get_bits(8..=15) as u8);
+                    }
+                    _ => unreachable!("HS flags can't be != from 01 for STORE (L=0)"),
+                };
+            }
+            LoadStoreKind::Load => match transfer_type {
+                HalfwordTransferType::UnsignedHalfwords => {
+                    let v = mem.read_half_word(address);
+                    self.registers
+                        .set_register_at(rd_source_destination_register as usize, v.into());
+                }
+                HalfwordTransferType::SignedByte => {
+                    let v = mem.read_at(address) as u32;
+                    self.registers.set_register_at(
+                        rd_source_destination_register as usize,
+                        v.sign_extended(8),
+                    );
+                }
+                HalfwordTransferType::SignedHalfwords => {
+                    let v = mem.read_half_word(address) as u32;
+                    self.registers.set_register_at(
+                        rd_source_destination_register as usize,
+                        v.sign_extended(16),
+                    );
+                }
+            },
+        }
+
+        if indexing == Indexing::Post || write_back {
+            self.registers
+                .set_register_at(rn_base_register.try_into().unwrap(), effective);
+        }
+
+        if !(load_store == LoadStoreKind::Load
+            && rd_source_destination_register == REG_PROGRAM_COUNTER)
+        {
+            Some(SIZE_OF_ARM_INSTRUCTION)
+        } else {
+            None
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn single_data_transfer(
+        &mut self,
+        kind: SingleDataTransferKind,
+        quantity: ReadWriteKind,
+        write_back: bool,
+        indexing: Indexing,
+        rd: u32,
+        base_register: u32,
+        offset_info: SingleDataTransferOffsetInfo,
+        offsetting: Offsetting,
+    ) -> Option<u32> {
+        let address = if base_register == REG_PROGRAM_COUNTER {
+            let pc: u32 = self.registers.program_counter().try_into().unwrap();
+            pc + 8_u32
+        } else {
+            self.registers
+                .register_at(base_register.try_into().unwrap())
+        };
+
+        let amount = match offset_info {
+            SingleDataTransferOffsetInfo::Immediate { offset } => offset,
+            SingleDataTransferOffsetInfo::RegisterImmediate {
+                shift_amount,
+                shift_kind,
+                reg_offset,
+            } => {
+                let v = self.registers.register_at(reg_offset.try_into().unwrap());
+                let r = shift(shift_kind, shift_amount, v, self.cpsr.carry_flag());
+                r.result
+            }
+        };
+
+        let address: usize = match offsetting {
+            Offsetting::Down => address.wrapping_sub(amount).try_into().unwrap(),
+            Offsetting::Up => address.wrapping_add(amount).try_into().unwrap(),
+        };
+
+        let v = match indexing {
+            Indexing::Post => {
+                todo!()
+            }
+            Indexing::Pre => {
+                if write_back {
+                    todo!()
+                }
+                (address, write_back)
+            }
+        };
+
+        match kind {
+            SingleDataTransferKind::Ldr => match quantity {
+                ReadWriteKind::Byte => {
+                    let value = self.memory.lock().unwrap().read_at(v.0) as u32;
+                    self.registers
+                        .set_register_at(rd.try_into().unwrap(), value)
+                }
+                ReadWriteKind::Word => {
+                    let mem = self.memory.lock().unwrap();
+                    let part_0: u32 = mem.read_at(address).try_into().unwrap();
+                    let part_1: u32 = mem.read_at(address + 1).try_into().unwrap();
+                    let part_2: u32 = mem.read_at(address + 2).try_into().unwrap();
+                    let part_3: u32 = mem.read_at(address + 3).try_into().unwrap();
+                    drop(mem);
+                    let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
+                    self.registers.set_register_at(rd.try_into().unwrap(), v);
+                }
+            },
+            SingleDataTransferKind::Str => match quantity {
+                ReadWriteKind::Byte => self.memory.lock().unwrap().write_at(address, rd as u8),
+                ReadWriteKind::Word => {
+                    let mut v = self.registers.register_at(rd.try_into().unwrap());
+
+                    // If R15 we get the value of the current instruction + 12
+                    if rd == REG_PROGRAM_COUNTER {
+                        v += 12;
+                    }
+
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .write_at(address, v.get_bits(0..=7) as u8);
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .write_at(address + 1, v.get_bits(8..=15) as u8);
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .write_at(address + 2, v.get_bits(16..=23) as u8);
+                    self.memory
+                        .lock()
+                        .unwrap()
+                        .write_at(address + 3, v.get_bits(24..=31) as u8);
+                }
+            },
+            _ => todo!("implement single data transfer operation"),
+        }
+
+        // If LDR and Rd == R15 we don't increase the PC
+        if !(kind == SingleDataTransferKind::Ldr && rd == REG_PROGRAM_COUNTER) {
+            Some(SIZE_OF_ARM_INSTRUCTION)
+        } else {
+            None
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn block_data_transfer(
+        &mut self,
+        indexing: Indexing,
+        offsetting: Offsetting,
+        load_psr: bool,
+        write_back: bool,
+        load_store: LoadStoreKind,
+        rn: u32,
+        reg_list: u32,
+    ) -> Option<u32> {
+        let base_register = rn.try_into().unwrap();
+        let memory_base = self.registers.register_at(base_register);
+        let mut address = memory_base.try_into().unwrap();
+
+        if load_psr {
+            unimplemented!();
+        }
+
+        let transfer = match load_store {
+            LoadStoreKind::Store => {
+                |arm: &mut Self, address: usize, reg_source: usize| {
+                    let mut value = arm.registers.register_at(reg_source);
+
+                    // If R15 we get the value of the current instruction + 12
+                    if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
+                        value += 12;
+                    }
+                    let mut memory = arm.memory.lock().unwrap();
+
+                    memory.write_at(address, value.get_bits(0..=7) as u8);
+                    memory.write_at(address + 1, value.get_bits(8..=15) as u8);
+                    memory.write_at(address + 2, value.get_bits(16..=23) as u8);
+                    memory.write_at(address + 3, value.get_bits(24..=31) as u8);
+                }
+            }
+            LoadStoreKind::Load => |arm: &mut Self, address: usize, reg_destination: usize| {
+                let memory = arm.memory.lock().unwrap();
+                let part_0: u32 = memory.read_at(address).try_into().unwrap();
+                let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
+                let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
+                let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
+                drop(memory);
+                let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
+                arm.registers.set_register_at(reg_destination, v);
+            },
+        };
+
+        self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
+
+        if write_back {
+            self.registers
+                .set_register_at(base_register, address.try_into().unwrap());
+        };
+
+        // If LDM and R15 is in register list we don't advance PC
+        if !(load_store == LoadStoreKind::Load && reg_list.is_bit_on(15)) {
+            Some(SIZE_OF_ARM_INSTRUCTION)
+        } else {
+            None
+        }
+    }
+
+    fn exec_data_transfer<F>(
+        &mut self,
+        reg_list: u32,
+        indexing: Indexing,
+        address: &mut usize,
+        offsetting: Offsetting,
+        transfer: F,
+    ) where
+        F: Fn(&mut Self, usize, usize),
+    {
+        let alignment = 4; // Since are word, the alignment is 4.
+
+        let change_address = |address: usize| match offsetting {
+            Offsetting::Down => address.wrapping_sub(alignment),
+            Offsetting::Up => address.wrapping_add(alignment),
+        };
+
+        // If we are decreasing we still want to store the lowest reg to the lowest
+        // memory address. For this reason we reverse the loop order.
+        let range_registers: Box<dyn Iterator<Item = u8>> = match offsetting {
+            Offsetting::Down => Box::new((0..=15).rev()),
+            Offsetting::Up => Box::new(0..=15),
+        };
+
+        for reg_source in range_registers {
+            if reg_list.is_bit_on(reg_source) {
+                if indexing == Indexing::Pre {
+                    *address = change_address(*address);
+                }
+
+                transfer(self, *address, reg_source.into());
+
+                if indexing == Indexing::Post {
+                    *address = change_address(*address);
+                }
+            }
+        }
+    }
+
+    pub fn branch(&mut self, is_link: bool, offset: u32) -> Option<u32> {
+        let offset = offset.sign_extended(26) as i32;
+        let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
+        if is_link {
+            self.registers
+                .set_register_at(14, old_pc.wrapping_add(SIZE_OF_ARM_INSTRUCTION));
+        }
+
+        // 8 is for the prefetch
+        let new_pc = self.registers.program_counter() as i32 + offset + 8;
+        self.registers.set_program_counter(new_pc as u32);
+
+        // Never advance PC after B
+        None
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn coprocessor_data_transfer(
+        &mut self,
+        indexing: Indexing,
+        offsetting: Offsetting,
+        _transfer_length: bool,
+        _write_back: bool,
+        _load_store: LoadStoreKind,
+        rn: u32,
+        _crd: u32,
+        _cp_number: u32,
+        offset: u32,
+    ) -> Option<u32> {
+        let mut _address = self.registers.register_at(rn.try_into().unwrap());
+        let effective = match offsetting {
+            Offsetting::Down => _address.wrapping_sub(offset),
+            Offsetting::Up => _address.wrapping_add(offset),
+        };
+
+        let _address = match indexing {
+            Indexing::Pre => effective,
+            Indexing::Post => _address,
+        };
+
+        // TODO: take a look if we need to finish this for real.
+        todo!("finish this");
+        // Some(SIZE_OF_ARM_INSTRUCTION)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::arm::instructions::ArmModeInstruction;
+    use crate::cpu::arm::alu_instruction::{AluSecondOperandInfo, ShiftOperator};
+    use crate::cpu::arm::instructions::ArmModeInstruction::SingleDataTransfer;
+    use crate::cpu::arm::instructions::{ArmModeInstruction, SingleDataTransferOffsetInfo};
     use crate::cpu::condition::Condition;
-    use pretty_assertions::assert_eq;
+    use crate::cpu::flags::ShiftKind;
 
     #[test]
     fn check_cmn() {
@@ -1970,5 +2269,254 @@ mod tests {
             // All flags set
             assert_eq!(u32::from(cpu.spsr), 0b1111 << 28);
         }
+    }
+
+    #[test]
+    fn check_ldr() {
+        {
+            let op_code = 0b1110_01_0_1_1_1_0_1_1100_1100_001100000000;
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Ldr,
+                    quantity: ReadWriteKind::Byte,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 12,
+                    base_register: 12,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 768 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDRB R12, #768");
+        }
+        {
+            let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Ldr,
+                    quantity: ReadWriteKind::Word,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 13,
+                    base_register: 15,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 208 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDR R13, #208");
+        }
+        {
+            let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000010111000;
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Ldr,
+                    quantity: ReadWriteKind::Word,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 13,
+                    base_register: 15,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 184 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDR R13, #184");
+        }
+        {
+            let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Ldr,
+                    quantity: ReadWriteKind::Word,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 13,
+                    base_register: 15,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 208 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDR R13, #208");
+        }
+        {
+            let op_code = 0b1110_0101_1101_1111_1101_0000_0001_1000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Ldr,
+                    quantity: ReadWriteKind::Byte,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 13,
+                    base_register: 15,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 24 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "LDRB R13, #24");
+
+            // because in this specific case address will be
+            // then will be 0x03000050 + 8 (.wrapping_add(offset))
+            cpu.registers.set_program_counter(0x03000050);
+
+            // simulate mem already contains something.
+            cpu.memory.lock().unwrap().write_at(0x03000070, 99);
+
+            cpu.execute_arm(op_code);
+            assert_eq!(cpu.registers.register_at(13), 99);
+            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+        }
+    }
+
+    #[test]
+    fn check_str() {
+        {
+            let op_code = 0b1110_01_0_1_1_1_0_0_0100_0100_001000001000;
+            let cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Str,
+                    quantity: ReadWriteKind::Byte,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 4,
+                    base_register: 4,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 520 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "STRB R4, #520");
+        }
+        {
+            let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Str,
+                    quantity: ReadWriteKind::Word,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 1,
+                    base_register: 1,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 0 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "STR R1, #0");
+
+            cpu.registers.set_register_at(1, 16843009);
+
+            // because in this specific case address will be
+            // then will be 0x03000050 + 8 (.wrapping_sub(offset))
+            cpu.registers.set_program_counter(0x03000050);
+
+            cpu.execute_arm(op_code);
+
+            let memory = cpu.memory.lock().unwrap();
+
+            assert_eq!(memory.read_at(0x01010101), 1);
+            assert_eq!(memory.read_at(0x01010101 + 1), 1);
+            assert_eq!(memory.read_at(0x01010101 + 2), 1);
+            assert_eq!(memory.read_at(0x01010101 + 3), 1);
+            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+        }
+        {
+            let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                SingleDataTransfer {
+                    condition: Condition::AL,
+                    kind: SingleDataTransferKind::Str,
+                    quantity: ReadWriteKind::Byte,
+                    write_back: false,
+                    indexing: Indexing::Pre,
+                    rd: 13,
+                    base_register: 15,
+                    offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 24 },
+                    offsetting: Offsetting::Up,
+                }
+            );
+            let f = op_code.instruction.disassembler();
+            assert_eq!(f, "STRB R13, #24");
+
+            // because in this specific case address will be
+            // then will be 0x03000050 + 8 (.wrapping_add(offset))
+            cpu.registers.set_program_counter(0x03000050);
+
+            cpu.execute_arm(op_code);
+
+            let memory = cpu.memory.lock().unwrap();
+
+            assert_eq!(memory.read_at(0x03000070), 13);
+            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+        }
+    }
+
+    #[test]
+    fn check_ldr_word() {
+        let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
+        let mut cpu = Arm7tdmi::default();
+        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        assert_eq!(
+            op_code.instruction,
+            SingleDataTransfer {
+                condition: Condition::AL,
+                kind: SingleDataTransferKind::Ldr,
+                quantity: ReadWriteKind::Word,
+                write_back: false,
+                indexing: Indexing::Pre,
+                rd: 13,
+                base_register: 15,
+                offset_info: SingleDataTransferOffsetInfo::Immediate { offset: 40 },
+                offsetting: Offsetting::Up,
+            }
+        );
+
+        {
+            let mut memory = cpu.memory.lock().unwrap();
+
+            // simulate mem already contains something.
+            // in u32 this is 16843009 00000001_00000001_00000001_00000001.
+            memory.write_at(0x30, 1);
+            memory.write_at(0x30 + 1, 1);
+            memory.write_at(0x30 + 2, 1);
+            memory.write_at(0x30 + 3, 1);
+        }
+        cpu.execute_arm(op_code);
+        assert_eq!(cpu.registers.register_at(13), 16843009);
+        assert_eq!(cpu.registers.program_counter(), 4);
     }
 }
