@@ -1,20 +1,15 @@
+use crate::bitwise::Bits;
+use crate::cpu::arm::alu_instruction::{
+    shift, AluInstructionKind, ArithmeticOpResult, ArmModeAluInstruction, Kind,
+};
+use crate::cpu::arm::mode::ArmModeOpcode;
+use crate::cpu::arm7tdmi::Arm7tdmi;
 use logger::log;
 
 use crate::cpu::flags::ShiftKind;
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
-use crate::{
-    bitwise::Bits,
-    cpu::alu_instruction::{AluInstructionKind, ArmModeAluInstruction, Kind},
-    cpu::arm7tdmi::Arm7tdmi,
-    cpu::opcode::ArmModeOpcode,
-};
 
-use super::{
-    alu_instruction::{self, ArithmeticOpResult},
-    arm7tdmi::SIZE_OF_ARM_INSTRUCTION,
-    cpu_modes::Mode,
-    flags::OperandKind,
-};
+use super::{arm7tdmi::SIZE_OF_ARM_INSTRUCTION, cpu_modes::Mode, flags::OperandKind};
 
 /// Represents the kind of PSR operation
 enum PsrOpKind {
@@ -96,12 +91,7 @@ impl Arm7tdmi {
 
         let (result, carry) = match shift_type {
             0 | 1 | 2 => {
-                let a = alu_instruction::shift(
-                    shift_type.into(),
-                    shift_amount,
-                    rm,
-                    self.cpsr.carry_flag(),
-                );
+                let a = shift(shift_type.into(), shift_amount, rm, self.cpsr.carry_flag());
                 (a.result, a.carry)
             }
             // ROR
@@ -654,16 +644,9 @@ impl Arm7tdmi {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        cpu::arm7tdmi::Arm7tdmi,
-        cpu::condition::Condition,
-        cpu::{cpu_modes::Mode, instruction::ArmModeInstruction},
-    };
-
-    use crate::cpu::alu_instruction::ArmModeAluInstruction;
-    use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
-    use crate::cpu::flags::{OperandKind, ShiftKind};
-    use crate::cpu::opcode::ArmModeOpcode;
+    use super::*;
+    use crate::cpu::arm::instructions::ArmModeInstruction;
+    use crate::cpu::condition::Condition;
     use pretty_assertions::assert_eq;
 
     #[test]

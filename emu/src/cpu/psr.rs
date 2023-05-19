@@ -1,7 +1,7 @@
 use crate::bitwise::Bits;
+use crate::cpu::arm::alu_instruction::ArithmeticOpResult;
+use crate::cpu::cpu_modes::CpuState;
 use crate::cpu::{condition::Condition, cpu_modes::Mode};
-
-use super::alu_instruction::ArithmeticOpResult;
 
 /// Program Status Register.
 #[derive(Default, Clone, Copy)]
@@ -183,34 +183,6 @@ impl From<Mode> for Psr {
 impl From<Psr> for u32 {
     fn from(p: Psr) -> Self {
         p.0
-    }
-}
-
-/// Represents the CPU state (ARM/THUMB).
-pub enum CpuState {
-    /// Which operates with 16-bit, halfword-aligned THUMB instructions.
-    /// In this state, the PC uses bit 1 to select between alternate halfwords.
-    Thumb,
-
-    /// Which executes 32-bit, word-aligned ARM instructions.
-    Arm,
-}
-
-impl From<CpuState> for bool {
-    fn from(state: CpuState) -> Self {
-        match state {
-            CpuState::Arm => false,
-            CpuState::Thumb => true,
-        }
-    }
-}
-
-impl From<bool> for CpuState {
-    fn from(state: bool) -> Self {
-        match state {
-            true => Self::Thumb,
-            false => Self::Arm,
-        }
     }
 }
 

@@ -1,8 +1,6 @@
 use crate::bitwise::Bits;
+use crate::cpu::arm::instructions::ArmModeInstruction;
 use crate::cpu::condition::Condition;
-use crate::cpu::instruction::ArmModeInstruction;
-use std::fmt::{Display, Formatter};
-use std::ops::Deref;
 
 pub struct ArmModeOpcode {
     pub instruction: ArmModeInstruction,
@@ -22,7 +20,7 @@ impl TryFrom<u32> for ArmModeOpcode {
     }
 }
 
-impl Deref for ArmModeOpcode {
+impl std::ops::Deref for ArmModeOpcode {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
@@ -30,8 +28,8 @@ impl Deref for ArmModeOpcode {
     }
 }
 
-impl Display for ArmModeOpcode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl std::fmt::Display for ArmModeOpcode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let instruction = self.instruction.to_string();
         let instruction = format!("INS: {instruction}\n");
 
@@ -68,7 +66,7 @@ impl Display for ArmModeOpcode {
                 "FMT: |_Cond__|1_1_0|P|U|N|W|L|__Rn___|__CRd__|__Cp#__|____Offset_____|"
             }
             ArmModeInstruction::CoprocessorDataOperation => "FMT: |_Cond__|",
-            ArmModeInstruction::CoprocessorRegisterTrasfer => "FMT: |_Cond__|",
+            ArmModeInstruction::CoprocessorRegisterTransfer => "FMT: |_Cond__|",
             ArmModeInstruction::SoftwareInterrupt => "FMT: |_Cond__|",
         };
 

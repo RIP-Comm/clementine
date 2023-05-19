@@ -79,7 +79,7 @@ where
         <Self as TryFrom<u128>>::try_from((value & mask) >> start).unwrap()
     }
 
-    /// Checks if a certein sequence of bit is set to 1.
+    /// Checks if a certain sequence of bit is set to 1.
     /// Return false whenever there is a least one bit which is set to 0, true otherwise.
     /// When all bits are set to 1, the if statement fails and true is returned.
     fn are_bits_on(&self, bits_range: RangeInclusive<u8>) -> bool {
