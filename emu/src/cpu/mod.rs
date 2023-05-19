@@ -3,7 +3,6 @@ pub mod arm7tdmi;
 mod condition;
 mod cpu_modes;
 mod flags;
-mod move_compare_add_sub;
 mod psr;
 mod register_bank;
 mod registers;
