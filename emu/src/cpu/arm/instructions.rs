@@ -176,7 +176,7 @@ impl ArmModeInstruction {
                 register,
             } => format!("BX{condition} R{register}"),
             Self::HalfwordDataTransferRegisterOffset => "".to_owned(),
-            Self::HalfwordDataTransferImmediateOffset => "".to_owned(),
+            Self::HalfwordDataTransferImmediateOffset => "".to_string(),
             Self::SingleDataTransfer {
                 condition,
                 kind,
@@ -477,111 +477,115 @@ impl std::fmt::Display for ArmModeInstruction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::arm::mode::ArmModeOpcode;
-    use crate::cpu::arm7tdmi::Arm7tdmi;
     use crate::cpu::flags::ShiftKind;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn decode_branch() {
-        {
-            let cpu = Arm7tdmi::default();
-            let output: ArmModeInstruction = cpu.decode(0b1110_1011_0000_0000_0000_0000_0111_1111);
-            assert_eq!(
-                ArmModeInstruction::Branch {
-                    condition: Condition::AL,
-                    link: true,
-                    offset: 508,
-                },
-                output
-            );
-        }
-        {
-            let cpu = Arm7tdmi::default();
-            let output: ArmModeInstruction = cpu.decode(0b1110_1010_0000_0000_0000_0000_0111_1111);
-            assert_eq!(
-                ArmModeInstruction::Branch {
-                    condition: Condition::AL,
-                    link: false,
-                    offset: 508,
-                },
-                output
-            );
-        }
-        {
-            let cpu = Arm7tdmi::default();
-            let output: ArmModeInstruction = cpu.decode(0b0000_1010_0000_0000_0000_0000_0111_1111);
-            assert_eq!(
-                ArmModeInstruction::Branch {
-                    condition: Condition::EQ,
-                    link: false,
-                    offset: 508,
-                },
-                output
-            );
-        }
+        let output = ArmModeInstruction::from(0b1110_1011_0000_0000_0000_0000_0111_1111);
+        assert_eq!(
+            ArmModeInstruction::Branch {
+                condition: Condition::AL,
+                link: true,
+                offset: 508,
+            },
+            output
+        );
+        assert_eq!("BL 0x000001FC", output.disassembler());
+
+        let output = ArmModeInstruction::from(0b1110_1010_0000_0000_0000_0000_0111_1111);
+        assert_eq!(
+            ArmModeInstruction::Branch {
+                condition: Condition::AL,
+                link: false,
+                offset: 508,
+            },
+            output
+        );
+        assert_eq!("B 0x000001FC", output.disassembler());
+
+        let output = ArmModeInstruction::from(0b0000_1010_0000_0000_0000_0000_0111_1111);
+        assert_eq!(
+            ArmModeInstruction::Branch {
+                condition: Condition::EQ,
+                link: false,
+                offset: 508,
+            },
+            output
+        );
+        assert_eq!("BEQ 0x000001FC", output.disassembler());
+
+        let output = ArmModeInstruction::from(0b0000_1011_0000_0000_0000_0000_0111_1111);
+        assert_eq!(
+            ArmModeInstruction::Branch {
+                condition: Condition::EQ,
+                link: true,
+                offset: 508,
+            },
+            output
+        );
+        assert_eq!("BLEQ 0x000001FC", output.disassembler());
     }
 
     #[test]
     fn decode_branch_and_exchange() {
-        {
-            let cpu = Arm7tdmi::default();
-            let output: ArmModeInstruction = cpu.decode(0b1110_0001_0010_1111_1111_1111_0001_0001);
-            assert_eq!(
-                ArmModeInstruction::BranchAndExchange {
-                    condition: Condition::AL,
-                    register: 1
-                },
-                output
-            );
-        }
-        {
-            let cpu = Arm7tdmi::default();
-            let output: ArmModeInstruction = cpu.decode(0b0000_0001_0010_1111_1111_1111_0001_0001);
-            assert_eq!(
-                ArmModeInstruction::BranchAndExchange {
-                    condition: Condition::EQ,
-                    register: 1
-                },
-                output
-            );
-        }
+        let output = ArmModeInstruction::from(0b1110_0001_0010_1111_1111_1111_0001_0001);
+        assert_eq!(
+            ArmModeInstruction::BranchAndExchange {
+                condition: Condition::AL,
+                register: 1
+            },
+            output
+        );
+        assert_eq!("BX R1", output.disassembler());
+
+        let output = ArmModeInstruction::from(0b0000_0001_0010_1111_1111_1111_0001_0001);
+        assert_eq!(
+            ArmModeInstruction::BranchAndExchange {
+                condition: Condition::EQ,
+                register: 1
+            },
+            output
+        );
+        assert_eq!("BXEQ R1", output.disassembler());
     }
 
     #[test]
     fn decode_data_processing() {
-        {
-            let op_code = 0b1110_00_0_1011_0_1001_1111_000000001110;
-            let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
-            assert_eq!(
-                op_code.instruction,
-                ArmModeInstruction::DataProcessing {
-                    condition: Condition::AL,
-                    alu_instruction: ArmModeAluInstruction::Cmn,
-                    set_conditions: false,
-                    op_kind: OperandKind::Register,
-                    rn: 9,
-                    destination: 15,
-                    op2: AluSecondOperandInfo::Register {
-                        shift_op: ShiftOperator::Immediate(0),
-                        shift_kind: ShiftKind::Lsl,
-                        register: 14,
-                    }
+        let output = ArmModeInstruction::from(0b1110_00_0_1011_0_1001_1111_000000001110);
+        assert_eq!(
+            ArmModeInstruction::DataProcessing {
+                condition: Condition::AL,
+                alu_instruction: ArmModeAluInstruction::Cmn,
+                set_conditions: false,
+                op_kind: OperandKind::Register,
+                rn: 9,
+                destination: 15,
+                op2: AluSecondOperandInfo::Register {
+                    shift_op: ShiftOperator::Immediate(0),
+                    shift_kind: ShiftKind::Lsl,
+                    register: 14,
                 }
-            );
-
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "CMN R9, R14");
-        }
+            },
+            output
+        );
+        assert_eq!("CMN R9, R14", output.disassembler());
     }
 
     #[test]
     fn decode_half_word_data_transfer_immediate_offset() {
-        let cpu = Arm7tdmi::default();
-        let output: ArmModeInstruction = cpu.decode(0b1110_0001_1100_0001_0000_0000_1011_0000);
+        let output = ArmModeInstruction::from(0b1110_0001_1100_0001_0000_0000_1011_0000);
         assert_eq!(
             ArmModeInstruction::HalfwordDataTransferImmediateOffset,
+            output
+        );
+    }
+
+    #[test]
+    fn decode_half_word_data_transfer_register_offset() {
+        let output = ArmModeInstruction::from(0b1110_0001_1000_0010_0000_0000_1011_0001);
+        assert_eq!(
+            ArmModeInstruction::HalfwordDataTransferRegisterOffset,
             output
         );
     }
