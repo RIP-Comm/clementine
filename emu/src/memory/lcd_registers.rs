@@ -229,7 +229,7 @@ impl LCDRegisters {
         reg.read().get_bits(0..=1).try_into().unwrap()
     }
 
-    /// 0-3, in units of 16 KBytes.
+    /// 0-3, in units of 16 `KBytes`.
     pub fn character_base_block(&self, bg_index: usize) -> u8 {
         let reg = self.get_bg_index_cnt(bg_index);
         reg.read().get_bits(2..=3).try_into().unwrap()

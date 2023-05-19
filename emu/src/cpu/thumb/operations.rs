@@ -47,6 +47,7 @@ impl Arm7tdmi {
         };
 
         match op {
+            // TODO: Create a meaningful enum for this
             // Add
             false => {
                 let add_result = Self::add_inner_op(rs, offset);

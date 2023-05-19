@@ -27,11 +27,13 @@ impl PixelProcessUnit {
         internal_memory: Arc<Mutex<InternalMemory>>,
     ) -> Self {
         Self {
-            gba_lcd,
             internal_memory,
+            gba_lcd,
         }
     }
 
+    /// Render the current frame.
+    /// # Panics
     pub fn render(&self) {
         #[allow(unused_assignments)]
         let mut bg_mode = self
@@ -79,7 +81,7 @@ impl PixelProcessUnit {
                         gba_lcd.set_pixel(x, y, color);
                     }
                 }
-                drop(memory)
+                drop(memory);
             }
             4 => {
                 todo!("BG_MODE 4 not implemented yet")
