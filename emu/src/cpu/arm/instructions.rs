@@ -1,7 +1,8 @@
 use crate::bitwise::Bits;
-use crate::cpu::arm::alu_instruction::ArmModeAluInstruction;
+use crate::cpu::arm::alu_instruction::{
+    AluSecondOperandInfo, ArmModeAluInstruction, ShiftOperator,
+};
 use crate::cpu::condition::Condition;
-use crate::cpu::data_processing::{AluSecondOperandInfo, ShiftOperator};
 use crate::cpu::flags::{
     Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind, ShiftKind,
 };
@@ -477,6 +478,7 @@ impl std::fmt::Display for ArmModeInstruction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::arm::alu_instruction::{AluSecondOperandInfo, ShiftOperator};
     use crate::cpu::flags::ShiftKind;
     use pretty_assertions::assert_eq;
 
