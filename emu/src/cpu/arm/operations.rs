@@ -4,13 +4,15 @@ use crate::cpu::arm::alu_instruction::{
 };
 use crate::cpu::arm::instructions::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
 use crate::cpu::arm::mode::ArmModeOpcode;
-use crate::cpu::arm7tdmi::{Arm7tdmi, HalfwordTransferType, SIZE_OF_ARM_INSTRUCTION};
+use crate::cpu::arm7tdmi::{Arm7tdmi, HalfwordTransferType};
 use crate::cpu::cpu_modes::Mode;
 use crate::cpu::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
 use crate::cpu::psr::CpuState;
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::memory::io_device::IoDevice;
 use logger::log;
+
+pub const SIZE_OF_INSTRUCTION: u32 = 4;
 
 impl Arm7tdmi {
     pub fn data_processing(
@@ -58,7 +60,7 @@ impl Arm7tdmi {
                 } else {
                     self.psr_transfer(op_code);
 
-                    return Some(SIZE_OF_ARM_INSTRUCTION);
+                    return Some(SIZE_OF_INSTRUCTION);
                 }
             }
             Teq => {
@@ -67,7 +69,7 @@ impl Arm7tdmi {
                 } else {
                     self.psr_transfer(op_code);
 
-                    return Some(SIZE_OF_ARM_INSTRUCTION);
+                    return Some(SIZE_OF_INSTRUCTION);
                 }
             }
             Cmp => {
@@ -76,7 +78,7 @@ impl Arm7tdmi {
                 } else {
                     self.psr_transfer(op_code);
 
-                    return Some(SIZE_OF_ARM_INSTRUCTION);
+                    return Some(SIZE_OF_INSTRUCTION);
                 }
             }
             Cmn => {
@@ -85,7 +87,7 @@ impl Arm7tdmi {
                 } else {
                     self.psr_transfer(op_code);
 
-                    return Some(SIZE_OF_ARM_INSTRUCTION);
+                    return Some(SIZE_OF_INSTRUCTION);
                 }
             }
             Orr => self.orr(destination.try_into().unwrap(), op1, op2, set_conditions),
@@ -96,8 +98,8 @@ impl Arm7tdmi {
 
         // If is a "test" ALU instruction we ever advance PC.
         match alu_instruction {
-            Teq | Cmn | Cmp | Tst => Some(SIZE_OF_ARM_INSTRUCTION),
-            _ if destination != REG_PROGRAM_COUNTER => Some(SIZE_OF_ARM_INSTRUCTION),
+            Teq | Cmn | Cmp | Tst => Some(SIZE_OF_INSTRUCTION),
+            _ if destination != REG_PROGRAM_COUNTER => Some(SIZE_OF_INSTRUCTION),
             _ => None,
         }
     }
@@ -678,7 +680,7 @@ impl Arm7tdmi {
         if !(load_store == LoadStoreKind::Load
             && rd_source_destination_register == REG_PROGRAM_COUNTER)
         {
-            Some(SIZE_OF_ARM_INSTRUCTION)
+            Some(SIZE_OF_INSTRUCTION)
         } else {
             None
         }
@@ -785,7 +787,7 @@ impl Arm7tdmi {
 
         // If LDR and Rd == R15 we don't increase the PC
         if !(kind == SingleDataTransferKind::Ldr && rd == REG_PROGRAM_COUNTER) {
-            Some(SIZE_OF_ARM_INSTRUCTION)
+            Some(SIZE_OF_INSTRUCTION)
         } else {
             None
         }
@@ -848,7 +850,7 @@ impl Arm7tdmi {
 
         // If LDM and R15 is in register list we don't advance PC
         if !(load_store == LoadStoreKind::Load && reg_list.is_bit_on(15)) {
-            Some(SIZE_OF_ARM_INSTRUCTION)
+            Some(SIZE_OF_INSTRUCTION)
         } else {
             None
         }
@@ -898,7 +900,7 @@ impl Arm7tdmi {
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
         if is_link {
             self.registers
-                .set_register_at(14, old_pc.wrapping_add(SIZE_OF_ARM_INSTRUCTION));
+                .set_register_at(14, old_pc.wrapping_add(SIZE_OF_INSTRUCTION));
         }
 
         // 8 is for the prefetch
