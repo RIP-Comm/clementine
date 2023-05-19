@@ -57,7 +57,7 @@ impl std::fmt::Display for ThumbHighRegisterOperation {
             Self::Mov => f.write_str("MOV"),
             Self::Cmp => f.write_str("CMP"),
             Self::Add => f.write_str("ADD"),
-            Self::BxOrBlx => f.write_str("BX/BLX"),
+            Self::BxOrBlx => f.write_str("BX"),
         }
     }
 }
