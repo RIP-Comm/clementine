@@ -9,7 +9,7 @@ use super::{
     io_registers::{IORegister, IORegisterAccessControl},
 };
 
-pub struct SerialCommunication2 {
+pub struct SerialBus {
     sio_mode_select: IORegister,
     infrared_register: IORegister,
     sio_joy_bus_control: IORegister,
@@ -19,13 +19,13 @@ pub struct SerialCommunication2 {
     unused_region: HashMap<usize, u8>,
 }
 
-impl Default for SerialCommunication2 {
+impl Default for SerialBus {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SerialCommunication2 {
+impl SerialBus {
     pub fn new() -> Self {
         Self {
             sio_mode_select: IORegister::with_access_control(IORegisterAccessControl::ReadWrite),
@@ -47,7 +47,7 @@ impl SerialCommunication2 {
     }
 }
 
-impl IoDevice for SerialCommunication2 {
+impl IoDevice for SerialBus {
     type Address = usize;
     type Value = u8;
 

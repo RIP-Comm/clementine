@@ -46,15 +46,16 @@ impl LoggerImpl {
         let seconds = seconds % 60;
         let milliseconds = now.subsec_millis();
 
-        let _ = writeln!(
+        writeln!(
             self.sink,
             "[{hours:02}:{minutes:02}:{seconds:02}.{milliseconds:03}] {data}"
-        );
+        )
+        .unwrap();
     }
 }
 
-/// LogKind represents the kind of logging: `stdout` or `logfile`.
-#[derive(PartialEq, Eq)]
+/// `LogKind` represents the kind of logging: `stdout` or `logfile`.
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum LogKind {
     /// It logs to console, the default choice.
     STDOUT,

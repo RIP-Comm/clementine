@@ -1,18 +1,19 @@
 use crate::bitwise::Bits;
 use crate::memory::io_device::IoDevice;
 use crate::memory::io_registers::{IORegister, IORegisterAccessControl};
-pub struct KeypadInput {
+
+pub struct Keypad {
     pub key_input: IORegister,
     pub key_interrupt_control: IORegister,
 }
 
-impl Default for KeypadInput {
+impl Default for Keypad {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl KeypadInput {
+impl Keypad {
     pub const fn new() -> Self {
         Self {
             key_input: IORegister::with_access_control(IORegisterAccessControl::ReadWrite),
@@ -23,7 +24,7 @@ impl KeypadInput {
     }
 }
 
-impl IoDevice for KeypadInput {
+impl IoDevice for Keypad {
     type Address = usize;
     type Value = u8;
 

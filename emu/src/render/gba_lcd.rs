@@ -21,7 +21,7 @@ impl GbaLcd {
         // GBC is rendered at the center of the screen
         let x_offset = (LCD_WIDTH - GBC_LCD_WIDTH) / 2;
         let y_offset = (LCD_HEIGHT - GBC_LCD_HEIGHT) / 2;
-        self.set_pixel(x + x_offset, y + y_offset, color)
+        self.set_pixel(x + x_offset, y + y_offset, color);
     }
 }
 

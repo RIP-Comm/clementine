@@ -9,8 +9,8 @@ use crate::memory::lcd_registers::LCDRegisters;
 use crate::memory::timer_registers::TimerRegisters;
 
 use super::interrupts::Interrupts;
-use super::keypad::KeypadInput;
-use super::serial_communication::SerialCommunication2;
+use super::keypad::Keypad;
+use super::serial_communication::SerialBus;
 use super::sound::Sound;
 
 pub struct InternalMemory {
@@ -36,10 +36,10 @@ pub struct InternalMemory {
     timer_registers: TimerRegisters,
 
     /// From 0x04000130 to 0x04000133
-    keypad_input: KeypadInput,
+    keypad_input: Keypad,
 
     /// From 0x04000134 to 0x0400015F
-    serial_communication2: SerialCommunication2,
+    serial_communication2: SerialBus,
 
     /// From 0x04000200 to 040003FE
     interrupts: Interrupts,
@@ -80,15 +80,15 @@ impl Default for InternalMemory {
 impl InternalMemory {
     pub fn new(bios: [u8; 0x00004000], rom: Vec<u8>) -> Self {
         Self {
-            bios_system_rom: bios.into(),
+            bios_system_rom: bios.to_vec(),
             working_ram: vec![0; 0x00040000],
             working_iram: vec![0; 0x00008000],
             lcd_registers: LCDRegisters::default(),
             sound: Sound::default(),
             dma: Dma::new(),
             timer_registers: TimerRegisters::default(),
-            keypad_input: KeypadInput::default(),
-            serial_communication2: SerialCommunication2::default(),
+            keypad_input: Keypad::default(),
+            serial_communication2: SerialBus::default(),
             interrupts: Interrupts::default(),
             bg_palette_ram: vec![0; 0x200],
             obj_palette_ram: vec![0; 0x200],

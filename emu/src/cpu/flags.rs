@@ -16,7 +16,7 @@ impl From<bool> for OperandKind {
 }
 
 /// Operation to perform in the Move Compare Add Subtract Immediate instruction.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Operation {
     Mov,
     Cmp,
