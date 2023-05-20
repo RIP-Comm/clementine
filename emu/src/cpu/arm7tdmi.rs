@@ -69,7 +69,9 @@ impl Arm7tdmi {
         <T as TryFrom<V>>::Error: std::fmt::Debug,
     {
         let code = T::try_from(op_code).unwrap();
-        log(format!("{code}"));
+        let pc = self.registers.program_counter();
+
+        log(format!("PC: 0x{pc:X} {code}"));
         code
     }
 
