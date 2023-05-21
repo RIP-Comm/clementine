@@ -633,6 +633,17 @@ mod test {
             output
         );
         assert_eq!("EOR R3, R2", output.disassembler());
+
+        let output = ThumbModeInstruction::from(0b0100_0010_0100_0000);
+        assert_eq!(
+            ThumbModeInstruction::AluOp {
+                alu_operation: ThumbModeAluInstruction::Neg,
+                source_register: 0,
+                destination_register: 0,
+            },
+            output
+        );
+        assert_eq!("NEG R0, R0", output.disassembler());
     }
 
     #[test]

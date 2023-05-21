@@ -466,6 +466,11 @@ impl Arm7tdmi {
         self.cpsr.set_zero_flag(value == 0);
     }
 
+    /// Subtract the contents of rs from zero, and store the result in rd.
+    pub fn neg(&mut self, rd: usize, rs: u32) {
+        self.rsb(rd, rs, 0, true);
+    }
+
     fn teq(&mut self, rn: u32, op2: u32) {
         let value = rn ^ op2;
         self.cpsr.set_sign_flag(value.is_bit_on(31));
