@@ -693,27 +693,31 @@ impl Arm7tdmi {
             }
         };
 
-        let address: usize = match offsetting {
-            Offsetting::Down => address.wrapping_sub(amount).try_into().unwrap(),
-            Offsetting::Up => address.wrapping_add(amount).try_into().unwrap(),
+        let offset_address = match offsetting {
+            Offsetting::Down => address.wrapping_sub(amount),
+            Offsetting::Up => address.wrapping_add(amount),
         };
 
-        let v = match indexing {
+        let address = match indexing {
             Indexing::Post => {
-                todo!()
+                // write back is always true when using post indexing
+                self.registers
+                    .set_register_at(base_register as usize, offset_address);
+                address as usize
             }
             Indexing::Pre => {
                 if write_back {
-                    todo!()
+                    self.registers
+                        .set_register_at(offset_address as usize, base_register);
                 }
-                (address, write_back)
+                offset_address as usize
             }
         };
 
         match kind {
             SingleDataTransferKind::Ldr => match quantity {
                 ReadWriteKind::Byte => {
-                    let value = self.memory.lock().unwrap().read_at(v.0) as u32;
+                    let value = self.memory.lock().unwrap().read_at(address) as u32;
                     self.registers
                         .set_register_at(rd.try_into().unwrap(), value)
                 }
