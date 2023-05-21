@@ -105,7 +105,7 @@ impl InternalMemory {
         } else {
             // Preamble:
             // The GamePak ROM is an halfword addressable memory
-            // and it uses a 16bits bus to trasfer data and a
+            // and it uses a 16bits bus to transfer data and a
             // 24bits(32MB halfword addressed) bus to transfer the address to read.
             // So technically we can't just read 1 byte from the ROM, we
             // request the halfword and then we take the upper/lower 8bits

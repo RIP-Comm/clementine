@@ -6,7 +6,9 @@ use crate::cpu::arm::instructions::{SingleDataTransferKind, SingleDataTransferOf
 use crate::cpu::arm::mode::ArmModeOpcode;
 use crate::cpu::arm7tdmi::{Arm7tdmi, HalfwordTransferType};
 use crate::cpu::cpu_modes::Mode;
-use crate::cpu::flags::{Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind};
+use crate::cpu::flags::{
+    Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind, ShiftKind,
+};
 use crate::cpu::psr::CpuState;
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::memory::io_device::IoDevice;
@@ -213,61 +215,18 @@ impl Arm7tdmi {
         &mut self,
         alu_instruction: ArmModeAluInstruction,
         s: bool,
-        shift_type: u32,
+        shift_kind: ShiftKind,
         shift_amount: u32,
         rm: u32,
     ) -> u32 {
-        // Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
-
-        let (result, carry) = match shift_type {
-            0 | 1 | 2 => {
-                let a = shift(shift_type.into(), shift_amount, rm, self.cpsr.carry_flag());
-                (a.result, a.carry)
-            }
-            // ROR
-            3 => {
-                // from documentation: ROR by n where n is greater than 32 will give the same
-                // result and carry out as ROR by n-32; therefore repeatedly y subtract 32 from n until the amount is
-                // in the range 1 to 32
-                let mut new_shift_amount = shift_amount;
-
-                if shift_amount > 32 {
-                    new_shift_amount %= 32;
-
-                    // if modulo operation yields 0 it means that shift_amount was a multiple of 32
-                    // so we should do ROR#32
-                    if new_shift_amount == 0 {
-                        new_shift_amount = 32;
-                    }
-                }
-
-                match new_shift_amount {
-                    // ROR#0 is used to encode RRX (appending C to the left and shift right by 1)
-                    0 => {
-                        let old_carry = self.cpsr.carry_flag() as u32;
-
-                        ((rm >> 1) | (old_carry << 31), rm.get_bit(0))
-                    }
-                    // ROR#1..31: normal rotate right
-                    1..=31 => (
-                        rm.rotate_right(shift_amount),
-                        rm.get_bit((shift_amount - 1).try_into().unwrap()),
-                    ),
-                    // ROR#32 doesn't change rm but sets carry to bit 31 of rm
-                    32 => (rm, rm.get_bit(31)),
-                    // ROR#i with i > 32 is the same of ROR#n where n = i % 32
-                    _ => unreachable!(),
-                }
-            }
-            _ => unreachable!(),
-        };
+        let result = shift(shift_kind, shift_amount, rm, self.cpsr.carry_flag());
 
         // If the instruction is a logical ALU instruction and S is set we set the carry flag
         if alu_instruction.kind() == AluInstructionKind::Logical && s {
-            self.cpsr.set_carry_flag(carry);
+            self.cpsr.set_carry_flag(result.carry);
         }
 
-        result
+        result.result
     }
 
     pub fn get_operand(
@@ -291,8 +250,7 @@ impl Arm7tdmi {
                     _ => 0,
                 };
                 let rm = self.registers.register_at(rm.try_into().unwrap()) + offset;
-                // bits [6-5] - Shift Type (0=LSL, 1=LSR, 2=ASR, 3=ROR)
-                let shift_type = op2.get_bits(5..=6);
+                let shift_kind = op2.get_bits(5..=6).into();
 
                 let shift_amount = match r {
                     // the shift amount is in the instruction
@@ -316,7 +274,7 @@ impl Arm7tdmi {
                     }
                 };
 
-                self.shift_operand(alu_instruction, s, shift_type, shift_amount, rm)
+                self.shift_operand(alu_instruction, s, shift_kind, shift_amount, rm)
             }
             OperandKind::Immediate => {
                 // bits [7-0] are the immediate value
@@ -357,6 +315,22 @@ impl Arm7tdmi {
         if s {
             self.cpsr.set_zero_flag(result == 0);
             self.cpsr.set_sign_flag(result.get_bit(31));
+        }
+    }
+
+    /// Rotate Right rd by the value in rs, store the result in rd and set condition codes.
+    pub fn ror(&mut self, rd: usize, rs: u32) {
+        let rs = rs & 0xFF;
+        let rd_value = self.registers.register_at(rd);
+        if rs != 0 {
+            let r = shift(ShiftKind::Ror, rs, rd_value, self.cpsr.carry_flag());
+            self.registers.set_register_at(rd, r.result);
+            self.cpsr.set_zero_flag(r.result == 0);
+            self.cpsr.set_sign_flag(r.result.get_bit(31));
+            self.cpsr.set_carry_flag(r.carry);
+        } else {
+            self.cpsr.set_zero_flag(rd_value == 0);
+            self.cpsr.set_sign_flag(rd_value.get_bit(31));
         }
     }
 
@@ -949,6 +923,8 @@ mod tests {
     use crate::cpu::arm::instructions::{ArmModeInstruction, SingleDataTransferOffsetInfo};
     use crate::cpu::condition::Condition;
     use crate::cpu::flags::ShiftKind;
+
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn check_cmn() {
@@ -2074,6 +2050,20 @@ mod tests {
         assert!(!cpu.cpsr.zero_flag());
         assert!(cpu.cpsr.overflow_flag());
         assert!(!cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_ror() {
+        let mut cpu = Arm7tdmi::default();
+        cpu.registers.set_register_at(5, 1);
+        // rd = 5
+        // value in rs = 10
+        cpu.ror(5, 10);
+
+        assert_eq!(4194304, cpu.registers.register_at(5));
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.sign_flag());
+        assert!(!cpu.cpsr.carry_flag());
     }
 
     #[test]

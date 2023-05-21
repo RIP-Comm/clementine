@@ -154,7 +154,52 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
                 ..Default::default()
             },
         },
-        ShiftKind::Ror => todo!(),
+        ShiftKind::Ror => {
+            // from documentation: ROR by n where n is greater than 32 will give the same
+            // result and carry out as ROR by n-32; therefore repeatedly y subtract 32 from n until the amount is
+            // in the range 1 to 32
+            let mut new_shift_amount = shift_amount;
+
+            if shift_amount > 32 {
+                new_shift_amount %= 32;
+
+                // if modulo operation yields 0 it means that shift_amount was a multiple of 32
+                // so we should do ROR#32
+                if new_shift_amount == 0 {
+                    new_shift_amount = 32;
+                }
+            }
+
+            match new_shift_amount {
+                // ROR#0 is used to encode RRX (appending C to the left and shift right by 1)
+                0 => {
+                    let old_carry = carry as u32;
+
+                    ArithmeticOpResult {
+                        result: (rm >> 1) | (old_carry << 31),
+                        carry: rm.get_bit(0),
+                        ..Default::default()
+                    }
+                }
+
+                // ROR#1..31: normal rotate right
+                1..=31 => ArithmeticOpResult {
+                    result: rm.rotate_right(shift_amount),
+                    carry: rm.get_bit((shift_amount - 1).try_into().unwrap()),
+                    ..Default::default()
+                },
+
+                // ROR#32 doesn't change rm but sets carry to bit 31 of rm
+                32 => ArithmeticOpResult {
+                    result: rm,
+                    carry: rm.get_bit(31),
+                    ..Default::default()
+                },
+
+                // ROR#i with i > 32 is the same of ROR#n where n = i % 32
+                _ => unreachable!(),
+            }
+        }
     }
 }
 
