@@ -622,6 +622,17 @@ mod test {
             output
         );
         assert_eq!("ROR R3, R4", output.disassembler());
+
+        let output = ThumbModeInstruction::from(0b0100_0000_0101_0011);
+        assert_eq!(
+            ThumbModeInstruction::AluOp {
+                alu_operation: ThumbModeAluInstruction::Eor,
+                source_register: 2,
+                destination_register: 3,
+            },
+            output
+        );
+        assert_eq!("EOR R3, R2", output.disassembler());
     }
 
     #[test]

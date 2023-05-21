@@ -383,7 +383,7 @@ impl Arm7tdmi {
         self.sbc(rd, op2, rn, s);
     }
 
-    fn eor(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+    pub fn eor(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
         let result = rn ^ op2;
 
         self.registers.set_register_at(rd, result);

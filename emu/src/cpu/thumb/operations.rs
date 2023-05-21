@@ -120,7 +120,12 @@ impl Arm7tdmi {
                 rs,
                 true,
             ),
-            ThumbModeAluInstruction::Eor => todo!(),
+            ThumbModeAluInstruction::Eor => self.eor(
+                rd.into(),
+                self.registers.register_at(rd.try_into().unwrap()),
+                rs,
+                true,
+            ),
             ThumbModeAluInstruction::Lsl => todo!(),
             ThumbModeAluInstruction::Lsr => todo!(),
             ThumbModeAluInstruction::Asr => todo!(),
