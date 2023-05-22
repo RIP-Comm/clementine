@@ -2,6 +2,7 @@ use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
 
 use logger::log;
+use vecfixed::VecFixed;
 
 use crate::bitwise::Bits;
 use crate::cpu::arm;
@@ -25,7 +26,7 @@ pub struct Arm7tdmi {
 
     pub register_bank: RegisterBank,
 
-    pub disassembler_buffer: Vec<String>,
+    pub disassembler_buffer: VecFixed<1000, String>,
 }
 
 impl Default for Arm7tdmi {
@@ -36,7 +37,7 @@ impl Default for Arm7tdmi {
             spsr: Psr::default(),
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
-            disassembler_buffer: vec![],
+            disassembler_buffer: VecFixed::new(),
         };
 
         // Setting ARM mode at startup
@@ -84,8 +85,7 @@ impl Arm7tdmi {
             let decimal_value = self.registers.program_counter();
             let padded_hex_value = format!("{decimal_value:#04X}");
             self.disassembler_buffer.push(format!(
-                "{}: {}",
-                padded_hex_value,
+                "{padded_hex_value}: {}",
                 op_code.instruction.disassembler()
             ));
             match op_code.instruction {
@@ -192,8 +192,7 @@ impl Arm7tdmi {
         let decimal_value = self.registers.program_counter();
         let padded_hex_value = format!("{decimal_value:#04X}");
         self.disassembler_buffer.push(format!(
-            "{}: {}",
-            padded_hex_value,
+            "{padded_hex_value}: {}",
             op_code.instruction.disassembler()
         ));
         let bytes_to_advance: Option<u32> = match op_code.instruction {
