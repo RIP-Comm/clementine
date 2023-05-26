@@ -915,7 +915,7 @@ mod tests {
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.carry_flag());
             assert!(!cpu.cpsr.overflow_flag());
-            cpu.execute_arm(cpu.decode(op_code));
+            cpu.execute_arm(Arm7tdmi::decode(op_code));
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.carry_flag());
@@ -928,7 +928,7 @@ mod tests {
         {
             let op_code = 0b1110_00_1_1001_1_1100_0000_000000000001;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -959,7 +959,7 @@ mod tests {
         {
             let op_code: u32 = 0b0000_00_0_1001_0_1001_1111_000000001100;
             let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -984,7 +984,7 @@ mod tests {
 
         let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1014,7 +1014,7 @@ mod tests {
     fn check_cmp() {
         let op_code: u32 = 0b1110_00_1_1010_1_1110_0000_000000000000;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1047,7 +1047,7 @@ mod tests {
         {
             let op_code: u32 = 0b0000_00_1_1100_0_1100_1100_000011000000;
             let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -1075,7 +1075,7 @@ mod tests {
         {
             let op_code: u32 = 0b0000_00_1_1101_0_0000_1110_000000000100;
             let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -1096,7 +1096,7 @@ mod tests {
         {
             let op_code: u32 = 0b1110_00_1_1101_0_0000_0000_000011011111;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -1131,7 +1131,7 @@ mod tests {
         {
             let op_code: u32 = 0b1110_00_1_1101_0_0000_1100_001100000001;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -1167,7 +1167,7 @@ mod tests {
         {
             let op_code: u32 = 0b1110_00_1_0100_0_1111_0000_000000000001;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -1199,7 +1199,7 @@ mod tests {
 
         let op_code = 0b1110_00_1_0100_0_1111_0000_000000100000;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1223,7 +1223,7 @@ mod tests {
         // R2 = R1 + (R15 << R3)
         let op_code = 0b1110_00_0_0100_0_0001_0010_0011_0001_1111;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1255,7 +1255,7 @@ mod tests {
     fn check_add_carry_bit() {
         let op_code: u32 = 0b1110_00_0_0100_1_1111_0000_0000_0000_1110;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1302,7 +1302,7 @@ mod tests {
         // Immediate parameter
         op_code = (op_code & 0b1111_1111_1111_1111_1111_1111_0000_0000) + immediate_value;
 
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1326,7 +1326,7 @@ mod tests {
         // Checks for Z flag
         let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1351,7 +1351,7 @@ mod tests {
         // Checks for Z flag
         let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
         cpu.registers.set_register_at(2, -5_i32 as u32);
         cpu.execute_arm(op_code);
@@ -1363,7 +1363,7 @@ mod tests {
     fn shift_from_register_is_0() {
         let op_code = 0b1110_00_0_0100_0_0000_0001_0011_0111_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1394,7 +1394,7 @@ mod tests {
     fn check_and() {
         let op_code = 0b1110_00_1_0000_0_0000_0001_0000_10101010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1423,7 +1423,7 @@ mod tests {
     fn check_eor() {
         let op_code = 0b1110_00_1_0001_0_0000_0001_0000_10101010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1452,7 +1452,7 @@ mod tests {
         {
             let op_code = 0b0000_00_0_1000_0_1111_1100_0000_00000000;
             let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -1475,7 +1475,7 @@ mod tests {
         {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00_1_1000_1_0000_0001_0000_00000000;
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             assert_eq!(
                 op_code.instruction,
@@ -1501,7 +1501,7 @@ mod tests {
     fn check_bic() {
         let op_code = 0b1110_00_1_1110_0_0000_0001_0000_10101010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1529,7 +1529,7 @@ mod tests {
     fn check_mvn() {
         let op_code = 0b1110_00_1_1111_1_0000_0001_0000_11111111;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1556,7 +1556,7 @@ mod tests {
     fn check_sub() {
         let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1586,7 +1586,7 @@ mod tests {
 
         //Covers carry logic
         let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.registers.set_register_at(2, 15);
         cpu.execute_arm(op_code);
 
@@ -1598,7 +1598,7 @@ mod tests {
 
         // Covers overflow logic
         let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1633,7 +1633,7 @@ mod tests {
         // Covers all flags=0
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1666,7 +1666,7 @@ mod tests {
         // Covers carry during first sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1699,7 +1699,7 @@ mod tests {
         // Covers carry during second sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1732,7 +1732,7 @@ mod tests {
         // Covers overflow during first sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1766,7 +1766,7 @@ mod tests {
         // Covers overflow during second sum
         let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1803,7 +1803,7 @@ mod tests {
         // Covers all flag=0
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1836,7 +1836,7 @@ mod tests {
         // Covers carry during first diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1869,7 +1869,7 @@ mod tests {
         // Covers carry during sum
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1902,7 +1902,7 @@ mod tests {
         // Covers carry during second diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1935,7 +1935,7 @@ mod tests {
         // Covers overflow during first diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -1968,7 +1968,7 @@ mod tests {
         // Covers overflow during sum
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -2001,7 +2001,7 @@ mod tests {
         // Covers overflow during second diff
         let op_code = 0b1110_00_0_0110_1_0000_0001_0000_0_00_0_0010;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
@@ -2052,7 +2052,7 @@ mod tests {
             // Covers MRS with CPSR and User mode
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_0_001111_0000_000000000000;
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -2087,7 +2087,7 @@ mod tests {
             // Covers MRS with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_1_001111_0000_000000000000;
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -2124,7 +2124,7 @@ mod tests {
             // Covers MSR with CPSR and User Mode
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_0_1010011111_00000000_0000;
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -2154,7 +2154,7 @@ mod tests {
             // Covers MSR with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00010_1_1010011111_00000000_0000;
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -2184,7 +2184,7 @@ mod tests {
             // Covers MSR-flags with CPSR and User mode
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00_0_10_0_1010001111_00000000_0000;
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -2214,7 +2214,7 @@ mod tests {
             // Covers MSR-flags with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1110_00_0_10_1_1010001111_00000000_0000;
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
@@ -2247,8 +2247,7 @@ mod tests {
     fn check_ldr() {
         {
             let op_code = 0b1110_01_0_1_1_1_0_1_1100_1100_001100000000;
-            let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -2268,8 +2267,7 @@ mod tests {
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
-            let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -2289,8 +2287,7 @@ mod tests {
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000010111000;
-            let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -2310,8 +2307,7 @@ mod tests {
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
-            let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -2332,7 +2328,7 @@ mod tests {
         {
             let op_code = 0b1110_0101_1101_1111_1101_0000_0001_1000;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -2367,8 +2363,7 @@ mod tests {
     fn check_str() {
         {
             let op_code = 0b1110_01_0_1_1_1_0_0_0100_0100_001000001000;
-            let cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -2389,7 +2384,7 @@ mod tests {
         {
             let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -2426,7 +2421,7 @@ mod tests {
         {
             let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
             let mut cpu = Arm7tdmi::default();
-            let op_code: ArmModeOpcode = cpu.decode(op_code);
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
                 SingleDataTransfer {
@@ -2461,7 +2456,7 @@ mod tests {
     fn check_ldr_word() {
         let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
         let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = cpu.decode(op_code);
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             SingleDataTransfer {
