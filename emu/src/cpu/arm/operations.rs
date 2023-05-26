@@ -724,7 +724,16 @@ impl Arm7tdmi {
                 }
             },
             SingleDataTransferKind::Str => match quantity {
-                ReadWriteKind::Byte => self.memory.lock().unwrap().write_at(address, rd as u8),
+                ReadWriteKind::Byte => {
+                    let mut v = self.registers.register_at(rd.try_into().unwrap());
+
+                    // If R15 we get the value of the current instruction + 4 (it is +8 already)
+                    if rd == REG_PROGRAM_COUNTER {
+                        v += 4;
+                    }
+
+                    self.memory.lock().unwrap().write_at(address, v as u8)
+                }
                 ReadWriteKind::Word => {
                     let mut v = self.registers.register_at(rd.try_into().unwrap());
 
@@ -2422,12 +2431,13 @@ mod tests {
             // because in this specific case address will be
             // then will be 0x03000050 (.wrapping_add(offset))
             cpu.registers.set_program_counter(0x03000050);
+            cpu.registers.set_register_at(13, 50);
 
             cpu.execute_arm(op_code);
 
             let memory = cpu.memory.lock().unwrap();
 
-            assert_eq!(memory.read_at(0x03000068), 13);
+            assert_eq!(memory.read_at(0x03000068), 50);
             assert_eq!(cpu.registers.program_counter(), 0x03000050);
         }
     }
