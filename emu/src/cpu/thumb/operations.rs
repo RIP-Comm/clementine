@@ -619,7 +619,7 @@ mod tests {
     fn check_move_compare_add_sub_imm() {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b0010_0000_0000_0000_u16;
-        let op_code: ThumbModeOpcode = cpu.decode(op_code);
+        let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
             ThumbModeInstruction::MoveCompareAddSubtractImm {
