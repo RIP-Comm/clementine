@@ -893,35 +893,6 @@ impl Arm7tdmi {
         // Never advance PC after B
         None
     }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn coprocessor_data_transfer(
-        &mut self,
-        indexing: Indexing,
-        offsetting: Offsetting,
-        _transfer_length: bool,
-        _write_back: bool,
-        _load_store: LoadStoreKind,
-        rn: u32,
-        _crd: u32,
-        _cp_number: u32,
-        offset: u32,
-    ) -> Option<u32> {
-        let mut _address = self.registers.register_at(rn.try_into().unwrap());
-        let effective = match offsetting {
-            Offsetting::Down => _address.wrapping_sub(offset),
-            Offsetting::Up => _address.wrapping_add(offset),
-        };
-
-        let _address = match indexing {
-            Indexing::Pre => effective,
-            Indexing::Post => _address,
-        };
-
-        // TODO: take a look if we need to finish this for real.
-        todo!("finish this");
-        // Some(SIZE_OF_ARM_INSTRUCTION)
-    }
 }
 
 #[cfg(test)]
