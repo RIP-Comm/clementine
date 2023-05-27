@@ -1,4 +1,4 @@
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ThumbModeAluInstruction {
     And = 0x0,
     Eor = 0x1,

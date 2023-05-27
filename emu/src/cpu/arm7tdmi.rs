@@ -16,6 +16,7 @@ use crate::cpu::thumb::mode::ThumbModeOpcode;
 use crate::memory::internal_memory::InternalMemory;
 
 use super::registers::Registers;
+use super::thumb;
 
 pub struct Arm7tdmi {
     pub(crate) memory: Arc<Mutex<InternalMemory>>,
@@ -27,6 +28,11 @@ pub struct Arm7tdmi {
     pub register_bank: RegisterBank,
 
     pub disassembler_buffer: VecFixed<1000, String>,
+
+    fetched_arm: Option<u32>,
+    decoded_arm: Option<ArmModeOpcode>,
+    fetched_thumb: Option<u16>,
+    decoded_thumb: Option<ThumbModeOpcode>,
 }
 
 impl Default for Arm7tdmi {
@@ -38,6 +44,10 @@ impl Default for Arm7tdmi {
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
             disassembler_buffer: VecFixed::new(),
+            fetched_arm: None,
+            decoded_arm: None,
+            fetched_thumb: None,
+            decoded_thumb: None,
         };
 
         // Setting ARM mode at startup
@@ -50,18 +60,28 @@ impl Default for Arm7tdmi {
 }
 
 impl Arm7tdmi {
-    pub fn fetch_arm(&self) -> u32 {
-        self.memory
-            .lock()
-            .unwrap()
-            .read_word(self.registers.program_counter())
+    pub fn flush_pipeline(&mut self) {
+        self.decoded_arm = None;
+        self.decoded_thumb = None;
+        self.fetched_arm = None;
+        self.fetched_thumb = None;
     }
 
-    pub fn fetch_thumb(&self) -> u16 {
-        self.memory
-            .lock()
-            .unwrap()
-            .read_half_word(self.registers.program_counter())
+    pub fn fetch_arm(&mut self) -> u32 {
+        let mut pc = self.registers.program_counter() as u32;
+        pc.set_bit_off(0);
+        pc.set_bit_off(1);
+        self.registers.set_program_counter(pc);
+
+        self.memory.lock().unwrap().read_word(pc as usize)
+    }
+
+    pub fn fetch_thumb(&mut self) -> u16 {
+        let mut pc = self.registers.program_counter() as u32;
+        pc.set_bit_off(0);
+        self.registers.set_program_counter(pc);
+
+        self.memory.lock().unwrap().read_half_word(pc as usize)
     }
 
     pub fn decode<T, V>(op_code: V) -> T
@@ -75,92 +95,91 @@ impl Arm7tdmi {
     pub fn execute_arm(&mut self, op_code: ArmModeOpcode) {
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
-        let bytes_to_advance = if !self.cpsr.can_execute(op_code.condition) {
-            Some(arm::operations::SIZE_OF_INSTRUCTION)
-        } else {
-            let decimal_value = self.registers.program_counter();
-            let padded_hex_value = format!("{decimal_value:#04X}");
-            self.disassembler_buffer.push(format!(
-                "{padded_hex_value}: {}",
-                op_code.instruction.disassembler()
-            ));
-            match op_code.instruction {
-                ArmModeInstruction::DataProcessing {
-                    condition: _,
-                    alu_instruction,
-                    set_conditions,
-                    op_kind,
-                    rn,
-                    destination,
-                    op2: _,
-                } => self.data_processing(
-                    op_code,
-                    alu_instruction,
-                    set_conditions,
-                    op_kind,
-                    rn,
-                    destination,
-                ),
-                ArmModeInstruction::Multiply => todo!(),
-                ArmModeInstruction::MultiplyLong => todo!(),
-                ArmModeInstruction::SingleDataSwap => todo!(),
-                ArmModeInstruction::BranchAndExchange {
-                    condition: _,
-                    register,
-                } => self.branch_and_exchange(register),
-                ArmModeInstruction::HalfwordDataTransferRegisterOffset => {
-                    self.half_word_data_transfer(op_code)
-                }
-                ArmModeInstruction::HalfwordDataTransferImmediateOffset => {
-                    self.half_word_data_transfer(op_code)
-                }
-                ArmModeInstruction::SingleDataTransfer {
-                    condition: _,
-                    kind,
-                    quantity,
-                    write_back,
-                    indexing,
-                    rd,
-                    base_register,
-                    offset_info,
-                    offsetting,
-                } => self.single_data_transfer(
-                    kind,
-                    quantity,
-                    write_back,
-                    indexing,
-                    rd,
-                    base_register,
-                    offset_info,
-                    offsetting,
-                ),
-                ArmModeInstruction::Undefined => todo!(),
-                ArmModeInstruction::BlockDataTransfer {
-                    condition: _,
-                    indexing,
-                    offsetting,
-                    load_psr,
-                    write_back,
-                    load_store,
-                    rn,
-                    register_list: reg_list,
-                } => self.block_data_transfer(
-                    indexing, offsetting, load_psr, write_back, load_store, rn, reg_list,
-                ),
-                ArmModeInstruction::Branch {
-                    condition: _,
-                    link,
-                    offset,
-                } => self.branch(link, offset),
-            ArmModeInstruction::CoprocessorDataTransfer { .. } => todo!(),
-                ArmModeInstruction::CoprocessorDataOperation => todo!(),
-                ArmModeInstruction::CoprocessorRegisterTransfer => todo!(),
-                ArmModeInstruction::SoftwareInterrupt => todo!(),
-            }
-        };
+        if !self.cpsr.can_execute(op_code.condition) {
+            return;
+        }
 
-        self.registers
-            .advance_program_counter(bytes_to_advance.unwrap_or(0));
+        let decimal_value = self.registers.program_counter();
+        let padded_hex_value = format!("{decimal_value:#04X}");
+        self.disassembler_buffer.push(format!(
+            "{}: {}",
+            padded_hex_value,
+            op_code.instruction.disassembler()
+        ));
+
+        match op_code.instruction {
+            ArmModeInstruction::DataProcessing {
+                condition: _,
+                alu_instruction,
+                set_conditions,
+                op_kind,
+                rn,
+                destination,
+                op2: _,
+            } => self.data_processing(
+                op_code,
+                alu_instruction,
+                set_conditions,
+                op_kind,
+                rn,
+                destination,
+            ),
+            ArmModeInstruction::Multiply => todo!(),
+            ArmModeInstruction::MultiplyLong => todo!(),
+            ArmModeInstruction::SingleDataSwap => todo!(),
+            ArmModeInstruction::BranchAndExchange {
+                condition: _,
+                register,
+            } => self.branch_and_exchange(register),
+            ArmModeInstruction::HalfwordDataTransferRegisterOffset => {
+                self.half_word_data_transfer(op_code)
+            }
+            ArmModeInstruction::HalfwordDataTransferImmediateOffset => {
+                self.half_word_data_transfer(op_code)
+            }
+            ArmModeInstruction::SingleDataTransfer {
+                condition: _,
+                kind,
+                quantity,
+                write_back,
+                indexing,
+                rd,
+                base_register,
+                offset_info,
+                offsetting,
+            } => self.single_data_transfer(
+                kind,
+                quantity,
+                write_back,
+                indexing,
+                rd,
+                base_register,
+                offset_info,
+                offsetting,
+            ),
+            ArmModeInstruction::Undefined => todo!(),
+            ArmModeInstruction::BlockDataTransfer {
+                condition: _,
+                indexing,
+                offsetting,
+                load_psr,
+                write_back,
+                load_store,
+                rn,
+                register_list: reg_list,
+            } => self.block_data_transfer(
+                indexing, offsetting, load_psr, write_back, load_store, rn, reg_list,
+            ),
+            ArmModeInstruction::Branch {
+                condition: _,
+                link,
+                offset,
+            } => self.branch(link, offset),
+            ArmModeInstruction::CoprocessorDataTransfer { .. } => todo!(),
+            ArmModeInstruction::CoprocessorDataOperation => todo!(),
+            ArmModeInstruction::CoprocessorRegisterTransfer => todo!(),
+            ArmModeInstruction::SoftwareInterrupt => todo!(),
+        };
     }
 
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
@@ -170,7 +189,8 @@ impl Arm7tdmi {
             "{padded_hex_value}: {}",
             op_code.instruction.disassembler()
         ));
-        let bytes_to_advance: Option<u32> = match op_code.instruction {
+
+        match op_code.instruction {
             ThumbModeInstruction::MoveShiftedRegister {
                 shift_operation: op,
                 offset5,
@@ -264,33 +284,50 @@ impl Arm7tdmi {
             ThumbModeInstruction::UncondBranch { offset } => self.uncond_branch(offset),
             ThumbModeInstruction::LongBranchLink { h, offset } => self.long_branch_link(h, offset),
         };
-
-        self.registers
-            .advance_program_counter(bytes_to_advance.unwrap_or(0));
     }
 
     pub fn step(&mut self) {
-        // We set pc lowest bits to 0. In ARM we set the 2 lsb to 0 because instructions are word aligned.
-        // In THUMB we set only the lsb to 0 because instructions are halfword aligned.
-
         match self.cpsr.cpu_state() {
             CpuState::Thumb => {
-                let mut pc = self.registers.program_counter() as u32;
-                pc.set_bit_off(0);
-                self.registers.set_program_counter(pc);
+                if let Some(decoded) = self.decoded_thumb {
+                    let current_ins = self.registers.program_counter() - 4;
 
-                let op = self.fetch_thumb();
-                let op = self.decode(op);
-                self.execute_thumb(op);
+                    log(format!("PC: 0x{current_ins:X} {decoded}"));
+
+                    self.execute_thumb(decoded);
+                }
+
+                if !matches!(self.cpsr.cpu_state(), CpuState::Thumb) {
+                    return;
+                }
+
+                self.decoded_thumb = self.fetched_thumb.map(Self::decode);
+                self.fetched_thumb = Some(self.fetch_thumb());
+
+                self.registers.set_program_counter(
+                    self.registers.program_counter() as u32
+                        + thumb::operations::SIZE_OF_INSTRUCTION,
+                );
             }
             CpuState::Arm => {
-                let mut pc = self.registers.program_counter() as u32;
-                pc.set_bit_off(0);
-                pc.set_bit_off(1);
-                self.registers.set_program_counter(pc);
-                let op = self.fetch_arm();
-                let op = self.decode(op);
-                self.execute_arm(op);
+                if let Some(decoded) = self.decoded_arm {
+                    let current_ins = self.registers.program_counter() - 4;
+
+                    log(format!("PC: 0x{current_ins:X} {decoded}"));
+
+                    self.execute_arm(decoded);
+                }
+
+                if !matches!(self.cpsr.cpu_state(), CpuState::Arm) {
+                    return;
+                }
+
+                self.decoded_arm = self.fetched_arm.map(Self::decode);
+                self.fetched_arm = Some(self.fetch_arm());
+
+                self.registers.set_program_counter(
+                    self.registers.program_counter() as u32 + arm::operations::SIZE_OF_INSTRUCTION,
+                );
             }
         }
     }
@@ -474,7 +511,7 @@ mod tests {
 
         cpu.execute_arm(op_code);
 
-        assert_eq!(cpu.registers.program_counter(), 68);
+        assert_eq!(cpu.registers.program_counter(), 60);
 
         // Covers a negative offset
 
@@ -484,7 +521,7 @@ mod tests {
 
         cpu.execute_arm(op_code);
 
-        assert_eq!(cpu.registers.program_counter(), 68 + 8 - 36);
+        assert_eq!(cpu.registers.program_counter(), 60 - 36);
 
         // Covers link
 
@@ -493,7 +530,8 @@ mod tests {
 
         cpu.execute_arm(op_code);
 
-        assert_eq!(cpu.registers.register_at(14), 44);
+        // -4 because of pipelining (pc is at +8 so we've to do -4 to get the next instruction)
+        assert_eq!(cpu.registers.register_at(14), 24 - 4);
     }
 
     #[test]
@@ -676,7 +714,7 @@ mod tests {
             let memory = cpu.memory.lock().unwrap();
 
             assert_eq!(memory.read_at(0x1000), 0);
-            assert_eq!(memory.read_at(0x0FFC), 15 + 12);
+            assert_eq!(memory.read_at(0x0FFC), 15 + 4);
             assert_eq!(memory.read_at(0x0FF8), 7);
             assert_eq!(memory.read_at(0x0FF4), 5);
             assert_eq!(memory.read_at(0x0FF0), 1);
@@ -827,7 +865,7 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(100), 512);
+            assert_eq!(cpu.memory.lock().unwrap().read_word(100), 504);
             assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
         }
         {
@@ -840,8 +878,8 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(500 + 8 - 0b11111), 512);
-            assert_eq!(cpu.registers.program_counter(), 504);
+            assert_eq!(cpu.memory.lock().unwrap().read_word(500 - 0b11111), 504);
+            assert_eq!(cpu.registers.program_counter(), 500);
         }
         {
             // Register offset, post-index, down, no wb (but implicit), store PC, unsigned halfword
@@ -855,7 +893,7 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(100), 512);
+            assert_eq!(cpu.memory.lock().unwrap().read_word(100), 504);
             assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
         }
     }
@@ -867,7 +905,7 @@ mod tests {
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
         cpu.registers.set_register_at(1, 10);
-        cpu.memory.lock().unwrap().write_at(356, 1);
+        cpu.memory.lock().unwrap().write_at(352, 1);
         cpu.execute_thumb(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 1);
@@ -1040,7 +1078,7 @@ mod tests {
         cpu.execute_thumb(op_code);
 
         // Asserting no branch since condition is not satisfied
-        assert_eq!(cpu.registers.program_counter(), 1002);
+        assert_eq!(cpu.registers.program_counter(), 1000);
 
         cpu.cpsr.set_sign_flag(true);
 
@@ -1049,7 +1087,7 @@ mod tests {
         cpu.execute_thumb(op_code);
 
         // Asserting branch now that we set the condition
-        assert_eq!(cpu.registers.program_counter(), 1002 + 4 - 8);
+        assert_eq!(cpu.registers.program_counter(), 1000 - 8);
     }
 
     #[test]
@@ -1062,7 +1100,7 @@ mod tests {
 
         cpu.execute_thumb(op_code);
 
-        assert_eq!(cpu.registers.program_counter(), 1610);
+        assert_eq!(cpu.registers.program_counter(), 1606);
     }
 
     #[test]
@@ -1471,7 +1509,8 @@ mod tests {
         cpu.registers.set_register_at(REG_LR, 200);
         cpu.execute_thumb(op_code);
 
-        assert_eq!(cpu.registers.register_at(REG_LR), 103);
+        // 98 | 1
+        assert_eq!(cpu.registers.register_at(REG_LR), 99);
         assert_eq!(cpu.registers.program_counter(), 328);
     }
 
@@ -1640,7 +1679,7 @@ mod tests {
                 }),
                 check_fn: Box::new(|cpu| {
                     let v = cpu.registers.register_at(1);
-                    assert_eq!(v, 22);
+                    assert_eq!(v, 18);
                 }),
             },
         ] {

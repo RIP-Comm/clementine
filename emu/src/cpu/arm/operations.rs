@@ -98,6 +98,10 @@ impl Arm7tdmi {
             Mvn => self.mvn(destination.try_into().unwrap(), op2, set_conditions),
         };
 
+        if !matches!(alu_instruction, Teq | Cmn | Cmp | Tst) && destination == REG_PROGRAM_COUNTER {
+            self.flush_pipeline();
+        }
+
         // If is a "test" ALU instruction we ever advance PC.
         match alu_instruction {
             Teq | Cmn | Cmp | Tst => Some(SIZE_OF_INSTRUCTION),
@@ -295,15 +299,17 @@ impl Arm7tdmi {
     /// amount from register (`i` is `False` and `r` is `True`) the instruction
     /// takes an additional cycle, thus `PC` points to `X+12`.
     ///
+    /// PC is by default at `X+8` when executing the instruction `X` so we return 4 or 0
+    ///
     /// # Arguments
     ///
     /// * `i` - A boolean value representing whether the 2nd operand is immediate or not
     /// * `r` - A boolean value representing whether the shift amount is to be taken from register or not
     pub(crate) fn get_pc_offset_alu(&self, i: OperandKind, r: bool) -> u32 {
         if i == OperandKind::Register && r {
-            12
+            4
         } else {
-            8
+            0
         }
     }
 
@@ -554,6 +560,8 @@ impl Arm7tdmi {
 
         self.registers.set_program_counter(rn);
 
+        self.flush_pipeline();
+
         None
     }
 
@@ -580,14 +588,11 @@ impl Arm7tdmi {
             }
         };
 
-        let mut address = self
+        let address = self
             .registers
             .register_at(rn_base_register.try_into().unwrap());
 
         if rn_base_register == REG_PROGRAM_COUNTER {
-            // prefetching
-            address = address.wrapping_add(8);
-
             if write_back {
                 panic!("WriteBack should not be specified when using R15 as base register.");
             }
@@ -614,7 +619,7 @@ impl Arm7tdmi {
             LoadStoreKind::Store => {
                 let value = if rd_source_destination_register == REG_PROGRAM_COUNTER {
                     let pc: u32 = self.registers.program_counter().try_into().unwrap();
-                    pc + 12
+                    pc + 4
                 } else {
                     self.registers
                         .register_at(rd_source_destination_register as usize)
@@ -651,6 +656,8 @@ impl Arm7tdmi {
             },
         }
 
+        drop(mem);
+
         if indexing == Indexing::Post || write_back {
             self.registers
                 .set_register_at(rn_base_register.try_into().unwrap(), effective);
@@ -661,6 +668,8 @@ impl Arm7tdmi {
         {
             Some(SIZE_OF_INSTRUCTION)
         } else {
+            self.flush_pipeline();
+
             None
         }
     }
@@ -677,13 +686,9 @@ impl Arm7tdmi {
         offset_info: SingleDataTransferOffsetInfo,
         offsetting: Offsetting,
     ) -> Option<u32> {
-        let address = if base_register == REG_PROGRAM_COUNTER {
-            let pc: u32 = self.registers.program_counter().try_into().unwrap();
-            pc + 8_u32
-        } else {
-            self.registers
-                .register_at(base_register.try_into().unwrap())
-        };
+        let address = self
+            .registers
+            .register_at(base_register.try_into().unwrap());
 
         let amount = match offset_info {
             SingleDataTransferOffsetInfo::Immediate { offset } => offset,
@@ -742,9 +747,9 @@ impl Arm7tdmi {
                 ReadWriteKind::Word => {
                     let mut v = self.registers.register_at(rd.try_into().unwrap());
 
-                    // If R15 we get the value of the current instruction + 12
+                    // If R15 we get the value of the current instruction + 4 (it is +8 already)
                     if rd == REG_PROGRAM_COUNTER {
-                        v += 12;
+                        v += 4;
                     }
 
                     self.memory
@@ -772,6 +777,8 @@ impl Arm7tdmi {
         if !(kind == SingleDataTransferKind::Ldr && rd == REG_PROGRAM_COUNTER) {
             Some(SIZE_OF_INSTRUCTION)
         } else {
+            self.flush_pipeline();
+
             None
         }
     }
@@ -800,9 +807,9 @@ impl Arm7tdmi {
                 |arm: &mut Self, address: usize, reg_source: usize| {
                     let mut value = arm.registers.register_at(reg_source);
 
-                    // If R15 we get the value of the current instruction + 12
+                    // If R15 we get the value of the current instruction + 4 (it is +8 already)
                     if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
-                        value += 12;
+                        value += 4;
                     }
                     let mut memory = arm.memory.lock().unwrap();
 
@@ -835,6 +842,8 @@ impl Arm7tdmi {
         if !(load_store == LoadStoreKind::Load && reg_list.is_bit_on(15)) {
             Some(SIZE_OF_INSTRUCTION)
         } else {
+            self.flush_pipeline();
+
             None
         }
     }
@@ -883,12 +892,13 @@ impl Arm7tdmi {
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
         if is_link {
             self.registers
-                .set_register_at(14, old_pc.wrapping_add(SIZE_OF_INSTRUCTION));
+                .set_register_at(14, old_pc.wrapping_sub(SIZE_OF_INSTRUCTION));
         }
 
-        // 8 is for the prefetch
-        let new_pc = self.registers.program_counter() as i32 + offset + 8;
+        let new_pc = old_pc as i32 + offset;
         self.registers.set_program_counter(new_pc as u32);
+
+        self.flush_pipeline();
 
         // Never advance PC after B
         None
@@ -1190,7 +1200,7 @@ mod tests {
             assert!(!cpu.cpsr.carry_flag());
             assert!(!cpu.cpsr.overflow_flag());
             cpu.execute_arm(op_code);
-            assert_eq!(cpu.registers.register_at(0), 24);
+            assert_eq!(cpu.registers.register_at(0), 16);
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.carry_flag());
@@ -1214,7 +1224,7 @@ mod tests {
         );
         cpu.registers.set_register_at(15, 15);
         cpu.execute_arm(op_code);
-        assert_eq!(cpu.registers.register_at(0), 15 + 8 + 32);
+        assert_eq!(cpu.registers.register_at(0), 15 + 32);
     }
 
     #[test]
@@ -1248,7 +1258,7 @@ mod tests {
 
         cpu.execute_arm(op_code);
 
-        assert_eq!(cpu.registers.register_at(2), 500 + 12 + 10);
+        assert_eq!(cpu.registers.register_at(2), 500 + 4 + 10);
     }
 
     #[test]
@@ -1273,10 +1283,10 @@ mod tests {
             }
         );
 
-        cpu.registers.set_register_at(15, 1 << 31);
+        cpu.registers.set_register_at(15, (1 << 31) + 1);
         cpu.registers.set_register_at(14, 1 << 31);
         cpu.execute_arm(op_code);
-        assert_eq!(cpu.registers.register_at(0), 8);
+        assert_eq!(cpu.registers.register_at(0), 1);
         assert!(cpu.cpsr.carry_flag());
         assert!(cpu.cpsr.overflow_flag());
         assert!(!cpu.cpsr.sign_flag());
@@ -2347,15 +2357,15 @@ mod tests {
             assert_eq!(f, "LDRB R13, #24");
 
             // because in this specific case address will be
-            // then will be 0x03000050 + 8 (.wrapping_add(offset))
+            // then will be 0x03000050 (.wrapping_add(offset))
             cpu.registers.set_program_counter(0x03000050);
 
             // simulate mem already contains something.
-            cpu.memory.lock().unwrap().write_at(0x03000070, 99);
+            cpu.memory.lock().unwrap().write_at(0x03000068, 99);
 
             cpu.execute_arm(op_code);
             assert_eq!(cpu.registers.register_at(13), 99);
-            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+            assert_eq!(cpu.registers.program_counter(), 0x03000050);
         }
     }
 
@@ -2416,7 +2426,7 @@ mod tests {
             assert_eq!(memory.read_at(0x01010101 + 1), 1);
             assert_eq!(memory.read_at(0x01010101 + 2), 1);
             assert_eq!(memory.read_at(0x01010101 + 3), 1);
-            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+            assert_eq!(cpu.registers.program_counter(), 0x03000050);
         }
         {
             let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
@@ -2440,15 +2450,15 @@ mod tests {
             assert_eq!(f, "STRB R13, #24");
 
             // because in this specific case address will be
-            // then will be 0x03000050 + 8 (.wrapping_add(offset))
+            // then will be 0x03000050 (.wrapping_add(offset))
             cpu.registers.set_program_counter(0x03000050);
 
             cpu.execute_arm(op_code);
 
             let memory = cpu.memory.lock().unwrap();
 
-            assert_eq!(memory.read_at(0x03000070), 13);
-            assert_eq!(cpu.registers.program_counter(), 0x03000054);
+            assert_eq!(memory.read_at(0x03000068), 13);
+            assert_eq!(cpu.registers.program_counter(), 0x03000050);
         }
     }
 
@@ -2477,13 +2487,13 @@ mod tests {
 
             // simulate mem already contains something.
             // in u32 this is 16843009 00000001_00000001_00000001_00000001.
-            memory.write_at(0x30, 1);
-            memory.write_at(0x30 + 1, 1);
-            memory.write_at(0x30 + 2, 1);
-            memory.write_at(0x30 + 3, 1);
+            memory.write_at(0x28, 1);
+            memory.write_at(0x28 + 1, 1);
+            memory.write_at(0x28 + 2, 1);
+            memory.write_at(0x28 + 3, 1);
         }
         cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(13), 16843009);
-        assert_eq!(cpu.registers.program_counter(), 4);
+        assert_eq!(cpu.registers.program_counter(), 0);
     }
 }

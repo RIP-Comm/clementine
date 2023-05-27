@@ -1,5 +1,6 @@
 use crate::cpu::thumb::instruction::ThumbModeInstruction;
 
+#[derive(Copy, Clone)]
 pub struct ThumbModeOpcode {
     pub instruction: ThumbModeInstruction,
     pub raw: u16,
