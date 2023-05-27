@@ -25,7 +25,7 @@ impl Arm7tdmi {
         op_kind: OperandKind,
         rn: u32,
         destination: u32,
-    ) -> Option<u32> {
+    ) {
         let offset = match rn {
             // if Rn is R15(PC) we need to offset its value because of
             // instruction pipelining
@@ -58,38 +58,30 @@ impl Arm7tdmi {
             Rsc => self.rsc(destination.try_into().unwrap(), op1, op2, set_conditions),
             Tst => {
                 if set_conditions {
-                    self.tst(op1, op2)
+                    self.tst(op1, op2);
                 } else {
                     self.psr_transfer(op_code);
-
-                    return Some(SIZE_OF_INSTRUCTION);
                 }
             }
             Teq => {
                 if set_conditions {
-                    self.teq(op1, op2)
+                    self.teq(op1, op2);
                 } else {
                     self.psr_transfer(op_code);
-
-                    return Some(SIZE_OF_INSTRUCTION);
                 }
             }
             Cmp => {
                 if set_conditions {
-                    self.cmp(op1, op2)
+                    self.cmp(op1, op2);
                 } else {
                     self.psr_transfer(op_code);
-
-                    return Some(SIZE_OF_INSTRUCTION);
                 }
             }
             Cmn => {
                 if set_conditions {
-                    self.cmn(op1, op2)
+                    self.cmn(op1, op2);
                 } else {
                     self.psr_transfer(op_code);
-
-                    return Some(SIZE_OF_INSTRUCTION);
                 }
             }
             Orr => self.orr(destination.try_into().unwrap(), op1, op2, set_conditions),
@@ -98,15 +90,10 @@ impl Arm7tdmi {
             Mvn => self.mvn(destination.try_into().unwrap(), op2, set_conditions),
         };
 
+        // Test instructions do not modify destination so we don't flush pipeline even if
+        // destination == R15
         if !matches!(alu_instruction, Teq | Cmn | Cmp | Tst) && destination == REG_PROGRAM_COUNTER {
             self.flush_pipeline();
-        }
-
-        // If is a "test" ALU instruction we ever advance PC.
-        match alu_instruction {
-            Teq | Cmn | Cmp | Tst => Some(SIZE_OF_INSTRUCTION),
-            _ if destination != REG_PROGRAM_COUNTER => Some(SIZE_OF_INSTRUCTION),
-            _ => None,
         }
     }
 
@@ -545,7 +532,7 @@ impl Arm7tdmi {
         self.cpsr.set_sign_flag(result.get_bit(31));
     }
 
-    pub fn branch_and_exchange(&mut self, register: usize) -> Option<u32> {
+    pub fn branch_and_exchange(&mut self, register: usize) {
         let mut rn = self.registers.register_at(register);
         let state: CpuState = rn.get_bit(0).into();
         self.cpsr.set_cpu_state(state);
@@ -561,11 +548,9 @@ impl Arm7tdmi {
         self.registers.set_program_counter(rn);
 
         self.flush_pipeline();
-
-        None
     }
 
-    pub fn half_word_data_transfer(&mut self, op_code: ArmModeOpcode) -> Option<u32> {
+    pub fn half_word_data_transfer(&mut self, op_code: ArmModeOpcode) {
         let indexing: Indexing = op_code.get_bit(24).into();
         let offsetting: Offsetting = op_code.get_bit(23).into();
         let write_back = op_code.get_bit(21);
@@ -663,14 +648,10 @@ impl Arm7tdmi {
                 .set_register_at(rn_base_register.try_into().unwrap(), effective);
         }
 
-        if !(load_store == LoadStoreKind::Load
-            && rd_source_destination_register == REG_PROGRAM_COUNTER)
+        if load_store == LoadStoreKind::Load
+            && rd_source_destination_register == REG_PROGRAM_COUNTER
         {
-            Some(SIZE_OF_INSTRUCTION)
-        } else {
             self.flush_pipeline();
-
-            None
         }
     }
 
@@ -685,7 +666,7 @@ impl Arm7tdmi {
         base_register: u32,
         offset_info: SingleDataTransferOffsetInfo,
         offsetting: Offsetting,
-    ) -> Option<u32> {
+    ) {
         let address = self
             .registers
             .register_at(base_register.try_into().unwrap());
@@ -773,13 +754,9 @@ impl Arm7tdmi {
             _ => todo!("implement single data transfer operation"),
         }
 
-        // If LDR and Rd == R15 we don't increase the PC
-        if !(kind == SingleDataTransferKind::Ldr && rd == REG_PROGRAM_COUNTER) {
-            Some(SIZE_OF_INSTRUCTION)
-        } else {
+        // If LDR and Rd == R15 we flush the pipeline
+        if kind == SingleDataTransferKind::Ldr && rd == REG_PROGRAM_COUNTER {
             self.flush_pipeline();
-
-            None
         }
     }
 
@@ -793,7 +770,7 @@ impl Arm7tdmi {
         load_store: LoadStoreKind,
         rn: u32,
         reg_list: u32,
-    ) -> Option<u32> {
+    ) {
         let base_register = rn.try_into().unwrap();
         let memory_base = self.registers.register_at(base_register);
         let mut address = memory_base.try_into().unwrap();
@@ -838,13 +815,9 @@ impl Arm7tdmi {
                 .set_register_at(base_register, address.try_into().unwrap());
         };
 
-        // If LDM and R15 is in register list we don't advance PC
-        if !(load_store == LoadStoreKind::Load && reg_list.is_bit_on(15)) {
-            Some(SIZE_OF_INSTRUCTION)
-        } else {
+        // If LDM and R15 is in register list we flush the pipeline
+        if load_store == LoadStoreKind::Load && reg_list.is_bit_on(15) {
             self.flush_pipeline();
-
-            None
         }
     }
 
@@ -887,7 +860,7 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn branch(&mut self, is_link: bool, offset: u32) -> Option<u32> {
+    pub fn branch(&mut self, is_link: bool, offset: u32) {
         let offset = offset.sign_extended(26) as i32;
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
         if is_link {
@@ -899,9 +872,6 @@ impl Arm7tdmi {
         self.registers.set_program_counter(new_pc as u32);
 
         self.flush_pipeline();
-
-        // Never advance PC after B
-        None
     }
 }
 
