@@ -5,7 +5,7 @@ use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
 use logger::log;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum ThumbModeInstruction {
     MoveShiftedRegister {
         shift_operation: ShiftKind,

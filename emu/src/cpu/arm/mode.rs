@@ -2,6 +2,7 @@ use crate::bitwise::Bits;
 use crate::cpu::arm::instructions::ArmModeInstruction;
 use crate::cpu::condition::Condition;
 
+#[derive(Copy, Clone)]
 pub struct ArmModeOpcode {
     pub instruction: ArmModeInstruction,
     pub condition: Condition,

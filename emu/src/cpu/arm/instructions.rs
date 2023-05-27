@@ -9,7 +9,7 @@ use crate::cpu::flags::{
 use logger::log;
 
 /// Possible operation on transfer data.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum SingleDataTransferKind {
     /// Load from memory into a register.
     Ldr,
@@ -66,7 +66,7 @@ impl std::fmt::Display for SingleDataTransferOffsetInfo {
         Ok(())
     }
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum ArmModeInstruction {
     DataProcessing {
         condition: Condition,

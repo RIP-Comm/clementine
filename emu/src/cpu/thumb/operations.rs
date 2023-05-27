@@ -7,7 +7,6 @@ use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
 use crate::cpu::thumb::mode::ThumbModeOpcode;
 use crate::memory::io_device::IoDevice;
-use logger::log;
 use std::ops::Mul;
 
 pub const SIZE_OF_INSTRUCTION: u32 = 2;
@@ -179,57 +178,37 @@ impl Arm7tdmi {
                 self.registers.set_register_at(reg_destination as usize, r);
 
                 if reg_destination == REG_PROGRAM_COUNTER as u16 {
-                    self.registers.set_program_counter(r + 4);
-                    None
-                } else {
-                    Some(SIZE_OF_INSTRUCTION)
+                    self.flush_pipeline();
                 }
+
+                None
             }
             ThumbHighRegisterOperation::Cmp => {
-                let first_op = d_value
-                    + match reg_destination as u32 {
-                        REG_PROGRAM_COUNTER => 4,
-                        _ => 0,
-                    };
-
-                let second_op = s_value
-                    + match reg_source as u32 {
-                        REG_PROGRAM_COUNTER => 4,
-                        _ => 0,
-                    };
-
-                let sub_result = Self::sub_inner_op(first_op, second_op);
+                let sub_result = Self::sub_inner_op(d_value, s_value);
 
                 self.cpsr.set_flags(sub_result);
 
                 Some(SIZE_OF_INSTRUCTION)
             }
             ThumbHighRegisterOperation::Mov => {
-                let second_op = s_value
-                    + match reg_source as u32 {
-                        REG_PROGRAM_COUNTER => 4,
-                        _ => 0,
-                    };
-
                 self.registers
-                    .set_register_at(reg_destination as usize, second_op);
+                    .set_register_at(reg_destination as usize, s_value);
 
                 if reg_destination == REG_PROGRAM_COUNTER as u16 {
+                    self.flush_pipeline();
+
                     None
                 } else {
                     Some(SIZE_OF_INSTRUCTION)
                 }
             }
             ThumbHighRegisterOperation::BxOrBlx => {
-                let value = s_value
-                    + match reg_source as u32 {
-                        REG_PROGRAM_COUNTER => 4,
-                        _ => 0,
-                    };
-                let new_state = value.get_bit(0);
+                let new_state = s_value.get_bit(0);
                 self.cpsr.set_cpu_state(new_state.into());
-                let new_pc = value & !1;
+                let new_pc = s_value & !1;
                 self.registers.set_program_counter(new_pc);
+
+                self.flush_pipeline();
 
                 None
             }
@@ -241,7 +220,7 @@ impl Arm7tdmi {
         // word alignment
         pc.set_bit_off(1);
         pc.set_bit_off(0);
-        let address = pc as usize + 4_usize + immediate_value as usize;
+        let address = pc.wrapping_add(immediate_value as u32) as usize;
         let value = self.memory.lock().unwrap().read_word(address);
         let dest = r_destination.try_into().unwrap();
         self.registers.set_register_at(dest, value);
@@ -446,8 +425,7 @@ impl Arm7tdmi {
             let stack_pointer = self.registers.register_at(REG_SP);
             stack_pointer.wrapping_add(offset)
         } else {
-            let pc = self.registers.program_counter() as u32;
-            let mut pc = pc.wrapping_add(4);
+            let mut pc = self.registers.program_counter() as u32;
             pc.set_bit_off(0);
             pc.wrapping_add(offset)
         };
@@ -518,7 +496,10 @@ impl Arm7tdmi {
 
         self.registers.set_register_at(REG_SP, reg_sp);
 
+        drop(memory);
+
         if load_store == LoadStoreKind::Load && pc_lr {
+            self.flush_pipeline();
             None
         } else {
             Some(SIZE_OF_INSTRUCTION)
@@ -567,9 +548,11 @@ impl Arm7tdmi {
     pub fn cond_branch(&mut self, condition: Condition, immediate_offset: i32) -> Option<u32> {
         if self.cpsr.can_execute(condition) {
             let pc = self.registers.program_counter() as i32;
-            let new_pc = pc + 4 + immediate_offset;
+            let new_pc = pc.wrapping_add(immediate_offset);
             self.registers.set_program_counter(new_pc as u32);
-            log("cond branch can execute");
+
+            self.flush_pipeline();
+
             None
         } else {
             Some(SIZE_OF_INSTRUCTION)
@@ -578,9 +561,11 @@ impl Arm7tdmi {
 
     pub fn uncond_branch(&mut self, offset: u32) -> Option<u32> {
         let offset = offset.sign_extended(12) as i32;
-        let pc = self.registers.program_counter() as i32 + 4; // NOTE: Emulating prefetch with this +4.
+        let pc = self.registers.program_counter() as i32;
         let new_pc = pc + offset;
         self.registers.set_program_counter(new_pc as u32);
+
+        self.flush_pipeline();
 
         None
     }
@@ -589,18 +574,20 @@ impl Arm7tdmi {
         if h {
             let offset = offset << 1;
 
-            let next_instruction = self.registers.program_counter() as u32 + SIZE_OF_INSTRUCTION;
+            let next_instruction = self.registers.program_counter() as u32 - SIZE_OF_INSTRUCTION;
             let lr = self.registers.register_at(REG_LR);
 
             self.registers.set_program_counter(lr.wrapping_add(offset));
             self.registers.set_register_at(REG_LR, next_instruction | 1);
+
+            self.flush_pipeline();
+
             None
         } else {
             let offset = offset << 12;
             let offset = offset.sign_extended(23);
 
-            let pc =
-                self.registers.program_counter() as u32 + SIZE_OF_INSTRUCTION + SIZE_OF_INSTRUCTION;
+            let pc = self.registers.program_counter() as u32;
             self.registers
                 .set_register_at(REG_LR, pc.wrapping_add(offset));
             Some(SIZE_OF_INSTRUCTION)
