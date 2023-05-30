@@ -41,6 +41,21 @@ impl std::fmt::Display for ArmModeOpcode {
             ArmModeInstruction::DataProcessing { .. } => {
                 "FMT: |_Cond__|0_0|I|_code__|S|__Rn___|__Rd___|_______operand2________|"
             }
+            ArmModeInstruction::PSRTransfer {
+                condition: _,
+                psr_kind: _,
+                kind,
+            } => match kind {
+                crate::cpu::arm::alu_instruction::PsrOpKind::Mrs { .. } => {
+                    "FMT: |_Cond__|0_0_0_1_0|P|0_0_1_1_1_1|_Rd__|0_0_0_0_0_0_0_0_0_0_0_0_0|"
+                }
+                crate::cpu::arm::alu_instruction::PsrOpKind::Msr { .. } => {
+                    "FMT: |_Cond__|0_0_0_1_0|P|1_0_1_0_0_1_1_1_1_1_0_0_0_0_0_0_0_0|__Rm___|"
+                }
+                crate::cpu::arm::alu_instruction::PsrOpKind::MsrFlg { .. } => {
+                    "FMT: |_Cond__|0_0|I|1_0|P|1_0_1_0_0_0_1_1_1_1|_Operand____|"
+                }
+            },
             ArmModeInstruction::Multiply => "FMT: |_Cond__|",
             ArmModeInstruction::MultiplyLong => "FMT: |_Cond__|",
             ArmModeInstruction::SingleDataSwap => "FMT: |_Cond__|",

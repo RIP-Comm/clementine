@@ -204,13 +204,14 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
 }
 
 /// Represents the kind of PSR operation
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PsrOpKind {
     /// MSR operation (transfer PSR contents to a register)
-    Mrs,
+    Mrs { destination_register: u32 },
     /// MSR operation (transfer register contents to PSR)
-    Msr,
+    Msr { source_register: u32 },
     /// MSR flags operation (transfer register contents or immediate value to PSR flag bits only)
-    MsrFlg,
+    MsrFlg { operand: AluSecondOperandInfo },
 }
 
 impl From<u32> for PsrOpKind {
@@ -219,19 +220,62 @@ impl From<u32> for PsrOpKind {
             && op_code.get_bits(16..=21) == 0b001111
             && op_code.get_bits(0..=11) == 0b0000_0000_0000
         {
-            Self::Mrs
+            Self::Mrs {
+                destination_register: op_code.get_bits(12..=15),
+            }
         } else if op_code.get_bits(23..=27) == 0b00010
             && op_code.get_bits(12..=21) == 0b10_1001_1111
             && op_code.get_bits(4..=11) == 0b0000_0000
         {
-            Self::Msr
+            Self::Msr {
+                source_register: op_code.get_bits(0..=3),
+            }
         } else if op_code.get_bits(26..=27) == 0b00
             && op_code.get_bits(23..=24) == 0b10
             && op_code.get_bits(12..=21) == 0b10_1000_1111
         {
-            Self::MsrFlg
+            Self::MsrFlg {
+                operand: if op_code.get_bit(25) {
+                    AluSecondOperandInfo::Immediate {
+                        base: op_code.get_bits(0..=7),
+                        shift: op_code.get_bits(8..=11) * 2,
+                    }
+                } else {
+                    AluSecondOperandInfo::Register {
+                        shift_op: ShiftOperator::Immediate(0),
+                        shift_kind: ShiftKind::Lsl,
+                        register: op_code.get_bits(0..=3),
+                    }
+                },
+            }
         } else {
             unreachable!()
+        }
+    }
+}
+
+/// Represents the kind of PSR register to user
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum PsrKind {
+    Cpsr,
+    Spsr,
+}
+
+impl From<bool> for PsrKind {
+    fn from(value: bool) -> Self {
+        if value {
+            Self::Spsr
+        } else {
+            Self::Cpsr
+        }
+    }
+}
+
+impl std::fmt::Display for PsrKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Cpsr => write!(f, "CPSR"),
+            Self::Spsr => write!(f, "SPSR"),
         }
     }
 }

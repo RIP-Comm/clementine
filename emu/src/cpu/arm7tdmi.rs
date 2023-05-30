@@ -124,6 +124,11 @@ impl Arm7tdmi {
                 rn,
                 destination,
             ),
+            ArmModeInstruction::PSRTransfer {
+                condition: _,
+                psr_kind,
+                kind,
+            } => self.psr_transfer(kind, psr_kind),
             ArmModeInstruction::Multiply => todo!(),
             ArmModeInstruction::MultiplyLong => todo!(),
             ArmModeInstruction::SingleDataSwap => todo!(),
