@@ -8,6 +8,8 @@ use crate::cpu::flags::{
 };
 use logger::log;
 
+use super::alu_instruction::{PsrKind, PsrOpKind};
+
 /// Possible operation on transfer data.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum SingleDataTransferKind {
@@ -76,6 +78,11 @@ pub enum ArmModeInstruction {
         rn: u32,
         destination: u32,
         op2: AluSecondOperandInfo,
+    },
+    PSRTransfer {
+        condition: Condition,
+        psr_kind: PsrKind,
+        kind: PsrOpKind,
     },
     Multiply,
     MultiplyLong,
@@ -169,6 +176,23 @@ impl ArmModeInstruction {
                     }
                 }
             }
+            Self::PSRTransfer {
+                condition,
+                psr_kind,
+                kind,
+            } => match kind {
+                PsrOpKind::Mrs {
+                    destination_register,
+                } => {
+                    format!("MRS{condition} R{destination_register}, {psr_kind}")
+                }
+                PsrOpKind::Msr { source_register } => {
+                    format!("MSR{condition} {psr_kind}, R{source_register}")
+                }
+                PsrOpKind::MsrFlg { operand } => {
+                    format!("MSR{condition} {psr_kind}_flg, {operand}")
+                }
+            },
             Self::Multiply => "".to_owned(),
             Self::MultiplyLong => "".to_owned(),
             Self::SingleDataSwap => "".to_owned(),
@@ -427,6 +451,22 @@ impl From<u32> for ArmModeInstruction {
             let op_kind: OperandKind = op_code.get_bit(25).into();
             let rd = op_code.get_bits(12..=15);
 
+            if matches!(
+                alu_instruction,
+                ArmModeAluInstruction::Tst
+                    | ArmModeAluInstruction::Teq
+                    | ArmModeAluInstruction::Cmp
+                    | ArmModeAluInstruction::Cmn
+            ) && !set_conditions
+            {
+                // PSR instruction
+                return PSRTransfer {
+                    condition,
+                    psr_kind: PsrKind::from(op_code.get_bit(22)),
+                    kind: PsrOpKind::from(op_code),
+                };
+            }
+
             let op2 = match op_kind {
                 OperandKind::Immediate => {
                     let shift = op_code.get_bits(8..=11) * 2;
@@ -478,8 +518,6 @@ impl std::fmt::Display for ArmModeInstruction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::arm::alu_instruction::{AluSecondOperandInfo, ShiftOperator};
-    use crate::cpu::flags::ShiftKind;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -556,22 +594,16 @@ mod tests {
     fn decode_data_processing() {
         let output = ArmModeInstruction::from(0b1110_00_0_1011_0_1001_1111_000000001110);
         assert_eq!(
-            ArmModeInstruction::DataProcessing {
+            ArmModeInstruction::PSRTransfer {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Cmn,
-                set_conditions: false,
-                op_kind: OperandKind::Register,
-                rn: 9,
-                destination: 15,
-                op2: AluSecondOperandInfo::Register {
-                    shift_op: ShiftOperator::Immediate(0),
-                    shift_kind: ShiftKind::Lsl,
-                    register: 14,
+                psr_kind: PsrKind::Spsr,
+                kind: PsrOpKind::Msr {
+                    source_register: 14
                 }
             },
             output
         );
-        assert_eq!("CMN R9, R14", output.disassembler());
+        assert_eq!("MSR SPSR, R14", output.disassembler());
     }
 
     #[test]
