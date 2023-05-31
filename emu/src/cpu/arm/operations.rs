@@ -76,6 +76,10 @@ impl Arm7tdmi {
     }
 
     pub fn psr_transfer(&mut self, op_kind: PsrOpKind, psr_kind: PsrKind) {
+        if matches!(self.cpsr.mode(), Mode::System | Mode::User) && psr_kind == PsrKind::Spsr {
+            panic!("Can't access SPSR in System/User mode")
+        }
+
         match op_kind {
             PsrOpKind::Mrs {
                 destination_register,
@@ -86,7 +90,7 @@ impl Arm7tdmi {
 
                 let psr = match psr_kind {
                     PsrKind::Cpsr => self.cpsr,
-                    PsrKind::Spsr => self.get_spsr(),
+                    PsrKind::Spsr => self.spsr,
                 };
 
                 self.registers
@@ -102,12 +106,6 @@ impl Arm7tdmi {
                     .register_at(source_register.try_into().unwrap());
 
                 let current_mode = self.cpsr.mode();
-
-                if matches!(self.cpsr.mode(), Mode::System | Mode::User)
-                    && psr_kind == PsrKind::Spsr
-                {
-                    panic!("Can't access SPSR in System/User mode")
-                }
 
                 {
                     let psr = match psr_kind {
@@ -2037,7 +2035,6 @@ mod tests {
                     }
                 }
             );
-            cpu.cpsr.set_mode(Mode::Fiq);
 
             cpu.register_bank.spsr_fiq.set_state_bit(true);
             cpu.register_bank.spsr_fiq.set_mode(Mode::Fiq);
@@ -2045,6 +2042,8 @@ mod tests {
             cpu.register_bank.spsr_fiq.set_overflow_flag(true);
             cpu.register_bank.spsr_fiq.set_zero_flag(true);
             cpu.register_bank.spsr_fiq.set_sign_flag(true);
+
+            cpu.swap_mode(Mode::Fiq);
 
             cpu.execute_arm(op_code);
 

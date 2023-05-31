@@ -344,17 +344,6 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn get_spsr(&self) -> Psr {
-        match self.cpsr.mode() {
-            Mode::User | Mode::System => panic!("Trying to access a SPSR in either User or System state which do not have banked SPSR."),
-            Mode::Fiq => self.register_bank.spsr_fiq,
-            Mode::Irq => self.register_bank.spsr_irq,
-            Mode::Abort => self.register_bank.spsr_abt,
-            Mode::Supervisor => self.register_bank.spsr_svc,
-            Mode::Undefined => self.register_bank.spsr_und
-        }
-    }
-
     pub fn swap_mode(&mut self, new_mode: Mode) {
         if self.cpsr.mode() == new_mode {
             return;
