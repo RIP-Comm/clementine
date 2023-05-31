@@ -498,6 +498,16 @@ impl From<u8> for HalfwordTransferKind {
     }
 }
 
+impl std::fmt::Display for HalfwordTransferKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsignedHalfwords => write!(f, "H"),
+            Self::SignedByte => write!(f, "SB"),
+            Self::SignedHalfwords => write!(f, "SH"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::cpu::condition::Condition;

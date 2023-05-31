@@ -211,7 +211,49 @@ impl ArmModeInstruction {
                 condition,
                 register,
             } => format!("BX{condition} R{register}"),
-            Self::HalfwordDataTransfer { .. } => "".to_owned(),
+            Self::HalfwordDataTransfer {
+                condition,
+                indexing,
+                offsetting,
+                load_store_kind,
+                transfer_kind,
+                source_destination_register,
+                offset_kind,
+                base_register,
+                write_back,
+                ..
+            } => {
+                let sign = match offsetting {
+                    Offsetting::Up => "+",
+                    Offsetting::Down => "-",
+                };
+
+                let offset = match offset_kind {
+                    HalfwordDataTransferOffsetKind::Immediate { offset } => {
+                        if *offset == 0 {
+                            String::new()
+                        } else {
+                            format!(",#{sign}{offset}")
+                        }
+                    }
+                    HalfwordDataTransferOffsetKind::Register { register } => {
+                        format!(",{sign}R{register}")
+                    }
+                };
+
+                let w = if *write_back { "!" } else { "" };
+
+                let address = match indexing {
+                    Indexing::Pre => {
+                        format!("[R{base_register}{offset}{w}]")
+                    }
+                    Indexing::Post => {
+                        format!("[R{base_register}]{offset}")
+                    }
+                };
+
+                format!("{load_store_kind}{condition}{transfer_kind} R{source_destination_register}, {address}")
+            }
             Self::SingleDataTransfer {
                 condition,
                 kind,
