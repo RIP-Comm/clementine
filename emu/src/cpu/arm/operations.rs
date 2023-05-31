@@ -7,7 +7,8 @@ use crate::cpu::arm::mode::ArmModeOpcode;
 use crate::cpu::arm7tdmi::{Arm7tdmi, HalfwordTransferKind};
 use crate::cpu::cpu_modes::Mode;
 use crate::cpu::flags::{
-    Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind, ShiftKind,
+    HalfwordDataTransferOffsetKind, Indexing, LoadStoreKind, Offsetting, OperandKind,
+    ReadWriteKind, ShiftKind,
 };
 use crate::cpu::psr::CpuState;
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
@@ -516,34 +517,30 @@ impl Arm7tdmi {
         self.flush_pipeline();
     }
 
-    pub fn half_word_data_transfer(&mut self, op_code: ArmModeOpcode) {
-        let indexing: Indexing = op_code.get_bit(24).into();
-        let offsetting: Offsetting = op_code.get_bit(23).into();
-        let write_back = op_code.get_bit(21);
-        let load_store: LoadStoreKind = op_code.get_bit(20).into();
-        let rn_base_register = op_code.get_bits(16..=19);
-        let rd_source_destination_register = op_code.get_bits(12..=15);
-        let transfer_type = HalfwordTransferKind::from(op_code.get_bits(5..=6) as u8);
-
-        let operand_kind: OperandKind = op_code.get_bit(22).into();
-
-        let offset = match operand_kind {
-            OperandKind::Immediate => {
-                let immediate_offset_high = op_code.get_bits(8..=11);
-                let immediate_offset_low = op_code.get_bits(0..=3);
-                (immediate_offset_high << 4) | immediate_offset_low
-            }
-            OperandKind::Register => {
-                let rm: usize = op_code.get_bits(0..=3).try_into().unwrap();
-                self.registers.register_at(rm)
+    #[allow(clippy::too_many_arguments)]
+    pub fn half_word_data_transfer(
+        &mut self,
+        indexing: Indexing,
+        offsetting: Offsetting,
+        write_back: bool,
+        load_store_kind: LoadStoreKind,
+        offset_kind: HalfwordDataTransferOffsetKind,
+        base_register: u32,
+        source_destination_register: u32,
+        transfer_kind: HalfwordTransferKind,
+    ) {
+        let offset = match offset_kind {
+            HalfwordDataTransferOffsetKind::Immediate { offset } => offset,
+            HalfwordDataTransferOffsetKind::Register { register } => {
+                self.registers.register_at(register as usize)
             }
         };
 
         let address = self
             .registers
-            .register_at(rn_base_register.try_into().unwrap());
+            .register_at(base_register.try_into().unwrap());
 
-        if rn_base_register == REG_PROGRAM_COUNTER {
+        if base_register == REG_PROGRAM_COUNTER {
             if write_back {
                 panic!("WriteBack should not be specified when using R15 as base register.");
             }
@@ -566,17 +563,17 @@ impl Arm7tdmi {
 
         let mut mem = self.memory.lock().unwrap();
 
-        match load_store {
+        match load_store_kind {
             LoadStoreKind::Store => {
-                let value = if rd_source_destination_register == REG_PROGRAM_COUNTER {
+                let value = if source_destination_register == REG_PROGRAM_COUNTER {
                     let pc: u32 = self.registers.program_counter().try_into().unwrap();
                     pc + 4
                 } else {
                     self.registers
-                        .register_at(rd_source_destination_register as usize)
+                        .register_at(source_destination_register as usize)
                 };
 
-                match transfer_type {
+                match transfer_kind {
                     HalfwordTransferKind::UnsignedHalfwords => {
                         mem.write_at(address, value.get_bits(0..=7) as u8);
                         mem.write_at(address + 1, value.get_bits(8..=15) as u8);
@@ -584,25 +581,21 @@ impl Arm7tdmi {
                     _ => unreachable!("HS flags can't be != from 01 for STORE (L=0)"),
                 };
             }
-            LoadStoreKind::Load => match transfer_type {
+            LoadStoreKind::Load => match transfer_kind {
                 HalfwordTransferKind::UnsignedHalfwords => {
                     let v = mem.read_half_word(address);
                     self.registers
-                        .set_register_at(rd_source_destination_register as usize, v.into());
+                        .set_register_at(source_destination_register as usize, v.into());
                 }
                 HalfwordTransferKind::SignedByte => {
                     let v = mem.read_at(address) as u32;
-                    self.registers.set_register_at(
-                        rd_source_destination_register as usize,
-                        v.sign_extended(8),
-                    );
+                    self.registers
+                        .set_register_at(source_destination_register as usize, v.sign_extended(8));
                 }
                 HalfwordTransferKind::SignedHalfwords => {
                     let v = mem.read_half_word(address) as u32;
-                    self.registers.set_register_at(
-                        rd_source_destination_register as usize,
-                        v.sign_extended(16),
-                    );
+                    self.registers
+                        .set_register_at(source_destination_register as usize, v.sign_extended(16));
                 }
             },
         }
@@ -611,11 +604,11 @@ impl Arm7tdmi {
 
         if indexing == Indexing::Post || write_back {
             self.registers
-                .set_register_at(rn_base_register.try_into().unwrap(), effective);
+                .set_register_at(base_register.try_into().unwrap(), effective);
         }
 
-        if load_store == LoadStoreKind::Load
-            && rd_source_destination_register == REG_PROGRAM_COUNTER
+        if load_store_kind == LoadStoreKind::Load
+            && source_destination_register == REG_PROGRAM_COUNTER
         {
             self.flush_pipeline();
         }

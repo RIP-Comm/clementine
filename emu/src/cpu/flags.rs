@@ -167,3 +167,9 @@ impl From<bool> for Offsetting {
         }
     }
 }
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum HalfwordDataTransferOffsetKind {
+    Immediate { offset: u32 },
+    Register { register: u32 },
+}
