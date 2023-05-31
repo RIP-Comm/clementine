@@ -466,13 +466,13 @@ impl Arm7tdmi {
     }
 }
 
-pub enum HalfwordTransferType {
+pub enum HalfwordTransferKind {
     UnsignedHalfwords,
     SignedByte,
     SignedHalfwords,
 }
 
-impl From<u8> for HalfwordTransferType {
+impl From<u8> for HalfwordTransferKind {
     fn from(value: u8) -> Self {
         match value.get_bits(0..=1) {
             0b01 => Self::UnsignedHalfwords,

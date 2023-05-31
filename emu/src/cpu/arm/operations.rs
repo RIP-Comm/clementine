@@ -4,7 +4,7 @@ use crate::cpu::arm::alu_instruction::{
 };
 use crate::cpu::arm::instructions::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
 use crate::cpu::arm::mode::ArmModeOpcode;
-use crate::cpu::arm7tdmi::{Arm7tdmi, HalfwordTransferType};
+use crate::cpu::arm7tdmi::{Arm7tdmi, HalfwordTransferKind};
 use crate::cpu::cpu_modes::Mode;
 use crate::cpu::flags::{
     Indexing, LoadStoreKind, Offsetting, OperandKind, ReadWriteKind, ShiftKind,
@@ -523,7 +523,7 @@ impl Arm7tdmi {
         let load_store: LoadStoreKind = op_code.get_bit(20).into();
         let rn_base_register = op_code.get_bits(16..=19);
         let rd_source_destination_register = op_code.get_bits(12..=15);
-        let transfer_type = HalfwordTransferType::from(op_code.get_bits(5..=6) as u8);
+        let transfer_type = HalfwordTransferKind::from(op_code.get_bits(5..=6) as u8);
 
         let operand_kind: OperandKind = op_code.get_bit(22).into();
 
@@ -577,7 +577,7 @@ impl Arm7tdmi {
                 };
 
                 match transfer_type {
-                    HalfwordTransferType::UnsignedHalfwords => {
+                    HalfwordTransferKind::UnsignedHalfwords => {
                         mem.write_at(address, value.get_bits(0..=7) as u8);
                         mem.write_at(address + 1, value.get_bits(8..=15) as u8);
                     }
@@ -585,19 +585,19 @@ impl Arm7tdmi {
                 };
             }
             LoadStoreKind::Load => match transfer_type {
-                HalfwordTransferType::UnsignedHalfwords => {
+                HalfwordTransferKind::UnsignedHalfwords => {
                     let v = mem.read_half_word(address);
                     self.registers
                         .set_register_at(rd_source_destination_register as usize, v.into());
                 }
-                HalfwordTransferType::SignedByte => {
+                HalfwordTransferKind::SignedByte => {
                     let v = mem.read_at(address) as u32;
                     self.registers.set_register_at(
                         rd_source_destination_register as usize,
                         v.sign_extended(8),
                     );
                 }
-                HalfwordTransferType::SignedHalfwords => {
+                HalfwordTransferKind::SignedHalfwords => {
                     let v = mem.read_half_word(address) as u32;
                     self.registers.set_register_at(
                         rd_source_destination_register as usize,
