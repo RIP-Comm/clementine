@@ -132,7 +132,7 @@ impl Arm7tdmi {
                 rs,
                 true,
             ),
-            ThumbModeAluInstruction::Mul => self.mul(
+            ThumbModeAluInstruction::Mul => self.thumb_mul(
                 rd.into(),
                 rs,
                 self.registers.register_at(rd.try_into().unwrap()),
@@ -534,6 +534,14 @@ impl Arm7tdmi {
             self.registers
                 .set_register_at(REG_LR, pc.wrapping_add(offset));
         }
+    }
+
+    pub fn thumb_mul(&mut self, reg_result: usize, op1: u32, op2: u32) {
+        let result = op1 as u64 * op2 as u64;
+
+        self.registers.set_register_at(reg_result, result as u32);
+        self.cpsr.set_zero_flag(result == 0);
+        self.cpsr.set_sign_flag(result.get_bit(31));
     }
 }
 

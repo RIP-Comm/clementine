@@ -81,13 +81,29 @@ pub enum ArmModeInstruction {
         destination: u32,
         op2: AluSecondOperandInfo,
     },
+    Multiply {
+        variant: ArmModeMultiplyVariant,
+        condition: Condition,
+        should_set_codes: bool,
+        rd_destination_register: u32,
+        rn_accumulate_register: u32,
+        rs_operand_register: u32,
+        rm_operand_register: u32,
+    },
+    MultiplyLong {
+        variant: ArmModeMultiplyLongVariant,
+        condition: Condition,
+        should_set_codes: bool,
+        rdhi_destination_register: u32,
+        rdlo_destination_register: u32,
+        rs_operand_register: u32,
+        rm_operand_register: u32,
+    },
     PSRTransfer {
         condition: Condition,
         psr_kind: PsrKind,
         kind: PsrOpKind,
     },
-    Multiply,
-    MultiplyLong,
     SingleDataSwap,
     BranchAndExchange {
         condition: Condition,
@@ -148,6 +164,56 @@ pub enum ArmModeInstruction {
     SoftwareInterrupt,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ArmModeMultiplyVariant {
+    Mul,
+    Mla,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ArmModeMultiplyLongVariant {
+    Umull,
+    Umlal,
+    Smull,
+    Smlal,
+}
+
+impl From<u32> for ArmModeMultiplyVariant {
+    fn from(op_code: u32) -> Self {
+        let mul_op_code: u32 = op_code.get_bits(21..=24);
+        match mul_op_code {
+            0b0000 => Self::Mul,
+            0b0001 => Self::Mla,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl std::fmt::Display for ArmModeMultiplyVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl From<u32> for ArmModeMultiplyLongVariant {
+    fn from(op_code: u32) -> Self {
+        let mul_op_code: u32 = op_code.get_bits(21..=24);
+        match mul_op_code {
+            0b0100 => Self::Umull,
+            0b0101 => Self::Umlal,
+            0b0110 => Self::Smull,
+            0b0111 => Self::Smlal,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl std::fmt::Display for ArmModeMultiplyLongVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 impl ArmModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
@@ -186,7 +252,34 @@ impl ArmModeInstruction {
                         format!("{alu_instruction}{condition}{set_string} R{destination}, {op2}")
                     }
                 }
-            }
+            },
+            Self::Multiply {
+                variant,
+                condition,
+                should_set_codes,
+                rd_destination_register,
+                rn_accumulate_register,
+                rs_operand_register,
+                rm_operand_register,
+            } => {
+                match variant {
+                    ArmModeMultiplyVariant::Mul =>
+                        format!("MUL{condition}{should_set_codes} {rd_destination_register}, {rm_operand_register}, {rs_operand_register}"),
+                    ArmModeMultiplyVariant::Mla =>
+                        format!("MLA{condition}{should_set_codes} {rd_destination_register}, {rm_operand_register}, {rs_operand_register}, {rn_accumulate_register}"),
+                }
+            },
+            Self::MultiplyLong {
+                variant,
+                condition,
+                should_set_codes,
+                rdhi_destination_register,
+                rdlo_destination_register,
+                rs_operand_register,
+                rm_operand_register,
+            } => {
+                format!("{variant}{condition}{should_set_codes} {rdlo_destination_register}, {rdhi_destination_register}, {rm_operand_register}, {rs_operand_register}")
+            },
             Self::PSRTransfer {
                 condition,
                 psr_kind,
@@ -204,8 +297,6 @@ impl ArmModeInstruction {
                     format!("MSR{condition} {psr_kind}_flg, {operand}")
                 }
             },
-            Self::Multiply => "".to_owned(),
-            Self::MultiplyLong => "".to_owned(),
             Self::SingleDataSwap => "".to_owned(),
             Self::BranchAndExchange {
                 condition,
@@ -381,10 +472,48 @@ impl From<u32> for ArmModeInstruction {
             && op_code.get_bits(4..=11) == 0b0000_1001
         {
             SingleDataSwap
-        } else if op_code.get_bits(22..=27) == 0b000000 && op_code.get_bits(4..=7) == 0b1001 {
-            Multiply
-        } else if op_code.get_bits(23..=27) == 0b00001 && op_code.get_bits(4..=7) == 0b1001 {
-            MultiplyLong
+        } else if (op_code.get_bits(23..=27) == 0b00001 || op_code.get_bits(21..=27) == 0b0001010)
+            && (op_code.get_bits(4..=7) == 0b1001 || (op_code.get_bit(7) && !op_code.get_bit(4)))
+        {
+            let variant = ArmModeMultiplyLongVariant::from(op_code);
+
+            let should_set_codes = op_code.get_bit(20);
+
+            let rm_operand_register = op_code.get_bits(0..=3);
+            let rs_operand_register = op_code.get_bits(8..=11);
+            let rdlo_destination_register = op_code.get_bits(12..=15);
+            let rdhi_destination_register = op_code.get_bits(16..=19);
+
+            MultiplyLong {
+                variant,
+                condition,
+                should_set_codes,
+                rdhi_destination_register,
+                rdlo_destination_register,
+                rm_operand_register,
+                rs_operand_register,
+            }
+        } else if op_code.get_bits(25..=27) == 0b000
+            && (op_code.get_bits(4..=7) == 0b1001 || (op_code.get_bit(7) && !op_code.get_bit(4)))
+        {
+            let variant = ArmModeMultiplyVariant::from(op_code);
+
+            let should_set_codes = op_code.get_bit(20);
+
+            let rm_operand_register = op_code.get_bits(0..=3);
+            let rs_operand_register = op_code.get_bits(8..=11);
+            let rn_accumulate_register = op_code.get_bits(12..=15);
+            let rd_destination_register = op_code.get_bits(16..=19);
+
+            Multiply {
+                variant,
+                condition,
+                should_set_codes,
+                rd_destination_register,
+                rn_accumulate_register,
+                rm_operand_register,
+                rs_operand_register,
+            }
         } else if op_code.get_bits(25..=27) == 0b000 && op_code.get_bit(7) && op_code.get_bit(4) {
             let indexing: Indexing = op_code.get_bit(24).into();
             let offsetting: Offsetting = op_code.get_bit(23).into();

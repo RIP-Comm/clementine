@@ -41,6 +41,12 @@ impl std::fmt::Display for ArmModeOpcode {
             ArmModeInstruction::DataProcessing { .. } => {
                 "FMT: |_Cond__|0_0|I|_code__|S|__Rn___|__Rd___|_______operand2________|"
             }
+            ArmModeInstruction::Multiply { .. } => {
+                "FMT: |_Cond__|0_0_0|__code__|S|_Rd__|_Rn__|_Rs__|1_0_0_1|__Rm___|"
+            }
+            ArmModeInstruction::MultiplyLong { .. } => {
+                "FMT: |_Cond__|0_0_0|__code__|S|_RdHi_|_RdLo_|_Rs__|1_0_0_1|_Rm__|"
+            }
             ArmModeInstruction::PSRTransfer {
                 condition: _,
                 psr_kind: _,
@@ -56,8 +62,6 @@ impl std::fmt::Display for ArmModeOpcode {
                     "FMT: |_Cond__|0_0|I|1_0|P|1_0_1_0_0_0_1_1_1_1|_Operand____|"
                 }
             },
-            ArmModeInstruction::Multiply => "FMT: |_Cond__|",
-            ArmModeInstruction::MultiplyLong => "FMT: |_Cond__|",
             ArmModeInstruction::SingleDataSwap => "FMT: |_Cond__|",
             ArmModeInstruction::BranchAndExchange { .. } => {
                 "FMT: |_Cond__|0_0_0_1|0_0_1_0|1_1_1_1|1_1_1_1|1_1_1_1|0_0_0_1|__Rn___|"

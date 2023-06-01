@@ -2,7 +2,10 @@ use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::{
     shift, AluInstructionKind, ArithmeticOpResult, ArmModeAluInstruction, Kind, PsrOpKind,
 };
-use crate::cpu::arm::instructions::{SingleDataTransferKind, SingleDataTransferOffsetInfo};
+use crate::cpu::arm::instructions::{
+    ArmModeMultiplyLongVariant, ArmModeMultiplyVariant, SingleDataTransferKind,
+    SingleDataTransferOffsetInfo,
+};
 use crate::cpu::arm::mode::ArmModeOpcode;
 use crate::cpu::arm7tdmi::{Arm7tdmi, HalfwordTransferKind};
 use crate::cpu::cpu_modes::Mode;
@@ -491,14 +494,6 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn mul(&mut self, reg_result: usize, op1: u32, op2: u32) {
-        let result = op1 as u64 * op2 as u64;
-
-        self.registers.set_register_at(reg_result, result as u32);
-        self.cpsr.set_zero_flag(result == 0);
-        self.cpsr.set_sign_flag(result.get_bit(31));
-    }
-
     pub fn branch_and_exchange(&mut self, register: usize) {
         let mut rn = self.registers.register_at(register);
         let state: CpuState = rn.get_bit(0).into();
@@ -841,6 +836,141 @@ impl Arm7tdmi {
 
         self.flush_pipeline();
     }
+
+    pub fn multiply(
+        &mut self,
+        mul_variant: ArmModeMultiplyVariant,
+        set_condition_codes: bool,
+        rd: u32,
+        rn: u32,
+        rs: u32,
+        rm: u32,
+    ) {
+        use ArmModeMultiplyVariant::*;
+        match mul_variant {
+            // Unsiged multiply (32-bit by 32-bit, bottom 32-bit result).
+            Mul => self.mul_or_mla(set_condition_codes, false, rd, rn, rs, rm),
+            // Unsiged multiply-accumulate (32-bit by 32-bit, bottom 32-bit accumulate and result).
+            Mla => self.mul_or_mla(set_condition_codes, true, rd, rn, rs, rm),
+        }
+    }
+
+    pub fn multiply_long(
+        &mut self,
+        mul_variant: ArmModeMultiplyLongVariant,
+        set_condition_codes: bool,
+        rdhi: u32,
+        rdlo: u32,
+        rs: u32,
+        rm: u32,
+    ) {
+        use ArmModeMultiplyLongVariant::*;
+        match mul_variant {
+            // Unsigned long multiply (32-bit by 32-bit, 64-bit result)
+            Umull => self.umull_or_umlal(set_condition_codes, false, rdhi, rdlo, rs, rm),
+            // Unsigned long multiply-accumulate (32-bit by 32-bit, 64-bit accumulate and result)
+            Umlal => self.umull_or_umlal(set_condition_codes, true, rdhi, rdlo, rs, rm),
+            // Signed long multiply (32-bit by 32-bit, 64-bit result)
+            Smull => self.smull_or_smlal(set_condition_codes, false, rdhi, rdlo, rs, rm),
+            // Signed multiply-accumulate (32-bit by 32-bit, 64-bit accumulate and result)
+            Smlal => self.smull_or_smlal(set_condition_codes, true, rdhi, rdlo, rs, rm),
+        }
+    }
+
+    pub fn mul_or_mla(
+        &mut self,
+        set_condition_codes: bool,
+        does_accumulate: bool,
+        rd: u32,
+        rn: u32,
+        rs: u32,
+        rm: u32,
+    ) {
+        let rm_operand_value = self.registers.register_at(rm as usize);
+        let rs_operand_value = self.registers.register_at(rs as usize);
+
+        let (mut result, _) = rm_operand_value.overflowing_mul(rs_operand_value);
+        if does_accumulate {
+            let rn_register_value = self.registers.register_at(rn as usize);
+            let (result_add, _) = result.overflowing_add(rn_register_value);
+            result = result_add
+        }
+
+        self.registers.set_register_at(rd as usize, result);
+
+        if set_condition_codes {
+            self.cpsr.set_zero_flag(result == 0);
+            self.cpsr.set_sign_flag(result.get_bit(31));
+        }
+    }
+
+    pub fn umull_or_umlal(
+        &mut self,
+        set_condition_codes: bool,
+        does_accumulate: bool,
+        rdhi: u32,
+        rdlo: u32,
+        rs: u32,
+        rm: u32,
+    ) {
+        let rm_operand_value = self.registers.register_at(rm as usize) as u64;
+        let rs_operand_value = self.registers.register_at(rs as usize) as u64;
+
+        let (mut result, _) = rm_operand_value.overflowing_mul(rs_operand_value);
+        if does_accumulate {
+            let rdhi_register_value = self.registers.register_at(rdhi as usize) as u64;
+            let rdlo_register_value = self.registers.register_at(rdlo as usize) as u64;
+            let rdhilo_register_value = rdhi_register_value << 32 | rdlo_register_value;
+            let (result_add, _) = result.overflowing_add(rdhilo_register_value);
+            result = result_add;
+        }
+
+        self.registers
+            .set_register_at(rdlo as usize, result.get_bits(0..=31) as u32);
+        self.registers
+            .set_register_at(rdhi as usize, result.get_bits(32..=63) as u32);
+
+        if set_condition_codes {
+            self.cpsr.set_zero_flag(result == 0);
+            self.cpsr.set_sign_flag(result.get_bit(63));
+        }
+    }
+
+    pub fn smull_or_smlal(
+        &mut self,
+        set_condition_codes: bool,
+        does_accumulate: bool,
+        rdhi: u32,
+        rdlo: u32,
+        rs: u32,
+        rm: u32,
+    ) {
+        let rm_operand_value = self.registers.register_at(rm as usize);
+        let rs_operand_value = self.registers.register_at(rs as usize);
+        let rm_operand_value_sgn: i64 = (rm_operand_value as i32) as i64;
+        let rs_operand_value_sgn: i64 = (rs_operand_value as i32) as i64;
+
+        let (mut result_sgn, _) = rm_operand_value_sgn.overflowing_mul(rs_operand_value_sgn);
+        if does_accumulate {
+            let rdhi_register_value = self.registers.register_at(rdhi as usize) as u64;
+            let rdlo_register_value = self.registers.register_at(rdlo as usize) as u64;
+            let rdhilo_register_value = rdhi_register_value << 32 | rdlo_register_value;
+            let rdhilo_register_value_sgn = rdhilo_register_value as i64;
+            let (result_sgn_add, _) = result_sgn.overflowing_add(rdhilo_register_value_sgn);
+            result_sgn = result_sgn_add;
+        }
+
+        let result = result_sgn as u64;
+        self.registers
+            .set_register_at(rdlo as usize, result.get_bits(0..=31) as u32);
+        self.registers
+            .set_register_at(rdhi as usize, result.get_bits(32..=63) as u32);
+
+        if set_condition_codes {
+            self.cpsr.set_zero_flag(result == 0);
+            self.cpsr.set_sign_flag(result.get_bit(63));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -853,6 +983,69 @@ mod tests {
     use crate::cpu::flags::ShiftKind;
 
     use pretty_assertions::assert_eq;
+
+    pub trait BitsUtilsTest
+    where
+        Self: Clone + Sized + Into<u128> + TryFrom<u128> + From<bool> + TryInto<u8> + From<u8>,
+        <Self as TryFrom<u128>>::Error: std::fmt::Debug,
+    {
+        fn set_bits(&mut self, bits_range: std::ops::RangeInclusive<u8>, value: Self) {
+            let start = bits_range.start();
+            let length = bits_range.len() as u32;
+            let self_bits: u128 = self.clone().into();
+
+            // Set all of the desider bits to 1 then & it with the value provided
+            // considering the right amount of bits (given by bits_range.len()).
+            // Order goes from lsb to msb (right to left).
+            let mask = (2_u128.pow(length)) - 1;
+            let value_bits: u128 = value.into();
+            let value_bits: u128 = (value_bits & mask) << start;
+
+            // Now, shift the mask then flip it so we can choose where to insert
+            // our value bits
+            let reverse_mask = !(mask << start);
+
+            // Say we have self being a u16 value with the following bits:
+            //     0b0000....10010011_01110011_u128
+            // and we want to set bits 7..=10, 4 bits starting from 7 to 0b1001.
+            //
+            // The constant `reverse_mask` will look something like:
+            //     0b1111....11111000_01111111_u128
+            // which is helpful for clearing the bits we are about to set.
+            //
+            //     0b0000....10010011_01110011_u128 &
+            //     0b1111....11111000_01111111_u128
+            //     --------------------------------
+            //     0b0000....10010000_01110011_u128
+            //
+            // The value above can be used in bit-or with our value bits
+            // to obtain the expected result:
+            //
+            //     0b0000....10010000_01110011_u128 |
+            //     0b0000....00000100_10000000_u128 =
+            //     --------------------------------
+            //     0b0000....10010100_11110011_u128
+
+            let new_self =
+                <Self as TryFrom<u128>>::try_from((self_bits & reverse_mask) | value_bits).unwrap();
+            self.clone_from(&new_self);
+        }
+    }
+
+    impl BitsUtilsTest for u32 {}
+
+    #[test]
+    fn set_bits() {
+        let mut b = 0b10001001_u32;
+        b.set_bits(4..=5, 0b11);
+        assert_eq!(b, 0b10111001_u32);
+        b.set_bits(1..=2, 0b11);
+        assert_eq!(b, 0b10111111_u32);
+
+        let mut b = 0b00000000_00000000_u32;
+        b.set_bits(0..=7, 0b11111111_u32);
+        assert_eq!(b, 0b00000000_11111111_u32);
+    }
 
     #[test]
     fn check_cmn() {
@@ -2391,5 +2584,304 @@ mod tests {
         cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(13), 16843009);
         assert_eq!(cpu.registers.program_counter(), 0);
+    }
+
+    #[test]
+    fn check_multiply_non_halfword_mul() {
+        let mut cpu = Arm7tdmi::default();
+
+        let rm_operand_register: u32 = 5;
+        let rs_operand_register: u32 = 6;
+        let rd_destination_register: u32 = 7;
+
+        cpu.registers
+            .set_register_at(rm_operand_register as usize, 100);
+        cpu.registers
+            .set_register_at(rs_operand_register as usize, 101);
+        cpu.registers
+            .set_register_at(rd_destination_register as usize, 0);
+
+        let mut op_code = 0u32;
+        op_code.set_bits(4..=7, 0b1001);
+        op_code.set_bits(0..=3, rm_operand_register);
+        op_code.set_bits(8..=11, rs_operand_register);
+        op_code.set_bits(16..=19, rd_destination_register);
+        op_code.set_bits(20..=20, 0b1);
+        op_code.set_bits(21..=24, 0b0000); // 0000b: MUL{cond}{S}   Rd,Rm,Rs        ;multiply   Rd = Rm*Rs
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(28..=31, Condition::AL as u32);
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+
+        cpu.execute_arm(op_code);
+        assert_eq!(
+            cpu.registers.register_at(rd_destination_register as usize),
+            10100_u32
+        );
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(!cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_multiply_non_halfword_mla() {
+        let mut cpu = Arm7tdmi::default();
+
+        let rm_operand_register: u32 = 5;
+        let rs_operand_register: u32 = 6;
+        let rd_destination_register: u32 = 7;
+        let rn_acc_register: u32 = 8;
+
+        cpu.registers
+            .set_register_at(rm_operand_register as usize, 100);
+        cpu.registers
+            .set_register_at(rs_operand_register as usize, 101);
+        cpu.registers
+            .set_register_at(rd_destination_register as usize, 0);
+        cpu.registers.set_register_at(rn_acc_register as usize, 32);
+
+        let mut op_code = 0u32;
+        op_code.set_bits(4..=7, 0b1001);
+        op_code.set_bits(0..=3, rm_operand_register);
+        op_code.set_bits(8..=11, rs_operand_register);
+        op_code.set_bits(12..=15, rn_acc_register);
+        op_code.set_bits(16..=19, rd_destination_register);
+        op_code.set_bits(20..=20, 0b1);
+        op_code.set_bits(21..=24, 0b0001); // 0001b: MLA{cond}{S}   Rd,Rm,Rs,Rn     ;mul.& accumulate Rd = Rm*Rs+Rn
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(28..=31, Condition::AL as u32);
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+
+        cpu.execute_arm(op_code);
+        assert_eq!(
+            cpu.registers.register_at(rd_destination_register as usize),
+            10132_u32
+        );
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(!cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_multiply_long_non_halfword_umull() {
+        let mut cpu = Arm7tdmi::default();
+
+        let rm_operand_register: u32 = 5;
+        let rs_operand_register: u32 = 6;
+        let rdhi_destination_register: u32 = 7;
+        let rdlo_destination_register: u32 = 8;
+
+        cpu.registers
+            .set_register_at(rm_operand_register as usize, 123456);
+        cpu.registers
+            .set_register_at(rs_operand_register as usize, 654321);
+        cpu.registers
+            .set_register_at(rdhi_destination_register as usize, 0);
+        cpu.registers
+            .set_register_at(rdlo_destination_register as usize, 0);
+
+        let mut op_code = 0u32;
+        op_code.set_bits(4..=7, 0b1001);
+        op_code.set_bits(0..=3, rm_operand_register);
+        op_code.set_bits(8..=11, rs_operand_register);
+        op_code.set_bits(12..=15, rdlo_destination_register);
+        op_code.set_bits(16..=19, rdhi_destination_register);
+        op_code.set_bits(20..=20, 0b1);
+        op_code.set_bits(21..=24, 0b0100); // 0100b: UMULL{cond}{S} RdLo,RdHi,Rm,Rs ;multiply   RdHiLo=Rm*Rs
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(28..=31, Condition::AL as u32);
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+
+        cpu.execute_arm(op_code);
+        let rdhi_register_value: u64 =
+            cpu.registers
+                .register_at(rdhi_destination_register as usize) as u64;
+        let rdlo_register_value: u64 =
+            cpu.registers
+                .register_at(rdlo_destination_register as usize) as u64;
+        let rdhilo_register_value: u64 = rdhi_register_value << 32 | rdlo_register_value;
+        assert_eq!(rdhilo_register_value, 123456 * 654321);
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(!cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_multiply_long_non_halfword_umlal() {
+        let mut cpu = Arm7tdmi::default();
+
+        let rm_operand_register: u32 = 5;
+        let rs_operand_register: u32 = 6;
+        let rdhi_destination_register: u32 = 7;
+        let rdlo_destination_register: u32 = 8;
+
+        let operand_1 = 123456_u32;
+        let operand_2 = 654321_u32;
+        let accumulate = 123456789_u32;
+        cpu.registers
+            .set_register_at(rm_operand_register as usize, operand_1);
+        cpu.registers
+            .set_register_at(rs_operand_register as usize, operand_2);
+        cpu.registers
+            .set_register_at(rdhi_destination_register as usize, 0_u32);
+        cpu.registers
+            .set_register_at(rdlo_destination_register as usize, accumulate);
+
+        let mut op_code = 0u32;
+        op_code.set_bits(4..=7, 0b1001);
+        op_code.set_bits(0..=3, rm_operand_register);
+        op_code.set_bits(8..=11, rs_operand_register);
+        op_code.set_bits(12..=15, rdlo_destination_register);
+        op_code.set_bits(16..=19, rdhi_destination_register);
+        op_code.set_bits(20..=20, 0b1);
+        op_code.set_bits(21..=24, 0b0101); // 0101b: UMLAL{cond}{S} RdLo,RdHi,Rm,Rs ;mul.& acc. RdHiLo=Rm*Rs+RdHiLo
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(28..=31, Condition::AL as u32);
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+
+        cpu.execute_arm(op_code);
+        let rdhi_register_value: u64 =
+            cpu.registers
+                .register_at(rdhi_destination_register as usize) as u64;
+        let rdlo_register_value: u64 =
+            cpu.registers
+                .register_at(rdlo_destination_register as usize) as u64;
+        let rdhilo_register_value: u64 = rdhi_register_value << 32 | rdlo_register_value;
+
+        let expected = operand_1 as u64 * operand_2 as u64 + accumulate as u64;
+        assert_eq!(rdhilo_register_value, expected);
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(!cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_multiply_long_non_halfword_smull() {
+        let mut cpu = Arm7tdmi::default();
+
+        let rm_operand_register: u32 = 5;
+        let rs_operand_register: u32 = 6;
+        let rdhi_destination_register: u32 = 7;
+        let rdlo_destination_register: u32 = 8;
+
+        let operand_1 = -123456_i32;
+        let operand_2 = 654321_i32;
+        cpu.registers.set_register_at(
+            rm_operand_register as usize,
+            u32::from_be_bytes(operand_1.to_be_bytes()),
+        );
+        cpu.registers.set_register_at(
+            rs_operand_register as usize,
+            u32::from_be_bytes(operand_2.to_be_bytes()),
+        );
+        cpu.registers
+            .set_register_at(rdhi_destination_register as usize, 0_u32);
+        cpu.registers
+            .set_register_at(rdlo_destination_register as usize, 0_u32);
+
+        let mut op_code = 0u32;
+        op_code.set_bits(4..=7, 0b1001);
+        op_code.set_bits(0..=3, rm_operand_register);
+        op_code.set_bits(8..=11, rs_operand_register);
+        op_code.set_bits(12..=15, rdlo_destination_register);
+        op_code.set_bits(16..=19, rdhi_destination_register);
+        op_code.set_bits(20..=20, 0b1);
+        op_code.set_bits(21..=24, 0b0110); // 0110b: SMULL{cond}{S} RdLo,RdHi,Rm,Rs ;sign.mul.  RdHiLo=Rm*Rs
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(28..=31, Condition::AL as u32);
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+
+        cpu.execute_arm(op_code);
+        let rdhi_register_value: u64 =
+            cpu.registers
+                .register_at(rdhi_destination_register as usize) as u64;
+        let rdlo_register_value: u64 =
+            cpu.registers
+                .register_at(rdlo_destination_register as usize) as u64;
+        let rdhilo_register_value: u64 = rdhi_register_value << 32 | rdlo_register_value;
+        let rdhilo_register_value: i64 = i64::from_be_bytes(rdhilo_register_value.to_be_bytes());
+
+        let expected = operand_1 as i64 * operand_2 as i64;
+        assert_eq!(rdhilo_register_value, expected);
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(cpu.cpsr.sign_flag());
+    }
+
+    #[test]
+    fn check_multiply_long_non_halfword_smlal() {
+        let mut cpu = Arm7tdmi::default();
+
+        let rm_operand_register: u32 = 5;
+        let rs_operand_register: u32 = 6;
+        let rdlo_destination_register: u32 = 7;
+        let rdhi_destination_register: u32 = 8;
+
+        let operand_1 = 453_i32;
+        let operand_2 = -754_i32;
+        let accumulate = 98764_i64;
+        let accumulate_u64 = u64::from_be_bytes(accumulate.to_be_bytes());
+        cpu.registers.set_register_at(
+            rm_operand_register as usize,
+            u32::from_be_bytes(operand_1.to_be_bytes()),
+        );
+        cpu.registers.set_register_at(
+            rs_operand_register as usize,
+            u32::from_be_bytes(operand_2.to_be_bytes()),
+        );
+
+        cpu.registers.set_register_at(
+            rdlo_destination_register as usize,
+            accumulate_u64.get_bits(0..=31) as u32,
+        );
+        cpu.registers.set_register_at(
+            rdhi_destination_register as usize,
+            accumulate_u64.get_bits(32..=63) as u32,
+        );
+
+        let mut op_code = 0u32;
+        op_code.set_bits(4..=7, 0b1001);
+        op_code.set_bits(0..=3, rm_operand_register);
+        op_code.set_bits(8..=11, rs_operand_register);
+        op_code.set_bits(12..=15, rdlo_destination_register as u32);
+        op_code.set_bits(16..=19, rdhi_destination_register as u32);
+        op_code.set_bits(20..=20, 0b1);
+        op_code.set_bits(21..=24, 0b0111); // 0111b: SMLAL{cond}{S} RdLo,RdHi,Rm,Rs ;sign.m&a.  RdHiLo=Rm*Rs+RdHiLo
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(25..=27, 0b000);
+        op_code.set_bits(28..=31, Condition::AL as u32);
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+
+        cpu.execute_arm(op_code);
+        let rdhi_register_value: u64 =
+            cpu.registers
+                .register_at(rdhi_destination_register as usize) as u64;
+        let rdlo_register_value: u64 =
+            cpu.registers
+                .register_at(rdlo_destination_register as usize) as u64;
+        let rdhilo_register_value: u64 = rdhi_register_value << 32 | rdlo_register_value;
+        let rdhilo_register_value: i64 = i64::from_be_bytes(rdhilo_register_value.to_be_bytes());
+
+        let expected = operand_1 as i64 * operand_2 as i64 + accumulate;
+        assert_eq!(rdhilo_register_value, expected);
+        assert!(!cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.zero_flag());
+        assert!(!cpu.cpsr.overflow_flag());
+        assert!(cpu.cpsr.sign_flag());
     }
 }
