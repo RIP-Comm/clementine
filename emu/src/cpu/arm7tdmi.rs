@@ -129,8 +129,38 @@ impl Arm7tdmi {
                 psr_kind,
                 kind,
             } => self.psr_transfer(kind, psr_kind),
-            ArmModeInstruction::Multiply => todo!(),
-            ArmModeInstruction::MultiplyLong => todo!(),
+            ArmModeInstruction::Multiply {
+                variant,
+                should_set_codes,
+                rd_destination_register,
+                rn_accumulate_register,
+                rm_operand_register,
+                rs_operand_register,
+                ..
+            } => self.multiply(
+                variant,
+                should_set_codes,
+                rd_destination_register,
+                rn_accumulate_register,
+                rm_operand_register,
+                rs_operand_register,
+            ),
+            ArmModeInstruction::MultiplyLong {
+                variant,
+                should_set_codes,
+                rdhi_destination_register,
+                rdlo_destination_register,
+                rm_operand_register,
+                rs_operand_register,
+                ..
+            } => self.multiply_long(
+                variant,
+                should_set_codes,
+                rdhi_destination_register,
+                rdlo_destination_register,
+                rm_operand_register,
+                rs_operand_register,
+            ),
             ArmModeInstruction::SingleDataSwap => todo!(),
             ArmModeInstruction::BranchAndExchange {
                 condition: _,
