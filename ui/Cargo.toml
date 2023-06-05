@@ -7,9 +7,9 @@ license.workspace = true
 
 [dependencies]
 logger = { path = "../logger" }
-eframe = { version = "0.21.3", default-features = false, features = ["glow"] }
-egui = { version = "0.21.0", default-features = false }
-egui_extras = { version = "0.21.0", features = ["image"] }
+eframe = { version = "0.22.0", default-features = false, features = ["glow"] }
+egui = { version = "0.22.0", default-features = false }
+egui_extras = { version = "0.22.0", features = ["image"] }
 emu = { path = "../emu"}
 image = { version = "0.24.5", features = ["png"], optional = true}
 

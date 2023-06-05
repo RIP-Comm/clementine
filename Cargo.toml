@@ -13,8 +13,8 @@ repository = "https://github.com/RIP-Comm/clementine"
 license = "MIT"
 
 [dependencies]
-eframe = { version = "0.21.1", default-features = false, features = ["glow"] }
-egui = { version = "0.21.0" }
+eframe = { version = "0.22.0", default-features = false, features = ["glow"] }
+egui = { version = "0.22.0" }
 egui_glium = { version = "0.20.1" }
 
 emu = { path = "./emu" }
