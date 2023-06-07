@@ -36,4 +36,8 @@ impl Gba {
             memory,
         }
     }
+
+    pub fn step(&mut self) {
+        self.cpu.step();
+    }
 }
