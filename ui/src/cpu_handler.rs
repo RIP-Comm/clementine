@@ -76,7 +76,7 @@ impl UiTool for CpuHandler {
                             return;
                         }
 
-                        gba_clone.lock().unwrap().cpu.step();
+                        gba_clone.lock().unwrap().step();
                     }
                 }));
             }
@@ -94,25 +94,25 @@ impl UiTool for CpuHandler {
 
             if ui.button("⏭x1").clicked() {
                 if let Ok(mut gba) = self.gba.lock() {
-                    gba.cpu.step()
+                    gba.step()
                 }
             }
 
             if ui.button("⏭x10").clicked() {
                 if let Ok(mut gba) = self.gba.lock() {
-                    (0..10).for_each(|_| gba.cpu.step());
+                    (0..10).for_each(|_| gba.step());
                 }
             }
 
             if ui.button("⏭x100").clicked() {
                 if let Ok(mut gba) = self.gba.lock() {
-                    (0..100).for_each(|_| gba.cpu.step());
+                    (0..100).for_each(|_| gba.step());
                 }
             }
 
             if ui.button("⏭x500").clicked() {
                 if let Ok(mut gba) = self.gba.lock() {
-                    (0..500).for_each(|_| gba.cpu.step());
+                    (0..500).for_each(|_| gba.step());
                 }
             }
         });
