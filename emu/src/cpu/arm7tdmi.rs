@@ -338,7 +338,12 @@ impl Arm7tdmi {
     pub fn step(&mut self) {
         match self.cpsr.cpu_state() {
             CpuState::Thumb => {
-                if let Some(decoded) = self.decoded_thumb {
+                let to_execute = self.decoded_thumb;
+
+                self.decoded_thumb = self.fetched_thumb.map(Self::decode);
+                self.fetched_thumb = Some(self.fetch_thumb());
+
+                if let Some(decoded) = to_execute {
                     let current_ins = self.registers.program_counter() - 4;
 
                     log(format!("PC: 0x{current_ins:X} {decoded}"));
@@ -346,12 +351,10 @@ impl Arm7tdmi {
                     self.execute_thumb(decoded);
                 }
 
-                if !matches!(self.cpsr.cpu_state(), CpuState::Thumb) {
+                // This means that the instruction flushed the pipeline
+                if matches!(self.fetched_thumb, None) {
                     return;
                 }
-
-                self.decoded_thumb = self.fetched_thumb.map(Self::decode);
-                self.fetched_thumb = Some(self.fetch_thumb());
 
                 self.registers.set_program_counter(
                     self.registers.program_counter() as u32
@@ -359,7 +362,12 @@ impl Arm7tdmi {
                 );
             }
             CpuState::Arm => {
-                if let Some(decoded) = self.decoded_arm {
+                let to_execute = self.decoded_arm;
+
+                self.decoded_arm = self.fetched_arm.map(Self::decode);
+                self.fetched_arm = Some(self.fetch_arm());
+
+                if let Some(decoded) = to_execute {
                     let current_ins = self.registers.program_counter() - 4;
 
                     log(format!("PC: 0x{current_ins:X} {decoded}"));
@@ -367,12 +375,10 @@ impl Arm7tdmi {
                     self.execute_arm(decoded);
                 }
 
-                if !matches!(self.cpsr.cpu_state(), CpuState::Arm) {
+                // This means that the instruction flushed the pipeline
+                if matches!(self.fetched_arm, None) {
                     return;
                 }
-
-                self.decoded_arm = self.fetched_arm.map(Self::decode);
-                self.fetched_arm = Some(self.fetch_arm());
 
                 self.registers.set_program_counter(
                     self.registers.program_counter() as u32 + arm::operations::SIZE_OF_INSTRUCTION,
