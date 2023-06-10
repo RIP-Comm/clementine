@@ -5,6 +5,7 @@ use logger::log;
 use vecfixed::VecFixed;
 
 use crate::bitwise::Bits;
+use crate::bus::Bus;
 use crate::cpu::arm;
 use crate::cpu::arm::instructions::ArmModeInstruction;
 use crate::cpu::arm::mode::ArmModeOpcode;
@@ -13,13 +14,12 @@ use crate::cpu::psr::{CpuState, Psr};
 use crate::cpu::register_bank::RegisterBank;
 use crate::cpu::thumb::instruction::ThumbModeInstruction;
 use crate::cpu::thumb::mode::ThumbModeOpcode;
-use crate::memory::internal_memory::InternalMemory;
 
 use super::registers::Registers;
 use super::thumb;
 
 pub struct Arm7tdmi {
-    pub(crate) memory: Arc<Mutex<InternalMemory>>,
+    pub(crate) bus: Arc<Mutex<Bus>>,
 
     pub cpsr: Psr,
     pub spsr: Psr,
@@ -38,7 +38,7 @@ pub struct Arm7tdmi {
 impl Default for Arm7tdmi {
     fn default() -> Self {
         let mut s = Self {
-            memory: Arc::new(Mutex::new(InternalMemory::default())),
+            bus: Arc::new(Mutex::new(Bus::default())),
             cpsr: Psr::from(Mode::Supervisor), // FIXME: Starting as Supervisor? Not sure
             spsr: Psr::default(),
             registers: Registers::default(),
@@ -73,7 +73,7 @@ impl Arm7tdmi {
         pc.set_bit_off(1);
         self.registers.set_program_counter(pc);
 
-        self.memory.lock().unwrap().read_word(pc as usize)
+        self.bus.lock().unwrap().read_word(pc as usize)
     }
 
     pub fn fetch_thumb(&mut self) -> u16 {
@@ -81,7 +81,7 @@ impl Arm7tdmi {
         pc.set_bit_off(0);
         self.registers.set_program_counter(pc);
 
-        self.memory.lock().unwrap().read_half_word(pc as usize)
+        self.bus.lock().unwrap().read_half_word(pc as usize)
     }
 
     pub fn decode<T, V>(op_code: V) -> T
@@ -381,9 +381,9 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn new(memory: Arc<Mutex<InternalMemory>>) -> Self {
+    pub fn new(bus: Arc<Mutex<Bus>>) -> Self {
         Self {
-            memory,
+            bus,
             ..Default::default()
         }
     }
@@ -544,7 +544,6 @@ mod tests {
     use crate::cpu::flags::{HalfwordDataTransferOffsetKind, Indexing, LoadStoreKind, Offsetting};
     use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
     use crate::cpu::thumb::instruction::ThumbModeInstruction;
-    use crate::memory::io_device::IoDevice;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -605,11 +604,11 @@ mod tests {
 
             cpu.registers.set_register_at(13, 0x1000);
             {
-                let mut memory = cpu.memory.lock().unwrap();
+                let mut bus = cpu.bus.lock().unwrap();
 
-                memory.write_at(0x1000, 1);
-                memory.write_at(0x1004, 5);
-                memory.write_at(0x1008, 7);
+                bus.write_at(0x1000, 1);
+                bus.write_at(0x1004, 5);
+                bus.write_at(0x1008, 7);
             }
             cpu.execute_arm(op_code);
 
@@ -626,11 +625,11 @@ mod tests {
 
             cpu.registers.set_register_at(13, 0x1000);
             {
-                let mut memory = cpu.memory.lock().unwrap();
+                let mut bus = cpu.bus.lock().unwrap();
 
-                memory.write_at(0x1004, 1);
-                memory.write_at(0x1008, 5);
-                memory.write_at(0x100C, 7);
+                bus.write_at(0x1004, 1);
+                bus.write_at(0x1008, 5);
+                bus.write_at(0x100C, 7);
             }
             cpu.execute_arm(op_code);
 
@@ -647,11 +646,11 @@ mod tests {
 
             cpu.registers.set_register_at(13, 0x1000);
             {
-                let mut memory = cpu.memory.lock().unwrap();
+                let mut bus = cpu.bus.lock().unwrap();
 
-                memory.write_at(0x1000, 7);
-                memory.write_at(0x0FFC, 5);
-                memory.write_at(0x0FF8, 1);
+                bus.write_at(0x1000, 7);
+                bus.write_at(0x0FFC, 5);
+                bus.write_at(0x0FF8, 1);
             }
             cpu.execute_arm(op_code);
 
@@ -668,11 +667,11 @@ mod tests {
 
             cpu.registers.set_register_at(13, 0x1000);
             {
-                let mut memory = cpu.memory.lock().unwrap();
+                let mut bus = cpu.bus.lock().unwrap();
 
-                memory.write_at(0x0FFC, 7);
-                memory.write_at(0x0FF8, 5);
-                memory.write_at(0x0FF4, 1);
+                bus.write_at(0x0FFC, 7);
+                bus.write_at(0x0FF8, 5);
+                bus.write_at(0x0FF4, 1);
             }
             cpu.execute_arm(op_code);
 
@@ -695,11 +694,11 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            let memory = cpu.memory.lock().unwrap();
+            let mut bus = cpu.bus.lock().unwrap();
 
-            assert_eq!(memory.read_at(0x1000), 1);
-            assert_eq!(memory.read_at(0x1004), 5);
-            assert_eq!(memory.read_at(0x1008), 7);
+            assert_eq!(bus.read_at(0x1000), 1);
+            assert_eq!(bus.read_at(0x1004), 5);
+            assert_eq!(bus.read_at(0x1008), 7);
             assert_eq!(cpu.registers.register_at(13), 0x100C);
         }
         {
@@ -716,12 +715,12 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            let memory = cpu.memory.lock().unwrap();
+            let mut bus = cpu.bus.lock().unwrap();
 
-            assert_eq!(memory.read_at(0x1000), 0);
-            assert_eq!(memory.read_at(0x1004), 1);
-            assert_eq!(memory.read_at(0x1008), 5);
-            assert_eq!(memory.read_at(0x100C), 7);
+            assert_eq!(bus.read_at(0x1000), 0);
+            assert_eq!(bus.read_at(0x1004), 1);
+            assert_eq!(bus.read_at(0x1008), 5);
+            assert_eq!(bus.read_at(0x100C), 7);
             assert_eq!(cpu.registers.register_at(13), 0x100C);
         }
         {
@@ -738,11 +737,11 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            let memory = cpu.memory.lock().unwrap();
+            let mut bus = cpu.bus.lock().unwrap();
 
-            assert_eq!(memory.read_at(0x1000), 7);
-            assert_eq!(memory.read_at(0x0FFC), 5);
-            assert_eq!(memory.read_at(0x0FF8), 1);
+            assert_eq!(bus.read_at(0x1000), 7);
+            assert_eq!(bus.read_at(0x0FFC), 5);
+            assert_eq!(bus.read_at(0x0FF8), 1);
             assert_eq!(cpu.registers.register_at(13), 0x0FF4);
         }
         {
@@ -760,13 +759,13 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            let memory = cpu.memory.lock().unwrap();
+            let mut bus = cpu.bus.lock().unwrap();
 
-            assert_eq!(memory.read_at(0x1000), 0);
-            assert_eq!(memory.read_at(0x0FFC), 15 + 4);
-            assert_eq!(memory.read_at(0x0FF8), 7);
-            assert_eq!(memory.read_at(0x0FF4), 5);
-            assert_eq!(memory.read_at(0x0FF0), 1);
+            assert_eq!(bus.read_at(0x1000), 0);
+            assert_eq!(bus.read_at(0x0FFC), 15 + 4);
+            assert_eq!(bus.read_at(0x0FF8), 7);
+            assert_eq!(bus.read_at(0x0FF4), 5);
+            assert_eq!(bus.read_at(0x0FF0), 1);
             assert_eq!(cpu.registers.register_at(13), 0x0FF0);
         }
     }
@@ -796,12 +795,13 @@ mod tests {
             cpu.registers.set_register_at(0, 16843009);
             cpu.execute_arm(op_code);
 
-            let memory = cpu.memory.lock().unwrap();
-            assert_eq!(memory.read_at(0), 1);
-            assert_eq!(memory.read_at(1), 1);
+            let mut bus = cpu.bus.lock().unwrap();
+
+            assert_eq!(bus.read_at(0), 1);
+            assert_eq!(bus.read_at(1), 1);
             // because we store halfword = 16bit
-            assert_eq!(memory.read_at(2), 0);
-            assert_eq!(memory.read_at(3), 0);
+            assert_eq!(bus.read_at(2), 0);
+            assert_eq!(bus.read_at(3), 0);
         }
         {
             // Immediate offset, pre-index, down, no wb, load, unsigned halfword
@@ -810,7 +810,7 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.memory
+            cpu.bus
                 .lock()
                 .unwrap()
                 .write_word(100 - 0b11111, 0xFFFF1234);
@@ -827,7 +827,7 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.memory
+            cpu.bus
                 .lock()
                 .unwrap()
                 .write_word(100 - 0b11111, 0xFFFF1234);
@@ -844,7 +844,7 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.memory
+            cpu.bus
                 .lock()
                 .unwrap()
                 .write_word(100 + 0b11111, 0xFFFF1234);
@@ -861,7 +861,7 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.memory.lock().unwrap().write_word(100, 0xFFFF1234);
+            cpu.bus.lock().unwrap().write_word(100, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
@@ -875,7 +875,7 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.memory.lock().unwrap().write_at(100, -5_i8 as u8);
+            cpu.bus.lock().unwrap().write_at(100, -5_i8 as u8);
 
             cpu.execute_arm(op_code);
 
@@ -889,7 +889,7 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.memory
+            cpu.bus
                 .lock()
                 .unwrap()
                 .write_half_word(100, -300_i16 as u16);
@@ -910,7 +910,7 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(100), 0x1234);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(100), 0x1234);
             assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
         }
         {
@@ -924,7 +924,7 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(100), 504);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(100), 504);
             assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
         }
         {
@@ -937,7 +937,7 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(500 - 0b11111), 504);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(500 - 0b11111), 504);
             assert_eq!(cpu.registers.program_counter(), 500);
         }
         {
@@ -952,7 +952,7 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(100), 504);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(100), 504);
             assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
         }
     }
@@ -964,7 +964,7 @@ mod tests {
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
         cpu.registers.set_register_at(1, 10);
-        cpu.memory.lock().unwrap().write_at(352, 1);
+        cpu.bus.lock().unwrap().write_at(352, 1);
         cpu.execute_thumb(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 1);
@@ -984,7 +984,7 @@ mod tests {
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(200), 0xFEEFAC1F);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(200), 0xFEEFAC1F);
         }
         // Checks Store Byte
         {
@@ -998,10 +998,10 @@ mod tests {
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_at(200), 0x1F);
-            assert_eq!(cpu.memory.lock().unwrap().read_at(201), 0);
-            assert_eq!(cpu.memory.lock().unwrap().read_at(202), 0);
-            assert_eq!(cpu.memory.lock().unwrap().read_at(203), 0);
+            assert_eq!(cpu.bus.lock().unwrap().read_at(200), 0x1F);
+            assert_eq!(cpu.bus.lock().unwrap().read_at(201), 0);
+            assert_eq!(cpu.bus.lock().unwrap().read_at(202), 0);
+            assert_eq!(cpu.bus.lock().unwrap().read_at(203), 0);
         }
         // Checks Load Word
         {
@@ -1011,7 +1011,7 @@ mod tests {
 
             cpu.registers.set_register_at(0, 100);
             cpu.registers.set_register_at(1, 100);
-            cpu.memory.lock().unwrap().write_word(200, 0xFEEFAC1F);
+            cpu.bus.lock().unwrap().write_word(200, 0xFEEFAC1F);
 
             cpu.execute_thumb(op_code);
 
@@ -1025,7 +1025,7 @@ mod tests {
 
             cpu.registers.set_register_at(0, 100);
             cpu.registers.set_register_at(1, 100);
-            cpu.memory.lock().unwrap().write_word(200, 0xFEEFAC1F);
+            cpu.bus.lock().unwrap().write_word(200, 0xFEEFAC1F);
 
             cpu.execute_thumb(op_code);
 
@@ -1049,8 +1049,8 @@ mod tests {
             cpu.registers.set_register_at(0, 0xFFFFFFFF);
             cpu.execute_thumb(op_code);
 
-            let mem = cpu.memory.lock().unwrap();
-            assert_eq!(mem.read_word(54), 0xFFFFFFFF);
+            let mut bus = cpu.bus.lock().unwrap();
+            assert_eq!(bus.read_word(54), 0xFFFFFFFF);
         }
         {
             // Load Word
@@ -1062,7 +1062,7 @@ mod tests {
                 ThumbModeInstruction::LoadStoreImmOffset
             );
             {
-                let mut mem = cpu.memory.lock().unwrap();
+                let mut mem = cpu.bus.lock().unwrap();
                 mem.write_word(1048, 0xFFFFFFFF);
             }
             cpu.registers.set_register_at(1, 1000);
@@ -1084,8 +1084,8 @@ mod tests {
             cpu.registers.set_register_at(0, 0xFFFFFFFF);
             cpu.execute_thumb(op_code);
 
-            let mem = cpu.memory.lock().unwrap();
-            assert_eq!(mem.read_at(10), 0xFF);
+            let mut bus = cpu.bus.lock().unwrap();
+            assert_eq!(bus.read_at(10), 0xFF);
         }
     }
 
@@ -1377,18 +1377,12 @@ mod tests {
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(1000 - 4), 1000);
-            assert_eq!(cpu.memory.lock().unwrap().read_word(1000 - 4 - 4), 7);
-            assert_eq!(cpu.memory.lock().unwrap().read_word(1000 - 4 - 4 - 4), 6);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(1000 - 4), 1000);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(1000 - 4 - 4), 7);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(1000 - 4 - 4 - 4), 6);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(1000 - 4 - 4 - 4 - 4), 5);
             assert_eq!(
-                cpu.memory.lock().unwrap().read_word(1000 - 4 - 4 - 4 - 4),
-                5
-            );
-            assert_eq!(
-                cpu.memory
-                    .lock()
-                    .unwrap()
-                    .read_word(1000 - 4 - 4 - 4 - 4 - 4),
+                cpu.bus.lock().unwrap().read_word(1000 - 4 - 4 - 4 - 4 - 4),
                 4
             );
         }
@@ -1400,11 +1394,11 @@ mod tests {
 
             cpu.registers.set_register_at(REG_SP, 1000);
 
-            cpu.memory.lock().unwrap().write_word(1000, 100);
-            cpu.memory.lock().unwrap().write_word(1004, 200);
-            cpu.memory.lock().unwrap().write_word(1008, 300);
-            cpu.memory.lock().unwrap().write_word(1012, 400);
-            cpu.memory.lock().unwrap().write_word(1016, 500);
+            cpu.bus.lock().unwrap().write_word(1000, 100);
+            cpu.bus.lock().unwrap().write_word(1004, 200);
+            cpu.bus.lock().unwrap().write_word(1008, 300);
+            cpu.bus.lock().unwrap().write_word(1012, 400);
+            cpu.bus.lock().unwrap().write_word(1016, 500);
 
             cpu.execute_thumb(op_code);
 
@@ -1456,7 +1450,7 @@ mod tests {
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(REG_SP, 100);
-            cpu.memory.lock().unwrap().write_word(100 + 0b11100, 999);
+            cpu.bus.lock().unwrap().write_word(100 + 0b11100, 999);
 
             cpu.execute_thumb(op_code);
 
@@ -1473,7 +1467,7 @@ mod tests {
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_word(100 + 0b11100), 999);
+            assert_eq!(cpu.bus.lock().unwrap().read_word(100 + 0b11100), 999);
         }
     }
 
@@ -1582,7 +1576,7 @@ mod tests {
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.memory.lock().unwrap().write_half_word(102, 0xFF);
+            cpu.bus.lock().unwrap().write_half_word(102, 0xFF);
 
             cpu.execute_thumb(op_code);
 
@@ -1599,7 +1593,7 @@ mod tests {
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.memory.lock().unwrap().read_half_word(102), 0xFF);
+            assert_eq!(cpu.bus.lock().unwrap().read_half_word(102), 0xFF);
         }
     }
 
@@ -1628,7 +1622,7 @@ mod tests {
                     cpu.registers.set_register_at(2, 0xF000_F0FF);
                 }),
                 check_fn: Box::new(|cpu| {
-                    assert_eq!(cpu.memory.lock().unwrap().read_half_word(110), 0xF0FF);
+                    assert_eq!(cpu.bus.lock().unwrap().read_half_word(110), 0xF0FF);
                 }),
             },
             Test {
@@ -1643,7 +1637,7 @@ mod tests {
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
                     cpu.registers.set_register_at(1, 100);
-                    cpu.memory.lock().unwrap().write_half_word(110, 0xF0FF);
+                    cpu.bus.lock().unwrap().write_half_word(110, 0xF0FF);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(2), 0xF0FF);
@@ -1661,7 +1655,7 @@ mod tests {
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
                     cpu.registers.set_register_at(1, 100);
-                    cpu.memory.lock().unwrap().write_at(110, 0x80);
+                    cpu.bus.lock().unwrap().write_at(110, 0x80);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(2), 0xFFFF_FF80);
@@ -1679,7 +1673,7 @@ mod tests {
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
                     cpu.registers.set_register_at(1, 100);
-                    cpu.memory.lock().unwrap().write_half_word(110, 0x8030);
+                    cpu.bus.lock().unwrap().write_half_word(110, 0x8030);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(2), 0xFFFF_8030);
@@ -1774,8 +1768,8 @@ mod tests {
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(1, 100);
-                    cpu.memory.lock().unwrap().write_word(100, 0xFF);
-                    cpu.memory.lock().unwrap().write_word(104, 0xFF);
+                    cpu.bus.lock().unwrap().write_word(100, 0xFF);
+                    cpu.bus.lock().unwrap().write_word(104, 0xFF);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(5), 0xFF);
@@ -1796,8 +1790,8 @@ mod tests {
                     cpu.registers.set_register_at(7, 20);
                 }),
                 check_fn: Box::new(|cpu| {
-                    assert_eq!(cpu.memory.lock().unwrap().read_word(100), 10);
-                    assert_eq!(cpu.memory.lock().unwrap().read_word(104), 20);
+                    assert_eq!(cpu.bus.lock().unwrap().read_word(100), 10);
+                    assert_eq!(cpu.bus.lock().unwrap().read_word(104), 20);
                     assert_eq!(cpu.registers.register_at(1), 108);
                 }),
             },

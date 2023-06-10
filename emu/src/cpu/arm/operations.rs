@@ -556,7 +556,7 @@ impl Arm7tdmi {
             Indexing::Post => address.try_into().unwrap(),
         };
 
-        let mut mem = self.memory.lock().unwrap();
+        let mut bus = self.bus.lock().unwrap();
 
         match load_store_kind {
             LoadStoreKind::Store => {
@@ -570,32 +570,31 @@ impl Arm7tdmi {
 
                 match transfer_kind {
                     HalfwordTransferKind::UnsignedHalfwords => {
-                        mem.write_at(address, value.get_bits(0..=7) as u8);
-                        mem.write_at(address + 1, value.get_bits(8..=15) as u8);
+                        bus.write_half_word(address, value as u16);
                     }
                     _ => unreachable!("HS flags can't be != from 01 for STORE (L=0)"),
                 };
             }
             LoadStoreKind::Load => match transfer_kind {
                 HalfwordTransferKind::UnsignedHalfwords => {
-                    let v = mem.read_half_word(address);
+                    let v = bus.read_half_word(address);
                     self.registers
                         .set_register_at(source_destination_register as usize, v.into());
                 }
                 HalfwordTransferKind::SignedByte => {
-                    let v = mem.read_at(address) as u32;
+                    let v = bus.read_at(address) as u32;
                     self.registers
                         .set_register_at(source_destination_register as usize, v.sign_extended(8));
                 }
                 HalfwordTransferKind::SignedHalfwords => {
-                    let v = mem.read_half_word(address) as u32;
+                    let v = bus.read_half_word(address) as u32;
                     self.registers
                         .set_register_at(source_destination_register as usize, v.sign_extended(16));
                 }
             },
         }
 
-        drop(mem);
+        drop(bus);
 
         if indexing == Indexing::Post || write_back {
             self.registers
@@ -662,17 +661,19 @@ impl Arm7tdmi {
         match kind {
             SingleDataTransferKind::Ldr => match quantity {
                 ReadWriteKind::Byte => {
-                    let value = self.memory.lock().unwrap().read_at(address) as u32;
+                    let value = self.bus.lock().unwrap().read_at(address) as u32;
                     self.registers
                         .set_register_at(rd.try_into().unwrap(), value)
                 }
                 ReadWriteKind::Word => {
-                    let mem = self.memory.lock().unwrap();
+                    let bus = self.bus.lock().unwrap();
+                    let mem = bus.internal_memory.lock().unwrap();
                     let part_0: u32 = mem.read_at(address).try_into().unwrap();
                     let part_1: u32 = mem.read_at(address + 1).try_into().unwrap();
                     let part_2: u32 = mem.read_at(address + 2).try_into().unwrap();
                     let part_3: u32 = mem.read_at(address + 3).try_into().unwrap();
                     drop(mem);
+                    drop(bus);
                     let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
                     self.registers.set_register_at(rd.try_into().unwrap(), v);
                 }
@@ -686,7 +687,7 @@ impl Arm7tdmi {
                         v += 4;
                     }
 
-                    self.memory.lock().unwrap().write_at(address, v as u8)
+                    self.bus.lock().unwrap().write_at(address, v as u8)
                 }
                 ReadWriteKind::Word => {
                     let mut v = self.registers.register_at(rd.try_into().unwrap());
@@ -696,19 +697,19 @@ impl Arm7tdmi {
                         v += 4;
                     }
 
-                    self.memory
+                    self.bus
                         .lock()
                         .unwrap()
                         .write_at(address, v.get_bits(0..=7) as u8);
-                    self.memory
+                    self.bus
                         .lock()
                         .unwrap()
                         .write_at(address + 1, v.get_bits(8..=15) as u8);
-                    self.memory
+                    self.bus
                         .lock()
                         .unwrap()
                         .write_at(address + 2, v.get_bits(16..=23) as u8);
-                    self.memory
+                    self.bus
                         .lock()
                         .unwrap()
                         .write_at(address + 3, v.get_bits(24..=31) as u8);
@@ -751,22 +752,12 @@ impl Arm7tdmi {
                     if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
                         value += 4;
                     }
-                    let mut memory = arm.memory.lock().unwrap();
-
-                    memory.write_at(address, value.get_bits(0..=7) as u8);
-                    memory.write_at(address + 1, value.get_bits(8..=15) as u8);
-                    memory.write_at(address + 2, value.get_bits(16..=23) as u8);
-                    memory.write_at(address + 3, value.get_bits(24..=31) as u8);
+                    let mut bus = arm.bus.lock().unwrap();
+                    bus.write_word(address, value);
                 }
             }
             LoadStoreKind::Load => |arm: &mut Self, address: usize, reg_destination: usize| {
-                let memory = arm.memory.lock().unwrap();
-                let part_0: u32 = memory.read_at(address).try_into().unwrap();
-                let part_1: u32 = memory.read_at(address + 1).try_into().unwrap();
-                let part_2: u32 = memory.read_at(address + 2).try_into().unwrap();
-                let part_3: u32 = memory.read_at(address + 3).try_into().unwrap();
-                drop(memory);
-                let v = part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0;
+                let v = arm.bus.lock().unwrap().read_word(address);
                 arm.registers.set_register_at(reg_destination, v);
             },
         };
@@ -2449,7 +2440,7 @@ mod tests {
             cpu.registers.set_program_counter(0x03000050);
 
             // simulate mem already contains something.
-            cpu.memory.lock().unwrap().write_at(0x03000068, 99);
+            cpu.bus.lock().unwrap().write_at(0x03000068, 99);
 
             cpu.execute_arm(op_code);
             assert_eq!(cpu.registers.register_at(13), 99);
@@ -2508,7 +2499,8 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            let memory = cpu.memory.lock().unwrap();
+            let bus = cpu.bus.lock().unwrap();
+            let memory = bus.internal_memory.lock().unwrap();
 
             assert_eq!(memory.read_at(0x01010101), 1);
             assert_eq!(memory.read_at(0x01010101 + 1), 1);
@@ -2544,7 +2536,8 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            let memory = cpu.memory.lock().unwrap();
+            let bus = cpu.bus.lock().unwrap();
+            let memory = bus.internal_memory.lock().unwrap();
 
             assert_eq!(memory.read_at(0x03000068), 50);
             assert_eq!(cpu.registers.program_counter(), 0x03000050);
@@ -2572,7 +2565,7 @@ mod tests {
         );
 
         {
-            let mut memory = cpu.memory.lock().unwrap();
+            let mut memory = cpu.bus.lock().unwrap();
 
             // simulate mem already contains something.
             // in u32 this is 16843009 00000001_00000001_00000001_00000001.
