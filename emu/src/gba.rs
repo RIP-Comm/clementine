@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
+    bus::Bus,
     cartridge_header::CartridgeHeader,
     cpu::arm7tdmi::Arm7tdmi,
     memory::internal_memory::InternalMemory,
@@ -12,7 +13,7 @@ pub struct Gba {
 
     pub cartridge_header: CartridgeHeader,
 
-    pub memory: Arc<Mutex<InternalMemory>>,
+    pub bus: Arc<Mutex<Bus>>,
 
     pub lcd: Arc<Mutex<Box<GbaLcd>>>,
     pub ppu: PixelProcessUnit,
@@ -26,14 +27,19 @@ impl Gba {
     ) -> Self {
         let lcd = Arc::new(Mutex::new(Box::default()));
         let memory = Arc::new(Mutex::new(InternalMemory::new(bios, cartridge)));
+        let bus = Arc::new(Mutex::new(Bus::with_memory(Arc::clone(&memory))));
+
+        // TODO: ppu needs to have direct access to memory or is it through bus (so it increments cycles when reading?)
+        // to check
         let ppu = PixelProcessUnit::new(Arc::clone(&lcd), Arc::clone(&memory));
-        let arm = Arm7tdmi::new(Arc::clone(&memory));
+
+        let arm = Arm7tdmi::new(Arc::clone(&bus));
         Self {
             cpu: arm,
             cartridge_header,
-            ppu,
             lcd,
-            memory,
+            bus,
+            ppu,
         }
     }
 
