@@ -63,6 +63,8 @@ impl Bus {
             self.step();
         }
 
+        self.last_used_address = address;
+
         self.internal_memory.lock().unwrap().read_word(address)
     }
 
@@ -70,6 +72,8 @@ impl Bus {
         for _ in 0..self.get_wait_cycles(address) {
             self.step();
         }
+
+        self.last_used_address = address;
 
         self.internal_memory
             .lock()
