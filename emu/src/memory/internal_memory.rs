@@ -42,7 +42,7 @@ pub struct InternalMemory {
     serial_communication2: SerialBus,
 
     /// From 0x04000200 to 040003FE
-    interrupts: Interrupts,
+    pub interrupts: Interrupts,
 
     /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors).
     pub bg_palette_ram: Vec<u8>,
