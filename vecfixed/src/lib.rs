@@ -10,15 +10,23 @@ pub struct VecFixed<const N: usize, T: Default + ToString> {
 
 impl<const N: usize, T: Default + ToString> VecFixed<N, T> {
     pub fn new() -> Self {
-        // let mut buffer = ;
-        // for _ in 0..N {
-        //     buffer.push_back(T::default());
-        // }
-
         Self {
             next_index: 0,
             buffer: VecDeque::with_capacity(N),
         }
+    }
+
+    pub fn initialize(value: T) -> Self
+    where
+        T: Copy,
+    {
+        let mut ret = Self::new();
+
+        for _ in 0..N {
+            ret.push(value)
+        }
+
+        ret
     }
 
     pub fn push(&mut self, element: T) {
@@ -46,6 +54,18 @@ impl<const N: usize, T: Default + ToString> VecFixed<N, T> {
         }
 
         s
+    }
+
+    pub fn back(&self) -> Option<&T> {
+        self.buffer.back()
+    }
+
+    pub fn back_mut(&mut self) -> Option<&mut T> {
+        self.buffer.back_mut()
+    }
+
+    pub fn front(&self) -> Option<&T> {
+        self.buffer.front()
     }
 }
 
