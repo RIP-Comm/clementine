@@ -32,12 +32,18 @@ impl Bus {
     }
 
     fn step(&mut self) {
+        // Step cycles at beginning or end?
+        // It may have an impact when we will introduce timers.
         self.cycles_count += 1;
 
         // TODO: move this somewhere in the UI
         log(format!("CPU Cycles: {}", self.cycles_count));
 
         // Step ppu, dma, interrupts, timers, etc...
+        let mut mem = self.internal_memory.lock().unwrap();
+
+        let val = *mem.interrupts.interrupt_request.back().unwrap();
+        mem.interrupts.interrupt_request.push(val);
     }
 
     pub fn with_memory(memory: Arc<Mutex<InternalMemory>>) -> Self {
