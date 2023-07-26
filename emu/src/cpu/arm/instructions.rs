@@ -472,9 +472,7 @@ impl From<u32> for ArmModeInstruction {
             && op_code.get_bits(4..=11) == 0b0000_1001
         {
             SingleDataSwap
-        } else if (op_code.get_bits(23..=27) == 0b00001 || op_code.get_bits(21..=27) == 0b0001010)
-            && (op_code.get_bits(4..=7) == 0b1001 || (op_code.get_bit(7) && !op_code.get_bit(4)))
-        {
+        } else if op_code.get_bits(23..=27) == 0b00001 && op_code.get_bits(4..=7) == 0b1001 {
             let variant = ArmModeMultiplyLongVariant::from(op_code);
 
             let should_set_codes = op_code.get_bit(20);
@@ -493,9 +491,7 @@ impl From<u32> for ArmModeInstruction {
                 rm_operand_register,
                 rs_operand_register,
             }
-        } else if op_code.get_bits(25..=27) == 0b000
-            && (op_code.get_bits(4..=7) == 0b1001 || (op_code.get_bit(7) && !op_code.get_bit(4)))
-        {
+        } else if op_code.get_bits(22..=27) == 0b000000 && op_code.get_bits(4..=7) == 0b1001 {
             let variant = ArmModeMultiplyVariant::from(op_code);
 
             let should_set_codes = op_code.get_bit(20);
