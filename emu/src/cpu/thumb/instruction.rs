@@ -352,7 +352,7 @@ impl ThumbModeInstruction {
 
                 format!("{instr} R{r_destination}, [R{r_base}, R{r_offset}]")
             }
-            Self::LoadStoreImmOffset => panic!("not implemented"),
+            Self::LoadStoreImmOffset => "".to_owned(),
             Self::LoadStoreHalfword {
                 load_store,
                 offset,
@@ -489,7 +489,7 @@ mod test {
             },
             output
         );
-        assert_eq!("LDR R1, [R, #1408]", output.disassembler());
+        assert_eq!("LDR R1, [R1, #1408]", output.disassembler());
     }
 
     #[test]
