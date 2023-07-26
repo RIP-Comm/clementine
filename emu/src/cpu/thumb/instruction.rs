@@ -314,9 +314,9 @@ impl ThumbModeInstruction {
                 immediate_value,
             } => {
                 let r = if *r_destination as u32 == REG_PROGRAM_COUNTER {
-                    "PC"
+                    "PC".to_owned()
                 } else {
-                    "R"
+                    format!("R{r_destination}")
                 };
                 let immediate_value = immediate_value << 2;
                 format!("LDR R{r_destination}, [{r}, #{immediate_value}]")
@@ -352,7 +352,7 @@ impl ThumbModeInstruction {
 
                 format!("{instr} R{r_destination}, [R{r_base}, R{r_offset}]")
             }
-            Self::LoadStoreImmOffset => "".to_string(),
+            Self::LoadStoreImmOffset => panic!("not implemented"),
             Self::LoadStoreHalfword {
                 load_store,
                 offset,
@@ -447,7 +447,7 @@ impl ThumbModeInstruction {
             } => {
                 format!("B{condition} #{immediate_offset}")
             }
-            Self::Swi => "".to_string(),
+            Self::Swi => panic!("not implemented"),
             Self::UncondBranch { offset } => {
                 format!("B #{offset}")
             }

@@ -297,7 +297,7 @@ impl ArmModeInstruction {
                     format!("MSR{condition} {psr_kind}_flg, {operand}")
                 }
             },
-            Self::SingleDataSwap => "".to_owned(),
+            Self::SingleDataSwap => panic!("SingleDataSwap not implemented"),
             Self::BranchAndExchange {
                 condition,
                 register,
@@ -375,7 +375,7 @@ impl ArmModeInstruction {
 
                 format!("{op}{condition}{b} R{rd}, {offset_info}")
             }
-            Self::Undefined => "".to_owned(),
+            Self::Undefined => panic!("Undefined not implemented"),
             Self::BlockDataTransfer {
                 condition,
                 indexing,
@@ -446,9 +446,9 @@ impl ArmModeInstruction {
                 // FIXME: Finish address
                 format!("{op}{condition}{long_transfer} p{cp_number},{crd},{address:08X}")
             }
-            Self::CoprocessorDataOperation => "".to_owned(),
-            Self::CoprocessorRegisterTransfer => "".to_owned(),
-            Self::SoftwareInterrupt => "".to_owned(),
+            Self::CoprocessorDataOperation => panic!("CoprocessorDataOperation not implemented"),
+            Self::CoprocessorRegisterTransfer => panic!("CoprocessorRegisterTransfer not implemented"),
+            Self::SoftwareInterrupt => panic!("SoftwareInterrupt not implemented"),
         }
     }
 }
