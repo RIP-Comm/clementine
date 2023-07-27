@@ -2,7 +2,6 @@
 ![Alt text](img/clementine_logo_200px.png?raw=true "Clementine_logo")
 
 [![Rust](https://github.com/RIP-Comm/clementine/actions/workflows/rust.yml/badge.svg)](https://github.com/RIP-Comm/clementine/actions/workflows/rust.yml)
-[![s](https://img.shields.io/codecov/c/gh/RIP-Comm/clementine)](https://img.shields.io/codecov/c/gh/RIP-Comm/clementine)
 
 # Clementine - A collaborative approach to GBA emulation
 
