@@ -6,7 +6,7 @@ use crate::render::GBC_LCD_WIDTH;
 use rand::Rng;
 
 use crate::{
-    memory::internal_memory::InternalMemory,
+    cpu::arm7tdmi::Arm7tdmi,
     render::{
         color::{Color, PaletteType},
         gba_lcd::GbaLcd,
@@ -17,19 +17,13 @@ use crate::{
 
 #[derive(Default)]
 pub struct PixelProcessUnit {
-    internal_memory: Arc<Mutex<InternalMemory>>,
+    cpu: Arc<Mutex<Arm7tdmi>>,
     gba_lcd: Arc<Mutex<Box<GbaLcd>>>,
 }
 
 impl PixelProcessUnit {
-    pub fn new(
-        gba_lcd: Arc<Mutex<Box<GbaLcd>>>,
-        internal_memory: Arc<Mutex<InternalMemory>>,
-    ) -> Self {
-        Self {
-            internal_memory,
-            gba_lcd,
-        }
+    pub fn new(gba_lcd: Arc<Mutex<Box<GbaLcd>>>, cpu: Arc<Mutex<Arm7tdmi>>) -> Self {
+        Self { cpu, gba_lcd }
     }
 
     /// Render the current frame.
@@ -37,9 +31,11 @@ impl PixelProcessUnit {
     pub fn render(&self) {
         #[allow(unused_assignments)]
         let mut bg_mode = self
-            .internal_memory
+            .cpu
             .lock()
             .unwrap()
+            .bus
+            .internal_memory
             .lcd_registers
             .get_bg_mode();
 
@@ -67,7 +63,7 @@ impl PixelProcessUnit {
                 todo!("BG_MODE 2 not implemented yet")
             }
             3 => {
-                let memory = self.internal_memory.lock().unwrap();
+                let memory = &self.cpu.lock().unwrap().bus.internal_memory;
                 let mut gba_lcd = self.gba_lcd.lock().unwrap();
                 // Bitmap mode
                 for x in 0..LCD_HEIGHT {
@@ -81,7 +77,6 @@ impl PixelProcessUnit {
                         gba_lcd.set_pixel(x, y, color);
                     }
                 }
-                drop(memory);
             }
             4 => {
                 todo!("BG_MODE 4 not implemented yet")
@@ -114,7 +109,7 @@ impl PixelProcessUnit {
 
     fn get_array_color(&self, index: usize, palette_type: &PaletteType) -> [u8; 2] {
         debug_assert!(index % 2 == 0);
-        let memory = self.internal_memory.lock().unwrap();
+        let memory = &self.cpu.lock().unwrap().bus.internal_memory;
         match palette_type {
             PaletteType::BG => [
                 memory.bg_palette_ram[index],

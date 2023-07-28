@@ -30,7 +30,15 @@ impl UiTool for Disassembler {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) {
-        let mut s = self.gba.lock().unwrap().cpu.disassembler_buffer.join("\n");
+        let mut s = self
+            .gba
+            .lock()
+            .unwrap()
+            .cpu
+            .lock()
+            .unwrap()
+            .disassembler_buffer
+            .join("\n");
 
         ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
             ui.add(

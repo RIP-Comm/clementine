@@ -191,7 +191,7 @@ impl Arm7tdmi {
         pc.set_bit_off(1);
         pc.set_bit_off(0);
         let address = pc.wrapping_add(immediate_value as u32) as usize;
-        let value = self.bus.lock().unwrap().read_word(address);
+        let value = self.bus.read_word(address);
         let dest = r_destination.try_into().unwrap();
         self.registers.set_register_at(dest, value);
     }
@@ -211,23 +211,23 @@ impl Arm7tdmi {
             .registers
             .register_at(base_register.try_into().unwrap());
         let address: usize = rb.wrapping_add(ro).try_into().unwrap();
-        let mut mem = self.bus.lock().unwrap();
         let rd: usize = source_destination_register.try_into().unwrap();
+
         match (load_store, byte_word) {
             (LoadStoreKind::Store, ReadWriteKind::Byte) => {
                 let rd = (self.registers.register_at(rd) & 0xFF) as u8;
-                mem.write_at(address, rd);
+                self.bus.write_at(address, rd);
             }
             (LoadStoreKind::Store, ReadWriteKind::Word) => {
                 let rd = self.registers.register_at(rd);
-                mem.write_word(address, rd);
+                self.bus.write_word(address, rd);
             }
             (LoadStoreKind::Load, ReadWriteKind::Byte) => {
-                let value = mem.read_at(address);
+                let value = self.bus.read_at(address);
                 self.registers.set_register_at(rd, value as u32);
             }
             (LoadStoreKind::Load, ReadWriteKind::Word) => {
-                let value = mem.read_word(address);
+                let value = self.bus.read_word(address);
                 self.registers.set_register_at(rd, value);
             }
         };
@@ -252,21 +252,18 @@ impl Arm7tdmi {
                     .registers
                     .register_at(r_destination.try_into().unwrap());
 
-                self.bus
-                    .lock()
-                    .unwrap()
-                    .write_half_word(address, value as u16);
+                self.bus.write_half_word(address, value as u16);
             }
             // Load halfword
             (false, true) => {
-                let value = self.bus.lock().unwrap().read_half_word(address);
+                let value = self.bus.read_half_word(address);
 
                 self.registers
                     .set_register_at(r_destination.try_into().unwrap(), value as u32);
             }
             // Load sign-extended byte
             (true, false) => {
-                let mut value = self.bus.lock().unwrap().read_at(address) as u32;
+                let mut value = self.bus.read_at(address) as u32;
                 value = value.sign_extended(8);
 
                 self.registers
@@ -274,7 +271,7 @@ impl Arm7tdmi {
             }
             // Load sign-extended halfword
             (true, true) => {
-                let mut value = self.bus.lock().unwrap().read_half_word(address) as u32;
+                let mut value = self.bus.read_half_word(address) as u32;
                 value = value.sign_extended(16);
 
                 self.registers
@@ -298,22 +295,22 @@ impl Arm7tdmi {
 
         let base = self.registers.register_at(rb.try_into().unwrap());
         let address = base.wrapping_add(offset).try_into().unwrap();
-        let mut mem = self.bus.lock().unwrap();
+
         match (load_store, byte_word) {
             (LoadStoreKind::Store, ReadWriteKind::Word) => {
                 let v = self.registers.register_at(rd);
-                mem.write_word(address, v)
+                self.bus.write_word(address, v)
             }
             (LoadStoreKind::Store, ReadWriteKind::Byte) => {
                 let v = self.registers.register_at(rd);
-                mem.write_at(address, v as u8)
+                self.bus.write_at(address, v as u8)
             }
             (LoadStoreKind::Load, ReadWriteKind::Word) => {
-                let v = mem.read_word(address);
+                let v = self.bus.read_word(address);
                 self.registers.set_register_at(rd, v);
             }
             (LoadStoreKind::Load, ReadWriteKind::Byte) => {
-                let v = mem.read_at(address);
+                let v = self.bus.read_at(address);
                 self.registers.set_register_at(rd, v as u32);
             }
         }
@@ -330,17 +327,16 @@ impl Arm7tdmi {
             .registers
             .register_at(base_register.try_into().unwrap());
         let address: usize = rb.wrapping_add(offset as u32).try_into().unwrap();
-        let mut mem = self.bus.lock().unwrap();
 
         match load_store {
             LoadStoreKind::Load => {
                 self.registers.set_register_at(
                     source_destination_register as usize,
-                    mem.read_half_word(address) as u32,
+                    self.bus.read_half_word(address) as u32,
                 );
             }
             LoadStoreKind::Store => {
-                mem.write_half_word(
+                self.bus.write_half_word(
                     address,
                     self.registers
                         .register_at(source_destination_register as usize)
@@ -361,18 +357,11 @@ impl Arm7tdmi {
         let rd = r_destination.try_into().unwrap();
         match load_store {
             LoadStoreKind::Load => {
-                self.registers.set_register_at(
-                    rd,
-                    self.bus
-                        .lock()
-                        .unwrap()
-                        .read_word(address.try_into().unwrap()),
-                );
+                self.registers
+                    .set_register_at(rd, self.bus.read_word(address.try_into().unwrap()));
             }
             LoadStoreKind::Store => {
                 self.bus
-                    .lock()
-                    .unwrap()
                     .write_word(address.try_into().unwrap(), self.registers.register_at(rd));
             }
         }
@@ -406,13 +395,12 @@ impl Arm7tdmi {
         register_list: u16,
     ) {
         let mut reg_sp = self.registers.register_at(REG_SP);
-        let mut memory = self.bus.lock().unwrap();
 
         match load_store {
             LoadStoreKind::Store => {
                 if pc_lr {
                     reg_sp -= 4;
-                    memory.write_word(
+                    self.bus.write_word(
                         reg_sp.try_into().unwrap(),
                         self.registers.register_at(REG_LR),
                     );
@@ -421,7 +409,7 @@ impl Arm7tdmi {
                 for r in (0..=7).rev() {
                     if register_list.get_bit(r) {
                         reg_sp -= 4;
-                        memory.write_word(
+                        self.bus.write_word(
                             reg_sp.try_into().unwrap(),
                             self.registers.register_at(r.into()),
                         );
@@ -433,7 +421,7 @@ impl Arm7tdmi {
                     if register_list.get_bit(r) {
                         self.registers.set_register_at(
                             r.try_into().unwrap(),
-                            memory.read_word(reg_sp.try_into().unwrap()),
+                            self.bus.read_word(reg_sp.try_into().unwrap()),
                         );
 
                         reg_sp += 4;
@@ -442,7 +430,7 @@ impl Arm7tdmi {
 
                 if pc_lr {
                     self.registers
-                        .set_program_counter(memory.read_word(reg_sp.try_into().unwrap()));
+                        .set_program_counter(self.bus.read_word(reg_sp.try_into().unwrap()));
 
                     reg_sp += 4;
                 }
@@ -450,8 +438,6 @@ impl Arm7tdmi {
         }
 
         self.registers.set_register_at(REG_SP, reg_sp);
-
-        drop(memory);
 
         if load_store == LoadStoreKind::Load && pc_lr {
             self.flush_pipeline();
@@ -471,7 +457,7 @@ impl Arm7tdmi {
                 for r in 0..=7 {
                     if register_list.is_bit_on(r) {
                         let value = self.registers.register_at(r as usize);
-                        self.bus.lock().unwrap().write_word(address as usize, value);
+                        self.bus.write_word(address as usize, value);
 
                         address += 4;
                     }
@@ -480,7 +466,7 @@ impl Arm7tdmi {
             LoadStoreKind::Load => {
                 for r in 0..=7 {
                     if register_list.get_bit(r) {
-                        let value = self.bus.lock().unwrap().read_word(address as usize);
+                        let value = self.bus.read_word(address as usize);
                         self.registers.set_register_at(r as usize, value);
 
                         address += 4;

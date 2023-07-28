@@ -12,7 +12,7 @@ use super::io_device::IoDevice;
 
 pub struct Interrupts {
     /// 0x04000200  2    R/W  IE        Interrupt Enable Register
-    interrupt_enable: IORegister,
+    pub interrupt_enable: IORegister,
 
     /// 0x04000202  2    R/W  IF        Interrupt Request Flags / IRQ Acknowledge
     // It is a ring buffer since when we write to this register, the value will reach the CPU
@@ -26,7 +26,7 @@ pub struct Interrupts {
     wait_state: IORegister,
 
     /// Interrupt Master Enable Register
-    ime: IORegister,
+    pub ime: IORegister,
 
     //   400020Ah       -    -         Not used
     /// Post boot flag.
