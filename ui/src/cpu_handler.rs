@@ -70,7 +70,14 @@ impl UiTool for CpuHandler {
                 self.thread_handle = Some(thread::spawn(move || {
                     while play_clone.load(std::sync::atomic::Ordering::Relaxed) {
                         if breakpoints_clone.lock().unwrap().contains(
-                            &(gba_clone.lock().unwrap().cpu.registers.program_counter() as u32),
+                            &(gba_clone
+                                .lock()
+                                .unwrap()
+                                .cpu
+                                .lock()
+                                .unwrap()
+                                .registers
+                                .program_counter() as u32),
                         ) {
                             play_clone.swap(false, std::sync::atomic::Ordering::Relaxed);
                             return;

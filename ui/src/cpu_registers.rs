@@ -46,12 +46,15 @@ impl UiTool for CpuRegisters {
         ui.radio_value(&mut self.base_kind, BaseKind::Hex, "Hexadecimal");
         ui.add_space(8.0);
 
-        // If it's poisoned it means that the thread that executes instructions
-        // panicked, we still want access to registers to debug
-        let registers = self.gba.lock().map_or_else(
-            |poisoned| poisoned.into_inner().cpu.registers.to_vec(),
-            |gba| gba.cpu.registers.to_vec(),
-        );
+        let registers = self
+            .gba
+            .lock()
+            .unwrap()
+            .cpu
+            .lock()
+            .unwrap()
+            .registers
+            .to_vec();
 
         let mut index = 0;
 
