@@ -34,6 +34,76 @@ pub struct Arm7tdmi {
     decoded_thumb: Option<ThumbModeOpcode>,
 }
 
+#[derive(Copy, Clone)]
+#[allow(dead_code)]
+enum ExceptionType {
+    Reset,
+    UndefinedInstruction,
+    SoftwareInterrupt,
+    PrefetchAbort,
+    DataAbort,
+    Irq,
+    Fiq,
+}
+
+impl ExceptionType {
+    pub const fn address(&self) -> usize {
+        match *self {
+            Self::Reset => 0x0,
+            Self::UndefinedInstruction => 0x4,
+            Self::SoftwareInterrupt => 0x8,
+            Self::PrefetchAbort => 0xC,
+            Self::DataAbort => 0x10,
+            Self::Irq => 0x18,
+            Self::Fiq => 0x1C,
+        }
+    }
+
+    pub const fn mode(&self) -> Mode {
+        match *self {
+            Self::Reset => Mode::Supervisor,
+            Self::UndefinedInstruction => Mode::Undefined,
+            Self::SoftwareInterrupt => Mode::Supervisor,
+            Self::PrefetchAbort => Mode::Abort,
+            Self::DataAbort => Mode::Abort,
+            Self::Irq => Mode::Irq,
+            Self::Fiq => Mode::Fiq,
+        }
+    }
+
+    pub fn next_instruction_func(
+        &self,
+        current_state: CpuState,
+        current_pc: usize,
+    ) -> Box<dyn Fn() -> usize> {
+        let current_executing_ins = match current_state {
+            CpuState::Arm => current_pc - 8,
+            CpuState::Thumb => current_pc - 4,
+        };
+
+        match (current_state, *self) {
+            (CpuState::Thumb, Self::SoftwareInterrupt | Self::UndefinedInstruction) => {
+                Box::new(move || current_executing_ins + 2)
+            }
+            (
+                CpuState::Arm,
+                Self::SoftwareInterrupt
+                | Self::UndefinedInstruction
+                | Self::Fiq
+                | Self::Irq
+                | Self::PrefetchAbort,
+            ) => Box::new(move || current_executing_ins + 4),
+            (CpuState::Thumb, Self::Fiq | Self::Irq | Self::PrefetchAbort) => {
+                Box::new(move || current_executing_ins + 4)
+            }
+            (CpuState::Arm | CpuState::Thumb, Self::DataAbort) => {
+                Box::new(move || current_executing_ins + 8)
+            }
+            _ => unimplemented!(),
+        }
+    }
+}
+
 impl Default for Arm7tdmi {
     fn default() -> Self {
         let mut s = Self {
@@ -334,6 +404,40 @@ impl Arm7tdmi {
         };
     }
 
+    fn handle_exception(&mut self, exception_type: ExceptionType) {
+        let next_ins = exception_type
+            .next_instruction_func(self.cpsr.cpu_state(), self.registers.program_counter())(
+        );
+
+        let old_cpsr = self.cpsr;
+
+        // Every exception is handled in ARM
+        self.cpsr.set_cpu_state(CpuState::Arm);
+
+        self.swap_mode(exception_type.mode());
+
+        self.registers.set_register_at(14, next_ins as u32);
+        self.spsr = old_cpsr;
+
+        self.cpsr.set_irq_disable(true);
+
+        if matches!(exception_type, ExceptionType::Fiq | ExceptionType::Reset) {
+            self.cpsr.set_fiq_disable(true);
+        }
+
+        let new_pc = exception_type.address() as u32;
+        self.registers.set_program_counter(new_pc);
+
+        self.decoded_arm = Some(Self::decode(self.fetch_arm()));
+        self.registers
+            .set_program_counter(new_pc + arm::operations::SIZE_OF_INSTRUCTION);
+
+        self.fetched_arm = Some(self.fetch_arm());
+
+        self.registers
+            .set_program_counter(new_pc + arm::operations::SIZE_OF_INSTRUCTION * 2);
+    }
+
     pub fn step(&mut self) {
         match self.cpsr.cpu_state() {
             CpuState::Thumb => {
@@ -343,6 +447,12 @@ impl Arm7tdmi {
                 self.fetched_thumb = Some(self.fetch_thumb());
 
                 if let Some(decoded) = to_execute {
+                    if !self.cpsr.irq_disable() && self.bus.is_irq_pending() {
+                        self.handle_exception(ExceptionType::Irq);
+
+                        return;
+                    }
+
                     let current_ins = self.registers.program_counter() - 4;
 
                     log(format!("PC: 0x{current_ins:X} {decoded}"));
@@ -367,6 +477,12 @@ impl Arm7tdmi {
                 self.fetched_arm = Some(self.fetch_arm());
 
                 if let Some(decoded) = to_execute {
+                    if !self.cpsr.irq_disable() && self.bus.is_irq_pending() {
+                        self.handle_exception(ExceptionType::Irq);
+
+                        return;
+                    }
+
                     let current_ins = self.registers.program_counter() - 4;
 
                     log(format!("PC: 0x{current_ins:X} {decoded}"));

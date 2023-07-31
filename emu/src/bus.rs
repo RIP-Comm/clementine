@@ -761,6 +761,15 @@ impl Bus {
         self.write_raw(address, part_0);
         self.write_raw(address + 1, part_1);
     }
+
+    pub fn is_irq_pending(&self) -> bool {
+        // Interrupt Master Enable has to be 1
+        // && there needs to be an interrupt requested which is also enabled in the interrupt enable reg
+        (self.interrupt_control.interrupt_master_enable == 1)
+            && (self.interrupt_control.interrupt_enable
+                & *self.interrupt_control.interrupt_request.front().unwrap()
+                != 0)
+    }
 }
 
 #[cfg(test)]
