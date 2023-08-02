@@ -42,6 +42,16 @@ impl Bus {
             .back()
             .unwrap();
         self.internal_memory.interrupts.interrupt_request.push(val);
+
+        let val = *self
+            .internal_memory
+            .interrupts
+            .interrupt_request
+            .back()
+            .unwrap();
+        self.internal_memory.interrupts.interrupt_request.push(val);
+
+        self.internal_memory.step(); // FIXME: We can do better than this.
     }
 
     pub fn with_memory(memory: InternalMemory) -> Self {
