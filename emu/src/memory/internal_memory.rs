@@ -126,6 +126,20 @@ impl InternalMemory {
             (((address >> 1) & 0xFFFF) as u16).get_byte((address & 0b1) as u8)
         }
     }
+
+    /// vsync (vertical syncronisation).
+    /// The two most common methods use a while loop and check REG_VCOUNT or REG_DISPSTAT.
+    /// For example, since the VBlank starts at scanline 160, you could see when REG_VCOUNT goes beyond this value.
+    pub fn step(&mut self) {
+        let vcount = self.lcd_registers.vcount.read();
+        if vcount < 160 { // wait till VBlank
+        }
+        if vcount == 160 {
+            // self.interrupts.interrupt_request.set_vblank_interrupt();
+        }
+
+        self.lcd_registers.vcount.write(vcount + 1);
+    }
 }
 
 impl IoDevice for InternalMemory {
