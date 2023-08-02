@@ -445,7 +445,7 @@ impl Arm7tdmi {
         self.cpsr.set_flags(sub_result);
     }
 
-    fn cmn(&mut self, rn: u32, op2: u32) {
+    pub fn cmn(&mut self, rn: u32, op2: u32) {
         let add_result = Self::add_inner_op(rn, op2);
 
         self.cpsr.set_flags(add_result);

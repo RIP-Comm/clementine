@@ -124,7 +124,11 @@ impl Arm7tdmi {
             ThumbModeAluInstruction::Cmp => {
                 self.cmp(self.registers.register_at(rd.try_into().unwrap()), rs)
             }
-            ThumbModeAluInstruction::Cmn => todo!(),
+            ThumbModeAluInstruction::Cmn => {
+                let op1 = self.registers.register_at(rd.try_into().unwrap());
+                let op2 = rs;
+                self.cmn(op1, op2);
+            }
             ThumbModeAluInstruction::Orr => self.orr(
                 rd.into(),
                 self.registers.register_at(rd.try_into().unwrap()),
