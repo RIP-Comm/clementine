@@ -471,7 +471,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn bic(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+    pub fn bic(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
         let result = rn & !op2;
 
         self.registers.set_register_at(rd, result);

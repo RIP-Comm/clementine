@@ -140,7 +140,11 @@ impl Arm7tdmi {
                 rs,
                 self.registers.register_at(rd.try_into().unwrap()),
             ),
-            ThumbModeAluInstruction::Bic => todo!(),
+            ThumbModeAluInstruction::Bic => {
+                let op1 = self.registers.register_at(rd.into());
+
+                self.bic(rd.into(), op1, rs, true);
+            }
             ThumbModeAluInstruction::Mvn => {
                 self.mvn(rd.try_into().unwrap(), rs, true);
             }
