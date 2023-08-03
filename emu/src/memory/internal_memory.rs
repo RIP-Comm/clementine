@@ -10,7 +10,6 @@ use crate::memory::timer_registers::TimerRegisters;
 use super::interrupts::Interrupts;
 use super::keypad::Keypad;
 use super::serial_communication::SerialBus;
-use super::sound::Sound;
 
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 KBytes).
@@ -21,9 +20,6 @@ pub struct InternalMemory {
 
     /// From 0x03000000 to 0x03007FFF (32kb).
     working_iram: Vec<u8>,
-
-    /// From 0x04000060 to 0x040000AF
-    sound: Sound,
 
     /// From 0x040000B0 to 0x040000E0 (0x30 bytes).
     pub dma: Dma,
@@ -79,7 +75,6 @@ impl InternalMemory {
             bios_system_rom: bios.to_vec(),
             working_ram: vec![0; 0x00040000],
             working_iram: vec![0; 0x00008000],
-            sound: Sound::default(),
             dma: Dma::new(),
             timer_registers: TimerRegisters::default(),
             keypad_input: Keypad::default(),
@@ -132,7 +127,6 @@ impl IoDevice for InternalMemory {
             0x00000000..=0x00003FFF => self.bios_system_rom[address],
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000],
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000],
-            0x04000060..=0x040000AF => self.sound.read_at(address),
             0x040000B0..=0x040000FF => self.dma.read_at(address),
             0x04000100..=0x0400012F => self.timer_registers.read_at(address),
             0x04000130..=0x04000133 => self.keypad_input.read_at(address),
@@ -162,7 +156,6 @@ impl IoDevice for InternalMemory {
             0x00000000..=0x00003FFF => self.bios_system_rom[address] = value,
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000] = value,
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
-            0x04000060..=0x040000AF => self.sound.write_at(address, value),
             0x040000B0..=0x040000FF => self.dma.write_at(address, value),
             0x04000100..=0x0400012F => self.timer_registers.write_at(address, value),
             0x04000130..=0x04000133 => self.keypad_input.write_at(address, value),
