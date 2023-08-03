@@ -152,7 +152,7 @@ impl Bus {
 
     fn read_raw(&self, address: usize) -> u8 {
         match address {
-            0x4000000..=0x4000057 => self.read_lcd_raw(address),
+            0x4000000..=0x400005F => self.read_lcd_raw(address),
             // TODO: change also other devices similar to how LCD is handled
             _ => self.internal_memory.read_at(address),
         }
@@ -160,7 +160,7 @@ impl Bus {
 
     fn write_raw(&mut self, address: usize, value: u8) {
         match address {
-            0x4000000..=0x4000057 => self.write_lcd_raw(address, value),
+            0x4000000..=0x400005F => self.write_lcd_raw(address, value),
             // TODO: read read_raw
             _ => self.internal_memory.write_at(address, value),
         }
