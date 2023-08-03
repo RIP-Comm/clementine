@@ -3,6 +3,7 @@ pub mod arm7tdmi;
 mod condition;
 mod cpu_modes;
 mod flags;
+pub mod hardware;
 mod psr;
 mod register_bank;
 mod registers;

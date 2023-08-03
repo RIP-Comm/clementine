@@ -30,14 +30,7 @@ impl PixelProcessUnit {
     /// # Panics
     pub fn render(&self) {
         #[allow(unused_assignments)]
-        let mut bg_mode = self
-            .cpu
-            .lock()
-            .unwrap()
-            .bus
-            .internal_memory
-            .lcd_registers
-            .get_bg_mode();
+        let mut bg_mode = self.cpu.lock().unwrap().bus.lcd.get_bg_mode();
 
         // BG_MODE_3 forced for now.
         bg_mode = 3;

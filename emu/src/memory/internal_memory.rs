@@ -5,7 +5,6 @@ use logger::log;
 use crate::bitwise::Bits;
 use crate::memory::dma::Dma;
 use crate::memory::io_device::IoDevice;
-use crate::memory::lcd_registers::LCDRegisters;
 use crate::memory::timer_registers::TimerRegisters;
 
 use super::interrupts::Interrupts;
@@ -22,9 +21,6 @@ pub struct InternalMemory {
 
     /// From 0x03000000 to 0x03007FFF (32kb).
     working_iram: Vec<u8>,
-
-    /// From 0x04000000 to 0x04000055 (0x56 bytes).
-    pub lcd_registers: LCDRegisters,
 
     /// From 0x04000060 to 0x040000AF
     sound: Sound,
@@ -83,7 +79,6 @@ impl InternalMemory {
             bios_system_rom: bios.to_vec(),
             working_ram: vec![0; 0x00040000],
             working_iram: vec![0; 0x00008000],
-            lcd_registers: LCDRegisters::default(),
             sound: Sound::default(),
             dma: Dma::new(),
             timer_registers: TimerRegisters::default(),
@@ -126,20 +121,6 @@ impl InternalMemory {
             (((address >> 1) & 0xFFFF) as u16).get_byte((address & 0b1) as u8)
         }
     }
-
-    /// vsync (vertical syncronisation).
-    /// The two most common methods use a while loop and check REG_VCOUNT or REG_DISPSTAT.
-    /// For example, since the VBlank starts at scanline 160, you could see when REG_VCOUNT goes beyond this value.
-    pub fn step(&mut self) {
-        let vcount = self.lcd_registers.vcount.read();
-        if vcount < 160 { // wait till VBlank
-        }
-        if vcount == 160 {
-            // self.interrupts.interrupt_request.set_vblank_interrupt();
-        }
-
-        self.lcd_registers.vcount.write(vcount + 1);
-    }
 }
 
 impl IoDevice for InternalMemory {
@@ -151,7 +132,6 @@ impl IoDevice for InternalMemory {
             0x00000000..=0x00003FFF => self.bios_system_rom[address],
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000],
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000],
-            0x04000000..=0x04000055 => self.lcd_registers.read_at(address),
             0x04000060..=0x040000AF => self.sound.read_at(address),
             0x040000B0..=0x040000FF => self.dma.read_at(address),
             0x04000100..=0x0400012F => self.timer_registers.read_at(address),
@@ -182,7 +162,6 @@ impl IoDevice for InternalMemory {
             0x00000000..=0x00003FFF => self.bios_system_rom[address] = value,
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000] = value,
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
-            0x04000000..=0x0400005F => self.lcd_registers.write_at(address, value),
             0x04000060..=0x040000AF => self.sound.write_at(address, value),
             0x040000B0..=0x040000FF => self.dma.write_at(address, value),
             0x04000100..=0x0400012F => self.timer_registers.write_at(address, value),
@@ -293,35 +272,6 @@ mod tests {
 
         let address = 0x03000005;
         assert_eq!(im.read_at(address), 10);
-    }
-
-    #[test]
-    fn test_write_lcd_reg() {
-        let mut im = InternalMemory::default();
-        let address = 0x04000048; // WININ lower byte
-
-        im.write_at(address, 10);
-
-        assert_eq!(im.lcd_registers.winin.read(), 10);
-
-        let address = 0x04000049; // WININ higher byte
-
-        im.write_at(address, 5);
-        assert_eq!(im.lcd_registers.winin.read(), (5 << 8) | 10);
-    }
-
-    #[test]
-    fn test_read_lcd_reg() {
-        let mut im = InternalMemory::default();
-        let address = 0x04000048; // WININ lower byte
-
-        im.lcd_registers.winin.write((5 << 8) | 10);
-
-        assert_eq!(im.read_at(address), 10);
-
-        let address = 0x04000049; // WININ higher byte
-
-        assert_eq!(im.read_at(address), 5);
     }
 
     #[test]

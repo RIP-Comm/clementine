@@ -1,12 +1,20 @@
+use std::collections::HashMap;
+
 use logger::log;
 
+use crate::bitwise::Bits;
+use crate::cpu::hardware::lcd::Lcd;
+use crate::cpu::hardware::HardwareComponent;
 use crate::memory::{internal_memory::InternalMemory, io_device::IoDevice};
+use crate::cpu::hardware::lcd::Lcd;
 
 #[derive(Default)]
 pub struct Bus {
     pub internal_memory: InternalMemory,
+    pub lcd: Lcd,
     cycles_count: u128,
     last_used_address: usize,
+    unused_region: HashMap<usize, u8>,
 }
 
 impl Bus {
