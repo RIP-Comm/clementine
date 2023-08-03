@@ -608,9 +608,9 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
-            cpu.bus.write_at(0x1000, 1);
-            cpu.bus.write_at(0x1004, 5);
-            cpu.bus.write_at(0x1008, 7);
+            cpu.bus.write_byte(0x1000, 1);
+            cpu.bus.write_byte(0x1004, 5);
+            cpu.bus.write_byte(0x1008, 7);
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
@@ -625,9 +625,9 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
-            cpu.bus.write_at(0x1004, 1);
-            cpu.bus.write_at(0x1008, 5);
-            cpu.bus.write_at(0x100C, 7);
+            cpu.bus.write_byte(0x1004, 1);
+            cpu.bus.write_byte(0x1008, 5);
+            cpu.bus.write_byte(0x100C, 7);
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
@@ -642,9 +642,9 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
-            cpu.bus.write_at(0x1000, 7);
-            cpu.bus.write_at(0x0FFC, 5);
-            cpu.bus.write_at(0x0FF8, 1);
+            cpu.bus.write_byte(0x1000, 7);
+            cpu.bus.write_byte(0x0FFC, 5);
+            cpu.bus.write_byte(0x0FF8, 1);
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
@@ -659,9 +659,9 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(13, 0x1000);
-            cpu.bus.write_at(0x0FFC, 7);
-            cpu.bus.write_at(0x0FF8, 5);
-            cpu.bus.write_at(0x0FF4, 1);
+            cpu.bus.write_byte(0x0FFC, 7);
+            cpu.bus.write_byte(0x0FF8, 5);
+            cpu.bus.write_byte(0x0FF4, 1);
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
@@ -685,9 +685,9 @@ mod tests {
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_at(0x1000), 1);
-            assert_eq!(bus.read_at(0x1004), 5);
-            assert_eq!(bus.read_at(0x1008), 7);
+            assert_eq!(bus.read_byte(0x1000), 1);
+            assert_eq!(bus.read_byte(0x1004), 5);
+            assert_eq!(bus.read_byte(0x1008), 7);
             assert_eq!(cpu.registers.register_at(13), 0x100C);
         }
         {
@@ -706,10 +706,10 @@ mod tests {
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_at(0x1000), 0);
-            assert_eq!(bus.read_at(0x1004), 1);
-            assert_eq!(bus.read_at(0x1008), 5);
-            assert_eq!(bus.read_at(0x100C), 7);
+            assert_eq!(bus.read_byte(0x1000), 0);
+            assert_eq!(bus.read_byte(0x1004), 1);
+            assert_eq!(bus.read_byte(0x1008), 5);
+            assert_eq!(bus.read_byte(0x100C), 7);
             assert_eq!(cpu.registers.register_at(13), 0x100C);
         }
         {
@@ -728,9 +728,9 @@ mod tests {
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_at(0x1000), 7);
-            assert_eq!(bus.read_at(0x0FFC), 5);
-            assert_eq!(bus.read_at(0x0FF8), 1);
+            assert_eq!(bus.read_byte(0x1000), 7);
+            assert_eq!(bus.read_byte(0x0FFC), 5);
+            assert_eq!(bus.read_byte(0x0FF8), 1);
             assert_eq!(cpu.registers.register_at(13), 0x0FF4);
         }
         {
@@ -750,11 +750,11 @@ mod tests {
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_at(0x1000), 0);
-            assert_eq!(bus.read_at(0x0FFC), 15 + 4);
-            assert_eq!(bus.read_at(0x0FF8), 7);
-            assert_eq!(bus.read_at(0x0FF4), 5);
-            assert_eq!(bus.read_at(0x0FF0), 1);
+            assert_eq!(bus.read_byte(0x1000), 0);
+            assert_eq!(bus.read_byte(0x0FFC), 15 + 4);
+            assert_eq!(bus.read_byte(0x0FF8), 7);
+            assert_eq!(bus.read_byte(0x0FF4), 5);
+            assert_eq!(bus.read_byte(0x0FF0), 1);
             assert_eq!(cpu.registers.register_at(13), 0x0FF0);
         }
     }
@@ -786,11 +786,11 @@ mod tests {
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_at(0), 1);
-            assert_eq!(bus.read_at(1), 1);
+            assert_eq!(bus.read_byte(0), 1);
+            assert_eq!(bus.read_byte(1), 1);
             // because we store halfword = 16bit
-            assert_eq!(bus.read_at(2), 0);
-            assert_eq!(bus.read_at(3), 0);
+            assert_eq!(bus.read_byte(2), 0);
+            assert_eq!(bus.read_byte(3), 0);
         }
         {
             // Immediate offset, pre-index, down, no wb, load, unsigned halfword
@@ -855,7 +855,7 @@ mod tests {
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_at(100, -5_i8 as u8);
+            cpu.bus.write_byte(100, -5_i8 as u8);
 
             cpu.execute_arm(op_code);
 
@@ -941,7 +941,7 @@ mod tests {
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
         cpu.registers.set_register_at(1, 10);
-        cpu.bus.write_at(352, 1);
+        cpu.bus.write_byte(352, 1);
         cpu.execute_thumb(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 1);
@@ -975,10 +975,10 @@ mod tests {
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.bus.read_at(200), 0x1F);
-            assert_eq!(cpu.bus.read_at(201), 0);
-            assert_eq!(cpu.bus.read_at(202), 0);
-            assert_eq!(cpu.bus.read_at(203), 0);
+            assert_eq!(cpu.bus.read_byte(200), 0x1F);
+            assert_eq!(cpu.bus.read_byte(201), 0);
+            assert_eq!(cpu.bus.read_byte(202), 0);
+            assert_eq!(cpu.bus.read_byte(203), 0);
         }
         // Checks Load Word
         {
@@ -1059,7 +1059,7 @@ mod tests {
             cpu.execute_thumb(op_code);
 
             let mut bus = cpu.bus;
-            assert_eq!(bus.read_at(10), 0xFF);
+            assert_eq!(bus.read_byte(10), 0xFF);
         }
     }
 
@@ -1626,7 +1626,7 @@ mod tests {
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
                     cpu.registers.set_register_at(1, 100);
-                    cpu.bus.write_at(110, 0x80);
+                    cpu.bus.write_byte(110, 0x80);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(2), 0xFFFF_FF80);

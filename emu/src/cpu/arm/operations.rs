@@ -579,7 +579,7 @@ impl Arm7tdmi {
                         .set_register_at(source_destination_register as usize, v.into());
                 }
                 HalfwordTransferKind::SignedByte => {
-                    let v = self.bus.read_at(address) as u32;
+                    let v = self.bus.read_byte(address) as u32;
                     self.registers
                         .set_register_at(source_destination_register as usize, v.sign_extended(8));
                 }
@@ -656,7 +656,7 @@ impl Arm7tdmi {
         match kind {
             SingleDataTransferKind::Ldr => match quantity {
                 ReadWriteKind::Byte => {
-                    let value = self.bus.read_at(address) as u32;
+                    let value = self.bus.read_byte(address) as u32;
                     self.registers
                         .set_register_at(rd.try_into().unwrap(), value)
                 }
@@ -674,7 +674,7 @@ impl Arm7tdmi {
                         v += 4;
                     }
 
-                    self.bus.write_at(address, v as u8)
+                    self.bus.write_byte(address, v as u8)
                 }
                 ReadWriteKind::Word => {
                     let mut v = self.registers.register_at(rd.try_into().unwrap());
@@ -684,10 +684,7 @@ impl Arm7tdmi {
                         v += 4;
                     }
 
-                    self.bus.write_at(address, v.get_bits(0..=7) as u8);
-                    self.bus.write_at(address + 1, v.get_bits(8..=15) as u8);
-                    self.bus.write_at(address + 2, v.get_bits(16..=23) as u8);
-                    self.bus.write_at(address + 3, v.get_bits(24..=31) as u8);
+                    self.bus.write_word(address, v);
                 }
             },
             _ => todo!("implement single data transfer operation"),
@@ -2416,7 +2413,7 @@ mod tests {
             cpu.registers.set_program_counter(0x03000050);
 
             // simulate mem already contains something.
-            cpu.bus.write_at(0x03000068, 99);
+            cpu.bus.write_byte(0x03000068, 99);
 
             cpu.execute_arm(op_code);
             assert_eq!(cpu.registers.register_at(13), 99);
@@ -2540,10 +2537,7 @@ mod tests {
 
         // simulate mem already contains something.
         // in u32 this is 16843009 00000001_00000001_00000001_00000001.
-        cpu.bus.write_at(0x28, 1);
-        cpu.bus.write_at(0x28 + 1, 1);
-        cpu.bus.write_at(0x28 + 2, 1);
-        cpu.bus.write_at(0x28 + 3, 1);
+        cpu.bus.write_word(0x28, 0x01010101);
         cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(13), 16843009);
         assert_eq!(cpu.registers.program_counter(), 0);
