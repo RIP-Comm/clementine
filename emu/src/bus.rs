@@ -4,6 +4,7 @@ use logger::log;
 
 use crate::bitwise::Bits;
 use crate::cpu::hardware::lcd::Lcd;
+use crate::cpu::hardware::sound::Sound;
 use crate::cpu::hardware::HardwareComponent;
 use crate::memory::{internal_memory::InternalMemory, io_device::IoDevice};
 
@@ -11,12 +12,118 @@ use crate::memory::{internal_memory::InternalMemory, io_device::IoDevice};
 pub struct Bus {
     pub internal_memory: InternalMemory,
     pub lcd: Lcd,
+    sound: Sound,
     cycles_count: u128,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
 }
 
 impl Bus {
+    fn read_sound_raw(&self, address: usize) -> u8 {
+        match address {
+            0x04000060 => self.sound.channel1_sweep.get_byte(0),
+            0x04000061 => self.sound.channel1_sweep.get_byte(1),
+            0x04000062 => self.sound.channel1_duty_length_envelope.get_byte(0),
+            0x04000063 => self.sound.channel1_duty_length_envelope.get_byte(1),
+            0x04000064 => self.sound.channel1_frequency_control.get_byte(0),
+            0x04000065 => self.sound.channel1_frequency_control.get_byte(1),
+            0x04000068 => self.sound.channel2_duty_length_envelope.get_byte(0),
+            0x04000069 => self.sound.channel2_duty_length_envelope.get_byte(1),
+            0x0400006C => self.sound.channel2_frequency_control.get_byte(0),
+            0x0400006D => self.sound.channel2_frequency_control.get_byte(1),
+            0x04000070 => self.sound.channel3_stop_wave_ram_select.get_byte(0),
+            0x04000071 => self.sound.channel3_stop_wave_ram_select.get_byte(1),
+            0x04000072 => self.sound.channel3_length_volume.get_byte(0),
+            0x04000073 => self.sound.channel3_length_volume.get_byte(1),
+            0x04000074 => self.sound.channel3_frequency_control.get_byte(0),
+            0x04000075 => self.sound.channel3_frequency_control.get_byte(1),
+            0x04000078 => self.sound.channel4_length_envelope.get_byte(0),
+            0x04000079 => self.sound.channel4_length_envelope.get_byte(1),
+            0x0400007C => self.sound.channel4_frequency_control.get_byte(0),
+            0x0400007D => self.sound.channel4_frequency_control.get_byte(1),
+            0x04000080 => self.sound.control_stereo_volume_enable.get_byte(0),
+            0x04000081 => self.sound.control_stereo_volume_enable.get_byte(1),
+            0x04000082 => self.sound.control_mixing_dma_control.get_byte(0),
+            0x04000083 => self.sound.control_mixing_dma_control.get_byte(1),
+            0x04000084 => self.sound.control_sound_on_off.get_byte(0),
+            0x04000085 => self.sound.control_sound_on_off.get_byte(1),
+            0x04000088 => self.sound.sound_pwm_control.get_byte(0),
+            0x04000089 => self.sound.sound_pwm_control.get_byte(1),
+            0x04000090..=0x0400009F => self.sound.channel3_wave_pattern_ram[address - 0x0400090],
+            0x040000A0..=0x040000A7 => panic!("Reading a write-only Sound I/O register"),
+            0x04000066..=0x04000067
+            | 0x0400006A..=0x0400006B
+            | 0x0400006E..=0x0400006F
+            | 0x04000076..=0x04000077
+            | 0x0400007A..=0x0400007B
+            | 0x0400007E..=0x0400007F
+            | 0x04000086..=0x04000087
+            | 0x0400008A..=0x0400008F
+            | 0x040000A8..=0x040000AF => {
+                log(format!("read on unused memory {address:x}"));
+                self.unused_region.get(&address).map_or(0, |v| *v)
+            }
+            _ => panic!("Sound read address is out of bound"),
+        }
+    }
+
+    fn write_sound_raw(&mut self, address: usize, value: u8) {
+        match address {
+            0x04000060 => self.sound.channel1_sweep.set_byte(0, value),
+            0x04000061 => self.sound.channel1_sweep.set_byte(1, value),
+            0x04000062 => self.sound.channel1_duty_length_envelope.set_byte(0, value),
+            0x04000063 => self.sound.channel1_duty_length_envelope.set_byte(1, value),
+            0x04000064 => self.sound.channel1_frequency_control.set_byte(0, value),
+            0x04000065 => self.sound.channel1_frequency_control.set_byte(1, value),
+            0x04000068 => self.sound.channel2_duty_length_envelope.set_byte(0, value),
+            0x04000069 => self.sound.channel2_duty_length_envelope.set_byte(1, value),
+            0x0400006C => self.sound.channel2_frequency_control.set_byte(0, value),
+            0x0400006D => self.sound.channel2_frequency_control.set_byte(1, value),
+            0x04000070 => self.sound.channel3_stop_wave_ram_select.set_byte(0, value),
+            0x04000071 => self.sound.channel3_stop_wave_ram_select.set_byte(1, value),
+            0x04000072 => self.sound.channel3_length_volume.set_byte(0, value),
+            0x04000073 => self.sound.channel3_length_volume.set_byte(1, value),
+            0x04000074 => self.sound.channel3_frequency_control.set_byte(0, value),
+            0x04000075 => self.sound.channel3_frequency_control.set_byte(1, value),
+            0x04000078 => self.sound.channel4_length_envelope.set_byte(0, value),
+            0x04000079 => self.sound.channel4_length_envelope.set_byte(1, value),
+            0x0400007C => self.sound.channel4_frequency_control.set_byte(0, value),
+            0x0400007D => self.sound.channel4_frequency_control.set_byte(1, value),
+            0x04000080 => self.sound.control_stereo_volume_enable.set_byte(0, value),
+            0x04000081 => self.sound.control_stereo_volume_enable.set_byte(1, value),
+            0x04000082 => self.sound.control_mixing_dma_control.set_byte(0, value),
+            0x04000083 => self.sound.control_mixing_dma_control.set_byte(1, value),
+            0x04000084 => self.sound.control_sound_on_off.set_byte(0, value),
+            0x04000085 => self.sound.control_sound_on_off.set_byte(1, value),
+            0x04000088 => self.sound.sound_pwm_control.set_byte(0, value),
+            0x04000089 => self.sound.sound_pwm_control.set_byte(1, value),
+            0x04000090..=0x0400009F => {
+                self.sound.channel3_wave_pattern_ram[address - 0x04000090] = value
+            }
+            0x040000A0 => self.sound.channel_a_fifo.set_byte(0, value),
+            0x040000A1 => self.sound.channel_a_fifo.set_byte(1, value),
+            0x040000A2 => self.sound.channel_a_fifo.set_byte(2, value),
+            0x040000A3 => self.sound.channel_a_fifo.set_byte(3, value),
+            0x040000A4 => self.sound.channel_b_fifo.set_byte(0, value),
+            0x040000A5 => self.sound.channel_b_fifo.set_byte(1, value),
+            0x040000A6 => self.sound.channel_b_fifo.set_byte(2, value),
+            0x040000A7 => self.sound.channel_b_fifo.set_byte(3, value),
+            0x04000066..=0x04000067
+            | 0x0400006A..=0x0400006B
+            | 0x0400006E..=0x0400006F
+            | 0x04000076..=0x04000077
+            | 0x0400007A..=0x0400007B
+            | 0x0400007E..=0x0400007F
+            | 0x04000086..=0x04000087
+            | 0x0400008A..=0x0400008F
+            | 0x040000A8..=0x040000AF => {
+                log(format!("write on unused memory, {address:x}"));
+                self.unused_region.insert(address, value);
+            }
+            _ => panic!("Sound write address is out of bound"),
+        }
+    }
+
     fn read_lcd_raw(&self, address: usize) -> u8 {
         match address {
             0x04000000 => self.lcd.dispcnt.get_byte(0),
@@ -153,6 +260,7 @@ impl Bus {
     fn read_raw(&self, address: usize) -> u8 {
         match address {
             0x4000000..=0x400005F => self.read_lcd_raw(address),
+            0x4000060..=0x40000AF => self.read_sound_raw(address),
             // TODO: change also other devices similar to how LCD is handled
             _ => self.internal_memory.read_at(address),
         }
@@ -161,6 +269,7 @@ impl Bus {
     fn write_raw(&mut self, address: usize, value: u8) {
         match address {
             0x4000000..=0x400005F => self.write_lcd_raw(address, value),
+            0x4000060..=0x40000AF => self.write_sound_raw(address, value),
             // TODO: read read_raw
             _ => self.internal_memory.write_at(address, value),
         }
