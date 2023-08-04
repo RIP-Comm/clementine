@@ -1,3 +1,4 @@
+pub mod dma;
 pub mod lcd;
 pub mod sound;
 

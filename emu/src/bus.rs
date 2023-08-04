@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use logger::log;
 
 use crate::bitwise::Bits;
+use crate::cpu::hardware::dma::{Dma, DmaRegisters};
 use crate::cpu::hardware::lcd::Lcd;
 use crate::cpu::hardware::sound::Sound;
 use crate::cpu::hardware::HardwareComponent;
@@ -13,12 +14,72 @@ pub struct Bus {
     pub internal_memory: InternalMemory,
     pub lcd: Lcd,
     sound: Sound,
+    dma: Dma,
     cycles_count: u128,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
 }
 
 impl Bus {
+    fn read_dma_raw(&self, address: usize) -> u8 {
+        let read_dma_bank = |channel: &DmaRegisters, address: usize| match address {
+            0..=9 => panic!("Reading a write-only DMA I/O register"),
+            10 => channel.control.get_byte(0),
+            11 => channel.control.get_byte(1),
+            _ => panic!("DMA channel read address is out of bound"),
+        };
+
+        match address {
+            0x040000B0..=0x040000BB => read_dma_bank(&self.dma.channels[0], address - 0x040000B0),
+            0x040000BC..=0x040000C7 => read_dma_bank(&self.dma.channels[0], address - 0x040000BC),
+            0x040000C8..=0x040000D3 => read_dma_bank(&self.dma.channels[0], address - 0x040000C8),
+            0x040000D4..=0x040000DF => read_dma_bank(&self.dma.channels[0], address - 0x040000D4),
+            0x040000E0..=0x040000FF => {
+                log("read on unused memory");
+                self.unused_region.get(&address).map_or(0, |v| *v)
+            }
+            _ => panic!("DMA read address is out of bound"),
+        }
+    }
+
+    fn write_dma_raw(&mut self, address: usize, value: u8) {
+        let write_dma_bank = |channel: &mut DmaRegisters, address: usize, value: u8| match address {
+            0 => channel.source_address.set_byte(0, value),
+            1 => channel.source_address.set_byte(1, value),
+            2 => channel.source_address.set_byte(2, value),
+            3 => channel.source_address.set_byte(3, value),
+            4 => channel.destination_address.set_byte(0, value),
+            5 => channel.destination_address.set_byte(1, value),
+            6 => channel.destination_address.set_byte(2, value),
+            7 => channel.destination_address.set_byte(3, value),
+            8 => channel.word_count.set_byte(0, value),
+            9 => channel.word_count.set_byte(1, value),
+            10 => channel.control.set_byte(0, value),
+            11 => channel.control.set_byte(1, value),
+            _ => panic!("DMA channel write-address is out of bound"),
+        };
+
+        match address {
+            0x040000B0..=0x040000BB => {
+                write_dma_bank(&mut self.dma.channels[0], address - 0x040000B0, value)
+            }
+            0x040000BC..=0x040000C7 => {
+                write_dma_bank(&mut self.dma.channels[1], address - 0x040000BC, value)
+            }
+            0x040000C8..=0x040000D3 => {
+                write_dma_bank(&mut self.dma.channels[2], address - 0x040000C8, value)
+            }
+            0x040000D4..=0x040000DF => {
+                write_dma_bank(&mut self.dma.channels[3], address - 0x040000D4, value)
+            }
+            0x040000E0..=0x040000FF => {
+                log("write on unused memory");
+                self.unused_region.insert(address, value);
+            }
+            _ => panic!("Not implemented write memory address: {address:x}"),
+        }
+    }
+
     fn read_sound_raw(&self, address: usize) -> u8 {
         match address {
             0x04000060 => self.sound.channel1_sweep.get_byte(0),
@@ -261,6 +322,7 @@ impl Bus {
         match address {
             0x4000000..=0x400005F => self.read_lcd_raw(address),
             0x4000060..=0x40000AF => self.read_sound_raw(address),
+            0x40000B0..=0x40000FF => self.read_dma_raw(address),
             // TODO: change also other devices similar to how LCD is handled
             _ => self.internal_memory.read_at(address),
         }
@@ -270,6 +332,7 @@ impl Bus {
         match address {
             0x4000000..=0x400005F => self.write_lcd_raw(address, value),
             0x4000060..=0x40000AF => self.write_sound_raw(address, value),
+            0x40000B0..=0x40000FF => self.write_dma_raw(address, value),
             // TODO: read read_raw
             _ => self.internal_memory.write_at(address, value),
         }
