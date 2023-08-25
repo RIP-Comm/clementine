@@ -1,5 +1,6 @@
 pub mod dma;
 pub mod lcd;
+pub mod serial;
 pub mod sound;
 pub mod timers;
 

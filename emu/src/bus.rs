@@ -5,6 +5,7 @@ use logger::log;
 use crate::bitwise::Bits;
 use crate::cpu::hardware::dma::{Dma, DmaRegisters};
 use crate::cpu::hardware::lcd::Lcd;
+use crate::cpu::hardware::serial::Serial;
 use crate::cpu::hardware::sound::Sound;
 use crate::cpu::hardware::timers::Timers;
 use crate::cpu::hardware::HardwareComponent;
@@ -17,12 +18,107 @@ pub struct Bus {
     sound: Sound,
     dma: Dma,
     timers: Timers,
+    serial: Serial,
     cycles_count: u128,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
 }
 
 impl Bus {
+    fn read_serial_raw(&self, address: usize) -> u8 {
+        match address {
+            0x04000120 => self.serial.sio_data_32_multi_data_0_data_1.get_byte(0),
+            0x04000121 => self.serial.sio_data_32_multi_data_0_data_1.get_byte(1),
+            0x04000122 => self.serial.sio_data_32_multi_data_0_data_1.get_byte(2),
+            0x04000123 => self.serial.sio_data_32_multi_data_0_data_1.get_byte(3),
+            0x04000124 => self.serial.sio_multi_data_2.get_byte(0),
+            0x04000125 => self.serial.sio_multi_data_2.get_byte(1),
+            0x04000126 => self.serial.sio_multi_data_3.get_byte(0),
+            0x04000127 => self.serial.sio_multi_data_3.get_byte(1),
+            0x04000128 => self.serial.sio_control_register.get_byte(0),
+            0x04000129 => self.serial.sio_control_register.get_byte(1),
+            0x0400012A => self.serial.sio_multi_data_send_data_8.get_byte(0),
+            0x0400012B => self.serial.sio_multi_data_send_data_8.get_byte(1),
+            0x04000134 => self.serial.sio_mode_select.get_byte(0),
+            0x04000135 => self.serial.sio_mode_select.get_byte(1),
+            0x04000136 => self.serial.infrared_register.get_byte(0),
+            0x04000137 => self.serial.infrared_register.get_byte(1),
+            0x04000140 => self.serial.sio_joy_bus_control.get_byte(0),
+            0x04000141 => self.serial.sio_joy_bus_control.get_byte(1),
+            0x04000150 => self.serial.sio_joy_bus_receive_data.get_byte(0),
+            0x04000151 => self.serial.sio_joy_bus_receive_data.get_byte(1),
+            0x04000152 => self.serial.sio_joy_bus_receive_data.get_byte(2),
+            0x04000153 => self.serial.sio_joy_bus_receive_data.get_byte(3),
+            0x04000154 => self.serial.sio_joy_bus_transmit_data.get_byte(0),
+            0x04000155 => self.serial.sio_joy_bus_transmit_data.get_byte(1),
+            0x04000156 => self.serial.sio_joy_bus_transmit_data.get_byte(2),
+            0x04000157 => self.serial.sio_joy_bus_transmit_data.get_byte(3),
+            0x04000158 => self.serial.sio_joy_bus_receive_status.get_byte(0),
+            0x04000159 => self.serial.sio_joy_bus_receive_status.get_byte(1),
+            0x0400012C..=0x0400012F
+            | 0x04000138..=0x04000139
+            | 0x04000142..=0x0400014F
+            | 0x0400015A..=0x040001FF => {
+                log(format!("read on unused memory {address:x}"));
+                *self.unused_region.get(&address).unwrap_or(&0)
+            }
+            _ => panic!("Serial read address is out of bound"),
+        }
+    }
+
+    fn write_serial_raw(&mut self, address: usize, value: u8) {
+        match address {
+            0x04000120 => self
+                .serial
+                .sio_data_32_multi_data_0_data_1
+                .set_byte(0, value),
+            0x04000121 => self
+                .serial
+                .sio_data_32_multi_data_0_data_1
+                .set_byte(1, value),
+            0x04000122 => self
+                .serial
+                .sio_data_32_multi_data_0_data_1
+                .set_byte(2, value),
+            0x04000123 => self
+                .serial
+                .sio_data_32_multi_data_0_data_1
+                .set_byte(3, value),
+            0x04000124 => self.serial.sio_multi_data_2.set_byte(0, value),
+            0x04000125 => self.serial.sio_multi_data_2.set_byte(1, value),
+            0x04000126 => self.serial.sio_multi_data_3.set_byte(0, value),
+            0x04000127 => self.serial.sio_multi_data_3.set_byte(1, value),
+            0x04000128 => self.serial.sio_control_register.set_byte(0, value),
+            0x04000129 => self.serial.sio_control_register.set_byte(1, value),
+            0x0400012A => self.serial.sio_multi_data_send_data_8.set_byte(0, value),
+            0x0400012B => self.serial.sio_multi_data_send_data_8.set_byte(1, value),
+            0x04000134 => self.serial.sio_mode_select.set_byte(0, value),
+            0x04000135 => self.serial.sio_mode_select.set_byte(1, value),
+            0x04000136 => self.serial.infrared_register.set_byte(0, value),
+            0x04000137 => self.serial.infrared_register.set_byte(1, value),
+            0x04000140 => self.serial.sio_joy_bus_control.set_byte(0, value),
+            0x04000141 => self.serial.sio_joy_bus_control.set_byte(1, value),
+            0x04000150 => self.serial.sio_joy_bus_receive_data.set_byte(0, value),
+            0x04000151 => self.serial.sio_joy_bus_receive_data.set_byte(1, value),
+            0x04000152 => self.serial.sio_joy_bus_receive_data.set_byte(2, value),
+            0x04000153 => self.serial.sio_joy_bus_receive_data.set_byte(3, value),
+            0x04000154 => self.serial.sio_joy_bus_transmit_data.set_byte(0, value),
+            0x04000155 => self.serial.sio_joy_bus_transmit_data.set_byte(1, value),
+            0x04000156 => self.serial.sio_joy_bus_transmit_data.set_byte(2, value),
+            0x04000157 => self.serial.sio_joy_bus_transmit_data.set_byte(3, value),
+            0x04000158 => self.serial.sio_joy_bus_receive_status.set_byte(0, value),
+            0x04000159 => self.serial.sio_joy_bus_receive_status.set_byte(1, value),
+            0x0400012C..=0x0400012F
+            | 0x04000138..=0x04000139
+            | 0x04000142..=0x0400014F
+            | 0x0400015A..=0x040001FF => {
+                log(format!("write on unused memory {address:x}"));
+                self.unused_region.insert(address, value);
+            }
+            _ => panic!("Serial write address is out of bound"),
+        }
+    }
+
     fn read_timers_raw(&self, address: usize) -> u8 {
         match address {
             0x04000100 => self.timers.tm0cnt_l.get_byte(0),
@@ -375,6 +471,7 @@ impl Bus {
             0x4000060..=0x40000AF => self.read_sound_raw(address),
             0x40000B0..=0x40000FF => self.read_dma_raw(address),
             0x4000100..=0x400011F => self.read_timers_raw(address),
+            0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.read_serial_raw(address),
             // TODO: change also other devices similar to how LCD is handled
             _ => self.internal_memory.read_at(address),
         }
@@ -386,6 +483,7 @@ impl Bus {
             0x4000060..=0x40000AF => self.write_sound_raw(address, value),
             0x40000B0..=0x40000FF => self.write_dma_raw(address, value),
             0x4000100..=0x400011F => self.write_timers_raw(address, value),
+            0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.write_serial_raw(address, value),
             // TODO: read read_raw
             _ => self.internal_memory.write_at(address, value),
         }
