@@ -1,6 +1,7 @@
 pub mod dma;
 pub mod lcd;
 pub mod sound;
+pub mod timers;
 
 pub trait HardwareComponent {
     fn step(&mut self);

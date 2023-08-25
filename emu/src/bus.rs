@@ -6,6 +6,7 @@ use crate::bitwise::Bits;
 use crate::cpu::hardware::dma::{Dma, DmaRegisters};
 use crate::cpu::hardware::lcd::Lcd;
 use crate::cpu::hardware::sound::Sound;
+use crate::cpu::hardware::timers::Timers;
 use crate::cpu::hardware::HardwareComponent;
 use crate::memory::{internal_memory::InternalMemory, io_device::IoDevice};
 
@@ -15,12 +16,62 @@ pub struct Bus {
     pub lcd: Lcd,
     sound: Sound,
     dma: Dma,
+    timers: Timers,
     cycles_count: u128,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
 }
 
 impl Bus {
+    fn read_timers_raw(&self, address: usize) -> u8 {
+        match address {
+            0x04000100 => self.timers.tm0cnt_l.get_byte(0),
+            0x04000101 => self.timers.tm0cnt_l.get_byte(1),
+            0x04000102 => self.timers.tm0cnt_h.get_byte(0),
+            0x04000103 => self.timers.tm0cnt_h.get_byte(1),
+            0x04000104 => self.timers.tm1cnt_l.get_byte(0),
+            0x04000105 => self.timers.tm1cnt_l.get_byte(1),
+            0x04000106 => self.timers.tm1cnt_h.get_byte(0),
+            0x04000107 => self.timers.tm1cnt_h.get_byte(1),
+            0x04000108 => self.timers.tm2cnt_l.get_byte(0),
+            0x04000109 => self.timers.tm2cnt_l.get_byte(1),
+            0x0400010A => self.timers.tm2cnt_h.get_byte(0),
+            0x0400010B => self.timers.tm2cnt_h.get_byte(1),
+            0x0400010C => self.timers.tm3cnt_l.get_byte(0),
+            0x0400010D => self.timers.tm3cnt_l.get_byte(1),
+            0x0400010E => self.timers.tm3cnt_h.get_byte(0),
+            0x0400010F => self.timers.tm3cnt_h.get_byte(1),
+            0x04000110..=0x0400011F => self.unused_region.get(&address).map_or(0, |v| *v),
+            _ => panic!("Timers read address is out of bound"),
+        }
+    }
+
+    fn write_timers_raw(&mut self, address: usize, value: u8) {
+        match address {
+            0x04000100 => self.timers.tm0cnt_l.set_byte(0, value),
+            0x04000101 => self.timers.tm0cnt_l.set_byte(1, value),
+            0x04000102 => self.timers.tm0cnt_h.set_byte(0, value),
+            0x04000103 => self.timers.tm0cnt_h.set_byte(1, value),
+            0x04000104 => self.timers.tm1cnt_l.set_byte(0, value),
+            0x04000105 => self.timers.tm1cnt_l.set_byte(1, value),
+            0x04000106 => self.timers.tm1cnt_h.set_byte(0, value),
+            0x04000107 => self.timers.tm1cnt_h.set_byte(1, value),
+            0x04000108 => self.timers.tm2cnt_l.set_byte(0, value),
+            0x04000109 => self.timers.tm2cnt_l.set_byte(1, value),
+            0x0400010A => self.timers.tm2cnt_h.set_byte(0, value),
+            0x0400010B => self.timers.tm2cnt_h.set_byte(1, value),
+            0x0400010C => self.timers.tm3cnt_l.set_byte(0, value),
+            0x0400010D => self.timers.tm3cnt_l.set_byte(1, value),
+            0x0400010E => self.timers.tm3cnt_h.set_byte(0, value),
+            0x0400010F => self.timers.tm3cnt_h.set_byte(1, value),
+            0x04000110..=0x0400011F => {
+                log(format!("write on unused memory {address:x}"));
+                self.unused_region.insert(address, value);
+            }
+            _ => panic!("Timers write address is out of bound"),
+        }
+    }
+
     fn read_dma_raw(&self, address: usize) -> u8 {
         let read_dma_bank = |channel: &DmaRegisters, address: usize| match address {
             0..=9 => panic!("Reading a write-only DMA I/O register"),
@@ -323,6 +374,7 @@ impl Bus {
             0x4000000..=0x400005F => self.read_lcd_raw(address),
             0x4000060..=0x40000AF => self.read_sound_raw(address),
             0x40000B0..=0x40000FF => self.read_dma_raw(address),
+            0x4000100..=0x400011F => self.read_timers_raw(address),
             // TODO: change also other devices similar to how LCD is handled
             _ => self.internal_memory.read_at(address),
         }
@@ -333,6 +385,7 @@ impl Bus {
             0x4000000..=0x400005F => self.write_lcd_raw(address, value),
             0x4000060..=0x40000AF => self.write_sound_raw(address, value),
             0x40000B0..=0x40000FF => self.write_dma_raw(address, value),
+            0x4000100..=0x400011F => self.write_timers_raw(address, value),
             // TODO: read read_raw
             _ => self.internal_memory.write_at(address, value),
         }
@@ -525,5 +578,24 @@ mod tests {
         let address = 0x04000049; // WININ higher byte
 
         assert_eq!(bus.read_raw(address), 5);
+    }
+
+    #[test]
+    fn test_write_timer_register() {
+        let mut bus = Bus::default();
+        let address = 0x04000100;
+
+        bus.write_raw(address, 10);
+        assert_eq!(bus.timers.tm0cnt_l, 10);
+    }
+
+    #[test]
+    fn test_read_timer_register() {
+        let mut bus = Bus::default();
+        let address = 0x04000100;
+
+        bus.timers.tm0cnt_l = (5 << 8) | 10;
+
+        assert_eq!(bus.read_raw(address), 10);
     }
 }
