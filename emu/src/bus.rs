@@ -551,14 +551,6 @@ impl Bus {
             .unwrap();
         self.internal_memory.interrupts.interrupt_request.push(val);
 
-        let val = *self
-            .internal_memory
-            .interrupts
-            .interrupt_request
-            .back()
-            .unwrap();
-        self.internal_memory.interrupts.interrupt_request.push(val);
-
         // A pixel takes 4 cycles to get drawn
         if self.cycles_count % 4 == 0 {
             self.lcd.step();
