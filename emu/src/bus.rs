@@ -4,6 +4,7 @@ use logger::log;
 
 use crate::bitwise::Bits;
 use crate::cpu::hardware::dma::{Dma, DmaRegisters};
+use crate::cpu::hardware::interrupt_control::InterruptControl;
 use crate::cpu::hardware::keypad::Keypad;
 use crate::cpu::hardware::lcd::Lcd;
 use crate::cpu::hardware::serial::Serial;
@@ -21,12 +22,117 @@ pub struct Bus {
     timers: Timers,
     serial: Serial,
     keypad: Keypad,
+    interrupt_control: InterruptControl,
     cycles_count: u128,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
 }
 
 impl Bus {
+    fn read_interrupt_control_raw(&self, address: usize) -> u8 {
+        match address {
+            0x04000200 => self.interrupt_control.interrupt_enable.get_byte(0),
+            0x04000201 => self.interrupt_control.interrupt_enable.get_byte(1),
+            0x04000202 => self
+                .interrupt_control
+                .interrupt_request
+                .front()
+                .unwrap_or(&0)
+                .get_byte(0),
+            0x04000203 => self
+                .interrupt_control
+                .interrupt_request
+                .front()
+                .unwrap_or(&0)
+                .get_byte(1),
+            0x04000204 => self.interrupt_control.wait_state_control.get_byte(0),
+            0x04000205 => self.interrupt_control.wait_state_control.get_byte(1),
+            0x04000208 => self.interrupt_control.interrupt_master_enable.get_byte(0),
+            0x04000209 => self.interrupt_control.interrupt_master_enable.get_byte(1),
+            0x04000300 => self.interrupt_control.post_boot_flag.get_byte(0),
+            0x04000301 => panic!("Reading a write-only InterruptControl address"),
+            0x04000410 => self.interrupt_control.purpose_unknown.get_byte(0),
+            0x04000206
+            | 0x04000207
+            | 0x400020A..=0x40002FF
+            | 0x04000302..=0x0400040F
+            | 0x04000411 => {
+                log("read on unused memory");
+                *self.unused_region.get(&address).unwrap_or(&0)
+            }
+            _ => match address & 0b111 {
+                0x800 => self.interrupt_control.internal_memory_control.get_byte(0),
+                0x801 => self.interrupt_control.internal_memory_control.get_byte(1),
+                0x802 => self.interrupt_control.internal_memory_control.get_byte(2),
+                0x803 => self.interrupt_control.internal_memory_control.get_byte(3),
+                _ => {
+                    log("read on unused memory");
+                    *self.unused_region.get(&address).unwrap_or(&0)
+                }
+            },
+        }
+    }
+
+    fn write_interrupt_control_raw(&mut self, address: usize, value: u8) {
+        match address {
+            0x04000200 => self.interrupt_control.interrupt_enable.set_byte(0, value),
+            0x04000201 => self.interrupt_control.interrupt_enable.set_byte(1, value),
+            0x04000202 => {
+                let current_val = self.interrupt_control.interrupt_request.back_mut().unwrap();
+
+                *current_val &= !(value as u16);
+            }
+            0x04000203 => {
+                let current_val = self.interrupt_control.interrupt_request.back_mut().unwrap();
+
+                *current_val &= !((value as u16) << 8);
+            }
+            0x04000204 => self.interrupt_control.wait_state_control.set_byte(0, value),
+            0x04000205 => self.interrupt_control.wait_state_control.set_byte(1, value),
+            0x04000208 => self
+                .interrupt_control
+                .interrupt_master_enable
+                .set_byte(0, value),
+            0x04000209 => self
+                .interrupt_control
+                .interrupt_master_enable
+                .set_byte(1, value),
+            0x04000300 => self.interrupt_control.post_boot_flag.set_byte(0, value),
+            0x04000301 => self.interrupt_control.power_down_control.set_byte(0, value),
+            0x04000410 => self.interrupt_control.purpose_unknown.set_byte(0, value),
+            0x04000206
+            | 0x04000207
+            | 0x400020A..=0x40002FF
+            | 0x04000302..=0x0400040F
+            | 0x04000411 => {
+                log("write on unused memory");
+                self.unused_region.insert(address, value);
+            }
+            _ => match address & 0b111 {
+                0x800 => self
+                    .interrupt_control
+                    .internal_memory_control
+                    .set_byte(0, value),
+                0x801 => self
+                    .interrupt_control
+                    .internal_memory_control
+                    .set_byte(1, value),
+                0x802 => self
+                    .interrupt_control
+                    .internal_memory_control
+                    .set_byte(2, value),
+                0x803 => self
+                    .interrupt_control
+                    .internal_memory_control
+                    .set_byte(3, value),
+                _ => {
+                    log("write on unused memory");
+                    self.unused_region.insert(address, value);
+                }
+            },
+        }
+    }
+
     fn read_keypad_raw(&self, address: usize) -> u8 {
         match address {
             0x4000130 => self.keypad.key_input.get_byte(0),
@@ -496,7 +602,7 @@ impl Bus {
             0x4000100..=0x400011F => self.read_timers_raw(address),
             0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.read_serial_raw(address),
             0x4000130..=0x4000133 => self.read_keypad_raw(address),
-            // TODO: change also other devices similar to how LCD is handled
+            0x4000200..=0x4FFFFFF => self.read_interrupt_control_raw(address),
             _ => self.internal_memory.read_at(address),
         }
     }
@@ -509,7 +615,7 @@ impl Bus {
             0x4000100..=0x400011F => self.write_timers_raw(address, value),
             0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.write_serial_raw(address, value),
             0x4000130..=0x4000133 => self.write_keypad_raw(address, value),
-            // TODO: read read_raw
+            0x4000200..=0x4FFFFFF => self.write_interrupt_control_raw(address, value),
             _ => self.internal_memory.write_at(address, value),
         }
     }
@@ -543,13 +649,8 @@ impl Bus {
         log(format!("CPU Cycles: {}", self.cycles_count));
 
         // Step ppu, dma, interrupts, timers, etc...
-        let val = *self
-            .internal_memory
-            .interrupts
-            .interrupt_request
-            .back()
-            .unwrap();
-        self.internal_memory.interrupts.interrupt_request.push(val);
+        let val = *self.interrupt_control.interrupt_request.back().unwrap();
+        self.interrupt_control.interrupt_request.push(val);
 
         // A pixel takes 4 cycles to get drawn
         if self.cycles_count % 4 == 0 {

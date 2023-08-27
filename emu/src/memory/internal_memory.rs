@@ -5,8 +5,6 @@ use logger::log;
 use crate::bitwise::Bits;
 use crate::memory::io_device::IoDevice;
 
-use super::interrupts::Interrupts;
-
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 KBytes).
     bios_system_rom: Vec<u8>,
@@ -16,9 +14,6 @@ pub struct InternalMemory {
 
     /// From 0x03000000 to 0x03007FFF (32kb).
     working_iram: Vec<u8>,
-
-    /// From 0x04000200 to 040003FE
-    pub interrupts: Interrupts,
 
     /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors).
     pub bg_palette_ram: Vec<u8>,
@@ -59,7 +54,6 @@ impl InternalMemory {
             bios_system_rom: bios.to_vec(),
             working_ram: vec![0; 0x00040000],
             working_iram: vec![0; 0x00008000],
-            interrupts: Interrupts::default(),
             bg_palette_ram: vec![0; 0x200],
             obj_palette_ram: vec![0; 0x200],
             video_ram: vec![0; 0x00018000],
@@ -107,7 +101,6 @@ impl IoDevice for InternalMemory {
             0x00000000..=0x00003FFF => self.bios_system_rom[address],
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000],
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000],
-            0x04000200..=0x04000804 => self.interrupts.read_at(address),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000],
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200],
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000],
@@ -132,7 +125,6 @@ impl IoDevice for InternalMemory {
             0x00000000..=0x00003FFF => self.bios_system_rom[address] = value,
             0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000] = value,
             0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
-            0x04000200..=0x04000804 => self.interrupts.write_at(address, value),
             0x05000000..=0x050001FF => self.bg_palette_ram[address - 0x05000000] = value,
             0x05000200..=0x050003FF => self.obj_palette_ram[address - 0x05000200] = value,
             0x06000000..=0x06017FFF => self.video_ram[address - 0x06000000] = value,
