@@ -113,8 +113,14 @@ impl IoDevice for InternalMemory {
             | 0x00004000..=0x01FFFFFF
             | 0x10000000..=0xFFFFFFFF
             | 0x06018000..=0x06FFFFFF => {
-                log(format!("read on unused memory {address:x}"));
-                self.unused_region.get(&address).map_or(0, |v| *v)
+                if address & 0xFFFFFF00 == 0x03FFFF00 {
+                    // mirrors to 0x3007FXX
+                    let real_address = 0x3007F00 | (address & 0xFF);
+                    self.working_iram[real_address - 0x03000000]
+                } else {
+                    log(format!("read on unused memory {address:x}"));
+                    self.unused_region.get(&address).map_or(0, |v| *v)
+                }
             }
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
         }
@@ -133,8 +139,14 @@ impl IoDevice for InternalMemory {
             | 0x00004000..=0x01FFFFFF
             | 0x10000000..=0xFFFFFFFF
             | 0x06018000..=0x06FFFFFF => {
-                log("write on unused memory");
-                if self.unused_region.insert(address, value).is_some() {}
+                if address & 0xFFFFFF00 == 0x03FFFF00 {
+                    // mirrors to 0x3007FXX
+                    let real_address = 0x3007F00 | (address & 0xFF);
+                    self.working_iram[real_address - 0x03000000] = value;
+                } else {
+                    log(format!("read on unused memory {address:x}"));
+                    self.unused_region.insert(address, value);
+                }
             }
             0x08000000..=0x0FFFFFFF => {
                 self.rom[address - 0x08000000] = value;
@@ -385,5 +397,17 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(im.read_half_word(0), 0x3412);
+    }
+
+    #[test]
+    fn test_mirror() {
+        let mut im = InternalMemory::default();
+        im.working_iram[0x7FF0] = 5;
+
+        assert_eq!(im.read_at(0x3FFFFF0), 5);
+
+        im.write_at(0x3FFFFA0, 10);
+
+        assert_eq!(im.working_iram[0x7FA0], 10);
     }
 }
