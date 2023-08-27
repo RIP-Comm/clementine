@@ -4,6 +4,7 @@ use logger::log;
 
 use crate::bitwise::Bits;
 use crate::cpu::hardware::dma::{Dma, DmaRegisters};
+use crate::cpu::hardware::keypad::Keypad;
 use crate::cpu::hardware::lcd::Lcd;
 use crate::cpu::hardware::serial::Serial;
 use crate::cpu::hardware::sound::Sound;
@@ -19,12 +20,34 @@ pub struct Bus {
     dma: Dma,
     timers: Timers,
     serial: Serial,
+    keypad: Keypad,
     cycles_count: u128,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
 }
 
 impl Bus {
+    fn read_keypad_raw(&self, address: usize) -> u8 {
+        match address {
+            0x4000130 => self.keypad.key_input.get_byte(0),
+            0x4000131 => self.keypad.key_input.get_byte(1),
+            0x4000132 => self.keypad.key_interrupt_control.get_byte(0),
+            0x4000133 => self.keypad.key_interrupt_control.get_byte(1),
+            _ => panic!("Keypad read address is out of bound"),
+        }
+    }
+
+    fn write_keypad_raw(&mut self, address: usize, value: u8) {
+        match address {
+            // 0x4000130 and 0x4000131 Should be read-only but CPU bios writes it.
+            0x4000130 => self.keypad.key_input.set_byte(0, value),
+            0x4000131 => self.keypad.key_input.set_byte(1, value),
+            0x4000132 => self.keypad.key_interrupt_control.set_byte(0, value),
+            0x4000133 => self.keypad.key_interrupt_control.set_byte(1, value),
+            _ => panic!("Keypad write address is out of bound"),
+        }
+    }
+
     fn read_serial_raw(&self, address: usize) -> u8 {
         match address {
             0x04000120 => self.serial.sio_data_32_multi_data_0_data_1.get_byte(0),
@@ -472,6 +495,7 @@ impl Bus {
             0x40000B0..=0x40000FF => self.read_dma_raw(address),
             0x4000100..=0x400011F => self.read_timers_raw(address),
             0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.read_serial_raw(address),
+            0x4000130..=0x4000133 => self.read_keypad_raw(address),
             // TODO: change also other devices similar to how LCD is handled
             _ => self.internal_memory.read_at(address),
         }
@@ -484,6 +508,7 @@ impl Bus {
             0x40000B0..=0x40000FF => self.write_dma_raw(address, value),
             0x4000100..=0x400011F => self.write_timers_raw(address, value),
             0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.write_serial_raw(address, value),
+            0x4000130..=0x4000133 => self.write_keypad_raw(address, value),
             // TODO: read read_raw
             _ => self.internal_memory.write_at(address, value),
         }
