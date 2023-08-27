@@ -1,4 +1,5 @@
 pub mod dma;
+pub mod keypad;
 pub mod lcd;
 pub mod serial;
 pub mod sound;
