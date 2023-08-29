@@ -45,11 +45,6 @@ impl Arm7tdmi {
             op_kind,
             op_code.get_bits(0..=11),
         );
-        // S = 1 and Rd = 0xF should not be allowed in User Mode.
-        // TODO: When in other modes it should load SPSR_<current_mode> into CPSR
-        if set_conditions && destination == REG_PROGRAM_COUNTER {
-            unimplemented!("Implement cases when S=1 and Rd=0xF");
-        }
 
         use ArmModeAluInstruction::*;
         match alu_instruction {
@@ -70,6 +65,21 @@ impl Arm7tdmi {
             Bic => self.bic(destination.try_into().unwrap(), op1, op2, set_conditions),
             Mvn => self.mvn(destination.try_into().unwrap(), op2, set_conditions),
         };
+
+        if set_conditions && destination == REG_PROGRAM_COUNTER {
+            // We move current SPSR into the CPSR.
+
+            if self.cpsr.mode() == Mode::User {
+                // S = 1 and Rd = 0xF should not be allowed in User Mode.
+                panic!("S=1 and Rd=0xF is forbidden in User mode")
+            }
+
+            // We store the current spsr in a temp variable because `swap_mode` would overwrite it.
+            // We need to call `swap_mode` because we need to swap banked registers.
+            let current_spsr = self.spsr;
+            self.swap_mode(current_spsr.mode());
+            self.cpsr = current_spsr;
+        }
 
         // Test instructions do not modify destination so we don't flush pipeline even if
         // destination == R15
