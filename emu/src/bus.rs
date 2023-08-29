@@ -10,7 +10,6 @@ use crate::cpu::hardware::lcd::Lcd;
 use crate::cpu::hardware::serial::Serial;
 use crate::cpu::hardware::sound::Sound;
 use crate::cpu::hardware::timers::Timers;
-use crate::cpu::hardware::HardwareComponent;
 use crate::memory::{internal_memory::InternalMemory, io_device::IoDevice};
 
 #[derive(Default)]
@@ -28,6 +27,45 @@ pub struct Bus {
     unused_region: HashMap<usize, u8>,
 }
 
+#[allow(dead_code)]
+enum IrqType {
+    VBlank,
+    HBlank,
+    VCount,
+    Timer0,
+    Timer1,
+    Timer2,
+    Timer3,
+    Serial,
+    Dma0,
+    Dma1,
+    Dma2,
+    Dma3,
+    Keypad,
+    Gamepak,
+}
+
+impl IrqType {
+    /// Returns the index of the corresponding IrqType inside the Interrupt Request Flag register
+    const fn get_idx_in_if(&self) -> u8 {
+        match self {
+            Self::VBlank => 0,
+            Self::HBlank => 1,
+            Self::VCount => 2,
+            Self::Timer0 => 3,
+            Self::Timer1 => 4,
+            Self::Timer2 => 5,
+            Self::Timer3 => 6,
+            Self::Serial => 7,
+            Self::Dma0 => 8,
+            Self::Dma1 => 9,
+            Self::Dma2 => 10,
+            Self::Dma3 => 11,
+            Self::Keypad => 12,
+            Self::Gamepak => 13,
+        }
+    }
+}
 impl Bus {
     fn read_interrupt_control_raw(&self, address: usize) -> u8 {
         match address {
@@ -654,8 +692,28 @@ impl Bus {
 
         // A pixel takes 4 cycles to get drawn
         if self.cycles_count % 4 == 0 {
-            self.lcd.step();
+            let lcd_output = self.lcd.step();
+
+            if lcd_output.request_hblank_irq {
+                self.request_interrupt(IrqType::HBlank);
+            }
+
+            if lcd_output.request_vblank_irq {
+                self.request_interrupt(IrqType::VBlank);
+            }
+
+            if lcd_output.request_vcount_irq {
+                self.request_interrupt(IrqType::VCount);
+            }
         }
+    }
+
+    fn request_interrupt(&mut self, irq_type: IrqType) {
+        self.interrupt_control
+            .interrupt_request
+            .back_mut()
+            .unwrap()
+            .set_bit(irq_type.get_idx_in_if(), true);
     }
 
     pub fn with_memory(memory: InternalMemory) -> Self {

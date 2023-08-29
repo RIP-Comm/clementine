@@ -1,7 +1,5 @@
 use crate::bitwise::Bits;
 
-use super::HardwareComponent;
-
 #[derive(Default)]
 pub struct Lcd {
     /// LCD Control
@@ -84,11 +82,48 @@ pub struct Lcd {
     pixel_index: u32,
 }
 
-impl HardwareComponent for Lcd {
-    fn step(&mut self) {
+#[derive(Default)]
+pub struct LcdStepOutput {
+    pub request_vblank_irq: bool,
+    pub request_hblank_irq: bool,
+    pub request_vcount_irq: bool,
+}
+
+impl Lcd {
+    pub fn step(&mut self) -> LcdStepOutput {
         // This will be much more complex obviously
+        let mut output = LcdStepOutput::default();
+
+        if self.vcount < 160 {
+            // We either are in Vdraw or Hblank
+            if self.pixel_index == 0 {
+                // We're drawing the first pixel of the scanline, we're entering Vdraw
+
+                self.set_hblank_flag(false);
+                self.set_vblank_flag(false);
+
+                // TODO: Do something
+            } else if self.pixel_index == 240 {
+                // We're entering Hblank
+
+                self.set_hblank_flag(true);
+
+                if self.get_hblank_irq_enable() {
+                    output.request_hblank_irq = true;
+                }
+            }
+        } else if self.vcount == 160 && self.pixel_index == 0 {
+            // We're drawing the first pixel of the Vdraw period
+
+            self.set_vblank_flag(true);
+
+            if self.get_vblank_irq_enable() {
+                output.request_vblank_irq = true;
+            }
+        }
 
         // TODO: draw the pixel
+
         self.pixel_index += 1;
 
         if self.pixel_index == 308 {
@@ -101,16 +136,50 @@ impl HardwareComponent for Lcd {
                 self.vcount = 0;
             }
         }
+
+        self.set_vcounter_flag(false);
+
+        if self.vcount.get_byte(0) == self.get_vcount_setting() {
+            self.set_vcounter_flag(true);
+
+            if self.get_vcounter_irq_enable() {
+                output.request_vcount_irq = true;
+            }
+        }
+
+        output
     }
 
-    fn is_interrupt_pending(&self) -> bool {
-        false
-    }
-}
-
-impl Lcd {
     /// Info about vram fields used to render display.
     pub fn get_bg_mode(&self) -> u8 {
         self.dispcnt.get_bits(0..=2).try_into().unwrap()
+    }
+
+    fn get_vcount_setting(&self) -> u8 {
+        self.dispstat.get_byte(1)
+    }
+
+    fn get_vblank_irq_enable(&self) -> bool {
+        self.dispstat.get_bit(3)
+    }
+
+    fn get_hblank_irq_enable(&self) -> bool {
+        self.dispstat.get_bit(4)
+    }
+
+    fn get_vcounter_irq_enable(&self) -> bool {
+        self.dispstat.get_bit(5)
+    }
+
+    fn set_vblank_flag(&mut self, value: bool) {
+        self.dispstat.set_bit(0, value);
+    }
+
+    fn set_hblank_flag(&mut self, value: bool) {
+        self.dispstat.set_bit(1, value);
+    }
+
+    fn set_vcounter_flag(&mut self, value: bool) {
+        self.dispstat.set_bit(2, value);
     }
 }
