@@ -3,8 +3,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     bus::Bus,
     cartridge_header::CartridgeHeader,
-    cpu::arm7tdmi::Arm7tdmi,
-    memory::internal_memory::InternalMemory,
+    cpu::{arm7tdmi::Arm7tdmi, hardware::internal_memory::InternalMemory},
     render::{gba_lcd::GbaLcd, ppu::PixelProcessUnit},
 };
 
