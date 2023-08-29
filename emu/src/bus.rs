@@ -4,13 +4,14 @@ use logger::log;
 
 use crate::bitwise::Bits;
 use crate::cpu::hardware::dma::{Dma, DmaRegisters};
+use crate::cpu::hardware::get_unmasked_address;
+use crate::cpu::hardware::internal_memory::InternalMemory;
 use crate::cpu::hardware::interrupt_control::InterruptControl;
 use crate::cpu::hardware::keypad::Keypad;
 use crate::cpu::hardware::lcd::Lcd;
 use crate::cpu::hardware::serial::Serial;
 use crate::cpu::hardware::sound::Sound;
 use crate::cpu::hardware::timers::Timers;
-use crate::memory::{internal_memory::InternalMemory, io_device::IoDevice};
 
 #[derive(Default)]
 pub struct Bus {
@@ -632,8 +633,11 @@ impl Bus {
         }
     }
 
-    fn read_raw(&self, address: usize) -> u8 {
+    pub fn read_raw(&self, address: usize) -> u8 {
         match address {
+            0x0000000..=0x0003FFF | 0x2000000..=0x03FFFFFF | 0x08000000..=0x0E00FFFF => {
+                self.internal_memory.read_at(address)
+            }
             0x4000000..=0x400005F => self.read_lcd_raw(address),
             0x4000060..=0x40000AF => self.read_sound_raw(address),
             0x40000B0..=0x40000FF => self.read_dma_raw(address),
@@ -641,12 +645,49 @@ impl Bus {
             0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.read_serial_raw(address),
             0x4000130..=0x4000133 => self.read_keypad_raw(address),
             0x4000200..=0x4FFFFFF => self.read_interrupt_control_raw(address),
-            _ => self.internal_memory.read_at(address),
+            0x5000000..=0x5FFFFFF => {
+                let unmasked_address = get_unmasked_address(address, 0x00FFFF00, 0xFF0000FF, 8, 4);
+
+                match unmasked_address {
+                    0x05000000..=0x050001FF => {
+                        self.lcd.bg_palette_ram[unmasked_address - 0x05000000]
+                    }
+                    0x05000200..=0x050003FF => {
+                        self.lcd.obj_palette_ram[unmasked_address - 0x05000200]
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            0x6000000..=0x6FFFFFF => {
+                let unmasked_address = get_unmasked_address(address, 0x00FF0000, 0xFF00FFFF, 16, 2);
+
+                // VRAM is 64k+32k+32k with the last two 32k being one mirrors of each other
+                match unmasked_address {
+                    0x06000000..=0x06017FFF => self.lcd.video_ram[unmasked_address - 0x06000000],
+                    0x06018000..=0x0601FFFF => {
+                        self.lcd.video_ram[unmasked_address - 0x06000000 - 0x8000]
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            0x7000000..=0x7FFFFFF => {
+                let unmasked_address = get_unmasked_address(address, 0x00FFFF00, 0xFF0000FF, 8, 4);
+
+                self.lcd.obj_attributes[unmasked_address - 0x07000000]
+            }
+            0x0004000..=0x1FFFFFF | 0xE010000..=0xFFFFFFF | 0x10000000..=0xFFFFFFFF => {
+                log(format!("read on unused memory {address:x}"));
+                *self.unused_region.get(&address).unwrap_or(&0)
+            }
+            _ => unimplemented!(),
         }
     }
 
-    fn write_raw(&mut self, address: usize, value: u8) {
+    pub fn write_raw(&mut self, address: usize, value: u8) {
         match address {
+            0x0000000..=0x0003FFF | 0x2000000..=0x03FFFFFF | 0x08000000..=0x0E00FFFF => {
+                self.internal_memory.write_at(address, value)
+            }
             0x4000000..=0x400005F => self.write_lcd_raw(address, value),
             0x4000060..=0x40000AF => self.write_sound_raw(address, value),
             0x40000B0..=0x40000FF => self.write_dma_raw(address, value),
@@ -654,7 +695,43 @@ impl Bus {
             0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.write_serial_raw(address, value),
             0x4000130..=0x4000133 => self.write_keypad_raw(address, value),
             0x4000200..=0x4FFFFFF => self.write_interrupt_control_raw(address, value),
-            _ => self.internal_memory.write_at(address, value),
+            0x5000000..=0x5FFFFFF => {
+                let unmasked_address = get_unmasked_address(address, 0x00FFFF00, 0xFF0000FF, 8, 4);
+
+                match unmasked_address {
+                    0x05000000..=0x050001FF => {
+                        self.lcd.bg_palette_ram[unmasked_address - 0x05000000] = value
+                    }
+                    0x05000200..=0x050003FF => {
+                        self.lcd.obj_palette_ram[unmasked_address - 0x05000200] = value
+                    }
+                    _ => unreachable!(),
+                };
+            }
+            0x6000000..=0x6FFFFFF => {
+                let unmasked_address = get_unmasked_address(address, 0x00FF0000, 0xFF00FFFF, 16, 2);
+
+                // VRAM is 64k+32k+32k with the last two 32k being one mirrors of each other
+                match unmasked_address {
+                    0x06000000..=0x06017FFF => {
+                        self.lcd.video_ram[unmasked_address - 0x06000000] = value
+                    }
+                    0x06018000..=0x0601FFFF => {
+                        self.lcd.video_ram[unmasked_address - 0x06000000 - 0x8000] = value
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            0x7000000..=0x7FFFFFF => {
+                let unmasked_address = get_unmasked_address(address, 0x00FFFF00, 0xFF0000FF, 8, 4);
+
+                self.lcd.obj_attributes[unmasked_address - 0x07000000] = value
+            }
+            0x0004000..=0x1FFFFFF | 0xE010000..=0xFFFFFFF | 0x10000000..=0xFFFFFFFF => {
+                log(format!("write on unused memory {address:x}"));
+                self.unused_region.insert(address, value);
+            }
+            _ => unimplemented!(),
         }
     }
 
@@ -880,5 +957,192 @@ mod tests {
         bus.timers.tm0cnt_l = (5 << 8) | 10;
 
         assert_eq!(bus.read_raw(address), 10);
+    }
+
+    #[test]
+    fn write_bg_palette_ram() {
+        let mut bus = Bus::default();
+        let address = 0x05000008;
+
+        bus.write_raw(address, 10);
+        assert_eq!(bus.lcd.bg_palette_ram[8], 10);
+    }
+
+    #[test]
+    fn read_bg_palette_ram() {
+        let mut bus = Bus::default();
+        bus.lcd.bg_palette_ram[8] = 15;
+
+        let address = 0x05000008;
+        let value = bus.read_raw(address);
+
+        assert_eq!(value, 15);
+    }
+
+    #[test]
+    fn test_last_byte_bg_palette_ram() {
+        let mut bus = Bus::default();
+
+        let address = 0x050001FF;
+        bus.write_raw(address, 5);
+
+        assert_eq!(bus.lcd.bg_palette_ram[0x1FF], 5);
+    }
+
+    #[test]
+    fn write_obj_palette_ram() {
+        let mut bus = Bus::default();
+        let address = 0x05000208;
+
+        bus.write_raw(address, 10);
+        assert_eq!(bus.lcd.obj_palette_ram[8], 10);
+    }
+
+    #[test]
+    fn read_obj_palette_ram() {
+        let mut bus = Bus::default();
+        bus.lcd.obj_palette_ram[8] = 15;
+
+        let address = 0x05000208;
+
+        let value = bus.read_raw(address);
+
+        assert_eq!(value, 15);
+    }
+
+    #[test]
+    fn test_last_byte_obj_palette_ram() {
+        let mut bus = Bus::default();
+
+        let address = 0x050003FF;
+        bus.write_raw(address, 5);
+
+        assert_eq!(bus.lcd.obj_palette_ram[0x1FF], 5);
+    }
+
+    #[test]
+    fn write_vram() {
+        let mut bus = Bus::default();
+        let address = 0x06000004;
+
+        bus.write_raw(address, 23);
+        assert_eq!(bus.lcd.video_ram[4], 23);
+    }
+
+    #[test]
+    fn read_vram() {
+        let mut bus = Bus::default();
+        bus.lcd.video_ram[4] = 15;
+
+        let address = 0x06000004;
+        let value = bus.read_raw(address);
+
+        assert_eq!(value, 15);
+    }
+
+    #[test]
+    fn test_last_byte_vram() {
+        let mut bus = Bus::default();
+
+        let address = 0x06017FFF;
+        bus.write_raw(address, 5);
+
+        assert_eq!(bus.lcd.video_ram[0x17FFF], 5);
+    }
+
+    #[test]
+    fn test_mirror_bg_palette() {
+        let mut bus = Bus::default();
+        bus.lcd.bg_palette_ram[0x134] = 5;
+
+        assert_eq!(bus.read_raw(0x05000134), 5);
+        assert_eq!(bus.read_raw(0x05000534), 5);
+        assert_eq!(bus.read_raw(0x05012534), 5);
+        assert_eq!(bus.read_raw(0x05FFFD34), 5);
+
+        bus.write_raw(0x05000134, 10);
+        assert_eq!(bus.lcd.bg_palette_ram[0x134], 10);
+
+        bus.write_raw(0x05000534, 11);
+        assert_eq!(bus.lcd.bg_palette_ram[0x134], 11);
+
+        bus.write_raw(0x05012534, 12);
+        assert_eq!(bus.lcd.bg_palette_ram[0x134], 12);
+
+        bus.write_raw(0x05FFFD34, 13);
+        assert_eq!(bus.lcd.bg_palette_ram[0x134], 13);
+    }
+
+    #[test]
+    fn test_mirror_obj_palette() {
+        let mut bus = Bus::default();
+        bus.lcd.obj_palette_ram[0x134] = 5;
+
+        assert_eq!(bus.read_raw(0x05000334), 5);
+        assert_eq!(bus.read_raw(0x05000734), 5);
+        assert_eq!(bus.read_raw(0x05012734), 5);
+        assert_eq!(bus.read_raw(0x05FFFF34), 5);
+
+        bus.write_raw(0x05000334, 10);
+        assert_eq!(bus.lcd.obj_palette_ram[0x134], 10);
+
+        bus.write_raw(0x05000734, 11);
+        assert_eq!(bus.lcd.obj_palette_ram[0x134], 11);
+
+        bus.write_raw(0x05012734, 12);
+        assert_eq!(bus.lcd.obj_palette_ram[0x134], 12);
+
+        bus.write_raw(0x05FFFF34, 13);
+        assert_eq!(bus.lcd.obj_palette_ram[0x134], 13);
+    }
+
+    #[test]
+    fn test_mirror_vram() {
+        let mut bus = Bus::default();
+        bus.lcd.video_ram[0x09345] = 5;
+
+        assert_eq!(bus.read_raw(0x06009345), 5);
+        assert_eq!(bus.read_raw(0x06029345), 5);
+        assert_eq!(bus.read_raw(0x06129345), 5);
+        assert_eq!(bus.read_raw(0x06FE9345), 5);
+
+        bus.write_raw(0x06009345, 1);
+        assert_eq!(bus.lcd.video_ram[0x09345], 1);
+
+        bus.write_raw(0x06029345, 2);
+        assert_eq!(bus.lcd.video_ram[0x09345], 2);
+
+        bus.write_raw(0x06129345, 3);
+        assert_eq!(bus.lcd.video_ram[0x09345], 3);
+
+        bus.write_raw(0x06FE9345, 4);
+        assert_eq!(bus.lcd.video_ram[0x09345], 4);
+
+        bus.lcd.video_ram[0x11345] = 10;
+        assert_eq!(bus.read_raw(0x06019345), 10);
+        assert_eq!(bus.read_raw(0x06131345), 10);
+    }
+
+    #[test]
+    fn test_mirror_oam() {
+        let mut bus = Bus::default();
+        bus.lcd.obj_attributes[0x134] = 5;
+
+        assert_eq!(bus.read_raw(0x07000134), 5);
+        assert_eq!(bus.read_raw(0x07000534), 5);
+        assert_eq!(bus.read_raw(0x0700F534), 5);
+        assert_eq!(bus.read_raw(0x07FFFD34), 5);
+
+        bus.write_raw(0x07000134, 10);
+        assert_eq!(bus.lcd.obj_attributes[0x134], 10);
+
+        bus.write_raw(0x07000534, 11);
+        assert_eq!(bus.lcd.obj_attributes[0x134], 11);
+
+        bus.write_raw(0x0700F534, 12);
+        assert_eq!(bus.lcd.obj_attributes[0x134], 12);
+
+        bus.write_raw(0x07FFFD34, 13);
+        assert_eq!(bus.lcd.obj_attributes[0x134], 13);
     }
 }

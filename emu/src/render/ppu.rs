@@ -8,16 +8,21 @@ use rand::Rng;
 use crate::{
     cpu::arm7tdmi::Arm7tdmi,
     render::{
-        color::{Color, PaletteType},
+        // color::{Color, PaletteType},
         gba_lcd::GbaLcd,
-        LCD_HEIGHT, LCD_WIDTH, MAX_COLORS_FULL_PALETTE, MAX_COLORS_SINGLE_PALETTE,
+        // LCD_HEIGHT, LCD_WIDTH,
+        MAX_COLORS_FULL_PALETTE,
+        MAX_COLORS_SINGLE_PALETTE,
         MAX_PALETTES_BY_TYPE,
     },
 };
 
+use super::color::{Color, PaletteType};
+
 #[derive(Default)]
 pub struct PixelProcessUnit {
     cpu: Arc<Mutex<Arm7tdmi>>,
+    #[allow(dead_code)]
     gba_lcd: Arc<Mutex<Box<GbaLcd>>>,
 }
 
@@ -26,92 +31,12 @@ impl PixelProcessUnit {
         Self { cpu, gba_lcd }
     }
 
-    /// Render the current frame.
-    /// # Panics
-    pub fn render(&self) {
-        #[allow(unused_assignments)]
-        let mut bg_mode = self.cpu.lock().unwrap().bus.lcd.get_bg_mode();
-
-        // BG_MODE_3 forced for now.
-        bg_mode = 3;
-
-        #[cfg(feature = "mode_3")]
-        {
-            bg_mode = 3;
-        }
-
-        #[cfg(feature = "mode_5")]
-        {
-            bg_mode = 5;
-        }
-
-        match bg_mode {
-            0 => {
-                todo!("BG_MODE 0 not implemented yet")
-            }
-            1 => {
-                todo!("BG_MODE 1 not implemented yet")
-            }
-            2 => {
-                todo!("BG_MODE 2 not implemented yet")
-            }
-            3 => {
-                let memory = &self.cpu.lock().unwrap().bus.internal_memory;
-                let mut gba_lcd = self.gba_lcd.lock().unwrap();
-                // Bitmap mode
-                for x in 0..LCD_HEIGHT {
-                    for y in 0..LCD_WIDTH {
-                        let index_color = (x * LCD_WIDTH + y) * 2;
-                        let color: Color = [
-                            memory.video_ram[index_color],
-                            memory.video_ram[index_color + 1],
-                        ]
-                        .into();
-                        gba_lcd.set_pixel(x, y, color);
-                    }
-                }
-            }
-            4 => {
-                todo!("BG_MODE 4 not implemented yet")
-            }
-            5 => {
-                // 06000000-06009FFF for Frame 0
-                // 0600A000-06013FFF for Frame 1
-                // let selected_frame = memory.lcd_registers.get_frame_select();
-                //
-                // // Bitmap mode
-                // for y in 0..GBC_LCD_HEIGHT {
-                //     for x in 0..GBC_LCD_WIDTH {
-                //         let index_color = (y * GBC_LCD_WIDTH + x) * 2
-                //             + (selected_frame * GBC_LCD_HEIGHT * GBC_LCD_WIDTH);
-                //         // let color: Color = [
-                //         //     memory.video_ram[index_color],
-                //         //     memory.video_ram[index_color + 1],
-                //         // ]
-                //         // .into();
-                //         // FIXME
-                //         let color = Color(0);
-                //
-                //         gba_lcd.set_gbc_pixel(x, y, color);
-                //     }
-                // }
-            }
-            _ => panic!("BG MODE doesn't exist."),
-        }
-    }
-
     fn get_array_color(&self, index: usize, palette_type: &PaletteType) -> [u8; 2] {
         debug_assert!(index % 2 == 0);
-        let memory = &self.cpu.lock().unwrap().bus.internal_memory;
+        let lcd = &self.cpu.lock().unwrap().bus.lcd;
         match palette_type {
-            PaletteType::BG => [
-                memory.bg_palette_ram[index],
-                memory.bg_palette_ram[index + 1],
-            ],
-            PaletteType::OBJ => [
-                memory.obj_palette_ram[index],
-                memory.obj_palette_ram[index + 1],
-            ],
+            PaletteType::BG => [lcd.bg_palette_ram[index], lcd.bg_palette_ram[index + 1]],
+            PaletteType::OBJ => [lcd.obj_palette_ram[index], lcd.obj_palette_ram[index + 1]],
         }
     }
 
@@ -197,29 +122,5 @@ impl PixelProcessUnit {
             memory.video_ram[color_index] = array_color[0];
             memory.video_ram[color_index + 1] = array_color[1];
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::PixelProcessUnit;
-    use crate::render::color::PaletteType;
-
-    #[test]
-    fn test_get_palettes_bg() {
-        let ppu = PixelProcessUnit::default();
-
-        let bg_palettes = ppu.get_palettes(&PaletteType::BG);
-        assert_eq!(bg_palettes.len(), 16);
-        assert_eq!(bg_palettes[0].len(), 16);
-    }
-
-    #[test]
-    fn test_get_palettes_obj() {
-        let ppu = PixelProcessUnit::default();
-
-        let obj_palettes = ppu.get_palettes(&PaletteType::OBJ);
-        assert_eq!(obj_palettes.len(), 16);
-        assert_eq!(obj_palettes[0].len(), 16);
     }
 }

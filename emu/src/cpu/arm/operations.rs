@@ -954,7 +954,6 @@ mod tests {
     use crate::cpu::arm::instructions::{ArmModeInstruction, SingleDataTransferOffsetInfo};
     use crate::cpu::condition::Condition;
     use crate::cpu::flags::ShiftKind;
-    use crate::memory::io_device::IoDevice;
 
     use pretty_assertions::assert_eq;
 
@@ -2482,12 +2481,12 @@ mod tests {
 
             cpu.execute_arm(op_code);
 
-            let memory = cpu.bus.internal_memory;
+            let bus = cpu.bus;
 
-            assert_eq!(memory.read_at(0x01010101), 1);
-            assert_eq!(memory.read_at(0x01010101 + 1), 1);
-            assert_eq!(memory.read_at(0x01010101 + 2), 1);
-            assert_eq!(memory.read_at(0x01010101 + 3), 1);
+            assert_eq!(bus.read_raw(0x01010101), 1);
+            assert_eq!(bus.read_raw(0x01010101 + 1), 1);
+            assert_eq!(bus.read_raw(0x01010101 + 2), 1);
+            assert_eq!(bus.read_raw(0x01010101 + 3), 1);
             assert_eq!(cpu.registers.program_counter(), 0x03000050);
         }
         {

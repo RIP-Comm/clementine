@@ -1,6 +1,5 @@
 use crate::bitwise::Bits;
 
-#[derive(Default)]
 pub struct Lcd {
     /// LCD Control
     pub dispcnt: u16,
@@ -79,9 +78,67 @@ pub struct Lcd {
     /// Brightness (Fade-In/Out) Coefficient
     pub bldy: u16,
 
+    /// From 0x05000000 to  0x050001FF (512 bytes, 256 colors).
+    pub bg_palette_ram: Vec<u8>,
+    /// From 0x05000200 to 0x050003FF (512 bytes, 256 colors).
+    pub obj_palette_ram: Vec<u8>,
+    /// From 0x06000000 to 0x06017FFF (96 kb).
+    pub video_ram: Vec<u8>,
+    /// From 0x07000000 to 0x070003FF (1kbyte)
+    pub obj_attributes: Vec<u8>,
+
     pixel_index: u32,
 }
 
+impl Default for Lcd {
+    fn default() -> Self {
+        Self {
+            dispcnt: 0,
+            green_swap: 0,
+            dispstat: 0,
+            vcount: 0,
+            bg0cnt: 0,
+            bg1cnt: 0,
+            bg2cnt: 0,
+            bg3cnt: 0,
+            bg0hofs: 0,
+            bg0vofs: 0,
+            bg1hofs: 0,
+            bg1vofs: 0,
+            bg2hofs: 0,
+            bg2vofs: 0,
+            bg3hofs: 0,
+            bg3vofs: 0,
+            bg2pa: 0,
+            bg2pb: 0,
+            bg2pc: 0,
+            bg2pd: 0,
+            bg2x: 0,
+            bg2y: 0,
+            bg3pa: 0,
+            bg3pb: 0,
+            bg3pc: 0,
+            bg3pd: 0,
+            bg3x: 0,
+            bg3y: 0,
+            win0h: 0,
+            win1h: 0,
+            win0v: 0,
+            win1v: 0,
+            winin: 0,
+            winout: 0,
+            mosaic: 0,
+            bldcnt: 0,
+            bldalpha: 0,
+            bldy: 0,
+            bg_palette_ram: vec![0; 0x200],
+            obj_palette_ram: vec![0; 0x200],
+            video_ram: vec![0; 0x00018000],
+            obj_attributes: vec![0; 0x400],
+            pixel_index: 0,
+        }
+    }
+}
 #[derive(Default)]
 pub struct LcdStepOutput {
     pub request_vblank_irq: bool,
