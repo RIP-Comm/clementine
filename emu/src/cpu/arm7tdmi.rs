@@ -21,7 +21,7 @@ use super::registers::Registers;
 use super::thumb;
 
 pub struct Arm7tdmi {
-    pub(crate) bus: Bus,
+    pub bus: Bus,
 
     pub cpsr: Psr,
     pub spsr: Psr,

@@ -1,4 +1,35 @@
+use logger::log;
 use crate::bitwise::Bits;
+/// GBA display width
+const LCD_WIDTH: usize = 240;
+
+/// GBA display height
+const LCD_HEIGHT: usize = 160;
+
+#[derive(Default, Clone, Copy)]
+pub struct Color(pub u16);
+
+impl Color {
+    pub fn from_rgb(red: u8, green: u8, blue: u8) -> Self {
+        let red: u16 = red.into();
+        let green: u16 = green.into();
+        let blue: u16 = blue.into();
+
+        Self((blue << 10) + (green << 5) + red)
+    }
+
+    pub fn red(&self) -> u8 {
+        self.0.get_bits(0..=4) as u8
+    }
+
+    pub fn green(&self) -> u8 {
+        self.0.get_bits(5..=9) as u8
+    }
+
+    pub fn blue(&self) -> u8 {
+        self.0.get_bits(10..=14) as u8
+    }
+}
 
 pub struct Lcd {
     /// LCD Control
@@ -87,7 +118,9 @@ pub struct Lcd {
     /// From 0x07000000 to 0x070003FF (1kbyte)
     pub obj_attributes: Vec<u8>,
 
+    pub buffer: [[Color; LCD_WIDTH]; LCD_HEIGHT],
     pixel_index: u32,
+    should_draw: bool,
 }
 
 impl Default for Lcd {
@@ -136,6 +169,8 @@ impl Default for Lcd {
             video_ram: vec![0; 0x00018000],
             obj_attributes: vec![0; 0x400],
             pixel_index: 0,
+            buffer: [[Color::default(); LCD_WIDTH]; LCD_HEIGHT],
+            should_draw: false,
         }
     }
 }
@@ -159,7 +194,7 @@ impl Lcd {
                 self.set_hblank_flag(false);
                 self.set_vblank_flag(false);
 
-                // TODO: Do something
+                self.should_draw = true;
             } else if self.pixel_index == 240 {
                 // We're entering Hblank
 
@@ -168,18 +203,34 @@ impl Lcd {
                 if self.get_hblank_irq_enable() {
                     output.request_hblank_irq = true;
                 }
+
+                self.should_draw = false;
             }
         } else if self.vcount == 160 && self.pixel_index == 0 {
-            // We're drawing the first pixel of the Vdraw period
+            // We're drawing the first pixel of the Vblank period
 
             self.set_vblank_flag(true);
 
             if self.get_vblank_irq_enable() {
                 output.request_vblank_irq = true;
             }
+
+            self.should_draw = false;
         }
 
-        // TODO: draw the pixel
+        if self.should_draw {
+            let pixel_y = self.vcount;
+            let pixel_x = self.pixel_index;
+
+            self.buffer[pixel_y as usize][pixel_x as usize] = Color::from_rgb(31, 31, 31);
+        }
+
+        log(format!(
+            "mode: {:?}, BG2: {:?} BG3: {:?}",
+            self.get_bg_mode(),
+            self.get_bg2_enabled(),
+            self.get_bg3_enabled()
+        ));
 
         self.pixel_index += 1;
 
@@ -205,6 +256,14 @@ impl Lcd {
         }
 
         output
+    }
+
+    fn get_bg2_enabled(&self) -> bool {
+        self.dispcnt.get_bit(10)
+    }
+
+    fn get_bg3_enabled(&self) -> bool {
+        self.dispcnt.get_bit(11)
     }
 
     /// Info about vram fields used to render display.
