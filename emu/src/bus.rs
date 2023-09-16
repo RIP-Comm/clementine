@@ -808,7 +808,7 @@ impl Bus {
         match address {
             // Bios
             0x0..=0x3FFF => 1,
-            _ => 0,
+            _ => 1,
         }
     }
 
