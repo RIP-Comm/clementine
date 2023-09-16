@@ -3,7 +3,6 @@ use egui::{self, ColorImage, Ui, Vec2};
 use eframe::epaint::textures::TextureOptions;
 use std::sync::{Arc, Mutex};
 
-use emu::render::color::Color;
 use emu::{
     gba::Gba,
     render::{LCD_HEIGHT, LCD_WIDTH},
@@ -12,18 +11,13 @@ use emu::{
 use crate::ui_traits::UiTool;
 
 pub struct GbaDisplay {
-    pixels_buffer: Arc<Mutex<[[Color; LCD_WIDTH]; LCD_HEIGHT]>>,
     gba: Arc<Mutex<Gba>>,
     scale: f32,
 }
 
 impl GbaDisplay {
     pub(crate) fn new(gba: Arc<Mutex<Gba>>) -> Self {
-        Self {
-            pixels_buffer: Arc::new(Mutex::new([[Color::default(); LCD_WIDTH]; LCD_HEIGHT])),
-            gba,
-            scale: 1.0,
-        }
+        Self { gba, scale: 1.0 }
     }
 
     fn ui(&mut self, ui: &mut Ui) {
@@ -39,13 +33,17 @@ impl GbaDisplay {
             }
         });
 
-        let gba = self.gba.lock().unwrap();
-        gba.ppu.render();
-
+        //TODO: Fix this .lock().unwrap() repeated two times
         let rgb_data = self
-            .pixels_buffer
+            .gba
             .lock()
             .unwrap()
+            .cpu
+            .lock()
+            .unwrap()
+            .bus
+            .lcd
+            .buffer
             .iter()
             .flat_map(|row| {
                 row.iter().flat_map(|pixel| {
@@ -56,8 +54,6 @@ impl GbaDisplay {
                 })
             })
             .collect::<Vec<_>>();
-
-        drop(gba);
 
         let image = ColorImage::from_rgb([LCD_WIDTH, LCD_HEIGHT], &rgb_data);
 
