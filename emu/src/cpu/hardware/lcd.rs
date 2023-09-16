@@ -1,5 +1,11 @@
 use logger::log;
+use object_attributes::ObjAttributes;
+use object_attributes::RotationScaling;
+
 use crate::bitwise::Bits;
+
+mod object_attributes;
+
 /// GBA display width
 const LCD_WIDTH: usize = 240;
 
@@ -121,6 +127,8 @@ pub struct Lcd {
     pub buffer: [[Color; LCD_WIDTH]; LCD_HEIGHT],
     pixel_index: u32,
     should_draw: bool,
+    obj_attributes_arr: [ObjAttributes; 128],
+    rotation_scaling_params: [RotationScaling; 32],
 }
 
 impl Default for Lcd {
@@ -171,6 +179,8 @@ impl Default for Lcd {
             pixel_index: 0,
             buffer: [[Color::default(); LCD_WIDTH]; LCD_HEIGHT],
             should_draw: false,
+            obj_attributes_arr: [ObjAttributes::default(); 128],
+            rotation_scaling_params: [RotationScaling::default(); 32],
         }
     }
 }
@@ -195,6 +205,9 @@ impl Lcd {
                 self.set_vblank_flag(false);
 
                 self.should_draw = true;
+
+                (self.obj_attributes_arr, self.rotation_scaling_params) =
+                    object_attributes::get_attributes(self.obj_attributes.as_slice());
             } else if self.pixel_index == 240 {
                 // We're entering Hblank
 
