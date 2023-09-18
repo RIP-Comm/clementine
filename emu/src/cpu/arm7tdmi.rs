@@ -461,7 +461,7 @@ impl Arm7tdmi {
                 }
 
                 // This means that the instruction flushed the pipeline
-                if matches!(self.fetched_thumb, None) {
+                if self.fetched_thumb.is_none() {
                     return;
                 }
 
@@ -491,7 +491,7 @@ impl Arm7tdmi {
                 }
 
                 // This means that the instruction flushed the pipeline
-                if matches!(self.fetched_arm, None) {
+                if self.fetched_arm.is_none() {
                     return;
                 }
 
