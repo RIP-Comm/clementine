@@ -5,7 +5,7 @@ use std::ops::{Index, IndexMut};
 use crate::bitwise::Bits;
 
 #[derive(Default, Clone, Copy)]
-enum ObjMode {
+pub enum ObjMode {
     #[default]
     Normal,
     Affine,
@@ -26,7 +26,7 @@ impl From<u16> for ObjMode {
 }
 
 #[derive(Default, Clone, Copy)]
-enum GfxMode {
+pub enum GfxMode {
     #[default]
     Normal,
     AlphaBlending,
@@ -47,7 +47,7 @@ impl TryFrom<u16> for GfxMode {
 }
 
 #[derive(Default, Clone, Copy)]
-enum ColorMode {
+pub enum ColorMode {
     /// 16 colors
     #[default]
     Palette4bpp,
@@ -65,7 +65,7 @@ impl From<bool> for ColorMode {
 }
 
 #[derive(Default, Clone, Copy)]
-enum ObjShape {
+pub enum ObjShape {
     #[default]
     Square,
     Horizontal,
@@ -86,7 +86,7 @@ impl TryFrom<u16> for ObjShape {
 }
 
 #[derive(Default, Clone, Copy)]
-enum ObjSize {
+pub enum ObjSize {
     #[default]
     Size0,
     Size1,
@@ -108,13 +108,13 @@ impl From<u16> for ObjSize {
 
 #[allow(dead_code)]
 #[derive(Default, Clone, Copy)]
-struct ObjAttribute0 {
-    y_coordinate: u8,
-    obj_mode: ObjMode,
-    gfx_mode: GfxMode,
+pub struct ObjAttribute0 {
+    pub y_coordinate: u8,
+    pub obj_mode: ObjMode,
+    pub gfx_mode: GfxMode,
     obj_mosaic: bool,
-    color_mode: ColorMode,
-    obj_shape: ObjShape,
+    pub color_mode: ColorMode,
+    pub obj_shape: ObjShape,
 }
 
 impl TryFrom<u16> for ObjAttribute0 {
@@ -133,7 +133,7 @@ impl TryFrom<u16> for ObjAttribute0 {
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-enum TransformationKind {
+pub enum TransformationKind {
     RotationScaling {
         rotation_scaling_parameter: u8,
     },
@@ -154,10 +154,10 @@ impl Default for TransformationKind {
 
 #[allow(dead_code)]
 #[derive(Default, Clone, Copy)]
-struct ObjAttribute1 {
-    x_coordinate: u16,
-    transformation_kind: TransformationKind,
-    obj_size: ObjSize,
+pub struct ObjAttribute1 {
+    pub x_coordinate: u16,
+    pub transformation_kind: TransformationKind,
+    pub obj_size: ObjSize,
 }
 
 impl ObjAttribute1 {
@@ -169,8 +169,8 @@ impl ObjAttribute1 {
                     rotation_scaling_parameter: value.get_bits(9..=13) as u8,
                 },
                 ObjMode::Normal | ObjMode::Disabled => TransformationKind::Flip {
-                    horizontal_flip: value.get_bit(11),
-                    vertical_flip: value.get_bit(12),
+                    horizontal_flip: value.get_bit(12),
+                    vertical_flip: value.get_bit(13),
                 },
             },
             obj_size: value.get_bits(14..=15).into(),
@@ -179,11 +179,22 @@ impl ObjAttribute1 {
 }
 
 #[allow(dead_code)]
-#[derive(Default, Clone, Copy)]
-struct ObjAttribute2 {
-    tile_number: u16,
-    priority: u8,
-    palette_number: u8,
+#[derive(Clone, Copy)]
+pub struct ObjAttribute2 {
+    pub tile_number: u16,
+    pub priority: u8,
+    pub palette_number: u8,
+}
+
+impl Default for ObjAttribute2 {
+    fn default() -> Self {
+        Self {
+            tile_number: 0,
+            // Lowest priority
+            priority: 3,
+            palette_number: 0,
+        }
+    }
 }
 
 impl From<u16> for ObjAttribute2 {
@@ -199,9 +210,9 @@ impl From<u16> for ObjAttribute2 {
 #[allow(dead_code)]
 #[derive(Default, Clone, Copy)]
 pub struct ObjAttributes {
-    attribute0: ObjAttribute0,
-    attribute1: ObjAttribute1,
-    attribute2: ObjAttribute2,
+    pub attribute0: ObjAttribute0,
+    pub attribute1: ObjAttribute1,
+    pub attribute2: ObjAttribute2,
 }
 
 impl TryFrom<[u16; 3]> for ObjAttributes {
@@ -223,6 +234,30 @@ pub struct RotationScaling {
     pb: u16,
     pc: u16,
     pd: u16,
+}
+
+impl RotationScaling {
+    /// Gives back the result of P*T where
+    /// P = [ pa  pb ]
+    ///     [ pc  pd ]
+    /// and
+    /// T = [ x ]
+    ///     [ y ]
+    /// pa, pb, pc, pd are first converted to floating number from the fixed point representation
+    pub fn apply(&self, x: f64, y: f64) -> (f64, f64) {
+        let a = Self::get_float_from_fixed_point(self.pa);
+        let b = Self::get_float_from_fixed_point(self.pb);
+        let c = Self::get_float_from_fixed_point(self.pc);
+        let d = Self::get_float_from_fixed_point(self.pd);
+
+        (x.mul_add(a, y * b), x.mul_add(c, y * d))
+    }
+
+    fn get_float_from_fixed_point(value: u16) -> f64 {
+        // We interpret the value as signed and we divide by 2^8 since the rotation/scaling parameter
+        // is represented as an 8.8 fixed point value.
+        (value as i16) as f64 / 256.0
+    }
 }
 
 impl Index<usize> for RotationScaling {
