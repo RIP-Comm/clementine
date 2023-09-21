@@ -20,16 +20,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fmt:
+  lint:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
+      - name: Setup just
+        uses: extractions/setup-just@v1
+
+      - uses: actions/checkout@v4
+
       - name: Check fmt
-        run: cargo fmt --all --check
+        run: cargo fmt -- --check
+
+      - name: Check clippy
+        run: just lint
 
   test:
-    needs: [fmt]
+    needs: [lint]
     strategy:
       fail-fast: false
       matrix:
@@ -37,23 +43,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Setup just
+        uses: extractions/setup-just@v1
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Test
-        run: cargo test --workspace
-
-  lint:
-    needs: [fmt, test]
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-      - name: Lint
-        run: |
-          cargo clippy --workspace -- -D warnings     \
-          -W clippy::complexity                       \
-          -W clippy::correctness                      \
-          -W clippy::nursery                          \
-          -W clippy::perf                             \
-          -W clippy::style                            \
-          -W clippy::suspicious
+        run: just test
