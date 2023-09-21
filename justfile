@@ -29,3 +29,6 @@ check-fmt:
 
 fmt:
     @cargo fmt
+set positional-arguments
+run rom:
+    @cargo run $1
