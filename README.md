@@ -12,7 +12,7 @@ Everything is work in progress. We will update this document a lot of times in t
 
 ## Collaborative Guidelines
 
-We love collaborating with others, so feel free to interact with us however you want. First of all, we strongly suggest you to enter in our Discord channel where you can find all of us ([here](https://discord.com/channels/919139369774891088/1013367016666714112)). 
+We love collaborating with others, so feel free to interact with us however you want. First of all, we strongly suggest you to enter in our Discord channel where you can find all of us ([here](https://discord.com/channels/919139369774891088/1013367016666714112)).
 
 [Contributing doc](./CONTRIBUTING.md)
 
@@ -23,11 +23,27 @@ We love collaborating with others, so feel free to interact with us however you 
 - clone the repository :)
 - we are using `just` and not `make` then if you want take the benefit of this install it `cargo install just`
 
-```bash
+```zsh
 # quick check all is working on you machine
 just build
 just test
 
 # run a .gba file
 cargo run -- ~/Desktop/my_game.gba
+```
+
+### Run
+
+```zsh
+just run <rom>
+```
+
+### Run with logger enabled {stdout or file}
+
+```zsh
+# log stdout
+just run-logger <rom>
+
+# log to file /tmp/clementine-{timestamp}.log
+just run-logger-file <rom>
 ```

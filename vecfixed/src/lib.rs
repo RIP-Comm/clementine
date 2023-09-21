@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-/// VecFixed is basically a vector that keep a fixed size. Every time new element is pushed
+/// `VecFixed` is basically a vector that keep a fixed size. Every time new element is pushed
 /// to the vector, the oldest element is removed and the latest pushed is added to the end.
 #[derive(Default)]
 pub struct VecFixed<const N: usize, T: Default + ToString> {
@@ -23,7 +23,7 @@ impl<const N: usize, T: Default + ToString> VecFixed<N, T> {
         let mut ret = Self::new();
 
         for _ in 0..N {
-            ret.push(value)
+            ret.push(value);
         }
 
         ret
@@ -39,7 +39,7 @@ impl<const N: usize, T: Default + ToString> VecFixed<N, T> {
         self.buffer.push_back(element);
     }
 
-    /// Join the elements of the VecFixed buffer into a string.
+    /// Join the elements of the `VecFixed` buffer into a string.
     pub fn join(&self, separator: &str) -> String {
         if self.buffer.is_empty() {
             return String::new();
