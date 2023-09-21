@@ -2,6 +2,8 @@ use std::convert::TryInto;
 
 #[cfg(feature = "logger")]
 use logger::log;
+
+#[cfg(feature = "disassembler")]
 use vecfixed::VecFixed;
 
 use crate::bitwise::Bits;
@@ -27,6 +29,7 @@ pub struct Arm7tdmi {
 
     pub register_bank: RegisterBank,
 
+    #[cfg(feature = "disassembler")]
     pub disassembler_buffer: VecFixed<1000, String>,
 
     fetched_arm: Option<u32>,
@@ -113,6 +116,7 @@ impl Default for Arm7tdmi {
             spsr: Psr::default(),
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
+            #[cfg(feature = "disassembler")]
             disassembler_buffer: VecFixed::new(),
             fetched_arm: None,
             decoded_arm: None,
@@ -169,13 +173,16 @@ impl Arm7tdmi {
             return;
         }
 
-        let decimal_value = self.registers.program_counter();
-        let padded_hex_value = format!("{decimal_value:#04X}");
-        self.disassembler_buffer.push(format!(
-            "{}: {}",
-            padded_hex_value,
-            op_code.instruction.disassembler()
-        ));
+        #[cfg(feature = "disassembler")]
+        {
+            let decimal_value = self.registers.program_counter();
+            let padded_hex_value = format!("{decimal_value:#04X}");
+            self.disassembler_buffer.push(format!(
+                "{}: {}",
+                padded_hex_value,
+                op_code.instruction.disassembler()
+            ));
+        }
 
         match op_code.instruction {
             ArmModeInstruction::DataProcessing {
@@ -302,12 +309,15 @@ impl Arm7tdmi {
     }
 
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
-        let decimal_value = self.registers.program_counter();
-        let padded_hex_value = format!("{decimal_value:#04X}");
-        self.disassembler_buffer.push(format!(
-            "{padded_hex_value}: {}",
-            op_code.instruction.disassembler()
-        ));
+        #[cfg(feature = "disassembler")]
+        {
+            let decimal_value = self.registers.program_counter();
+            let padded_hex_value = format!("{decimal_value:#04X}");
+            self.disassembler_buffer.push(format!(
+                "{padded_hex_value}: {}",
+                op_code.instruction.disassembler()
+            ));
+        }
 
         match op_code.instruction {
             ThumbModeInstruction::MoveShiftedRegister {

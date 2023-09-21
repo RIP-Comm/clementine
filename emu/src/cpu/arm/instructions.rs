@@ -214,6 +214,7 @@ impl std::fmt::Display for ArmModeMultiplyLongVariant {
     }
 }
 
+#[cfg(feature = "disassembler")]
 impl ArmModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
@@ -713,6 +714,7 @@ impl std::fmt::Display for ArmModeInstruction {
 }
 
 #[cfg(test)]
+#[cfg(feature = "disassembler")]
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;

@@ -12,3 +12,6 @@ egui = { version = "0.22.0", default-features = false }
 egui_extras = { version = "0.22.0", features = ["image"] }
 emu = { path = "../emu"}
 image = { version = "0.24.5", features = ["png"], optional = true}
+
+[features]
+disassembler = []

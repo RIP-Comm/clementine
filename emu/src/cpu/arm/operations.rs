@@ -1057,8 +1057,11 @@ mod tests {
                 }
             );
 
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "TEQ R12, #1");
+            #[cfg(feature = "disassembler")]
+            {
+                let asm = op_code.instruction.disassembler();
+                assert_eq!(asm, "TEQ R12, #1");
+            }
 
             cpu.registers.set_register_at(12, 0xFFFFFFFF);
             assert!(!cpu.cpsr.sign_flag());
@@ -1087,8 +1090,11 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "MSREQ CPSR, R12");
+            #[cfg(feature = "disassembler")]
+            {
+                let asm = op_code.instruction.disassembler();
+                assert_eq!(asm, "MSREQ CPSR, R12");
+            }
         }
 
         let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
@@ -1137,9 +1143,11 @@ mod tests {
             }
         );
 
-        let asm = op_code.instruction.disassembler();
-        assert_eq!(asm, "CMP R14, #0");
-
+        #[cfg(feature = "disassembler")]
+        {
+            let asm = op_code.instruction.disassembler();
+            assert_eq!(asm, "CMP R14, #0");
+        }
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
         assert!(!cpu.cpsr.carry_flag());
@@ -1174,8 +1182,11 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "ORREQ R12, R12, #192");
+            #[cfg(feature = "disassembler")]
+            {
+                let asm = op_code.instruction.disassembler();
+                assert_eq!(asm, "ORREQ R12, R12, #192");
+            }
         }
     }
 
@@ -1199,8 +1210,11 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "MOVEQ R14, #4");
+            #[cfg(feature = "disassembler")]
+            {
+                let asm = op_code.instruction.disassembler();
+                assert_eq!(asm, "MOVEQ R14, #4");
+            }
         }
         {
             let op_code: u32 = 0b1110_00_1_1101_0_0000_0000_000011011111;
@@ -1222,8 +1236,11 @@ mod tests {
                 }
             );
 
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "MOV R0, #223");
+            #[cfg(feature = "disassembler")]
+            {
+                let asm = op_code.instruction.disassembler();
+                assert_eq!(asm, "MOV R0, #223");
+            }
 
             cpu.registers.set_register_at(0, 1);
             assert!(!cpu.cpsr.sign_flag());
@@ -1254,8 +1271,11 @@ mod tests {
                 }
             );
 
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "MOV R12, #67108864");
+            #[cfg(feature = "disassembler")]
+            {
+                let asm = op_code.instruction.disassembler();
+                assert_eq!(asm, "MOV R12, #67108864");
+            }
 
             cpu.registers.set_register_at(12, 1);
             assert!(!cpu.cpsr.sign_flag());
@@ -1290,8 +1310,11 @@ mod tests {
                 }
             );
 
-            let asm = op_code.instruction.disassembler();
-            assert_eq!(asm, "ADD R0, R15, #1");
+            #[cfg(feature = "disassembler")]
+            {
+                let asm = op_code.instruction.disassembler();
+                assert_eq!(asm, "ADD R0, R15, #1");
+            }
 
             cpu.registers.set_register_at(15, 15);
             assert!(!cpu.cpsr.sign_flag());
@@ -2334,8 +2357,11 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            let f = op_code.instruction.disassembler();
-            assert_eq!(f, "LDRB R12, #768");
+            #[cfg(feature = "disassembler")]
+            {
+                let f = op_code.instruction.disassembler();
+                assert_eq!(f, "LDRB R12, #768");
+            }
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
@@ -2354,8 +2380,11 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            let f = op_code.instruction.disassembler();
-            assert_eq!(f, "LDR R13, #208");
+            #[cfg(feature = "disassembler")]
+            {
+                let f = op_code.instruction.disassembler();
+                assert_eq!(f, "LDR R13, #208");
+            }
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000010111000;
@@ -2374,8 +2403,11 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            let f = op_code.instruction.disassembler();
-            assert_eq!(f, "LDR R13, #184");
+            #[cfg(feature = "disassembler")]
+            {
+                let f = op_code.instruction.disassembler();
+                assert_eq!(f, "LDR R13, #184");
+            }
         }
         {
             let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
@@ -2394,8 +2426,11 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            let f = op_code.instruction.disassembler();
-            assert_eq!(f, "LDR R13, #208");
+            #[cfg(feature = "disassembler")]
+            {
+                let f = op_code.instruction.disassembler();
+                assert_eq!(f, "LDR R13, #208");
+            }
         }
         {
             let op_code = 0b1110_0101_1101_1111_1101_0000_0001_1000;
@@ -2415,8 +2450,11 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            let f = op_code.instruction.disassembler();
-            assert_eq!(f, "LDRB R13, #24");
+            #[cfg(feature = "disassembler")]
+            {
+                let f = op_code.instruction.disassembler();
+                assert_eq!(f, "LDRB R13, #24");
+            }
 
             // because in this specific case address will be
             // then will be 0x03000050 (.wrapping_add(offset))
@@ -2450,8 +2488,11 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            let f = op_code.instruction.disassembler();
-            assert_eq!(f, "STRB R4, #520");
+            #[cfg(feature = "disassembler")]
+            {
+                let f = op_code.instruction.disassembler();
+                assert_eq!(f, "STRB R4, #520");
+            }
         }
         {
             let op_code: u32 = 0b1110_0101_1000_0001_0001_0000_0000_0000;
@@ -2471,9 +2512,11 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            let f = op_code.instruction.disassembler();
-            assert_eq!(f, "STR R1, #0");
-
+            #[cfg(feature = "disassembler")]
+            {
+                let f = op_code.instruction.disassembler();
+                assert_eq!(f, "STR R1, #0");
+            }
             cpu.registers.set_register_at(1, 16843009);
 
             // because in this specific case address will be
@@ -2508,8 +2551,11 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            let f = op_code.instruction.disassembler();
-            assert_eq!(f, "STRB R13, #24");
+            #[cfg(feature = "disassembler")]
+            {
+                let f = op_code.instruction.disassembler();
+                assert_eq!(f, "STRB R13, #24");
+            }
 
             // because in this specific case address will be
             // then will be 0x03000050 (.wrapping_add(offset))

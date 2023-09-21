@@ -1,6 +1,7 @@
 use crate::bitwise::Bits;
 use crate::cpu::condition::Condition;
 use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, ShiftKind};
+#[cfg(feature = "disassembler")]
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
 use logger::log;
@@ -239,6 +240,7 @@ impl std::fmt::Display for ThumbModeInstruction {
     }
 }
 
+#[cfg(feature = "disassembler")]
 impl ThumbModeInstruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
@@ -460,6 +462,7 @@ impl ThumbModeInstruction {
     }
 }
 
+#[cfg(feature = "disassembler")]
 #[cfg(test)]
 mod test {
     use super::*;
