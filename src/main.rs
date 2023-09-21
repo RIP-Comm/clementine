@@ -1,24 +1,22 @@
 extern crate ui;
 use ui::app::ClementineApp;
 extern crate logger;
-use logger::{init_logger, log, LogKind};
+use logger::log;
+
+#[cfg(feature = "logger")]
+use logger::{init_logger, LogKind};
 
 fn main() {
-    let mut args = std::env::args().skip(1).collect::<Vec<String>>();
+    let args = std::env::args().skip(1).collect::<Vec<String>>();
 
+    #[cfg(feature = "logger")]
     if args.len() > 1 {
-        let arg = args.remove(0);
-        if arg.as_str() == "--log-on-file" {
+        if args.last().unwrap().as_str() == "--log-on-file" {
             init_logger(LogKind::FILE);
-        } else {
-            eprintln!("arguments not recognized.");
-            std::process::exit(1);
         }
     } else {
         init_logger(LogKind::STDOUT);
     }
-
-    log("clementine v0.1.0");
 
     let cartridge_name = args.first().map_or_else(
         || {

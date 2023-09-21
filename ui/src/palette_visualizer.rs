@@ -59,14 +59,6 @@ impl UiTool for PaletteVisualizer {
 
         ui.label("Memory type:");
 
-        #[cfg(feature = "debug")]
-        if ui.button("RANDOM VALUES").clicked() {
-            if let Ok(mut gba) = self.gba.lock() {
-                #[cfg(feature = "debug")]
-                gba.ppu.load_random_palettes();
-            }
-        }
-
         ui.horizontal(|ui| {
             ui.radio_value(&mut self.palette_type, PaletteType::BG, "BG Palette");
             ui.spacing();

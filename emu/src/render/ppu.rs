@@ -1,10 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "debug")]
-use crate::render::GBC_LCD_WIDTH;
-#[cfg(feature = "debug")]
-use rand::Rng;
-
 use crate::{
     cpu::arm7tdmi::Arm7tdmi,
     render::{
@@ -149,54 +144,6 @@ impl PixelProcessUnit {
             }
         }
         palettes
-    }
-
-    #[cfg(feature = "debug")]
-    pub fn load_random_palettes(&mut self) {
-        let mut memory = self.internal_memory.lock().unwrap();
-
-        for i in 0..200 {
-            let mut rng = rand::thread_rng();
-            let mut value: u8 = rng.gen();
-            memory.bg_palette_ram[i] = value;
-            value = rng.gen();
-            memory.obj_palette_ram[i] = value;
-        }
-    }
-
-    #[cfg(feature = "debug")]
-    pub fn load_centered_bitmap(&mut self, data: Vec<Color>, width: usize, height: usize) {
-        let mut memory = self.internal_memory.lock().unwrap();
-
-        let centered_width = (LCD_WIDTH - width) / 2;
-        let mut row = (LCD_HEIGHT - height) / 2;
-        for i in 0..data.len() {
-            let array_color: [u8; 2] = data[i].into();
-            if i % width == 0 {
-                row += 1;
-            }
-
-            let color_index = ((i % width + centered_width) + (row * LCD_WIDTH)) * 2;
-            memory.video_ram[color_index] = array_color[0];
-            memory.video_ram[color_index + 1] = array_color[1];
-        }
-    }
-
-    #[cfg(feature = "debug")]
-    pub fn load_gbc_bitmap(&mut self, data: Vec<Color>, width: usize, height: usize) {
-        let mut memory = self.internal_memory.lock().unwrap();
-
-        let mut row = 0;
-        for i in 0..data.len() {
-            let array_color: [u8; 2] = data[i].into();
-            if i % width == 0 {
-                row += 1;
-            }
-
-            let color_index = ((i % width) + (row * GBC_LCD_WIDTH)) * 2;
-            memory.video_ram[color_index] = array_color[0];
-            memory.video_ram[color_index + 1] = array_color[1];
-        }
     }
 }
 

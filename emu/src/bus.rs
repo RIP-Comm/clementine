@@ -684,6 +684,7 @@ impl Bus {
         self.cycles_count += 1;
 
         // TODO: move this somewhere in the UI
+        #[cfg(feature = "logger")]
         log(format!("CPU Cycles: {}", self.cycles_count));
 
         // Step ppu, dma, interrupts, timers, etc...

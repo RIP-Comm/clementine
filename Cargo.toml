@@ -26,9 +26,4 @@ pretty_assertions = "1.3.0"
 rand = "0.8.5"
 
 [features]
-debug = [
-    "ui/debug"
-]
-
-test_bitmap_3 = ["ui/test_bitmap_3"]
-test_bitmap_5 = ["ui/test_bitmap_5"]
+logger = ["logger/logger", "emu/logger"]

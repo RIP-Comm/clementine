@@ -31,7 +31,6 @@ impl Color {
     }
 }
 
-#[cfg(feature = "debug")]
 impl From<Color> for [u8; 2] {
     fn from(color: Color) -> Self {
         [(color.0 >> 8) as u8, color.0 as u8]

@@ -12,20 +12,3 @@ egui = { version = "0.22.0", default-features = false }
 egui_extras = { version = "0.22.0", features = ["image"] }
 emu = { path = "../emu"}
 image = { version = "0.24.5", features = ["png"], optional = true}
-
-[features]
-debug = ["emu/debug"]
-test_bitmap_3 = [ 
-    "debug", 
-    "emu/mode_3" , 
-    "egui_extras/image", 
-    "image"
-]
-
-test_bitmap_5 = [ 
-    "debug", 
-    "emu/mode_5" , 
-    "egui_extras/image", 
-    "image"
-]
-
