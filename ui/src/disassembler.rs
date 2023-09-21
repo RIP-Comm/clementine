@@ -1,9 +1,7 @@
-use std::sync::{Arc, Mutex};
-
+use crate::ui_traits::UiTool;
 use egui::{ScrollArea, TextEdit, TextStyle};
 use emu::gba::Gba;
-
-use crate::ui_traits::UiTool;
+use std::sync::{Arc, Mutex};
 
 pub struct Disassembler {
     gba: Arc<Mutex<Gba>>,

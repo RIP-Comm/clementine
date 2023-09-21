@@ -37,3 +37,6 @@ run rom:
 
 run-logger rom:
     @cargo run --features logger $1
+
+run-disassembler rom:
+    @cargo run --features disassembler $1

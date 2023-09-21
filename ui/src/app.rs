@@ -1,3 +1,4 @@
+#[cfg(feature = "disassembler")]
 use crate::disassembler::Disassembler;
 use emu::{cartridge_header::CartridgeHeader, gba::Gba};
 use logger::log;
@@ -47,16 +48,23 @@ impl ClementineApp {
             data,
         )));
 
+        #[cfg(feature = "disassembler")]
         let disassembler = Disassembler::new(Arc::clone(&arc_gba));
 
-        Self::from_tools(vec![
+        let tools: Vec<Box<dyn UiTool>> = vec![
             Box::<about::About>::default(),
             Box::new(CpuRegisters::new(Arc::clone(&arc_gba))),
             Box::new(CpuHandler::new(Arc::clone(&arc_gba))),
             Box::new(GbaDisplay::new(Arc::clone(&arc_gba))),
             Box::new(PaletteVisualizer::new(arc_gba)),
-            Box::new(disassembler),
-        ])
+        ];
+
+        #[cfg(feature = "disassembler")]
+        let mut tools = tools;
+        #[cfg(feature = "disassembler")]
+        tools.push(Box::new(disassembler));
+
+        Self::from_tools(tools)
     }
 
     fn from_tools(tools: Vec<Box<dyn UiTool>>) -> Self {
@@ -64,6 +72,7 @@ impl ClementineApp {
 
         open.insert(tools[1].name().to_owned());
         open.insert(tools[2].name().to_owned());
+        #[cfg(feature = "disassembler")]
         open.insert(tools[5].name().to_owned());
 
         Self { tools, open }
