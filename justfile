@@ -8,7 +8,7 @@ build:
 
 # run test on all workspace
 test:
-    @cargo test --workspace
+    @cargo test --workspace --all-features
 
 # run clippy with heavy config
 lint:
