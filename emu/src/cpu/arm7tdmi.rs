@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+#[cfg(feature = "logger")]
 use logger::log;
 use vecfixed::VecFixed;
 
@@ -453,8 +454,9 @@ impl Arm7tdmi {
                         return;
                     }
 
+                    #[cfg(feature = "logger")]
                     let current_ins = self.registers.program_counter() - 4;
-
+                    #[cfg(feature = "logger")]
                     log(format!("PC: 0x{current_ins:X} {decoded}"));
 
                     self.execute_thumb(decoded);
@@ -483,8 +485,9 @@ impl Arm7tdmi {
                         return;
                     }
 
+                    #[cfg(feature = "logger")]
                     let current_ins = self.registers.program_counter() - 4;
-
+                    #[cfg(feature = "logger")]
                     log(format!("PC: 0x{current_ins:X} {decoded}"));
 
                     self.execute_arm(decoded);

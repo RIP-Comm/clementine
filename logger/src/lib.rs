@@ -1,3 +1,8 @@
+#[cfg(feature = "logger")]
+use chrono::Utc;
+#[cfg(feature = "logger")]
+use once_cell::sync::OnceCell;
+#[cfg(feature = "logger")]
 use std::{
     fs::File,
     io::{self, Write},
@@ -5,16 +10,16 @@ use std::{
     time::Instant,
 };
 
-use chrono::Utc;
-use once_cell::sync::OnceCell;
-
+#[cfg(feature = "logger")]
 static LOGGER: OnceCell<Logger> = OnceCell::new();
 
+#[cfg(feature = "logger")]
 struct LoggerImpl {
     pub sink: Box<dyn Write + Send>,
     pub start_instant: Instant,
 }
 
+#[cfg(feature = "logger")]
 impl LoggerImpl {
     fn new(kind: LogKind) -> Self {
         let start_instant = Instant::now();
@@ -65,10 +70,12 @@ pub enum LogKind {
 }
 
 /// Logger
+#[cfg(feature = "logger")]
 struct Logger {
     pub inner_impl: Mutex<LoggerImpl>,
 }
 
+#[cfg(feature = "logger")]
 impl Default for Logger {
     fn default() -> Self {
         Self {
@@ -77,6 +84,7 @@ impl Default for Logger {
     }
 }
 
+#[cfg(feature = "logger")]
 impl Logger {
     fn new(kind: LogKind) -> Self {
         Self {
@@ -94,6 +102,7 @@ impl Logger {
     }
 }
 
+#[cfg(feature = "logger")]
 pub fn init_logger(kind: LogKind) {
     LOGGER.set(Logger::new(kind)).ok();
 }
@@ -102,9 +111,12 @@ pub fn log<T>(data: T)
 where
     T: std::fmt::Display,
 {
+    let _ = data;
+    #[cfg(feature = "logger")]
     LOGGER.get().map_or((), |logger| logger.log(data));
 }
 
+#[cfg(feature = "logger")]
 #[cfg(test)]
 mod tests {
     use std::fs;
