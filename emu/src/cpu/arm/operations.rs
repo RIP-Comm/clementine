@@ -472,7 +472,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn mov(&mut self, rd: usize, op2: u32, s: bool) {
+    pub fn mov(&mut self, rd: usize, op2: u32, s: bool) {
         self.registers.set_register_at(rd, op2);
 
         if s {
