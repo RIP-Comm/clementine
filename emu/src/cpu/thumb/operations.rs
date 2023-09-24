@@ -108,7 +108,23 @@ impl Arm7tdmi {
                 true,
             ),
             ThumbModeAluInstruction::Lsl => todo!(),
-            ThumbModeAluInstruction::Lsr => todo!(),
+            ThumbModeAluInstruction::Lsr => {
+                // If the shift amount in 0 then the second operand is just Rd
+                let second_operand = if rs == 0 {
+                    self.registers.register_at(rd.try_into().unwrap())
+                } else {
+                    // Otherwise we reuse the ARM logic
+                    self.shift_operand(
+                        crate::cpu::arm::alu_instruction::ArmModeAluInstruction::Mov,
+                        true,
+                        ShiftKind::Lsr,
+                        rs,
+                        self.registers.register_at(rd.try_into().unwrap()),
+                    )
+                };
+
+                self.mov(rd.try_into().unwrap(), second_operand, true);
+            }
             ThumbModeAluInstruction::Asr => todo!(),
             ThumbModeAluInstruction::Adc => todo!(),
             ThumbModeAluInstruction::Sbc => todo!(),
