@@ -1206,7 +1206,7 @@ mod tests {
 
             assert_eq!(cpu.registers.register_at(1), -1_i32 as u32);
             assert!(!cpu.cpsr.zero_flag());
-            assert!(cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.carry_flag());
             assert!(cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.overflow_flag());
         }
@@ -1331,7 +1331,7 @@ mod tests {
             assert!(cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.overflow_flag());
-            assert!(!cpu.cpsr.carry_flag());
+            assert!(cpu.cpsr.carry_flag());
         }
         {
             // Cmp Hd, Rs
@@ -1346,7 +1346,7 @@ mod tests {
 
             assert!(!cpu.cpsr.zero_flag());
             assert!(cpu.cpsr.sign_flag());
-            assert!(cpu.cpsr.carry_flag());
+            assert!(!cpu.cpsr.carry_flag());
             assert!(!cpu.cpsr.overflow_flag());
         }
         {
@@ -1362,7 +1362,7 @@ mod tests {
 
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.sign_flag());
-            assert!(!cpu.cpsr.carry_flag());
+            assert!(cpu.cpsr.carry_flag());
             assert!(!cpu.cpsr.overflow_flag());
         }
         {

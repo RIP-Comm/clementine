@@ -414,7 +414,7 @@ impl Arm7tdmi {
 
         ArithmeticOpResult {
             result,
-            carry: first_op < second_op,
+            carry: first_op >= second_op,
             overflow: different_sign && sign_op2 == sign_r,
             sign: result.get_bit(31),
             zero: result == 0,
@@ -1154,7 +1154,7 @@ mod tests {
         cpu.execute_arm(op_code);
         assert!(!cpu.cpsr.sign_flag());
         assert!(cpu.cpsr.zero_flag());
-        assert!(!cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.overflow_flag());
     }
 
@@ -1704,7 +1704,7 @@ mod tests {
         cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 5);
-        assert!(!cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.overflow_flag());
         assert!(!cpu.cpsr.zero_flag());
         assert!(!cpu.cpsr.sign_flag());
@@ -1716,7 +1716,7 @@ mod tests {
         cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1) as i32, -5);
-        assert!(cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.overflow_flag());
         assert!(cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
@@ -1747,7 +1747,7 @@ mod tests {
         cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), (i32::MIN + 1) as u32);
-        assert!(cpu.cpsr.carry_flag());
+        assert!(!cpu.cpsr.carry_flag());
         assert!(cpu.cpsr.overflow_flag());
         assert!(cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.zero_flag());
@@ -1953,7 +1953,7 @@ mod tests {
         cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 5);
-        assert!(!cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.zero_flag());
         assert!(!cpu.cpsr.overflow_flag());
         assert!(!cpu.cpsr.sign_flag());
@@ -2118,7 +2118,7 @@ mod tests {
         cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), i32::MAX as u32);
-        assert!(!cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.zero_flag());
         assert!(cpu.cpsr.overflow_flag());
         assert!(!cpu.cpsr.sign_flag());
@@ -2151,7 +2151,7 @@ mod tests {
         cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), i32::MAX as u32);
-        assert!(!cpu.cpsr.carry_flag());
+        assert!(cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.zero_flag());
         assert!(cpu.cpsr.overflow_flag());
         assert!(!cpu.cpsr.sign_flag());
