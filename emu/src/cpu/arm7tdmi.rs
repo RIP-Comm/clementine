@@ -304,7 +304,10 @@ impl Arm7tdmi {
             ArmModeInstruction::CoprocessorDataTransfer { .. } => todo!(),
             ArmModeInstruction::CoprocessorDataOperation => todo!(),
             ArmModeInstruction::CoprocessorRegisterTransfer => todo!(),
-            ArmModeInstruction::SoftwareInterrupt => todo!(),
+            ArmModeInstruction::SoftwareInterrupt => {
+                self.swap_mode(Mode::Supervisor);
+                self.branch(false, 0x8);
+            }
         };
     }
 
@@ -558,7 +561,7 @@ impl Arm7tdmi {
             Mode::Supervisor => {
                 self.register_bank.r13_svc = self.registers.register_at(13);
                 self.register_bank.r14_svc = self.registers.register_at(14);
-                self.register_bank.spsr_svc = self.spsr;
+                self.register_bank.spsr_svc = self.cpsr;
             }
             Mode::Abort => {
                 self.register_bank.r13_abt = self.registers.register_at(13);
