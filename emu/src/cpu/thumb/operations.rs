@@ -107,7 +107,23 @@ impl Arm7tdmi {
                 rs,
                 true,
             ),
-            ThumbModeAluInstruction::Lsl => todo!(),
+            ThumbModeAluInstruction::Lsl => {
+                // If the shift amount in 0 then the second operand is just Rd
+                let second_operand = if rs == 0 {
+                    self.registers.register_at(rd.try_into().unwrap())
+                } else {
+                    // Otherwise we reuse the ARM logic
+                    self.shift_operand(
+                        crate::cpu::arm::alu_instruction::ArmModeAluInstruction::Mov,
+                        true,
+                        ShiftKind::Lsl,
+                        rs,
+                        self.registers.register_at(rd.try_into().unwrap()),
+                    )
+                };
+
+                self.mov(rd.try_into().unwrap(), second_operand, true);
+            }
             ThumbModeAluInstruction::Lsr => {
                 // If the shift amount in 0 then the second operand is just Rd
                 let second_operand = if rs == 0 {
@@ -564,12 +580,12 @@ mod tests {
         let op_code = 0b0010_0000_0000_0000_u16;
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
-            op_code.instruction,
             ThumbModeInstruction::MoveCompareAddSubtractImm {
                 operation: Operation::Mov,
                 destination_register: 0,
                 offset: 0,
-            }
+            },
+            op_code.instruction,
         );
 
         cpu.execute_thumb(op_code);
@@ -577,5 +593,19 @@ mod tests {
         assert!(!cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.sign_flag());
         assert!(cpu.cpsr.zero_flag());
+    }
+
+    #[test]
+    fn decode_lsl() {
+        let op_code = 0b0100_0000_1000_1000_u16;
+        let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
+        assert_eq!(
+            ThumbModeInstruction::AluOp {
+                alu_operation: ThumbModeAluInstruction::Lsl,
+                source_register: 1,
+                destination_register: 0,
+            },
+            op_code.instruction,
+        );
     }
 }
