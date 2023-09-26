@@ -1643,6 +1643,20 @@ mod tests {
             assert!(cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
         }
+        {
+            // lsl
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b0100_0000_1000_1000;
+            let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
+
+            cpu.registers.set_register_at(0, 1);
+            cpu.registers.set_register_at(1, 1);
+
+            cpu.execute_thumb(op_code);
+
+            assert_eq!(cpu.registers.register_at(0), 2);
+            assert_eq!(cpu.registers.register_at(1), 1);
+        }
     }
 
     #[test]
