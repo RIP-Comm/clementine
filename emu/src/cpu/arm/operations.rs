@@ -1080,7 +1080,6 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::PSRTransfer {
-                    condition: Condition::EQ,
                     psr_kind: PsrKind::Cpsr,
                     kind: PsrOpKind::Msr {
                         source_register: 12
@@ -1587,7 +1586,6 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::PSRTransfer {
-                    condition: Condition::EQ,
                     psr_kind: PsrKind::Cpsr,
                     kind: PsrOpKind::Mrs {
                         destination_register: 12
@@ -2181,7 +2179,6 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::PSRTransfer {
-                    condition: Condition::AL,
                     psr_kind: PsrKind::Cpsr,
                     kind: PsrOpKind::Mrs {
                         destination_register: 0
@@ -2210,7 +2207,6 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::PSRTransfer {
-                    condition: Condition::AL,
                     psr_kind: PsrKind::Spsr,
                     kind: PsrOpKind::Mrs {
                         destination_register: 0
@@ -2242,7 +2238,6 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::PSRTransfer {
-                    condition: Condition::AL,
                     psr_kind: PsrKind::Cpsr,
                     kind: PsrOpKind::Msr { source_register: 0 }
                 }
@@ -2264,7 +2259,6 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::PSRTransfer {
-                    condition: Condition::AL,
                     psr_kind: PsrKind::Spsr,
                     kind: PsrOpKind::Msr { source_register: 0 }
                 }
@@ -2286,7 +2280,6 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::PSRTransfer {
-                    condition: Condition::AL,
                     psr_kind: PsrKind::Cpsr,
                     kind: PsrOpKind::MsrFlg {
                         operand: AluSecondOperandInfo::Register {
@@ -2314,7 +2307,6 @@ mod tests {
             assert_eq!(
                 op_code.instruction,
                 ArmModeInstruction::PSRTransfer {
-                    condition: Condition::AL,
                     psr_kind: PsrKind::Spsr,
                     kind: PsrOpKind::MsrFlg {
                         operand: AluSecondOperandInfo::Register {

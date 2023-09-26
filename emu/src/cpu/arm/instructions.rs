@@ -100,7 +100,6 @@ pub enum ArmModeInstruction {
         rm_operand_register: u32,
     },
     PSRTransfer {
-        condition: Condition,
         psr_kind: PsrKind,
         kind: PsrOpKind,
     },
@@ -659,7 +658,6 @@ impl From<u32> for ArmModeInstruction {
             {
                 // PSR instruction
                 return PSRTransfer {
-                    condition,
                     psr_kind: PsrKind::from(op_code.get_bit(22)),
                     kind: PsrOpKind::from(op_code),
                 };

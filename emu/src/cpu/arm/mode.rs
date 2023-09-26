@@ -47,11 +47,7 @@ impl std::fmt::Display for ArmModeOpcode {
             ArmModeInstruction::MultiplyLong { .. } => {
                 "FMT: |_Cond__|0_0_0|__code__|S|_RdHi_|_RdLo_|_Rs__|1_0_0_1|_Rm__|"
             }
-            ArmModeInstruction::PSRTransfer {
-                condition: _,
-                psr_kind: _,
-                kind,
-            } => match kind {
+            ArmModeInstruction::PSRTransfer { psr_kind: _, kind } => match kind {
                 crate::cpu::arm::alu_instruction::PsrOpKind::Mrs { .. } => {
                     "FMT: |_Cond__|0_0_0_1_0|P|0_0_1_1_1_1|_Rd__|0_0_0_0_0_0_0_0_0_0_0_0_0|"
                 }
