@@ -683,7 +683,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn check_branch() {
+    fn arm_branch() {
         // Covers a positive offset
 
         // 15(1111b) << 2 = 60 bytes
@@ -718,7 +718,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn check_unknown_instruction() {
+    fn arm_unknown_instruction() {
         let op_code = 0b1110_1111_1111_1111_1111_1111_1111_1111;
         let mut cpu = Arm7tdmi::default();
 
@@ -729,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn check_block_data_transfer() {
+    fn arm_block_data_transfer() {
         {
             // LDM with post-increment
             let op_code = 0b1110_100_0_1_0_1_1_1101_0000000010100010;
@@ -889,7 +889,7 @@ mod tests {
     }
 
     #[test]
-    fn check_half_word_data_transfer() {
+    fn arm_half_word_data_transfer() {
         {
             // Register offset
             let op_code = 0b1110_0001_1000_0010_0000_0000_1011_0001;
@@ -1064,7 +1064,7 @@ mod tests {
     }
 
     #[test]
-    fn check_pc_relative_load() {
+    fn thumb_pc_relative_load() {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b0100_1001_0101_1000_u16;
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
@@ -1077,7 +1077,7 @@ mod tests {
     }
 
     #[test]
-    fn check_load_store_register_offset() {
+    fn thumb_load_store_register_offset() {
         // Checks Store Word
         {
             let mut cpu = Arm7tdmi::default();
@@ -1140,7 +1140,7 @@ mod tests {
     }
 
     #[test]
-    fn check_load_store_immediate_offset() {
+    fn thumb_load_store_immediate_offset() {
         {
             // Store Word
             let op_code = 0b0110_0011_0111_1000;
@@ -1193,7 +1193,7 @@ mod tests {
     }
 
     #[test]
-    fn check_add_subtract() {
+    fn thumb_add_subtract() {
         // Check sub
         {
             let mut cpu = Arm7tdmi::default();
@@ -1230,7 +1230,7 @@ mod tests {
     }
 
     #[test]
-    fn check_cond_branch() {
+    fn thumb_cond_branch() {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b1101_1011_11111100;
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
@@ -1253,7 +1253,7 @@ mod tests {
     }
 
     #[test]
-    fn check_uncond_branch() {
+    fn thumb_uncond_branch() {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b1110_0001_0010_1111;
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
@@ -1266,7 +1266,7 @@ mod tests {
     }
 
     #[test]
-    fn check_hi_reg_operation_branch_ex() {
+    fn thumb_hi_reg_operation_branch_ex() {
         {
             // BX Hs
             let mut cpu = Arm7tdmi::default();
@@ -1463,7 +1463,7 @@ mod tests {
     }
 
     #[test]
-    fn check_push_pop_register() {
+    fn thumb_push_pop_register() {
         {
             // Store + save LR
             let mut cpu = Arm7tdmi::default();
@@ -1516,7 +1516,7 @@ mod tests {
     }
 
     #[test]
-    fn check_add_offset_sp() {
+    fn thumb_add_offset_sp() {
         {
             // Positive offset
             let mut cpu = Arm7tdmi::default();
@@ -1542,7 +1542,7 @@ mod tests {
     }
 
     #[test]
-    fn check_sp_relative_load() {
+    fn thumb_sp_relative_load() {
         {
             // Load
             let mut cpu = Arm7tdmi::default();
@@ -1572,7 +1572,7 @@ mod tests {
     }
 
     #[test]
-    fn check_alu_op() {
+    fn thumb_alu_op() {
         {
             // mul
             let mut cpu = Arm7tdmi::default();
@@ -1660,7 +1660,7 @@ mod tests {
     }
 
     #[test]
-    fn check_long_branch_link() {
+    fn thumb_long_branch_link() {
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b1111_1000_0100_0000;
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
@@ -1682,7 +1682,7 @@ mod tests {
     }
 
     #[test]
-    fn check_load_store_halfword() {
+    fn thumb_load_store_halfword() {
         {
             // Load
             let mut cpu = Arm7tdmi::default();
@@ -1712,7 +1712,7 @@ mod tests {
     }
 
     #[test]
-    fn check_load_store_sign_extend_byte_halfword() {
+    fn thumb_load_store_sign_extend_byte_halfword() {
         struct Test {
             opcode: u16,
             expected_decode: ThumbModeInstruction,
@@ -1810,7 +1810,7 @@ mod tests {
     }
 
     #[test]
-    fn check_load_address() {
+    fn thumb_load_address() {
         struct Test {
             opcode: u16,
             expected_decode: ThumbModeInstruction,
@@ -1864,7 +1864,7 @@ mod tests {
     }
 
     #[test]
-    fn check_multiple_load_store() {
+    fn thumb_multiple_load_store() {
         struct Test {
             opcode: u16,
             expected_decode: ThumbModeInstruction,
