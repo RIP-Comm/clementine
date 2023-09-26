@@ -72,6 +72,7 @@ impl ClementineApp {
 
         open.insert(tools[1].name().to_owned());
         open.insert(tools[2].name().to_owned());
+        open.insert(tools[3].name().to_owned());
         #[cfg(feature = "disassembler")]
         open.insert(tools[5].name().to_owned());
 
