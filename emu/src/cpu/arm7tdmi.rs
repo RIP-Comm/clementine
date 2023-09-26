@@ -201,11 +201,9 @@ impl Arm7tdmi {
                 rn,
                 destination,
             ),
-            ArmModeInstruction::PSRTransfer {
-                condition: _,
-                psr_kind,
-                kind,
-            } => self.psr_transfer(kind, psr_kind),
+            ArmModeInstruction::PSRTransfer { psr_kind, kind, .. } => {
+                self.psr_transfer(kind, psr_kind)
+            }
             ArmModeInstruction::Multiply {
                 variant,
                 should_set_codes,
@@ -304,7 +302,9 @@ impl Arm7tdmi {
             ArmModeInstruction::CoprocessorDataTransfer { .. } => todo!(),
             ArmModeInstruction::CoprocessorDataOperation => todo!(),
             ArmModeInstruction::CoprocessorRegisterTransfer => todo!(),
-            ArmModeInstruction::SoftwareInterrupt => todo!(),
+            ArmModeInstruction::SoftwareInterrupt => {
+                self.handle_exception(ExceptionType::SoftwareInterrupt)
+            }
         };
     }
 
