@@ -1095,33 +1095,34 @@ mod tests {
                 assert_eq!(asm, "MSREQ CPSR, R12");
             }
         }
-
-        let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
-        let mut cpu = Arm7tdmi::default();
-        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
-        assert_eq!(
-            op_code.instruction,
-            ArmModeInstruction::DataProcessing {
-                condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Teq,
-                set_conditions: true,
-                op_kind: OperandKind::Register,
-                rn: 9,
-                destination: 3,
-                op2: AluSecondOperandInfo::Register {
-                    shift_op: ShiftOperator::Immediate(0),
-                    shift_kind: ShiftKind::Lsl,
-                    register: 0
+        {
+            let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::DataProcessing {
+                    condition: Condition::AL,
+                    alu_instruction: ArmModeAluInstruction::Teq,
+                    set_conditions: true,
+                    op_kind: OperandKind::Register,
+                    rn: 9,
+                    destination: 3,
+                    op2: AluSecondOperandInfo::Register {
+                        shift_op: ShiftOperator::Immediate(0),
+                        shift_kind: ShiftKind::Lsl,
+                        register: 0
+                    }
                 }
-            }
-        );
+            );
 
-        let rn = 9_usize;
-        cpu.registers.set_register_at(rn, 100);
-        cpu.cpsr.set_sign_flag(true); // set for later verify.
-        cpu.execute_arm(op_code);
-        assert!(!cpu.cpsr.sign_flag());
-        assert!(!cpu.cpsr.zero_flag());
+            let rn = 9_usize;
+            cpu.registers.set_register_at(rn, 100);
+            cpu.cpsr.set_sign_flag(true); // set for later verify.
+            cpu.execute_arm(op_code);
+            assert!(!cpu.cpsr.sign_flag());
+            assert!(!cpu.cpsr.zero_flag());
+        }
     }
 
     #[test]

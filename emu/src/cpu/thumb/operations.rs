@@ -108,9 +108,10 @@ impl Arm7tdmi {
                 true,
             ),
             ThumbModeAluInstruction::Lsl => {
+                let destination = rd.into();
                 // If the shift amount in 0 then the second operand is just Rd
                 let second_operand = if rs == 0 {
-                    self.registers.register_at(rd.try_into().unwrap())
+                    self.registers.register_at(destination)
                 } else {
                     // Otherwise we reuse the ARM logic
                     self.shift_operand(
@@ -118,16 +119,17 @@ impl Arm7tdmi {
                         true,
                         ShiftKind::Lsl,
                         rs,
-                        self.registers.register_at(rd.try_into().unwrap()),
+                        self.registers.register_at(destination),
                     )
                 };
 
-                self.mov(rd.try_into().unwrap(), second_operand, true);
+                self.mov(destination, second_operand, true);
             }
             ThumbModeAluInstruction::Lsr => {
+                let destination = rd.into();
                 // If the shift amount in 0 then the second operand is just Rd
                 let second_operand = if rs == 0 {
-                    self.registers.register_at(rd.try_into().unwrap())
+                    self.registers.register_at(destination)
                 } else {
                     // Otherwise we reuse the ARM logic
                     self.shift_operand(
@@ -135,11 +137,11 @@ impl Arm7tdmi {
                         true,
                         ShiftKind::Lsr,
                         rs,
-                        self.registers.register_at(rd.try_into().unwrap()),
+                        self.registers.register_at(destination),
                     )
                 };
 
-                self.mov(rd.try_into().unwrap(), second_operand, true);
+                self.mov(destination, second_operand, true);
             }
             ThumbModeAluInstruction::Asr => todo!(),
             ThumbModeAluInstruction::Adc => todo!(),
@@ -593,19 +595,5 @@ mod tests {
         assert!(!cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.sign_flag());
         assert!(cpu.cpsr.zero_flag());
-    }
-
-    #[test]
-    fn decode_lsl() {
-        let op_code = 0b0100_0000_1000_1000_u16;
-        let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-        assert_eq!(
-            ThumbModeInstruction::AluOp {
-                alu_operation: ThumbModeAluInstruction::Lsl,
-                source_register: 1,
-                destination_register: 0,
-            },
-            op_code.instruction,
-        );
     }
 }

@@ -109,11 +109,20 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
                     ..Default::default()
                 },
                 // LSL#1..32: Normal left logical shift
-                1..=32 => ArithmeticOpResult {
-                    result: rm << shift_amount,
-                    carry: rm.get_bit((32 - shift_amount).try_into().unwrap()),
-                    ..Default::default()
-                },
+                1..=32 => {
+                    // In Rust, when you use the << operator to shift a value to the left, the behavior is defined modulo the number of bits in the type.
+                    // For a u32, there are 32 bits, so any left shift operation with a shift amount greater than or equal to 32 will wrap around and behave as
+                    // if the shift amount is reduced modulo 32.
+                    // So when you do 1 << 32 with a u32 in Rust, it is equivalent to 1 << (32 % 32), which is 1 << 0.
+                    // Shifting a value 0 bits to the left is equivalent to the original value, so you get 1.
+                    let rm = rm as u64;
+                    let result = (rm << shift_amount) as u32;
+                    ArithmeticOpResult {
+                        result,
+                        carry: rm.get_bit((32 - shift_amount).try_into().unwrap()),
+                        ..Default::default()
+                    }
+                }
                 // LSL#33...: Result is 0 and carry is 0
                 _ => ArithmeticOpResult {
                     carry: false,

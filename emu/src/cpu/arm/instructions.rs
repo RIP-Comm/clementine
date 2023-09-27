@@ -842,4 +842,29 @@ mod tests {
             output
         );
     }
+
+    #[test]
+    fn decode_single_data_transfer() {
+        let output = ArmModeInstruction::from(0b11100111010100010101000000001100);
+        assert_eq!(
+            output,
+            ArmModeInstruction::SingleDataTransfer {
+                condition: Condition::AL,
+                kind: SingleDataTransferKind::Ldr,
+                quantity: ReadWriteKind::Byte,
+                write_back: false,
+                indexing: Indexing::Pre,
+                rd: 5,
+                base_register: 1,
+                offset_info: SingleDataTransferOffsetInfo::RegisterImmediate {
+                    shift_amount: 0,
+                    shift_kind: ShiftKind::Lsl,
+                    reg_offset: 12
+                },
+                offsetting: Offsetting::Down
+            }
+        );
+
+        assert_eq!("LDRB R5, 12, LSL #0", output.disassembler());
+    }
 }
