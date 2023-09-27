@@ -658,6 +658,17 @@ mod test {
             },
         );
         assert_eq!("LSL R0, R1", output.disassembler());
+
+        let output = ThumbModeInstruction::from(0b0100_0001_0000_1000);
+        assert_eq!(
+            output,
+            ThumbModeInstruction::AluOp {
+                alu_operation: ThumbModeAluInstruction::Asr,
+                source_register: 1,
+                destination_register: 0,
+            },
+        );
+        assert_eq!("ASR R0, R1", output.disassembler());
     }
 
     #[test]
