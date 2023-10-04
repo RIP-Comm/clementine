@@ -5,10 +5,7 @@ use logger::log;
 use std::io::Read;
 
 use super::cpu_registers::CpuRegisters;
-use crate::{
-    about, cpu_handler::CpuHandler, gba_display::GbaDisplay, palette_visualizer::PaletteVisualizer,
-    ui_traits::UiTool,
-};
+use crate::{about, cpu_handler::CpuHandler, gba_display::GbaDisplay, ui_traits::UiTool};
 
 use std::{
     collections::BTreeSet,
@@ -56,7 +53,6 @@ impl ClementineApp {
             Box::new(CpuRegisters::new(Arc::clone(&arc_gba))),
             Box::new(CpuHandler::new(Arc::clone(&arc_gba))),
             Box::new(GbaDisplay::new(Arc::clone(&arc_gba))),
-            Box::new(PaletteVisualizer::new(arc_gba)),
         ];
 
         #[cfg(feature = "disassembler")]

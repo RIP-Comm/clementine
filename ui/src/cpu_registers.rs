@@ -46,15 +46,7 @@ impl UiTool for CpuRegisters {
         ui.radio_value(&mut self.base_kind, BaseKind::Hex, "Hexadecimal");
         ui.add_space(8.0);
 
-        let registers = self
-            .gba
-            .lock()
-            .unwrap()
-            .cpu
-            .lock()
-            .unwrap()
-            .registers
-            .to_vec();
+        let registers = self.gba.lock().unwrap().cpu.registers.to_vec();
 
         let mut index = 0;
 
