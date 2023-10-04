@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::bitwise::Bits;
 use crate::cpu::flags::ShiftKind;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ArmModeAluInstruction {
     And = 0x0,
     Eor = 0x1,
@@ -213,7 +215,7 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
 }
 
 /// Represents the kind of PSR operation
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PsrOpKind {
     /// MSR operation (transfer PSR contents to a register)
     Mrs { destination_register: u32 },
@@ -264,7 +266,7 @@ impl From<u32> for PsrOpKind {
 }
 
 /// Represents the kind of PSR register to user
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PsrKind {
     Cpsr,
     Spsr,
@@ -289,7 +291,7 @@ impl std::fmt::Display for PsrKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ShiftOperator {
     Immediate(u32),
     Register(u32),
@@ -304,7 +306,7 @@ impl std::fmt::Display for ShiftOperator {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum AluSecondOperandInfo {
     Register {
         shift_op: ShiftOperator,

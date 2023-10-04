@@ -1,4 +1,6 @@
-#[derive(Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Default, Serialize, Deserialize)]
 pub struct DmaRegisters {
     pub source_address: u32,
     pub destination_address: u32,
@@ -6,7 +8,7 @@ pub struct DmaRegisters {
     pub control: u16,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Dma {
     pub channels: [DmaRegisters; 4],
 }

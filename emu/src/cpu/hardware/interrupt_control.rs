@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
 use vecfixed::VecFixed;
 
+#[derive(Serialize, Deserialize)]
 pub struct InterruptControl {
     pub interrupt_enable: u16,
     // It is a ring buffer since when we write to this register, the value will reach the CPU

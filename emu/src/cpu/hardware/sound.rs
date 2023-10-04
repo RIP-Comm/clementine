@@ -1,4 +1,6 @@
-#[derive(Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Default, Serialize, Deserialize)]
 pub struct Sound {
     pub channel1_sweep: u16,
     pub channel1_duty_length_envelope: u16,

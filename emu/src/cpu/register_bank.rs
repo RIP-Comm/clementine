@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::cpu::psr::Psr;
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct RegisterBank {
     pub r8_old: u32,
     pub r9_old: u32,

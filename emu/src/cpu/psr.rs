@@ -1,9 +1,11 @@
+use serde::{Deserialize, Serialize};
+
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::ArithmeticOpResult;
 use crate::cpu::{condition::Condition, cpu_modes::Mode};
 
 /// Program Status Register.
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Psr(u32);
 
 impl Psr {

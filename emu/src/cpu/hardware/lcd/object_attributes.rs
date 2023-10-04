@@ -2,9 +2,11 @@
 
 use std::ops::{Index, IndexMut};
 
+use serde::{Deserialize, Serialize};
+
 use crate::bitwise::Bits;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub enum ObjMode {
     #[default]
     Normal,
@@ -25,7 +27,7 @@ impl From<u16> for ObjMode {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub enum GfxMode {
     #[default]
     Normal,
@@ -46,7 +48,7 @@ impl TryFrom<u16> for GfxMode {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub enum ColorMode {
     /// 16 colors
     #[default]
@@ -64,7 +66,7 @@ impl From<bool> for ColorMode {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub enum ObjShape {
     #[default]
     Square,
@@ -85,7 +87,7 @@ impl TryFrom<u16> for ObjShape {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub enum ObjSize {
     #[default]
     Size0,
@@ -107,7 +109,7 @@ impl From<u16> for ObjSize {
 }
 
 #[allow(dead_code)]
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct ObjAttribute0 {
     pub y_coordinate: u8,
     pub obj_mode: ObjMode,
@@ -132,7 +134,7 @@ impl TryFrom<u16> for ObjAttribute0 {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum TransformationKind {
     RotationScaling {
         rotation_scaling_parameter: u8,
@@ -153,7 +155,7 @@ impl Default for TransformationKind {
 }
 
 #[allow(dead_code)]
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct ObjAttribute1 {
     pub x_coordinate: u16,
     pub transformation_kind: TransformationKind,
@@ -179,7 +181,7 @@ impl ObjAttribute1 {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct ObjAttribute2 {
     pub tile_number: u16,
     pub priority: u8,
@@ -208,7 +210,7 @@ impl From<u16> for ObjAttribute2 {
 }
 
 #[allow(dead_code)]
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct ObjAttributes {
     pub attribute0: ObjAttribute0,
     pub attribute1: ObjAttribute1,
@@ -228,7 +230,7 @@ impl TryFrom<[u16; 3]> for ObjAttributes {
     }
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Copy, Clone, Serialize, Deserialize)]
 pub struct RotationScaling {
     pa: u16,
     pb: u16,

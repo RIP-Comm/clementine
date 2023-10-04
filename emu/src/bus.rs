@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use logger::log;
+use serde::{Deserialize, Serialize};
 
 use crate::bitwise::Bits;
 use crate::cpu::hardware::dma::{Dma, DmaRegisters};
@@ -13,7 +14,7 @@ use crate::cpu::hardware::serial::Serial;
 use crate::cpu::hardware::sound::Sound;
 use crate::cpu::hardware::timers::Timers;
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Bus {
     pub internal_memory: InternalMemory,
     pub lcd: Lcd,

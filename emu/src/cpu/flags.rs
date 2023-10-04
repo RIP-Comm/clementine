@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::bitwise::Bits;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum OperandKind {
     Immediate,
     Register,
@@ -16,7 +18,7 @@ impl From<bool> for OperandKind {
 }
 
 /// Operation to perform in the Move Compare Add Subtract Immediate instruction.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Operation {
     Mov,
     Cmp,
@@ -47,7 +49,7 @@ impl From<u16> for Operation {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ShiftKind {
     Lsl,
     Lsr,
@@ -91,7 +93,7 @@ impl std::fmt::Display for ShiftKind {
 }
 
 /// There two different kind of write or read for memory.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ReadWriteKind {
     /// Word is a u32 value for ARM mode and u16 for Thumb mode.
     #[default]
@@ -117,7 +119,7 @@ impl From<u32> for ReadWriteKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum LoadStoreKind {
     Store,
     Load,
@@ -141,7 +143,7 @@ impl std::fmt::Display for LoadStoreKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Indexing {
     /// Add offset after transfer.
     Post,
@@ -159,7 +161,7 @@ impl From<bool> for Indexing {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Offsetting {
     /// Subtract the offset from base.
     Down,
@@ -177,7 +179,7 @@ impl From<bool> for Offsetting {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HalfwordDataTransferOffsetKind {
     Immediate { offset: u32 },
     Register { register: u32 },

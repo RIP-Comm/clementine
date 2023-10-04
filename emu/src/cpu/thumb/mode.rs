@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::cpu::thumb::instruction::ThumbModeInstruction;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct ThumbModeOpcode {
     pub instruction: ThumbModeInstruction,
     pub raw: u16,

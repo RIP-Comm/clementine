@@ -5,8 +5,9 @@ use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, Sh
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
 use logger::log;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum ThumbModeInstruction {
     MoveShiftedRegister {
         shift_operation: ShiftKind,

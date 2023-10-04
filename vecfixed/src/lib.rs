@@ -1,8 +1,10 @@
 use std::collections::VecDeque;
 
+use serde::{Deserialize, Serialize};
+
 /// `VecFixed` is basically a vector that keep a fixed size. Every time new element is pushed
 /// to the vector, the oldest element is removed and the latest pushed is added to the end.
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct VecFixed<const N: usize, T: Default + ToString> {
     next_index: usize,
     buffer: VecDeque<T>,

@@ -3,6 +3,7 @@ use std::convert::TryInto;
 #[cfg(feature = "logger")]
 use logger::log;
 
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "disassembler")]
 use vecfixed::VecFixed;
 
@@ -20,6 +21,7 @@ use crate::cpu::thumb::mode::ThumbModeOpcode;
 use super::registers::Registers;
 use super::thumb;
 
+#[derive(Serialize, Deserialize)]
 pub struct Arm7tdmi {
     pub bus: Bus,
 
@@ -644,7 +646,7 @@ impl Arm7tdmi {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum HalfwordTransferKind {
     UnsignedHalfwords,
     SignedByte,

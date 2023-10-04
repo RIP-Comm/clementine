@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
 use logger::log;
+use serde::{Deserialize, Serialize};
 
 use crate::bitwise::Bits;
 
 use super::get_unmasked_address;
 
+#[derive(Serialize, Deserialize)]
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 KBytes).
     bios_system_rom: Vec<u8>,

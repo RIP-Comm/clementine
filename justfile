@@ -18,7 +18,8 @@ lint:
     -W clippy::nursery                          \
     -W clippy::perf                             \
     -W clippy::style                            \
-    -W clippy::suspicious
+    -W clippy::suspicious                       \
+    -A clippy::large_stack_frames
 
 # clean build directory
 clean:
