@@ -1,4 +1,6 @@
-#[derive(Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Default, Serialize, Deserialize)]
 pub struct Serial {
     // This is SIODATA32 when single-player mode or two different 16bits registers in multiplayer mode
     // SIOMULTI0 and SIOMULTI1

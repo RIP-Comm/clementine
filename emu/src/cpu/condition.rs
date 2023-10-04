@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 /// In ARM state, all instructions are conditionally executed according to the state of the CPSR,
 /// condition codes and the instruction’s condition field.
 /// This field (bits 31:28) determines the circumstances under which an instruction is to be executed.
@@ -5,7 +7,7 @@
 /// the instruction is executed, otherwise it is ignored.
 /// In the absence of a suffix, the condition field of most instructions is set to "Always" (sufix AL).
 /// This means the instruction will always be executed regardless of the CPSR condition codes.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum Condition {
     /// Z set (equal).
     EQ = 0x0,

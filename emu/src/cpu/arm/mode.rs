@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use crate::bitwise::Bits;
 use crate::cpu::arm::instructions::ArmModeInstruction;
 use crate::cpu::condition::Condition;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct ArmModeOpcode {
     pub instruction: ArmModeInstruction,
     pub condition: Condition,

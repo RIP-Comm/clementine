@@ -1,4 +1,6 @@
-#[derive(Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Default, Serialize, Deserialize)]
 pub struct Timers {
     /// Timer 0 Counter/Reload
     pub tm0cnt_l: u16,

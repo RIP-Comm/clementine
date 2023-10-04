@@ -9,3 +9,6 @@ criterion = { version = "0.5.0" }
 [[bench]]
 name = "vector_fixed"
 harness = false
+
+[dependencies]
+serde = "1.0.188"

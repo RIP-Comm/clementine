@@ -9,11 +9,12 @@ use crate::cpu::flags::{
     ReadWriteKind, ShiftKind,
 };
 use logger::log;
+use serde::{Deserialize, Serialize};
 
 use super::alu_instruction::{PsrKind, PsrOpKind};
 
 /// Possible operation on transfer data.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum SingleDataTransferKind {
     /// Load from memory into a register.
     Ldr,
@@ -38,7 +39,7 @@ impl From<u32> for SingleDataTransferKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum SingleDataTransferOffsetInfo {
     Immediate {
         offset: u32,
@@ -70,7 +71,7 @@ impl std::fmt::Display for SingleDataTransferOffsetInfo {
         Ok(())
     }
 }
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum ArmModeInstruction {
     DataProcessing {
         condition: Condition,
@@ -164,13 +165,13 @@ pub enum ArmModeInstruction {
     SoftwareInterrupt,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArmModeMultiplyVariant {
     Mul,
     Mla,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArmModeMultiplyLongVariant {
     Umull,
     Umlal,

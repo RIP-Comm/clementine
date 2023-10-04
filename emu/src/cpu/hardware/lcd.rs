@@ -1,6 +1,9 @@
 use logger::log;
 use object_attributes::ObjAttributes;
 use object_attributes::RotationScaling;
+use serde::Deserialize;
+use serde::Serialize;
+use serde_with::serde_as;
 
 use crate::bitwise::Bits;
 
@@ -24,7 +27,7 @@ const LCD_HEIGHT: usize = 160;
 /// World height
 const WORLD_HEIGHT: u16 = 256;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Color(pub u16);
 
 impl Color {
@@ -67,12 +70,14 @@ impl From<bool> for ObjMappingKind {
     }
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Serialize, Deserialize)]
 struct PixelInfo {
     color: Color,
     priority: u8,
 }
 
+#[serde_as]
+#[derive(Serialize, Deserialize)]
 pub struct Lcd {
     /// LCD Control
     pub dispcnt: u16,
@@ -160,11 +165,19 @@ pub struct Lcd {
     /// From 0x07000000 to 0x070003FF (1kbyte)
     pub obj_attributes: Vec<u8>,
 
+    #[serde_as(as = "[[_; 240]; 160]")]
     pub buffer: [[Color; LCD_WIDTH]; LCD_HEIGHT],
+
     pixel_index: u32,
     should_draw: bool,
+
+    #[serde_as(as = "[_; 128]")]
     obj_attributes_arr: [ObjAttributes; 128],
+
+    #[serde_as(as = "[_; 32]")]
     rotation_scaling_params: [RotationScaling; 32],
+
+    #[serde_as(as = "[_; 240]")]
     sprite_pixels_scanline: [Option<PixelInfo>; LCD_WIDTH],
 }
 

@@ -1,4 +1,6 @@
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum ThumbModeAluInstruction {
     And = 0x0,
     Eor = 0x1,
@@ -43,7 +45,7 @@ impl From<u16> for ThumbModeAluInstruction {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThumbHighRegisterOperation {
     Add,
     Cmp,
