@@ -109,7 +109,7 @@ impl Arm7tdmi {
             ),
             ThumbModeAluInstruction::Lsl => {
                 let destination = rd.into();
-                // If the shift amount in 0 then the second operand is just Rd
+                // If the shift amount is 0 then the second operand is just Rd
                 let second_operand = if rs == 0 {
                     self.registers.register_at(destination)
                 } else {
@@ -127,7 +127,7 @@ impl Arm7tdmi {
             }
             ThumbModeAluInstruction::Lsr => {
                 let destination = rd.into();
-                // If the shift amount in 0 then the second operand is just Rd
+                // If the shift amount is 0 then the second operand is just Rd
                 let second_operand = if rs == 0 {
                     self.registers.register_at(destination)
                 } else {
