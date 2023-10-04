@@ -39,8 +39,6 @@ impl GbaDisplay {
             .lock()
             .unwrap()
             .cpu
-            .lock()
-            .unwrap()
             .bus
             .lcd
             .buffer
