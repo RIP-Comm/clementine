@@ -270,7 +270,13 @@ impl Arm7tdmi {
                 self.registers.set_register_at(rd, value as u32);
             }
             (LoadStoreKind::Load, ReadWriteKind::Word) => {
-                let value = self.bus.read_word(address);
+                // From documentation: An address offset from a word boundary will cause the data to be rotated
+                // into the register so that the addressed byte occupies bits 0 to 7.
+                // So if the last 2 bits of the address are 01, we still word-align the address but the byte 1 of the
+                // read word will be in the lower 0-7 bits of the register. That's why we rotate it.
+                let rotation = ((address & 0b11) * 8) as u32;
+
+                let value = self.bus.read_word(address).rotate_right(rotation);
                 self.registers.set_register_at(rd, value);
             }
         };

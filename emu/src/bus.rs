@@ -813,7 +813,7 @@ impl Bus {
         }
     }
 
-    pub fn read_word(&mut self, address: usize) -> u32 {
+    pub fn read_word(&mut self, mut address: usize) -> u32 {
         // TODO: here we have to see how many times to wait for the waitcycles
         // It depends on the bus width of the memory region
         // Right now we're assuming that every region has a bus width of 32 bits
@@ -829,6 +829,7 @@ impl Bus {
 
         if address & 3 != 0 {
             log("warning, read_word has address not word aligned");
+            address &= !3;
         }
 
         let part_0: u32 = self.read_raw(address).into();
