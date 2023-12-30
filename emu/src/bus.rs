@@ -840,7 +840,7 @@ impl Bus {
         part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0
     }
 
-    pub fn write_word(&mut self, address: usize, value: u32) {
+    pub fn write_word(&mut self, mut address: usize, value: u32) {
         // TODO: Look at read_word
         for _ in 0..self.get_wait_cycles(address) {
             self.step();
@@ -850,6 +850,7 @@ impl Bus {
 
         if address & 3 != 0 {
             log("warning, write_word has address not word aligned");
+            address &= !3;
         }
 
         let part_0: u8 = value.get_bits(0..=7).try_into().unwrap();
