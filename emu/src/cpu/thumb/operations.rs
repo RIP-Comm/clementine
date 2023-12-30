@@ -12,10 +12,9 @@ pub const SIZE_OF_INSTRUCTION: u32 = 2;
 
 impl Arm7tdmi {
     pub fn move_shifted_reg(&mut self, op: ShiftKind, offset5: u16, rs: u16, rd: u16) {
-        let source = self.registers.register_at(rs.try_into().unwrap());
+        let source = self.registers.register_at(rs.into());
         let r = shift(op, offset5.into(), source, self.cpsr.carry_flag());
-        self.registers
-            .set_register_at(rd.try_into().unwrap(), r.result);
+        self.registers.set_register_at(rd.into(), r.result);
 
         self.cpsr.set_carry_flag(r.carry);
         self.cpsr.set_zero_flag(r.result == 0);
@@ -30,10 +29,10 @@ impl Arm7tdmi {
         rs: u16,
         rd: u16,
     ) {
-        let rs = self.registers.register_at(rs.try_into().unwrap());
+        let rs = self.registers.register_at(rs.into());
         let offset = match operation_kind {
             OperandKind::Immediate => rn_offset3 as u32,
-            OperandKind::Register => self.registers.register_at(rn_offset3.try_into().unwrap()),
+            OperandKind::Register => self.registers.register_at(rn_offset3.into()),
         };
 
         match op {
@@ -56,7 +55,7 @@ impl Arm7tdmi {
     }
 
     pub fn move_compare_add_sub_imm(&mut self, op: Operation, r_destination: u16, offset: u32) {
-        let dest = r_destination.try_into().unwrap();
+        let dest = r_destination.into();
         match op {
             Operation::Mov => {
                 self.registers.set_register_at(dest, offset);
@@ -93,20 +92,14 @@ impl Arm7tdmi {
     }
 
     pub fn alu_op(&mut self, op: ThumbModeAluInstruction, rs: u16, rd: u16) {
-        let rs = self.registers.register_at(rs.try_into().unwrap());
+        let rs = self.registers.register_at(rs.into());
         match op {
-            ThumbModeAluInstruction::And => self.and(
-                rd.into(),
-                self.registers.register_at(rd.try_into().unwrap()),
-                rs,
-                true,
-            ),
-            ThumbModeAluInstruction::Eor => self.eor(
-                rd.into(),
-                self.registers.register_at(rd.try_into().unwrap()),
-                rs,
-                true,
-            ),
+            ThumbModeAluInstruction::And => {
+                self.and(rd.into(), self.registers.register_at(rd.into()), rs, true)
+            }
+            ThumbModeAluInstruction::Eor => {
+                self.eor(rd.into(), self.registers.register_at(rd.into()), rs, true)
+            }
             ThumbModeAluInstruction::Lsl => {
                 let destination = rd.into();
                 // If the shift amount is 0 then the second operand is just Rd
@@ -164,40 +157,31 @@ impl Arm7tdmi {
             ThumbModeAluInstruction::Adc => todo!(),
             ThumbModeAluInstruction::Sbc => todo!(),
             ThumbModeAluInstruction::Ror => {
-                self.ror(rd.try_into().unwrap(), rs);
+                self.ror(rd.into(), rs);
             }
-            ThumbModeAluInstruction::Tst => {
-                self.tst(self.registers.register_at(rd.try_into().unwrap()), rs)
-            }
+            ThumbModeAluInstruction::Tst => self.tst(self.registers.register_at(rd.into()), rs),
             ThumbModeAluInstruction::Neg => {
-                self.neg(rd.try_into().unwrap(), rs);
+                self.neg(rd.into(), rs);
             }
-            ThumbModeAluInstruction::Cmp => {
-                self.cmp(self.registers.register_at(rd.try_into().unwrap()), rs)
-            }
+            ThumbModeAluInstruction::Cmp => self.cmp(self.registers.register_at(rd.into()), rs),
             ThumbModeAluInstruction::Cmn => {
-                let op1 = self.registers.register_at(rd.try_into().unwrap());
+                let op1 = self.registers.register_at(rd.into());
                 let op2 = rs;
                 self.cmn(op1, op2);
             }
-            ThumbModeAluInstruction::Orr => self.orr(
-                rd.into(),
-                self.registers.register_at(rd.try_into().unwrap()),
-                rs,
-                true,
-            ),
-            ThumbModeAluInstruction::Mul => self.thumb_mul(
-                rd.into(),
-                rs,
-                self.registers.register_at(rd.try_into().unwrap()),
-            ),
+            ThumbModeAluInstruction::Orr => {
+                self.orr(rd.into(), self.registers.register_at(rd.into()), rs, true)
+            }
+            ThumbModeAluInstruction::Mul => {
+                self.thumb_mul(rd.into(), rs, self.registers.register_at(rd.into()))
+            }
             ThumbModeAluInstruction::Bic => {
                 let op1 = self.registers.register_at(rd.into());
 
                 self.bic(rd.into(), op1, rs, true);
             }
             ThumbModeAluInstruction::Mvn => {
-                self.mvn(rd.try_into().unwrap(), rs, true);
+                self.mvn(rd.into(), rs, true);
             }
         }
     }
@@ -251,7 +235,7 @@ impl Arm7tdmi {
         pc.set_bit_off(0);
         let address = pc.wrapping_add(immediate_value as u32) as usize;
         let value = self.bus.read_word(address);
-        let dest = r_destination.try_into().unwrap();
+        let dest = r_destination.into();
         self.registers.set_register_at(dest, value);
     }
 
@@ -263,14 +247,10 @@ impl Arm7tdmi {
         base_register: u16,
         source_destination_register: u16,
     ) {
-        let ro = self
-            .registers
-            .register_at(offset_register.try_into().unwrap());
-        let rb = self
-            .registers
-            .register_at(base_register.try_into().unwrap());
+        let ro = self.registers.register_at(offset_register.into());
+        let rb = self.registers.register_at(base_register.into());
         let address: usize = rb.wrapping_add(ro).try_into().unwrap();
-        let rd: usize = source_destination_register.try_into().unwrap();
+        let rd: usize = source_destination_register.into();
 
         match (load_store, byte_word) {
             (LoadStoreKind::Store, ReadWriteKind::Byte) => {
@@ -350,9 +330,9 @@ impl Arm7tdmi {
             };
 
         let rb = op_code.get_bits(3..=5);
-        let rd = op_code.get_bits(0..=2).try_into().unwrap();
+        let rd = op_code.get_bits(0..=2).into();
 
-        let base = self.registers.register_at(rb.try_into().unwrap());
+        let base = self.registers.register_at(rb.into());
         let address = base.wrapping_add(offset).try_into().unwrap();
 
         match (load_store, byte_word) {
@@ -382,9 +362,7 @@ impl Arm7tdmi {
         base_register: u16,
         source_destination_register: u16,
     ) {
-        let rb = self
-            .registers
-            .register_at(base_register.try_into().unwrap());
+        let rb = self.registers.register_at(base_register.into());
         let address: usize = rb.wrapping_add(offset as u32).try_into().unwrap();
 
         match load_store {
@@ -413,7 +391,7 @@ impl Arm7tdmi {
     ) {
         let address = self.registers.register_at(REG_SP) + (word8 as u32);
 
-        let rd = r_destination.try_into().unwrap();
+        let rd = r_destination.into();
         match load_store {
             LoadStoreKind::Load => {
                 self.registers
@@ -479,7 +457,7 @@ impl Arm7tdmi {
                 for r in 0..=7 {
                     if register_list.get_bit(r) {
                         self.registers.set_register_at(
-                            r.try_into().unwrap(),
+                            r.into(),
                             self.bus.read_word(reg_sp.try_into().unwrap()),
                         );
 

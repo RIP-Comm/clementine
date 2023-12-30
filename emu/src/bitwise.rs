@@ -83,7 +83,7 @@ where
     /// Return false whenever there is a least one bit which is set to 0, true otherwise.
     /// When all bits are set to 1, the if statement fails and true is returned.
     fn are_bits_on(&self, bits_range: RangeInclusive<u8>) -> bool {
-        for (_, bit_index) in bits_range.enumerate() {
+        for bit_index in bits_range {
             if self.is_bit_off(bit_index) {
                 return false;
             }
