@@ -327,7 +327,7 @@ impl Arm7tdmi {
         }
     }
 
-    fn sbc(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
+    pub fn sbc(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
         let carry: u32 = self.cpsr.carry_flag().into();
 
         let first_op_result = Self::sub_inner_op(rn, op2);

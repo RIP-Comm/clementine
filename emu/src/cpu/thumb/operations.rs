@@ -154,8 +154,12 @@ impl Arm7tdmi {
 
                 self.mov(destination, second_operand, true);
             }
-            ThumbModeAluInstruction::Adc => self.adc(rd.into(), self.registers.register_at(rd.into()), rs, true),
-            ThumbModeAluInstruction::Sbc => todo!(),
+            ThumbModeAluInstruction::Adc => {
+                self.adc(rd.into(), self.registers.register_at(rd.into()), rs, true)
+            }
+            ThumbModeAluInstruction::Sbc => {
+                self.sbc(rd.into(), self.registers.register_at(rd.into()), rs, true)
+            }
             ThumbModeAluInstruction::Ror => {
                 self.ror(rd.into(), rs);
             }
