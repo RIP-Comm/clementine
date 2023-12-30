@@ -141,11 +141,17 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
                     ..Default::default()
                 },
                 // LSR#1..32: Normal right logical shift
-                1..=32 => ArithmeticOpResult {
-                    result: rm >> shift_amount,
-                    carry: rm.get_bit((shift_amount - 1).try_into().unwrap()),
-                    ..Default::default()
-                },
+                1..=32 => {
+                    // We do the shift in u64 for the same reason as above.
+                    let rm = rm as u64;
+                    let result = (rm >> shift_amount) as u32;
+
+                    ArithmeticOpResult {
+                        result,
+                        carry: rm.get_bit((shift_amount - 1).try_into().unwrap()),
+                        ..Default::default()
+                    }
+                }
                 _ => ArithmeticOpResult {
                     result: 0,
                     carry: false,
@@ -195,8 +201,8 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
 
                 // ROR#1..31: normal rotate right
                 1..=31 => ArithmeticOpResult {
-                    result: rm.rotate_right(shift_amount),
-                    carry: rm.get_bit((shift_amount - 1).try_into().unwrap()),
+                    result: rm.rotate_right(new_shift_amount),
+                    carry: rm.get_bit((new_shift_amount - 1).try_into().unwrap()),
                     ..Default::default()
                 },
 
