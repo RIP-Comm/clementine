@@ -432,7 +432,7 @@ impl Arm7tdmi {
             stack_pointer.wrapping_add(offset)
         } else {
             let mut pc = self.registers.program_counter() as u32;
-            pc.set_bit_off(0);
+            pc.set_bit_off(1);
             pc.wrapping_add(offset)
         };
 
