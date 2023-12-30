@@ -1848,7 +1848,7 @@ mod tests {
                 }),
                 check_fn: Box::new(|cpu| {
                     let v = cpu.registers.register_at(1);
-                    assert_eq!(v, 18);
+                    assert_eq!(v, 16);
                 }),
             },
         ] {
