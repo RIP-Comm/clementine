@@ -831,10 +831,10 @@ impl Bus {
             log("warning, read_word has address not word aligned");
         }
 
-        let part_0: u32 = self.read_raw(address).try_into().unwrap();
-        let part_1: u32 = self.read_raw(address + 1).try_into().unwrap();
-        let part_2: u32 = self.read_raw(address + 2).try_into().unwrap();
-        let part_3: u32 = self.read_raw(address + 3).try_into().unwrap();
+        let part_0: u32 = self.read_raw(address).into();
+        let part_1: u32 = self.read_raw(address + 1).into();
+        let part_2: u32 = self.read_raw(address + 2).into();
+        let part_3: u32 = self.read_raw(address + 3).into();
 
         part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0
     }
@@ -874,8 +874,8 @@ impl Bus {
             log("warning, read_half_word has address not half-word aligned");
         }
 
-        let part_0: u16 = self.read_raw(address).try_into().unwrap();
-        let part_1: u16 = self.read_raw(address + 1).try_into().unwrap();
+        let part_0: u16 = self.read_raw(address).into();
+        let part_1: u16 = self.read_raw(address + 1).into();
 
         part_1 << 8 | part_0
     }

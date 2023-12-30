@@ -113,7 +113,9 @@ where
 {
     let _ = data;
     #[cfg(feature = "logger")]
-    LOGGER.get().map_or((), |logger| logger.log(data));
+    if let Some(logger) = LOGGER.get() {
+        logger.log(data)
+    }
 }
 
 #[cfg(feature = "logger")]
