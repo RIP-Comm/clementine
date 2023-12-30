@@ -926,11 +926,11 @@ mod tests {
         {
             // Immediate offset, pre-index, down, no wb, load, unsigned halfword
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_000_1_0_1_0_1_0000_0001_0001_1_01_1_1111;
+            let op_code = 0b1110_000_1_0_1_0_1_0000_0001_0001_1_01_1_1100;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_word(100 - 0b11111, 0xFFFF1234);
+            cpu.bus.write_word(100 - 0b11100, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
@@ -940,30 +940,30 @@ mod tests {
         {
             // Immediate offset, pre-index, down, wb, load, unsigned halfword
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_000_1_0_1_1_1_0000_0001_0001_1_01_1_1111;
+            let op_code = 0b1110_000_1_0_1_1_1_0000_0001_0001_1_01_1_1100;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_word(100 - 0b11111, 0xFFFF1234);
+            cpu.bus.write_word(100 - 0b11100, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 0x1234);
-            assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
+            assert_eq!(cpu.registers.register_at(0), 100 - 0b11100);
         }
         {
             // Immediate offset, pre-index, up, wb, load, unsigned halfword
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_000_1_1_1_1_1_0000_0001_0001_1_01_1_1111;
+            let op_code = 0b1110_000_1_1_1_1_1_0000_0001_0001_1_01_1_1100;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_word(100 + 0b11111, 0xFFFF1234);
+            cpu.bus.write_word(100 + 0b11100, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 0x1234);
-            assert_eq!(cpu.registers.register_at(0), 100 + 0b11111);
+            assert_eq!(cpu.registers.register_at(0), 100 + 0b11100);
         }
         {
             // Immediate offset, post-index, down, no wb (but implicit), load, unsigned halfword
@@ -1038,14 +1038,14 @@ mod tests {
         {
             // Immediate offset, pre-index, down, no wb, store PC, unsigned halfword, base PC
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_000_1_0_1_0_0_1111_1111_0001_1_01_1_1111;
+            let op_code = 0b1110_000_1_0_1_0_0_1111_1111_0001_1_01_1_1100;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.registers.set_program_counter(500);
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.bus.read_word(500 - 0b11111), 504);
+            assert_eq!(cpu.bus.read_word(500 - 0b11100), 504);
             assert_eq!(cpu.registers.program_counter(), 500);
         }
         {
@@ -1153,12 +1153,29 @@ mod tests {
                 ThumbModeInstruction::LoadStoreImmOffset
             );
 
+            cpu.registers.set_register_at(7, 4);
+            cpu.registers.set_register_at(0, 0xFFFFFFFF);
+            cpu.execute_thumb(op_code);
+
+            let mut bus = cpu.bus;
+            assert_eq!(bus.read_word(56), 0xFFFFFFFF);
+        }
+        {
+            // Store Word misaligned
+            let op_code = 0b0110_0011_0111_1000;
+            let mut cpu = Arm7tdmi::default();
+            let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ThumbModeInstruction::LoadStoreImmOffset
+            );
+
             cpu.registers.set_register_at(7, 2);
             cpu.registers.set_register_at(0, 0xFFFFFFFF);
             cpu.execute_thumb(op_code);
 
             let mut bus = cpu.bus;
-            assert_eq!(bus.read_word(54), 0xFFFFFFFF);
+            assert_eq!(bus.read_word(52), 0xFFFFFFFF);
         }
         {
             // Load Word

@@ -2517,7 +2517,7 @@ mod tests {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "STR R1, #0");
             }
-            cpu.registers.set_register_at(1, 16843009);
+            cpu.registers.set_register_at(1, 16843008);
 
             // because in this specific case address will be
             // then will be 0x03000050 + 8 (.wrapping_sub(offset))
@@ -2527,10 +2527,10 @@ mod tests {
 
             let bus = cpu.bus;
 
-            assert_eq!(bus.read_raw(0x01010101), 1);
-            assert_eq!(bus.read_raw(0x01010101 + 1), 1);
-            assert_eq!(bus.read_raw(0x01010101 + 2), 1);
-            assert_eq!(bus.read_raw(0x01010101 + 3), 1);
+            assert_eq!(bus.read_raw(0x01010100), 0);
+            assert_eq!(bus.read_raw(0x01010100 + 1), 1);
+            assert_eq!(bus.read_raw(0x01010100 + 2), 1);
+            assert_eq!(bus.read_raw(0x01010100 + 3), 1);
             assert_eq!(cpu.registers.program_counter(), 0x03000050);
         }
         {
