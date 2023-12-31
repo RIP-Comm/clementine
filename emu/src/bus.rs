@@ -864,7 +864,7 @@ impl Bus {
         self.write_raw(address + 3, part_3);
     }
 
-    pub fn read_half_word(&mut self, address: usize) -> u16 {
+    pub fn read_half_word(&mut self, mut address: usize) -> u16 {
         // TODO: Look at read_word
         for _ in 0..self.get_wait_cycles(address) {
             self.step();
@@ -874,6 +874,7 @@ impl Bus {
 
         if address & 1 != 0 {
             log("warning, read_half_word has address not half-word aligned");
+            address &= !1;
         }
 
         let part_0: u16 = self.read_raw(address).into();
@@ -882,7 +883,7 @@ impl Bus {
         part_1 << 8 | part_0
     }
 
-    pub fn write_half_word(&mut self, address: usize, value: u16) {
+    pub fn write_half_word(&mut self, mut address: usize, value: u16) {
         // TODO: Look at read_word
         for _ in 0..self.get_wait_cycles(address) {
             self.step();
@@ -892,6 +893,7 @@ impl Bus {
 
         if address & 1 != 0 {
             log("warning, write_half_word has address not half-word aligned");
+            address &= !1;
         }
 
         let part_0: u8 = value.get_bits(0..=7).try_into().unwrap();
