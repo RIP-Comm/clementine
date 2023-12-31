@@ -294,6 +294,12 @@ impl Arm7tdmi {
         let base = self.registers.register_at(r_base.try_into().unwrap());
         let address: usize = base.wrapping_add(offset).try_into().unwrap();
 
+        // Misaligned reads are unsupported in ARMv4.
+        // When reading an half-word from a misaligned halfword address (even address)
+        // the CPU will read at the aligned halfword address and will put the selected
+        // byte to the lower byte of the address. That's why we rotate right by 8 if the lowest
+        // in the address is 1.
+
         match (sign_extend_flag, h_flag) {
             // Store halfword
             (false, false) => {
@@ -305,10 +311,12 @@ impl Arm7tdmi {
             }
             // Load halfword
             (false, true) => {
-                let value = self.bus.read_half_word(address);
+                let rotation = ((address & 0b1) * 8) as u32;
+
+                let value = (self.bus.read_half_word(address) as u32).rotate_right(rotation);
 
                 self.registers
-                    .set_register_at(r_destination.try_into().unwrap(), value as u32);
+                    .set_register_at(r_destination.try_into().unwrap(), value);
             }
             // Load sign-extended byte
             (true, false) => {
@@ -320,8 +328,15 @@ impl Arm7tdmi {
             }
             // Load sign-extended halfword
             (true, true) => {
-                let mut value = self.bus.read_half_word(address) as u32;
-                value = value.sign_extended(16);
+                let rotation = ((address & 0b1) * 8) as u32;
+                let mut value = (self.bus.read_half_word(address) as u32).rotate_right(rotation);
+                let is_halfword_aligned: bool = address & 0b1 == 0;
+
+                // If the address is halfword aligned then we didn't rotate it so we can extend the entire 16 bits.
+                // If the address was not halfword aligned we rotated it so that the selected halfword in now
+                // in the lower 8 bits. We should extend only these 8 bits, making this operation equal to
+                // a Load sign-extended Byte.
+                value = value.sign_extended(if is_halfword_aligned { 16 } else { 8 });
 
                 self.registers
                     .set_register_at(r_destination.try_into().unwrap(), value);
