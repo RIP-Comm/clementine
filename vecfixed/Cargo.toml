@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dev-dependencies]
-criterion = { version = "0.5.0" }
+criterion = { version = "0.5.1" }
 
 [[bench]]
 name = "vector_fixed"
 harness = false
 
 [dependencies]
-serde = "1.0.188"
+serde = "1.0.193"

@@ -88,7 +88,6 @@ impl eframe::App for ClementineApp {
             .resizable(false)
             .default_width(200.0)
             .show(ctx, |ui| {
-                egui::trace!(ui);
                 ui.vertical_centered(|ui| {
                     ui.heading("✒ Clementine Tools");
                 });
