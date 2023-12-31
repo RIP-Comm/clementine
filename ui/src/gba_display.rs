@@ -1,4 +1,4 @@
-use egui::{self, ColorImage, Ui, Vec2};
+use egui::{self, ColorImage, Ui};
 
 use eframe::epaint::textures::TextureOptions;
 use std::sync::{Arc, Mutex};
@@ -59,11 +59,7 @@ impl GbaDisplay {
             .ctx()
             .load_texture("gba_display", image, TextureOptions::NEAREST);
 
-        let size = Vec2::new(
-            texture.size_vec2().x * self.scale,
-            texture.size_vec2().y * self.scale,
-        );
-        ui.image(texture.id(), size);
+        ui.image(&texture);
     }
 }
 
