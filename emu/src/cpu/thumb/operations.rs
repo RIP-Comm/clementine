@@ -238,7 +238,7 @@ impl Arm7tdmi {
         pc.set_bit_off(1);
         pc.set_bit_off(0);
         let address = pc.wrapping_add(immediate_value as u32) as usize;
-        let value = self.bus.read_word(address);
+        let value = self.read_word(address);
         let dest = r_destination.into();
         self.registers.set_register_at(dest, value);
     }
@@ -270,13 +270,7 @@ impl Arm7tdmi {
                 self.registers.set_register_at(rd, value as u32);
             }
             (LoadStoreKind::Load, ReadWriteKind::Word) => {
-                // From documentation: An address offset from a word boundary will cause the data to be rotated
-                // into the register so that the addressed byte occupies bits 0 to 7.
-                // So if the last 2 bits of the address are 01, we still word-align the address but the byte 1 of the
-                // read word will be in the lower 0-7 bits of the register. That's why we rotate it.
-                let rotation = ((address & 0b11) * 8) as u32;
-
-                let value = self.bus.read_word(address).rotate_right(rotation);
+                let value = self.read_word(address);
                 self.registers.set_register_at(rd, value);
             }
         };
@@ -294,12 +288,6 @@ impl Arm7tdmi {
         let base = self.registers.register_at(r_base.try_into().unwrap());
         let address: usize = base.wrapping_add(offset).try_into().unwrap();
 
-        // Misaligned reads are unsupported in ARMv4.
-        // When reading an half-word from a misaligned halfword address (even address)
-        // the CPU will read at the aligned halfword address and will put the selected
-        // byte to the lower byte of the address. That's why we rotate right by 8 if the lowest
-        // in the address is 1.
-
         match (sign_extend_flag, h_flag) {
             // Store halfword
             (false, false) => {
@@ -309,11 +297,9 @@ impl Arm7tdmi {
 
                 self.bus.write_half_word(address, value as u16);
             }
-            // Load halfword
-            (false, true) => {
-                let rotation = ((address & 0b1) * 8) as u32;
-
-                let value = (self.bus.read_half_word(address) as u32).rotate_right(rotation);
+            // Load halfword/sign-extended halfword
+            (_, true) => {
+                let value = self.read_half_word(address, sign_extend_flag);
 
                 self.registers
                     .set_register_at(r_destination.try_into().unwrap(), value);
@@ -322,21 +308,6 @@ impl Arm7tdmi {
             (true, false) => {
                 let mut value = self.bus.read_byte(address) as u32;
                 value = value.sign_extended(8);
-
-                self.registers
-                    .set_register_at(r_destination.try_into().unwrap(), value);
-            }
-            // Load sign-extended halfword
-            (true, true) => {
-                let rotation = ((address & 0b1) * 8) as u32;
-                let mut value = (self.bus.read_half_word(address) as u32).rotate_right(rotation);
-                let is_halfword_aligned: bool = address & 0b1 == 0;
-
-                // If the address is halfword aligned then we didn't rotate it so we can extend the entire 16 bits.
-                // If the address was not halfword aligned we rotated it so that the selected halfword in now
-                // in the lower 8 bits. We should extend only these 8 bits, making this operation equal to
-                // a Load sign-extended Byte.
-                value = value.sign_extended(if is_halfword_aligned { 16 } else { 8 });
 
                 self.registers
                     .set_register_at(r_destination.try_into().unwrap(), value);
@@ -370,7 +341,7 @@ impl Arm7tdmi {
                 self.bus.write_byte(address, v as u8)
             }
             (LoadStoreKind::Load, ReadWriteKind::Word) => {
-                let v = self.bus.read_word(address);
+                let v = self.read_word(address);
                 self.registers.set_register_at(rd, v);
             }
             (LoadStoreKind::Load, ReadWriteKind::Byte) => {
@@ -392,10 +363,10 @@ impl Arm7tdmi {
 
         match load_store {
             LoadStoreKind::Load => {
-                self.registers.set_register_at(
-                    source_destination_register as usize,
-                    self.bus.read_half_word(address) as u32,
-                );
+                let value = self.read_half_word(address, false);
+
+                self.registers
+                    .set_register_at(source_destination_register as usize, value);
             }
             LoadStoreKind::Store => {
                 self.bus.write_half_word(
@@ -419,8 +390,9 @@ impl Arm7tdmi {
         let rd = r_destination.into();
         match load_store {
             LoadStoreKind::Load => {
-                self.registers
-                    .set_register_at(rd, self.bus.read_word(address.try_into().unwrap()));
+                let value = self.read_word(address.try_into().unwrap());
+
+                self.registers.set_register_at(rd, value);
             }
             LoadStoreKind::Store => {
                 self.bus
@@ -481,18 +453,17 @@ impl Arm7tdmi {
             LoadStoreKind::Load => {
                 for r in 0..=7 {
                     if register_list.get_bit(r) {
-                        self.registers.set_register_at(
-                            r.into(),
-                            self.bus.read_word(reg_sp.try_into().unwrap()),
-                        );
+                        let value = self.read_word(reg_sp.try_into().unwrap());
+
+                        self.registers.set_register_at(r.into(), value);
 
                         reg_sp += 4;
                     }
                 }
 
                 if pc_lr {
-                    self.registers
-                        .set_program_counter(self.bus.read_word(reg_sp.try_into().unwrap()));
+                    let value = self.read_word(reg_sp.try_into().unwrap());
+                    self.registers.set_program_counter(value);
 
                     reg_sp += 4;
                 }
@@ -528,7 +499,7 @@ impl Arm7tdmi {
             LoadStoreKind::Load => {
                 for r in 0..=7 {
                     if register_list.get_bit(r) {
-                        let value = self.bus.read_word(address as usize);
+                        let value = self.read_word(address as usize);
                         self.registers.set_register_at(r as usize, value);
 
                         address += 4;

@@ -644,6 +644,38 @@ impl Arm7tdmi {
 
         self.cpsr.set_mode(new_mode);
     }
+
+    pub fn read_half_word(&mut self, address: usize, sign_extended: bool) -> u32 {
+        // Misaligned reads are unsupported in ARMv4.
+        // When reading an half-word from a misaligned halfword address (even address)
+        // the CPU will read at the aligned halfword address and will put the selected
+        // byte to the lower byte of the address. That's why we rotate right by 8 if the lowest
+        // in the address is 1.
+
+        let rotation = ((address & 0b1) * 8) as u32;
+        let mut value = (self.bus.read_half_word(address) as u32).rotate_right(rotation);
+
+        if sign_extended {
+            let is_halfword_aligned: bool = address & 0b1 == 0;
+
+            // If the address is halfword aligned then we didn't rotate it so we can extend the entire 16 bits.
+            // If the address was not halfword aligned we rotated it so that the selected halfword in now
+            // in the lower 8 bits. We should extend only these 8 bits, making this operation equal to
+            // a Load sign-extended Byte.
+            value = value.sign_extended(if is_halfword_aligned { 16 } else { 8 });
+        }
+
+        value
+    }
+
+    pub fn read_word(&mut self, address: usize) -> u32 {
+        // From documentation: An address offset from a word boundary will cause the data to be rotated
+        // into the register so that the addressed byte occupies bits 0 to 7.
+        // So if the last 2 bits of the address are 01, we still word-align the address but the byte 1 of the
+        // read word will be in the lower 0-7 bits of the register. That's why we rotate it.
+        let rotation = ((address & 0b11) * 8) as u32;
+        self.bus.read_word(address).rotate_right(rotation)
+    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
