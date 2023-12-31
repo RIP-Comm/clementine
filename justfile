@@ -41,3 +41,6 @@ run-logger rom:
 
 run-disassembler rom:
     @cargo run --features disassembler $1
+
+run-release rom:
+    @cargo run --release $1
