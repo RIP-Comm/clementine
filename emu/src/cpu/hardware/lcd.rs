@@ -1,19 +1,18 @@
 use logger::log;
-use object_attributes::ObjAttributes;
-use object_attributes::RotationScaling;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_with::serde_as;
 
 use crate::bitwise::Bits;
+use crate::cpu::hardware::lcd::layers::Layer;
 
-use self::object_attributes::ColorMode;
-use self::object_attributes::ObjMode;
-use self::object_attributes::ObjShape;
-use self::object_attributes::ObjSize;
-use self::object_attributes::TransformationKind;
-use self::point::Point;
+use self::layers::layer_0::Layer0;
+use self::layers::layer_1::Layer1;
+use self::layers::layer_2::Layer2;
+use self::layers::layer_3::Layer3;
+use self::layers::layer_obj::LayerObj;
 
+mod layers;
 mod object_attributes;
 mod point;
 
@@ -56,6 +55,7 @@ impl Color {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 enum ObjMappingKind {
     TwoDimensional,
     OneDimensional,
@@ -171,14 +171,11 @@ pub struct Lcd {
     pixel_index: u32,
     should_draw: bool,
 
-    #[serde_as(as = "[_; 128]")]
-    obj_attributes_arr: [ObjAttributes; 128],
-
-    #[serde_as(as = "[_; 32]")]
-    rotation_scaling_params: [RotationScaling; 32],
-
-    #[serde_as(as = "[_; 240]")]
-    sprite_pixels_scanline: [Option<PixelInfo>; LCD_WIDTH],
+    layer_0: Layer0,
+    layer_1: Layer1,
+    layer_2: Layer2,
+    layer_3: Layer3,
+    layer_obj: LayerObj,
 }
 
 impl Default for Lcd {
@@ -224,14 +221,16 @@ impl Default for Lcd {
             bldy: 0,
             bg_palette_ram: vec![0; 0x200],
             obj_palette_ram: vec![0; 0x200],
-            video_ram: vec![0; 0x00018000],
+            video_ram: vec![0; 0x18000],
             obj_attributes: vec![0; 0x400],
             pixel_index: 0,
             buffer: [[Color::default(); LCD_WIDTH]; LCD_HEIGHT],
             should_draw: false,
-            obj_attributes_arr: [ObjAttributes::default(); 128],
-            rotation_scaling_params: [RotationScaling::default(); 32],
-            sprite_pixels_scanline: [None; LCD_WIDTH],
+            layer_0: Layer0,
+            layer_1: Layer1,
+            layer_2: Layer2,
+            layer_3: Layer3,
+            layer_obj: LayerObj::default(),
         }
     }
 }
@@ -243,230 +242,6 @@ pub struct LcdStepOutput {
 }
 
 impl Lcd {
-    fn read_color_from_obj_palette(&self, color_idx: usize) -> Color {
-        let low_nibble = self.obj_palette_ram[color_idx] as u16;
-        let high_nibble = self.obj_palette_ram[color_idx + 1] as u16;
-
-        Color::from_palette_color((high_nibble << 8) | low_nibble)
-    }
-
-    fn get_texture_space_point(
-        &self,
-        sprite_size: Point<u16>,
-        pixel_screen_sprite_origin: Point<u16>,
-        transformation_kind: TransformationKind,
-        obj_mode: ObjMode,
-    ) -> Point<f64> {
-        if let object_attributes::TransformationKind::RotationScaling {
-            rotation_scaling_parameter,
-        } = transformation_kind
-        {
-            // We have to use f64 for translating/rot/scale because we might have negative values when using the pixel
-            // in the carthesian plane having the origin as the center of the sprite.
-            // We could use i16 as well but then we would still need to use f64 to apply the transformation.
-
-            // RotScale matrix
-            let rotscale_params = self.rotation_scaling_params[rotation_scaling_parameter as usize];
-            let sprite_size = sprite_size.map(|el| el as f64);
-
-            // This is the pixel coordinate in the screen space using the sprite center as origin of the reference system
-            // This is needed because the rotscale is applied taking the center of the sprite as the origin of the rotation
-            // If the sprite is in AffineDouble mode then it has double dimensions and the center is at +sprite_width/+sprite_height insted of
-            // just half ot that.
-            let pixel_screen_sprite_center = pixel_screen_sprite_origin.map(|el| el as f64)
-                - match obj_mode {
-                    ObjMode::Affine => sprite_size / 2.0,
-                    ObjMode::AffineDouble => sprite_size,
-                    _ => unreachable!(),
-                };
-
-            // Applying transformation.
-            // The result will be a pixel in the texture space which still has the center of the sprite as the origin of the reference system
-            let pixel_texture_sprite_center = pixel_screen_sprite_center * rotscale_params;
-
-            // Moving back the reference system to the origin of the sprite (top-left corner).
-            pixel_texture_sprite_center + sprite_size / 2.0
-        } else {
-            // TODO: Implement flip
-            pixel_screen_sprite_origin.map(|el| el as f64)
-        }
-    }
-
-    fn process_sprites_scanline(&mut self) {
-        self.sprite_pixels_scanline = [None; LCD_WIDTH];
-
-        let y = self.vcount;
-
-        for obj in self.obj_attributes_arr.into_iter() {
-            if matches!(
-                obj.attribute0.obj_mode,
-                object_attributes::ObjMode::Disabled
-            ) || matches!(
-                obj.attribute0.gfx_mode,
-                object_attributes::GfxMode::ObjectWindow
-            ) {
-                continue;
-            }
-
-            let (sprite_width, sprite_height) =
-                match (obj.attribute0.obj_shape, obj.attribute1.obj_size) {
-                    (ObjShape::Square, ObjSize::Size0) => (8_u8, 8_u8),
-                    (ObjShape::Horizontal, ObjSize::Size0) => (16, 8),
-                    (ObjShape::Vertical, ObjSize::Size0) => (8, 16),
-                    (ObjShape::Square, ObjSize::Size1) => (16, 16),
-                    (ObjShape::Horizontal, ObjSize::Size1) => (32, 8),
-                    (ObjShape::Vertical, ObjSize::Size1) => (8, 32),
-                    (ObjShape::Square, ObjSize::Size2) => (32, 32),
-                    (ObjShape::Horizontal, ObjSize::Size2) => (32, 16),
-                    (ObjShape::Vertical, ObjSize::Size2) => (16, 32),
-                    (ObjShape::Square, ObjSize::Size3) => (64, 64),
-                    (ObjShape::Horizontal, ObjSize::Size3) => (64, 32),
-                    (ObjShape::Vertical, ObjSize::Size3) => (32, 64),
-                };
-
-            // We can represent the size of the sprite using a point.
-            let sprite_size = Point::new(sprite_width as u16, sprite_height as u16);
-
-            // Sprite size using tiles as dimensions
-            let sprite_size_tile = sprite_size / 8;
-
-            let sprite_position = Point::new(
-                obj.attribute1.x_coordinate,
-                obj.attribute0.y_coordinate as u16,
-            );
-
-            let is_affine_double = matches!(
-                obj.attribute0.obj_mode,
-                object_attributes::ObjMode::AffineDouble
-            );
-
-            // Sprite size in screen space (takes into account double size sprites)
-            let sprite_screen_size = sprite_size * if is_affine_double { 2 } else { 1 };
-
-            for idx in 0..sprite_screen_size.x {
-                // This is the pixel coordinate in the screen space using the sprite origin (top-left corner) as origin of the reference system
-                let pixel_screen_sprite_origin =
-                    Point::new(idx, (y + WORLD_HEIGHT - sprite_position.y) % WORLD_HEIGHT);
-
-                // We check that the coordinates in the screen space are inside the sprite
-                // Taking care of the fact that if the sprite in AffineDouble it has double the dimensions
-                if pixel_screen_sprite_origin.x > sprite_screen_size.x
-                    || pixel_screen_sprite_origin.y > sprite_screen_size.y
-                {
-                    continue;
-                }
-
-                // We apply the transformation.
-                // The result is a pixel in the texture space with the origin of the sprite (top-left corner) as the origin of the reference system
-                let pixel_texture_sprite_origin = self.get_texture_space_point(
-                    sprite_size,
-                    pixel_screen_sprite_origin,
-                    obj.attribute1.transformation_kind,
-                    obj.attribute0.obj_mode,
-                );
-
-                // We check that the pixel is inside the sprite
-                if pixel_texture_sprite_origin.x < 0.0
-                    || pixel_texture_sprite_origin.y < 0.0
-                    || pixel_texture_sprite_origin.x >= sprite_size.x as f64
-                    || pixel_texture_sprite_origin.y >= sprite_size.y as f64
-                {
-                    continue;
-                }
-
-                let pixel_texture_sprite_origin = pixel_texture_sprite_origin.map(|el| el as u16);
-
-                // Pixel in texture space using tiles as dimensions
-                let pixel_texture_tile = pixel_texture_sprite_origin / 8;
-
-                // Offset of the pixel inside the tile
-                let y_tile_idx = pixel_texture_sprite_origin.y % 8;
-                let x_tile_idx = pixel_texture_sprite_origin.x % 8;
-
-                let color_offset = match obj.attribute0.color_mode {
-                    ColorMode::Palette8bpp => {
-                        // We multiply *2 because in 8bpp tiles indeces are always even
-                        let tile_number = obj.attribute2.tile_number
-                            + match self.get_obj_character_vram_mapping() {
-                                ObjMappingKind::OneDimensional => {
-                                    // In this case memory is seen as a single array.
-                                    // tile_number is the offset of the first tile in memory.
-                                    // then we access [y][x] by doing y*number_cols + x, as if we were to access an array as a matrix
-                                    pixel_texture_tile.y * sprite_size_tile.x * 2
-                                        + pixel_texture_tile.x * 2
-                                }
-                                ObjMappingKind::TwoDimensional => {
-                                    // A charblock is 32x32 tiles
-                                    pixel_texture_tile.y * 32 + pixel_texture_tile.x * 2
-                                }
-                            };
-
-                        // A tile is 8x8 mini-bitmap.
-                        // A tile is 64bytes long in 8bpp.
-                        let palette_offset =
-                            tile_number as u32 * 32 + y_tile_idx as u32 * 8 + x_tile_idx as u32;
-
-                        // TODO: Move 0x10000 to a variable. It is the offset where OBJ VRAM starts in vram
-                        self.video_ram[0x10000 + palette_offset as usize]
-                    }
-                    ColorMode::Palette4bpp => {
-                        let tile_number = obj.attribute2.tile_number
-                            + match self.get_obj_character_vram_mapping() {
-                                ObjMappingKind::OneDimensional => {
-                                    // In this case memory is seen as a single array.
-                                    // tile_number is the offset of the first tile in memory.
-                                    // then we access [y][x] by doing y*number_cols + x, as if we were to access an array as a matrix
-                                    pixel_texture_tile.y * sprite_size_tile.x + pixel_texture_tile.x
-                                }
-                                ObjMappingKind::TwoDimensional => {
-                                    // A charblock is 32x32 tiles
-                                    obj.attribute2.tile_number
-                                        + pixel_texture_tile.y * 32
-                                        + pixel_texture_tile.x
-                                }
-                            };
-
-                        // A tile is 32bytes long in 4bpp.
-                        let tile_data = tile_number * 32 + y_tile_idx * 4 + x_tile_idx / 2;
-
-                        let palette_offset_low = if tile_data % 2 == 0 {
-                            tile_data.get_bits(0..=3)
-                        } else {
-                            tile_data.get_bits(4..=7)
-                        };
-
-                        let palette_offset =
-                            (obj.attribute2.palette_number << 4) | (palette_offset_low as u8);
-                        self.video_ram[0x10000 + palette_offset as usize]
-                    }
-                };
-
-                let x_screen = sprite_position.x + idx;
-
-                if x_screen >= self.sprite_pixels_scanline.len() as u16 {
-                    continue;
-                }
-
-                let get_pixel_info_closure = || PixelInfo {
-                    color: self.read_color_from_obj_palette(color_offset as usize),
-                    priority: obj.attribute2.priority,
-                };
-
-                self.sprite_pixels_scanline[x_screen as usize] =
-                    Some(self.sprite_pixels_scanline[x_screen as usize].map_or_else(
-                        get_pixel_info_closure,
-                        |current_pixel_info| {
-                            if current_pixel_info.priority >= obj.attribute2.priority {
-                                get_pixel_info_closure()
-                            } else {
-                                current_pixel_info
-                            }
-                        },
-                    ));
-            }
-        }
-    }
-
     pub fn step(&mut self) -> LcdStepOutput {
         // This will be much more complex obviously
         let mut output = LcdStepOutput::default();
@@ -481,9 +256,14 @@ impl Lcd {
 
                 self.should_draw = true;
 
-                (self.obj_attributes_arr, self.rotation_scaling_params) =
-                    object_attributes::get_attributes(self.obj_attributes.as_slice());
-                self.process_sprites_scanline();
+                // Cache attributes and scanline
+                self.layer_obj.handle_enter_vdraw(
+                    self.vcount,
+                    self.get_obj_character_vram_mapping(),
+                    self.video_ram.as_ref(),
+                    self.obj_attributes.as_ref(),
+                    self.obj_palette_ram.as_ref(),
+                );
             } else if self.pixel_index == 240 {
                 // We're entering Hblank
 
@@ -511,16 +291,21 @@ impl Lcd {
             let pixel_y = self.vcount;
             let pixel_x = self.pixel_index;
 
-            self.buffer[pixel_y as usize][pixel_x as usize] = self.sprite_pixels_scanline
-                [pixel_x as usize]
-                .map_or_else(|| Color::from_rgb(31, 31, 31), |info| info.color);
+            self.buffer[pixel_y as usize][pixel_x as usize] = self
+                .layer_obj
+                .render(pixel_x as usize, pixel_y as usize)
+                .unwrap_or_else(|| Color::from_rgb(31, 31, 31));
         }
 
         log(format!(
-            "mode: {:?}, BG2: {:?} BG3: {:?}",
+            "mode: {:?}, BG2: {:?} BG3: {:?}, OBJ: {:?}, WIN0: {:?}, WIN1: {:?}, WINOJB: {:?}",
             self.get_bg_mode(),
             self.get_bg2_enabled(),
-            self.get_bg3_enabled()
+            self.get_bg3_enabled(),
+            self.get_obj_enabled(),
+            self.get_win0_enabled(),
+            self.get_win1_enabled(),
+            self.get_winobj_enabled(),
         ));
 
         self.pixel_index += 1;
@@ -555,6 +340,22 @@ impl Lcd {
 
     fn get_bg3_enabled(&self) -> bool {
         self.dispcnt.get_bit(11)
+    }
+
+    fn get_obj_enabled(&self) -> bool {
+        self.dispcnt.get_bit(12)
+    }
+
+    fn get_win0_enabled(&self) -> bool {
+        self.dispcnt.get_bit(13)
+    }
+
+    fn get_win1_enabled(&self) -> bool {
+        self.dispcnt.get_bit(14)
+    }
+
+    fn get_winobj_enabled(&self) -> bool {
+        self.dispcnt.get_bit(15)
     }
 
     /// Info about vram fields used to render display.
