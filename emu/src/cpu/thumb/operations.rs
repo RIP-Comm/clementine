@@ -4,6 +4,7 @@ use crate::cpu::arm7tdmi::Arm7tdmi;
 use crate::cpu::condition::Condition;
 use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, ShiftKind};
 use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
+use crate::cpu::thumb;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
 use crate::cpu::thumb::mode::ThumbModeOpcode;
 use std::ops::Mul;
@@ -481,15 +482,34 @@ impl Arm7tdmi {
         &mut self,
         load_store: LoadStoreKind,
         base_register: usize,
-        register_list: u16,
+        mut register_list: u16,
     ) {
-        let mut address = self.registers.register_at(base_register);
+        // According to the documentation register list should never be empty.
+        // In reality the THUMB tests have a test for it. What happens in this case is that
+        // register list will only be composed by R15 but the write back address will be the same as if
+        // all 16 registers are present in the register list.
+
+        let base_address = self.registers.register_at(base_register);
+        let mut address = base_address;
+        let register_count = if register_list == 0 {
+            register_list = 0b1 << 15;
+            16
+        } else {
+            register_list.count_ones()
+        };
 
         match load_store {
             LoadStoreKind::Store => {
-                for r in 0..=7 {
+                for r in 0..=15 {
                     if register_list.is_bit_on(r) {
-                        let value = self.registers.register_at(r as usize);
+                        let value = self.registers.register_at(r as usize)
+                            // If we store PC we should increase it by an instruction length.
+                            + if r == 15 {
+                                thumb::operations::SIZE_OF_INSTRUCTION
+                            } else {
+                                0
+                            };
+
                         self.bus.write_word(address as usize, value);
 
                         address += 4;
@@ -497,7 +517,7 @@ impl Arm7tdmi {
                 }
             }
             LoadStoreKind::Load => {
-                for r in 0..=7 {
+                for r in 0..=15 {
                     if register_list.get_bit(r) {
                         let value = self.read_word(address as usize);
                         self.registers.set_register_at(r as usize, value);
@@ -508,7 +528,12 @@ impl Arm7tdmi {
             }
         }
 
-        self.registers.set_register_at(base_register, address);
+        self.registers
+            .set_register_at(base_register, base_address + register_count * 4);
+
+        if load_store == LoadStoreKind::Load && register_list.is_bit_on(15) {
+            self.flush_pipeline();
+        }
     }
 
     pub fn cond_branch(&mut self, condition: Condition, immediate_offset: i32) {
