@@ -500,6 +500,8 @@ impl Arm7tdmi {
 
         match load_store {
             LoadStoreKind::Store => {
+                let mut first_written = false;
+
                 for r in 0..=15 {
                     if register_list.is_bit_on(r) {
                         let value = self.registers.register_at(r as usize)
@@ -508,7 +510,16 @@ impl Arm7tdmi {
                                 thumb::operations::SIZE_OF_INSTRUCTION
                             } else {
                                 0
+                            }
+                            // If we store the base register as second register (or later) we store
+                            // the updated value as if it was already written back.
+                            + if first_written && r as usize == base_register {
+                                register_count * 4
+                            } else {
+                                0
                             };
+
+                        first_written = true;
 
                         self.bus.write_word(address as usize, value);
 
