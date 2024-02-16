@@ -109,7 +109,7 @@ impl Default for Lcd {
             should_draw: false,
             layer_0: Layer0,
             layer_1: Layer1,
-            layer_2: Layer2,
+            layer_2: Layer2::default(),
             layer_3: Layer3,
             layer_obj: LayerObj::default(),
         }
@@ -167,10 +167,27 @@ impl Lcd {
             let pixel_y = self.registers.vcount;
             let pixel_x = self.pixel_index;
 
-            self.buffer[pixel_y as usize][pixel_x as usize] = self
-                .layer_obj
-                .render(pixel_x as usize, pixel_y as usize)
-                .unwrap_or_else(|| Color::from_rgb(31, 31, 31));
+            // We get the enabled layers (depending on BG mode and registers), we call render on them
+            // we filter out the `None` and we sort by priority.
+            let mut layers_with_pixel = self
+                .get_enabled_layers()
+                .into_iter()
+                .filter_map(|layer| {
+                    layer.render(
+                        pixel_x as usize,
+                        pixel_y as usize,
+                        &self.memory,
+                        &self.registers,
+                    )
+                })
+                .collect::<Vec<PixelInfo>>();
+
+            layers_with_pixel.sort_unstable_by_key(|pixel| pixel.priority);
+
+            let first_pixel = layers_with_pixel.first();
+
+            self.buffer[pixel_y as usize][pixel_x as usize] =
+                first_pixel.map_or_else(|| Color::from_rgb(31, 31, 31), |info| info.color);
         }
 
         log(format!(
@@ -208,5 +225,34 @@ impl Lcd {
         }
 
         output
+    }
+
+    fn get_enabled_layers(&self) -> Vec<&dyn Layer> {
+        let mut result: Vec<&dyn Layer> = Vec::new();
+
+        let current_mode = self.registers.get_bg_mode();
+
+        if matches!(current_mode, 0 | 1) && self.registers.get_bg0_enabled() {
+            result.push(&self.layer_0);
+        }
+
+        if matches!(current_mode, 0 | 1) && self.registers.get_bg1_enabled() {
+            result.push(&self.layer_1)
+        }
+
+        // BG2 is available in every mode
+        if self.registers.get_bg2_enabled() {
+            result.push(&self.layer_2)
+        }
+
+        if matches!(current_mode, 0 | 2) && self.registers.get_bg3_enabled() {
+            result.push(&self.layer_3)
+        }
+
+        if self.registers.get_obj_enabled() {
+            result.push(&self.layer_obj);
+        }
+
+        result
     }
 }
