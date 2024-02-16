@@ -1,6 +1,8 @@
 use crate::cpu::hardware::lcd;
+use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::object_attributes;
 use crate::cpu::hardware::lcd::point::Point;
+use crate::cpu::hardware::lcd::registers::Registers;
 use crate::cpu::hardware::lcd::Color;
 use crate::cpu::hardware::lcd::{PixelInfo, LCD_WIDTH, WORLD_HEIGHT};
 
@@ -21,8 +23,6 @@ pub struct LayerObj {
 
     #[serde_as(as = "[_; 240]")]
     sprite_pixels_scanline: [Option<PixelInfo>; LCD_WIDTH],
-
-    obj_mapping_kind: lcd::ObjMappingKind,
 }
 
 impl Default for LayerObj {
@@ -31,7 +31,6 @@ impl Default for LayerObj {
             obj_attributes_arr: [object_attributes::ObjAttributes::default(); 128],
             rotation_scaling_params: [object_attributes::RotationScaling::default(); 32],
             sprite_pixels_scanline: [None; LCD_WIDTH],
-            obj_mapping_kind: lcd::ObjMappingKind::TwoDimensional,
         }
     }
 }
@@ -93,8 +92,9 @@ impl LayerObj {
         }
     }
 
-    fn process_sprites_scanline(&mut self, y: u16, video_ram: &[u8], obj_palette_ram: &[u8]) {
+    fn process_sprites_scanline(&mut self, registers: &Registers, memory: &Memory) {
         self.sprite_pixels_scanline = [None; LCD_WIDTH];
+        let y = registers.vcount;
 
         for obj in self.obj_attributes_arr.into_iter() {
             if matches!(
@@ -184,11 +184,13 @@ impl LayerObj {
                 let y_tile_idx = pixel_texture_sprite_origin.y % 8;
                 let x_tile_idx = pixel_texture_sprite_origin.x % 8;
 
+                let obj_character_vram_mapping = registers.get_obj_character_vram_mapping();
+
                 let color_offset = match obj.attribute0.color_mode {
                     object_attributes::ColorMode::Palette8bpp => {
                         // We multiply *2 because in 8bpp tiles indeces are always even
                         let tile_number = obj.attribute2.tile_number
-                            + match self.obj_mapping_kind {
+                            + match obj_character_vram_mapping {
                                 lcd::ObjMappingKind::OneDimensional => {
                                     // In this case memory is seen as a single array.
                                     // tile_number is the offset of the first tile in memory.
@@ -208,11 +210,11 @@ impl LayerObj {
                             tile_number as u32 * 32 + y_tile_idx as u32 * 8 + x_tile_idx as u32;
 
                         // TODO: Move 0x10000 to a variable. It is the offset where OBJ VRAM starts in vram
-                        video_ram[0x10000 + palette_offset as usize]
+                        memory.video_ram[0x10000 + palette_offset as usize]
                     }
                     object_attributes::ColorMode::Palette4bpp => {
                         let tile_number = obj.attribute2.tile_number
-                            + match self.obj_mapping_kind {
+                            + match obj_character_vram_mapping {
                                 lcd::ObjMappingKind::OneDimensional => {
                                     // In this case memory is seen as a single array.
                                     // tile_number is the offset of the first tile in memory.
@@ -236,7 +238,7 @@ impl LayerObj {
 
                         let palette_offset =
                             (obj.attribute2.palette_number << 4) | (palette_offset_low as u8);
-                        video_ram[0x10000 + palette_offset as usize]
+                        memory.video_ram[0x10000 + palette_offset as usize]
                     }
                 };
 
@@ -247,7 +249,10 @@ impl LayerObj {
                 }
 
                 let get_pixel_info_closure = || PixelInfo {
-                    color: self.read_color_from_obj_palette(color_offset as usize, obj_palette_ram),
+                    color: self.read_color_from_obj_palette(
+                        color_offset as usize,
+                        memory.obj_palette_ram.as_slice(),
+                    ),
                     priority: obj.attribute2.priority,
                 };
 
@@ -266,18 +271,10 @@ impl LayerObj {
         }
     }
 
-    pub fn handle_enter_vdraw(
-        &mut self,
-        y: u16,
-        obj_mapping_kind: lcd::ObjMappingKind,
-        video_ram: &[u8],
-        obj_attributes_ram: &[u8],
-        obj_palette_ram: &[u8],
-    ) {
+    pub fn handle_enter_vdraw(&mut self, memory: &Memory, registers: &Registers) {
         (self.obj_attributes_arr, self.rotation_scaling_params) =
-            object_attributes::get_attributes(obj_attributes_ram);
-        self.process_sprites_scanline(y, video_ram, obj_palette_ram);
+            object_attributes::get_attributes(memory.obj_attributes.as_slice());
 
-        self.obj_mapping_kind = obj_mapping_kind;
+        self.process_sprites_scanline(registers, memory);
     }
 }

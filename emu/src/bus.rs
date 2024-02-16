@@ -503,33 +503,33 @@ impl Bus {
 
     fn read_lcd_raw(&self, address: usize) -> u8 {
         match address {
-            0x04000000 => self.lcd.dispcnt.get_byte(0),
-            0x04000001 => self.lcd.dispcnt.get_byte(1),
-            0x04000002 => self.lcd.green_swap.get_byte(0),
-            0x04000003 => self.lcd.green_swap.get_byte(1),
-            0x04000004 => self.lcd.dispstat.get_byte(0),
-            0x04000005 => self.lcd.dispstat.get_byte(1),
-            0x04000006 => self.lcd.vcount.get_byte(0),
-            0x04000007 => self.lcd.vcount.get_byte(1),
-            0x04000008 => self.lcd.bg0cnt.get_byte(0),
-            0x04000009 => self.lcd.bg0cnt.get_byte(1),
-            0x0400000A => self.lcd.bg1cnt.get_byte(0),
-            0x0400000B => self.lcd.bg1cnt.get_byte(1),
-            0x0400000C => self.lcd.bg2cnt.get_byte(0),
-            0x0400000D => self.lcd.bg2cnt.get_byte(1),
-            0x0400000E => self.lcd.bg3cnt.get_byte(0),
-            0x0400000F => self.lcd.bg3cnt.get_byte(1),
+            0x04000000 => self.lcd.registers.dispcnt.get_byte(0),
+            0x04000001 => self.lcd.registers.dispcnt.get_byte(1),
+            0x04000002 => self.lcd.registers.green_swap.get_byte(0),
+            0x04000003 => self.lcd.registers.green_swap.get_byte(1),
+            0x04000004 => self.lcd.registers.dispstat.get_byte(0),
+            0x04000005 => self.lcd.registers.dispstat.get_byte(1),
+            0x04000006 => self.lcd.registers.vcount.get_byte(0),
+            0x04000007 => self.lcd.registers.vcount.get_byte(1),
+            0x04000008 => self.lcd.registers.bg0cnt.get_byte(0),
+            0x04000009 => self.lcd.registers.bg0cnt.get_byte(1),
+            0x0400000A => self.lcd.registers.bg1cnt.get_byte(0),
+            0x0400000B => self.lcd.registers.bg1cnt.get_byte(1),
+            0x0400000C => self.lcd.registers.bg2cnt.get_byte(0),
+            0x0400000D => self.lcd.registers.bg2cnt.get_byte(1),
+            0x0400000E => self.lcd.registers.bg3cnt.get_byte(0),
+            0x0400000F => self.lcd.registers.bg3cnt.get_byte(1),
             0x04000010..=0x04000047 => panic!("Reading a write-only LCD I/O register"),
-            0x04000048 => self.lcd.winin.get_byte(0),
-            0x04000049 => self.lcd.winin.get_byte(1),
-            0x0400004A => self.lcd.winout.get_byte(0),
-            0x0400004B => self.lcd.winout.get_byte(1),
-            0x0400004C => self.lcd.mosaic.get_byte(0),
-            0x0400004D => self.lcd.mosaic.get_byte(1),
-            0x04000050 => self.lcd.bldcnt.get_byte(0),
-            0x04000051 => self.lcd.bldcnt.get_byte(1),
-            0x04000052 => self.lcd.bldalpha.get_byte(0),
-            0x04000053 => self.lcd.bldalpha.get_byte(1),
+            0x04000048 => self.lcd.registers.winin.get_byte(0),
+            0x04000049 => self.lcd.registers.winin.get_byte(1),
+            0x0400004A => self.lcd.registers.winout.get_byte(0),
+            0x0400004B => self.lcd.registers.winout.get_byte(1),
+            0x0400004C => self.lcd.registers.mosaic.get_byte(0),
+            0x0400004D => self.lcd.registers.mosaic.get_byte(1),
+            0x04000050 => self.lcd.registers.bldcnt.get_byte(0),
+            0x04000051 => self.lcd.registers.bldcnt.get_byte(1),
+            0x04000052 => self.lcd.registers.bldalpha.get_byte(0),
+            0x04000053 => self.lcd.registers.bldalpha.get_byte(1),
             0x04000054..=0x04000055 => panic!("Reading a write-only LCD I/O register"),
             0x0400004E..=0x0400004F | 0x04000056..=0x0400005F => {
                 log("read on unused memory");
@@ -541,91 +541,91 @@ impl Bus {
 
     fn write_lcd_raw(&mut self, address: usize, value: u8) {
         match address {
-            0x04000000 => self.lcd.dispcnt.set_byte(0, value),
-            0x04000001 => self.lcd.dispcnt.set_byte(1, value),
-            0x04000002 => self.lcd.green_swap.set_byte(0, value),
-            0x04000003 => self.lcd.green_swap.set_byte(1, value),
-            0x04000004 => self.lcd.dispstat.set_byte(0, value),
-            0x04000005 => self.lcd.dispstat.set_byte(1, value),
-            0x04000008 => self.lcd.bg0cnt.set_byte(0, value),
-            0x04000006 => self.lcd.vcount.set_byte(0, value),
-            0x04000007 => self.lcd.vcount.set_byte(1, value),
-            0x04000009 => self.lcd.bg0cnt.set_byte(1, value),
-            0x0400000A => self.lcd.bg1cnt.set_byte(0, value),
-            0x0400000B => self.lcd.bg1cnt.set_byte(1, value),
-            0x0400000C => self.lcd.bg2cnt.set_byte(0, value),
-            0x0400000D => self.lcd.bg2cnt.set_byte(1, value),
-            0x0400000E => self.lcd.bg3cnt.set_byte(0, value),
-            0x0400000F => self.lcd.bg3cnt.set_byte(1, value),
-            0x04000010 => self.lcd.bg0hofs.set_byte(0, value),
-            0x04000011 => self.lcd.bg0hofs.set_byte(1, value),
-            0x04000012 => self.lcd.bg0vofs.set_byte(0, value),
-            0x04000013 => self.lcd.bg0vofs.set_byte(1, value),
-            0x04000014 => self.lcd.bg1hofs.set_byte(0, value),
-            0x04000015 => self.lcd.bg1hofs.set_byte(1, value),
-            0x04000016 => self.lcd.bg1vofs.set_byte(0, value),
-            0x04000017 => self.lcd.bg1vofs.set_byte(1, value),
-            0x04000018 => self.lcd.bg2hofs.set_byte(0, value),
-            0x04000019 => self.lcd.bg2hofs.set_byte(1, value),
-            0x0400001A => self.lcd.bg2vofs.set_byte(0, value),
-            0x0400001B => self.lcd.bg2vofs.set_byte(1, value),
-            0x0400001C => self.lcd.bg3hofs.set_byte(0, value),
-            0x0400001D => self.lcd.bg3hofs.set_byte(1, value),
-            0x0400001E => self.lcd.bg3vofs.set_byte(0, value),
-            0x0400001F => self.lcd.bg3vofs.set_byte(1, value),
-            0x04000020 => self.lcd.bg2pa.set_byte(0, value),
-            0x04000021 => self.lcd.bg2pa.set_byte(1, value),
-            0x04000022 => self.lcd.bg2pb.set_byte(0, value),
-            0x04000023 => self.lcd.bg2pb.set_byte(1, value),
-            0x04000024 => self.lcd.bg2pc.set_byte(0, value),
-            0x04000025 => self.lcd.bg2pc.set_byte(1, value),
-            0x04000026 => self.lcd.bg2pd.set_byte(0, value),
-            0x04000027 => self.lcd.bg2pd.set_byte(1, value),
-            0x04000028 => self.lcd.bg2x.set_byte(0, value),
-            0x04000029 => self.lcd.bg2x.set_byte(1, value),
-            0x0400002A => self.lcd.bg2x.set_byte(2, value),
-            0x0400002B => self.lcd.bg2x.set_byte(3, value),
-            0x0400002C => self.lcd.bg2y.set_byte(0, value),
-            0x0400002D => self.lcd.bg2y.set_byte(1, value),
-            0x0400002E => self.lcd.bg2y.set_byte(2, value),
-            0x0400002F => self.lcd.bg2y.set_byte(3, value),
-            0x04000030 => self.lcd.bg3pa.set_byte(0, value),
-            0x04000031 => self.lcd.bg3pa.set_byte(1, value),
-            0x04000032 => self.lcd.bg3pb.set_byte(0, value),
-            0x04000033 => self.lcd.bg3pb.set_byte(1, value),
-            0x04000034 => self.lcd.bg3pc.set_byte(0, value),
-            0x04000035 => self.lcd.bg3pc.set_byte(1, value),
-            0x04000036 => self.lcd.bg3pd.set_byte(0, value),
-            0x04000037 => self.lcd.bg3pd.set_byte(1, value),
-            0x04000038 => self.lcd.bg3x.set_byte(0, value),
-            0x04000039 => self.lcd.bg3x.set_byte(1, value),
-            0x0400003A => self.lcd.bg3x.set_byte(2, value),
-            0x0400003B => self.lcd.bg3x.set_byte(3, value),
-            0x0400003C => self.lcd.bg3y.set_byte(0, value),
-            0x0400003D => self.lcd.bg3y.set_byte(1, value),
-            0x0400003E => self.lcd.bg3y.set_byte(2, value),
-            0x0400003F => self.lcd.bg3y.set_byte(3, value),
-            0x04000040 => self.lcd.win0h.set_byte(0, value),
-            0x04000041 => self.lcd.win0h.set_byte(1, value),
-            0x04000042 => self.lcd.win1h.set_byte(0, value),
-            0x04000043 => self.lcd.win1h.set_byte(1, value),
-            0x04000044 => self.lcd.win0v.set_byte(0, value),
-            0x04000045 => self.lcd.win0v.set_byte(1, value),
-            0x04000046 => self.lcd.win1v.set_byte(0, value),
-            0x04000047 => self.lcd.win1v.set_byte(1, value),
-            0x04000048 => self.lcd.winin.set_byte(0, value),
-            0x04000049 => self.lcd.winin.set_byte(1, value),
-            0x0400004A => self.lcd.winout.set_byte(0, value),
-            0x0400004B => self.lcd.winout.set_byte(1, value),
-            0x0400004C => self.lcd.mosaic.set_byte(0, value),
-            0x0400004D => self.lcd.mosaic.set_byte(1, value),
+            0x04000000 => self.lcd.registers.dispcnt.set_byte(0, value),
+            0x04000001 => self.lcd.registers.dispcnt.set_byte(1, value),
+            0x04000002 => self.lcd.registers.green_swap.set_byte(0, value),
+            0x04000003 => self.lcd.registers.green_swap.set_byte(1, value),
+            0x04000004 => self.lcd.registers.dispstat.set_byte(0, value),
+            0x04000005 => self.lcd.registers.dispstat.set_byte(1, value),
+            0x04000008 => self.lcd.registers.bg0cnt.set_byte(0, value),
+            0x04000006 => self.lcd.registers.vcount.set_byte(0, value),
+            0x04000007 => self.lcd.registers.vcount.set_byte(1, value),
+            0x04000009 => self.lcd.registers.bg0cnt.set_byte(1, value),
+            0x0400000A => self.lcd.registers.bg1cnt.set_byte(0, value),
+            0x0400000B => self.lcd.registers.bg1cnt.set_byte(1, value),
+            0x0400000C => self.lcd.registers.bg2cnt.set_byte(0, value),
+            0x0400000D => self.lcd.registers.bg2cnt.set_byte(1, value),
+            0x0400000E => self.lcd.registers.bg3cnt.set_byte(0, value),
+            0x0400000F => self.lcd.registers.bg3cnt.set_byte(1, value),
+            0x04000010 => self.lcd.registers.bg0hofs.set_byte(0, value),
+            0x04000011 => self.lcd.registers.bg0hofs.set_byte(1, value),
+            0x04000012 => self.lcd.registers.bg0vofs.set_byte(0, value),
+            0x04000013 => self.lcd.registers.bg0vofs.set_byte(1, value),
+            0x04000014 => self.lcd.registers.bg1hofs.set_byte(0, value),
+            0x04000015 => self.lcd.registers.bg1hofs.set_byte(1, value),
+            0x04000016 => self.lcd.registers.bg1vofs.set_byte(0, value),
+            0x04000017 => self.lcd.registers.bg1vofs.set_byte(1, value),
+            0x04000018 => self.lcd.registers.bg2hofs.set_byte(0, value),
+            0x04000019 => self.lcd.registers.bg2hofs.set_byte(1, value),
+            0x0400001A => self.lcd.registers.bg2vofs.set_byte(0, value),
+            0x0400001B => self.lcd.registers.bg2vofs.set_byte(1, value),
+            0x0400001C => self.lcd.registers.bg3hofs.set_byte(0, value),
+            0x0400001D => self.lcd.registers.bg3hofs.set_byte(1, value),
+            0x0400001E => self.lcd.registers.bg3vofs.set_byte(0, value),
+            0x0400001F => self.lcd.registers.bg3vofs.set_byte(1, value),
+            0x04000020 => self.lcd.registers.bg2pa.set_byte(0, value),
+            0x04000021 => self.lcd.registers.bg2pa.set_byte(1, value),
+            0x04000022 => self.lcd.registers.bg2pb.set_byte(0, value),
+            0x04000023 => self.lcd.registers.bg2pb.set_byte(1, value),
+            0x04000024 => self.lcd.registers.bg2pc.set_byte(0, value),
+            0x04000025 => self.lcd.registers.bg2pc.set_byte(1, value),
+            0x04000026 => self.lcd.registers.bg2pd.set_byte(0, value),
+            0x04000027 => self.lcd.registers.bg2pd.set_byte(1, value),
+            0x04000028 => self.lcd.registers.bg2x.set_byte(0, value),
+            0x04000029 => self.lcd.registers.bg2x.set_byte(1, value),
+            0x0400002A => self.lcd.registers.bg2x.set_byte(2, value),
+            0x0400002B => self.lcd.registers.bg2x.set_byte(3, value),
+            0x0400002C => self.lcd.registers.bg2y.set_byte(0, value),
+            0x0400002D => self.lcd.registers.bg2y.set_byte(1, value),
+            0x0400002E => self.lcd.registers.bg2y.set_byte(2, value),
+            0x0400002F => self.lcd.registers.bg2y.set_byte(3, value),
+            0x04000030 => self.lcd.registers.bg3pa.set_byte(0, value),
+            0x04000031 => self.lcd.registers.bg3pa.set_byte(1, value),
+            0x04000032 => self.lcd.registers.bg3pb.set_byte(0, value),
+            0x04000033 => self.lcd.registers.bg3pb.set_byte(1, value),
+            0x04000034 => self.lcd.registers.bg3pc.set_byte(0, value),
+            0x04000035 => self.lcd.registers.bg3pc.set_byte(1, value),
+            0x04000036 => self.lcd.registers.bg3pd.set_byte(0, value),
+            0x04000037 => self.lcd.registers.bg3pd.set_byte(1, value),
+            0x04000038 => self.lcd.registers.bg3x.set_byte(0, value),
+            0x04000039 => self.lcd.registers.bg3x.set_byte(1, value),
+            0x0400003A => self.lcd.registers.bg3x.set_byte(2, value),
+            0x0400003B => self.lcd.registers.bg3x.set_byte(3, value),
+            0x0400003C => self.lcd.registers.bg3y.set_byte(0, value),
+            0x0400003D => self.lcd.registers.bg3y.set_byte(1, value),
+            0x0400003E => self.lcd.registers.bg3y.set_byte(2, value),
+            0x0400003F => self.lcd.registers.bg3y.set_byte(3, value),
+            0x04000040 => self.lcd.registers.win0h.set_byte(0, value),
+            0x04000041 => self.lcd.registers.win0h.set_byte(1, value),
+            0x04000042 => self.lcd.registers.win1h.set_byte(0, value),
+            0x04000043 => self.lcd.registers.win1h.set_byte(1, value),
+            0x04000044 => self.lcd.registers.win0v.set_byte(0, value),
+            0x04000045 => self.lcd.registers.win0v.set_byte(1, value),
+            0x04000046 => self.lcd.registers.win1v.set_byte(0, value),
+            0x04000047 => self.lcd.registers.win1v.set_byte(1, value),
+            0x04000048 => self.lcd.registers.winin.set_byte(0, value),
+            0x04000049 => self.lcd.registers.winin.set_byte(1, value),
+            0x0400004A => self.lcd.registers.winout.set_byte(0, value),
+            0x0400004B => self.lcd.registers.winout.set_byte(1, value),
+            0x0400004C => self.lcd.registers.mosaic.set_byte(0, value),
+            0x0400004D => self.lcd.registers.mosaic.set_byte(1, value),
             // 0x0400004E, 0x0400004F are not used
-            0x04000050 => self.lcd.bldcnt.set_byte(0, value),
-            0x04000051 => self.lcd.bldcnt.set_byte(1, value),
-            0x04000052 => self.lcd.bldalpha.set_byte(0, value),
-            0x04000053 => self.lcd.bldalpha.set_byte(1, value),
-            0x04000054 => self.lcd.bldy.set_byte(0, value),
-            0x04000055 => self.lcd.bldy.set_byte(1, value),
+            0x04000050 => self.lcd.registers.bldcnt.set_byte(0, value),
+            0x04000051 => self.lcd.registers.bldcnt.set_byte(1, value),
+            0x04000052 => self.lcd.registers.bldalpha.set_byte(0, value),
+            0x04000053 => self.lcd.registers.bldalpha.set_byte(1, value),
+            0x04000054 => self.lcd.registers.bldy.set_byte(0, value),
+            0x04000055 => self.lcd.registers.bldy.set_byte(1, value),
             0x0400004E..=0x0400004F | 0x04000056..=0x0400005F => {
                 log("write on unused memory");
                 self.unused_region.insert(address, value);
@@ -651,10 +651,10 @@ impl Bus {
 
                 match unmasked_address {
                     0x05000000..=0x050001FF => {
-                        self.lcd.bg_palette_ram[unmasked_address - 0x05000000]
+                        self.lcd.memory.bg_palette_ram[unmasked_address - 0x05000000]
                     }
                     0x05000200..=0x050003FF => {
-                        self.lcd.obj_palette_ram[unmasked_address - 0x05000200]
+                        self.lcd.memory.obj_palette_ram[unmasked_address - 0x05000200]
                     }
                     _ => unreachable!(),
                 }
@@ -664,9 +664,11 @@ impl Bus {
 
                 // VRAM is 64k+32k+32k with the last two 32k being one mirrors of each other
                 match unmasked_address {
-                    0x06000000..=0x06017FFF => self.lcd.video_ram[unmasked_address - 0x06000000],
+                    0x06000000..=0x06017FFF => {
+                        self.lcd.memory.video_ram[unmasked_address - 0x06000000]
+                    }
                     0x06018000..=0x0601FFFF => {
-                        self.lcd.video_ram[unmasked_address - 0x06000000 - 0x8000]
+                        self.lcd.memory.video_ram[unmasked_address - 0x06000000 - 0x8000]
                     }
                     _ => unreachable!(),
                 }
@@ -674,7 +676,7 @@ impl Bus {
             0x7000000..=0x7FFFFFF => {
                 let unmasked_address = get_unmasked_address(address, 0x00FFFF00, 0xFF0000FF, 8, 4);
 
-                self.lcd.obj_attributes[unmasked_address - 0x07000000]
+                self.lcd.memory.obj_attributes[unmasked_address - 0x07000000]
             }
             0x0004000..=0x1FFFFFF | 0xE010000..=0xFFFFFFF | 0x10000000..=0xFFFFFFFF => {
                 log(format!("read on unused memory {address:x}"));
@@ -701,10 +703,10 @@ impl Bus {
 
                 match unmasked_address {
                     0x05000000..=0x050001FF => {
-                        self.lcd.bg_palette_ram[unmasked_address - 0x05000000] = value
+                        self.lcd.memory.bg_palette_ram[unmasked_address - 0x05000000] = value
                     }
                     0x05000200..=0x050003FF => {
-                        self.lcd.obj_palette_ram[unmasked_address - 0x05000200] = value
+                        self.lcd.memory.obj_palette_ram[unmasked_address - 0x05000200] = value
                     }
                     _ => unreachable!(),
                 };
@@ -715,10 +717,10 @@ impl Bus {
                 // VRAM is 64k+32k+32k with the last two 32k being one mirrors of each other
                 match unmasked_address {
                     0x06000000..=0x06017FFF => {
-                        self.lcd.video_ram[unmasked_address - 0x06000000] = value
+                        self.lcd.memory.video_ram[unmasked_address - 0x06000000] = value
                     }
                     0x06018000..=0x0601FFFF => {
-                        self.lcd.video_ram[unmasked_address - 0x06000000 - 0x8000] = value
+                        self.lcd.memory.video_ram[unmasked_address - 0x06000000 - 0x8000] = value
                     }
                     _ => unreachable!(),
                 }
@@ -726,7 +728,7 @@ impl Bus {
             0x7000000..=0x7FFFFFF => {
                 let unmasked_address = get_unmasked_address(address, 0x00FFFF00, 0xFF0000FF, 8, 4);
 
-                self.lcd.obj_attributes[unmasked_address - 0x07000000] = value
+                self.lcd.memory.obj_attributes[unmasked_address - 0x07000000] = value
             }
             0x0004000..=0x1FFFFFF | 0xE010000..=0xFFFFFFF | 0x10000000..=0xFFFFFFFF => {
                 log(format!("write on unused memory {address:x}"));
@@ -924,12 +926,12 @@ mod tests {
 
         bus.write_raw(address, 10);
 
-        assert_eq!(bus.lcd.winin, 10);
+        assert_eq!(bus.lcd.registers.winin, 10);
 
         let address = 0x04000049; // WININ higher byte
 
         bus.write_raw(address, 5);
-        assert_eq!(bus.lcd.winin, (5 << 8) | 10);
+        assert_eq!(bus.lcd.registers.winin, (5 << 8) | 10);
     }
 
     #[test]
@@ -937,7 +939,7 @@ mod tests {
         let mut bus = Bus::default();
         let address = 0x04000048; // WININ lower byte
 
-        bus.lcd.winin = (5 << 8) | 10;
+        bus.lcd.registers.winin = (5 << 8) | 10;
 
         assert_eq!(bus.read_raw(address), 10);
 
@@ -971,13 +973,13 @@ mod tests {
         let address = 0x05000008;
 
         bus.write_raw(address, 10);
-        assert_eq!(bus.lcd.bg_palette_ram[8], 10);
+        assert_eq!(bus.lcd.memory.bg_palette_ram[8], 10);
     }
 
     #[test]
     fn read_bg_palette_ram() {
         let mut bus = Bus::default();
-        bus.lcd.bg_palette_ram[8] = 15;
+        bus.lcd.memory.bg_palette_ram[8] = 15;
 
         let address = 0x05000008;
         let value = bus.read_raw(address);
@@ -992,7 +994,7 @@ mod tests {
         let address = 0x050001FF;
         bus.write_raw(address, 5);
 
-        assert_eq!(bus.lcd.bg_palette_ram[0x1FF], 5);
+        assert_eq!(bus.lcd.memory.bg_palette_ram[0x1FF], 5);
     }
 
     #[test]
@@ -1001,13 +1003,13 @@ mod tests {
         let address = 0x05000208;
 
         bus.write_raw(address, 10);
-        assert_eq!(bus.lcd.obj_palette_ram[8], 10);
+        assert_eq!(bus.lcd.memory.obj_palette_ram[8], 10);
     }
 
     #[test]
     fn read_obj_palette_ram() {
         let mut bus = Bus::default();
-        bus.lcd.obj_palette_ram[8] = 15;
+        bus.lcd.memory.obj_palette_ram[8] = 15;
 
         let address = 0x05000208;
 
@@ -1023,7 +1025,7 @@ mod tests {
         let address = 0x050003FF;
         bus.write_raw(address, 5);
 
-        assert_eq!(bus.lcd.obj_palette_ram[0x1FF], 5);
+        assert_eq!(bus.lcd.memory.obj_palette_ram[0x1FF], 5);
     }
 
     #[test]
@@ -1032,13 +1034,13 @@ mod tests {
         let address = 0x06000004;
 
         bus.write_raw(address, 23);
-        assert_eq!(bus.lcd.video_ram[4], 23);
+        assert_eq!(bus.lcd.memory.video_ram[4], 23);
     }
 
     #[test]
     fn read_vram() {
         let mut bus = Bus::default();
-        bus.lcd.video_ram[4] = 15;
+        bus.lcd.memory.video_ram[4] = 15;
 
         let address = 0x06000004;
         let value = bus.read_raw(address);
@@ -1053,13 +1055,13 @@ mod tests {
         let address = 0x06017FFF;
         bus.write_raw(address, 5);
 
-        assert_eq!(bus.lcd.video_ram[0x17FFF], 5);
+        assert_eq!(bus.lcd.memory.video_ram[0x17FFF], 5);
     }
 
     #[test]
     fn test_mirror_bg_palette() {
         let mut bus = Bus::default();
-        bus.lcd.bg_palette_ram[0x134] = 5;
+        bus.lcd.memory.bg_palette_ram[0x134] = 5;
 
         assert_eq!(bus.read_raw(0x05000134), 5);
         assert_eq!(bus.read_raw(0x05000534), 5);
@@ -1067,22 +1069,22 @@ mod tests {
         assert_eq!(bus.read_raw(0x05FFFD34), 5);
 
         bus.write_raw(0x05000134, 10);
-        assert_eq!(bus.lcd.bg_palette_ram[0x134], 10);
+        assert_eq!(bus.lcd.memory.bg_palette_ram[0x134], 10);
 
         bus.write_raw(0x05000534, 11);
-        assert_eq!(bus.lcd.bg_palette_ram[0x134], 11);
+        assert_eq!(bus.lcd.memory.bg_palette_ram[0x134], 11);
 
         bus.write_raw(0x05012534, 12);
-        assert_eq!(bus.lcd.bg_palette_ram[0x134], 12);
+        assert_eq!(bus.lcd.memory.bg_palette_ram[0x134], 12);
 
         bus.write_raw(0x05FFFD34, 13);
-        assert_eq!(bus.lcd.bg_palette_ram[0x134], 13);
+        assert_eq!(bus.lcd.memory.bg_palette_ram[0x134], 13);
     }
 
     #[test]
     fn test_mirror_obj_palette() {
         let mut bus = Bus::default();
-        bus.lcd.obj_palette_ram[0x134] = 5;
+        bus.lcd.memory.obj_palette_ram[0x134] = 5;
 
         assert_eq!(bus.read_raw(0x05000334), 5);
         assert_eq!(bus.read_raw(0x05000734), 5);
@@ -1090,22 +1092,22 @@ mod tests {
         assert_eq!(bus.read_raw(0x05FFFF34), 5);
 
         bus.write_raw(0x05000334, 10);
-        assert_eq!(bus.lcd.obj_palette_ram[0x134], 10);
+        assert_eq!(bus.lcd.memory.obj_palette_ram[0x134], 10);
 
         bus.write_raw(0x05000734, 11);
-        assert_eq!(bus.lcd.obj_palette_ram[0x134], 11);
+        assert_eq!(bus.lcd.memory.obj_palette_ram[0x134], 11);
 
         bus.write_raw(0x05012734, 12);
-        assert_eq!(bus.lcd.obj_palette_ram[0x134], 12);
+        assert_eq!(bus.lcd.memory.obj_palette_ram[0x134], 12);
 
         bus.write_raw(0x05FFFF34, 13);
-        assert_eq!(bus.lcd.obj_palette_ram[0x134], 13);
+        assert_eq!(bus.lcd.memory.obj_palette_ram[0x134], 13);
     }
 
     #[test]
     fn test_mirror_vram() {
         let mut bus = Bus::default();
-        bus.lcd.video_ram[0x09345] = 5;
+        bus.lcd.memory.video_ram[0x09345] = 5;
 
         assert_eq!(bus.read_raw(0x06009345), 5);
         assert_eq!(bus.read_raw(0x06029345), 5);
@@ -1113,18 +1115,18 @@ mod tests {
         assert_eq!(bus.read_raw(0x06FE9345), 5);
 
         bus.write_raw(0x06009345, 1);
-        assert_eq!(bus.lcd.video_ram[0x09345], 1);
+        assert_eq!(bus.lcd.memory.video_ram[0x09345], 1);
 
         bus.write_raw(0x06029345, 2);
-        assert_eq!(bus.lcd.video_ram[0x09345], 2);
+        assert_eq!(bus.lcd.memory.video_ram[0x09345], 2);
 
         bus.write_raw(0x06129345, 3);
-        assert_eq!(bus.lcd.video_ram[0x09345], 3);
+        assert_eq!(bus.lcd.memory.video_ram[0x09345], 3);
 
         bus.write_raw(0x06FE9345, 4);
-        assert_eq!(bus.lcd.video_ram[0x09345], 4);
+        assert_eq!(bus.lcd.memory.video_ram[0x09345], 4);
 
-        bus.lcd.video_ram[0x11345] = 10;
+        bus.lcd.memory.video_ram[0x11345] = 10;
         assert_eq!(bus.read_raw(0x06019345), 10);
         assert_eq!(bus.read_raw(0x06131345), 10);
     }
@@ -1132,7 +1134,7 @@ mod tests {
     #[test]
     fn test_mirror_oam() {
         let mut bus = Bus::default();
-        bus.lcd.obj_attributes[0x134] = 5;
+        bus.lcd.memory.obj_attributes[0x134] = 5;
 
         assert_eq!(bus.read_raw(0x07000134), 5);
         assert_eq!(bus.read_raw(0x07000534), 5);
@@ -1140,15 +1142,15 @@ mod tests {
         assert_eq!(bus.read_raw(0x07FFFD34), 5);
 
         bus.write_raw(0x07000134, 10);
-        assert_eq!(bus.lcd.obj_attributes[0x134], 10);
+        assert_eq!(bus.lcd.memory.obj_attributes[0x134], 10);
 
         bus.write_raw(0x07000534, 11);
-        assert_eq!(bus.lcd.obj_attributes[0x134], 11);
+        assert_eq!(bus.lcd.memory.obj_attributes[0x134], 11);
 
         bus.write_raw(0x0700F534, 12);
-        assert_eq!(bus.lcd.obj_attributes[0x134], 12);
+        assert_eq!(bus.lcd.memory.obj_attributes[0x134], 12);
 
         bus.write_raw(0x07FFFD34, 13);
-        assert_eq!(bus.lcd.obj_attributes[0x134], 13);
+        assert_eq!(bus.lcd.memory.obj_attributes[0x134], 13);
     }
 }
