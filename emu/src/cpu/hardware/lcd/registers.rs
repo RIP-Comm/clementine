@@ -85,6 +85,14 @@ pub struct Registers {
 }
 
 impl Registers {
+    pub(super) fn get_bg0_enabled(&self) -> bool {
+        self.dispcnt.get_bit(8)
+    }
+
+    pub(super) fn get_bg1_enabled(&self) -> bool {
+        self.dispcnt.get_bit(9)
+    }
+
     pub(super) fn get_bg2_enabled(&self) -> bool {
         self.dispcnt.get_bit(10)
     }

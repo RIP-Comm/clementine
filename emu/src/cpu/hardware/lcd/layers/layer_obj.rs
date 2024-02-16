@@ -37,8 +37,14 @@ impl Default for LayerObj {
 
 impl Layer for LayerObj {
     #[allow(unused_variables)]
-    fn render(&self, x: usize, y: usize) -> Option<Color> {
-        self.sprite_pixels_scanline[x].map(|info| info.color)
+    fn render(
+        &self,
+        x: usize,
+        y: usize,
+        memory: &Memory,
+        registers: &Registers,
+    ) -> Option<PixelInfo> {
+        self.sprite_pixels_scanline[x]
     }
 }
 
