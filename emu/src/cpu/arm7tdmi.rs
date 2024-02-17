@@ -446,9 +446,6 @@ impl Arm7tdmi {
             .set_program_counter(new_pc + arm::operations::SIZE_OF_INSTRUCTION);
 
         self.fetched_arm = Some(self.fetch_arm());
-
-        self.registers
-            .set_program_counter(new_pc + arm::operations::SIZE_OF_INSTRUCTION * 2);
     }
 
     pub fn step(&mut self) {
