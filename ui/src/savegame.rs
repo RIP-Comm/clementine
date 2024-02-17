@@ -1,7 +1,6 @@
 use std::{
     error::Error,
     io::{Read, Write},
-    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -21,17 +20,13 @@ impl SaveGame {
         Self { gba }
     }
 
-    fn check_pathbuf(path: Option<PathBuf>) -> Result<PathBuf, &'static str> {
-        path.map_or(Err("No file selected"), Ok)
-    }
-
     fn save_state(&self) -> Result<(), Box<dyn Error>> {
         let path = FileDialog::new()
             .set_location("~")
             .add_filter("Clementine save file", &["clm"])
             .show_save_single_file()?;
 
-        let path = Self::check_pathbuf(path)?;
+        let path = path.ok_or("No file selected")?;
 
         let cpu = &self.gba.lock().unwrap().cpu;
 
@@ -49,7 +44,7 @@ impl SaveGame {
             .add_filter("Clementine save file", &["clm"])
             .show_open_single_file()?;
 
-        let path = Self::check_pathbuf(path)?;
+        let path = path.ok_or("No file selected")?;
 
         let mut file = fs::OpenOptions::new().read(true).open(path)?;
         let mut encoded = Vec::new();
