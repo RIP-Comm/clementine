@@ -495,7 +495,7 @@ impl Arm7tdmi {
                     }
 
                     #[cfg(feature = "logger")]
-                    let current_ins = self.registers.program_counter() - 4;
+                    let current_ins = self.registers.program_counter() - 8;
                     #[cfg(feature = "logger")]
                     log(format!("PC: 0x{current_ins:X} {decoded}"));
 
