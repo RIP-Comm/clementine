@@ -22,7 +22,7 @@ ui = { path  = "./ui" }
 logger = { path = "./logger" }
 
 [dev-dependencies]
-pretty_assertions = "1.3.0"
+pretty_assertions = "1.4.0"
 rand = "0.8.5"
 
 [features]
