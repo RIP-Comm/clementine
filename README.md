@@ -25,6 +25,8 @@ We love collaborating with others, so feel free to interact with us however you 
 - clone the repository :)
 - we are using `just` and not `make` then if you want take the benefit of this install it `cargo install just`
 
+> Tip: Run `just` to see all the available commands 
+
 ```zsh
 # quick check all is working on you machine
 just build
@@ -36,16 +38,22 @@ cargo run -- ~/Desktop/my_game.gba
 
 ### Run
 
+All of those command are just a wrapper around `cargo run` and they are just for convenience.
+If you want more control on the execution of the emulator you can use `cargo run` directly.
+
 ```zsh
+# simple run of a rom in debug mode
 just run <rom>
+# simple run of a rom in release mode
+# this is better for looking at animations and stuff like that
+just run-release <rom>
 ```
 
-### Run with logger enabled {stdout or file}
-
 ```zsh
-# log stdout
+# debug mode + verbose log to stdout
 just run-logger <rom>
-
-# log to file /tmp/clementine-{timestamp}.log
-just run-logger-file <rom>
+# debug mode + disassebler as widget
+just run-disassebler <rom>
+# all debug feature enabled
+just run-all-debug <rom>
 ```
