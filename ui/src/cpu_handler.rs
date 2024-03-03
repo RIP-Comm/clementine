@@ -126,10 +126,22 @@ impl UiTool for CpuHandler {
             ui.text_edit_singleline(&mut self.b_address);
 
             if ui.button("Add").clicked() {
+                if self.b_address.is_empty() {
+                    return;
+                }
+
+                let a = if self.b_address.starts_with("0x") {
+                    self.b_address[2..].to_string()
+                } else {
+                    self.b_address.clone()
+                };
+
                 self.breakpoints
                     .lock()
                     .unwrap()
-                    .insert(u32::from_str_radix(&self.b_address, 16).unwrap());
+                    .insert(u32::from_str_radix(&a, 16).unwrap());
+
+                self.b_address.clear();
             }
         });
 
