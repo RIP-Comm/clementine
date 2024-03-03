@@ -1,6 +1,7 @@
-use egui::{self, ColorImage, Ui};
+use egui::{self, ColorImage, ImageSource, Ui};
 
 use eframe::epaint::textures::TextureOptions;
+use egui::load::SizedTexture;
 use std::sync::{Arc, Mutex};
 
 use emu::{
@@ -12,27 +13,14 @@ use crate::ui_traits::UiTool;
 
 pub struct GbaDisplay {
     gba: Arc<Mutex<Gba>>,
-    scale: f32,
 }
 
 impl GbaDisplay {
     pub(crate) fn new(gba: Arc<Mutex<Gba>>) -> Self {
-        Self { gba, scale: 1.0 }
+        Self { gba }
     }
 
     fn ui(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            if ui.button("x1").clicked() {
-                self.scale = 1.0;
-            }
-            if ui.button("x2").clicked() {
-                self.scale = 2.0;
-            }
-            if ui.button("x4").clicked() {
-                self.scale = 4.0;
-            }
-        });
-
         //TODO: Fix this .lock().unwrap() repeated two times
         let rgb_data = self
             .gba
@@ -59,7 +47,10 @@ impl GbaDisplay {
             .ctx()
             .load_texture("gba_display", image, TextureOptions::NEAREST);
 
-        ui.image(&texture);
+        ui.image(ImageSource::Texture(SizedTexture {
+            id: texture.id(),
+            size: ui.available_size(),
+        }));
     }
 }
 
@@ -70,12 +61,10 @@ impl UiTool for GbaDisplay {
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
         egui::Window::new(self.name())
-            .min_width(LCD_WIDTH as f32)
-            .min_height(LCD_HEIGHT as f32)
             .open(open)
             .default_width(LCD_WIDTH as f32)
             .default_height(LCD_HEIGHT as f32)
-            .resizable(false)
+            .collapsible(false)
             .show(ctx, |ui| {
                 self.ui(ui);
             });
