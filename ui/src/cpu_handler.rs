@@ -2,7 +2,7 @@ use emu::gba::Gba;
 
 use crate::ui_traits::UiTool;
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -11,8 +11,10 @@ pub struct CpuHandler {
     gba: Arc<Mutex<Gba>>,
     play: Arc<AtomicBool>,
     thread_handle: Option<thread::JoinHandle<()>>,
-    breakpoints: Arc<Mutex<HashSet<u32>>>,
+    breakpoints: Arc<Mutex<BTreeSet<Breakpoint>>>,
     b_address: String,
+
+    breakpoint_combo: BreakpointType,
 }
 
 impl CpuHandler {
@@ -21,10 +23,23 @@ impl CpuHandler {
             gba,
             play: Arc::new(AtomicBool::new(false)),
             thread_handle: None,
-            breakpoints: Arc::new(Mutex::new(HashSet::new())),
+            breakpoints: Arc::new(Mutex::new(BTreeSet::new())),
             b_address: String::default(),
+            breakpoint_combo: BreakpointType::Equal,
         }
     }
+}
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq, Ord, PartialOrd)]
+struct Breakpoint {
+    address: u32,
+    kind: BreakpointType,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+enum BreakpointType {
+    Equal,
+    Greater,
 }
 
 impl UiTool for CpuHandler {
@@ -69,12 +84,24 @@ impl UiTool for CpuHandler {
 
                 self.thread_handle = Some(thread::spawn(move || {
                     while play_clone.load(std::sync::atomic::Ordering::Relaxed) {
-                        if breakpoints_clone.lock().unwrap().contains(
-                            &(gba_clone.lock().unwrap().cpu.registers.program_counter() as u32),
-                        ) {
-                            play_clone.swap(false, std::sync::atomic::Ordering::Relaxed);
-                            return;
-                        }
+                        breakpoints_clone.lock().unwrap().iter().for_each(|&b| {
+                            let pc =
+                                gba_clone.lock().unwrap().cpu.registers.program_counter() as u32;
+                            match b.kind {
+                                BreakpointType::Equal => {
+                                    if pc == b.address {
+                                        play_clone
+                                            .swap(false, std::sync::atomic::Ordering::Relaxed);
+                                    }
+                                }
+                                BreakpointType::Greater => {
+                                    if pc > b.address {
+                                        play_clone
+                                            .swap(false, std::sync::atomic::Ordering::Relaxed);
+                                    }
+                                }
+                            }
+                        });
 
                         gba_clone.lock().unwrap().step();
                     }
@@ -121,9 +148,23 @@ impl UiTool for CpuHandler {
 
         ui.heading("Breakpoints");
         ui.add_space(12.0);
+
         ui.horizontal(|ui| {
             ui.label("Address (hex) : ");
             ui.text_edit_singleline(&mut self.b_address);
+
+            egui::ComboBox::from_label("Select breakpoint type")
+                .selected_text(if self.breakpoint_combo == BreakpointType::Equal {
+                    "="
+                } else {
+                    ">"
+                })
+                .show_ui(ui, |ui| {
+                    ui.style_mut().wrap = Some(false);
+                    ui.set_min_width(60.0);
+                    ui.selectable_value(&mut self.breakpoint_combo, BreakpointType::Equal, "=");
+                    ui.selectable_value(&mut self.breakpoint_combo, BreakpointType::Greater, ">");
+                });
 
             if ui.button("Add").clicked() {
                 if self.b_address.is_empty() {
@@ -136,10 +177,13 @@ impl UiTool for CpuHandler {
                     self.b_address.clone()
                 };
 
-                self.breakpoints
-                    .lock()
-                    .unwrap()
-                    .insert(u32::from_str_radix(&a, 16).unwrap());
+                let address = u32::from_str_radix(&a, 16).unwrap();
+                let b = Breakpoint {
+                    address,
+                    kind: self.breakpoint_combo,
+                };
+
+                self.breakpoints.lock().unwrap().insert(b);
 
                 self.b_address.clear();
             }
@@ -151,7 +195,7 @@ impl UiTool for CpuHandler {
 
             for b in breakpoints.iter() {
                 ui.horizontal(|ui| {
-                    ui.label(format!("0x{b:x}"));
+                    ui.label(format!("0x{:08X}", b.address));
                     if ui.button("x").clicked() {
                         self.breakpoints.lock().unwrap().remove(b);
                     }
