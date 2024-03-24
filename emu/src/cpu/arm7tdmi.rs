@@ -1,9 +1,9 @@
 use std::convert::TryInto;
 
+use serde::{Deserialize, Serialize};
+
 #[cfg(feature = "logger")]
 use logger::log;
-
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "disassembler")]
 use vecfixed::VecFixed;
 
@@ -38,6 +38,8 @@ pub struct Arm7tdmi {
     decoded_arm: Option<ArmModeOpcode>,
     fetched_thumb: Option<u16>,
     decoded_thumb: Option<ThumbModeOpcode>,
+
+    pub current_cycle: u128,
 }
 
 #[derive(Copy, Clone)]
@@ -124,6 +126,7 @@ impl Default for Arm7tdmi {
             decoded_arm: None,
             fetched_thumb: None,
             decoded_thumb: None,
+            current_cycle: u128::default(),
         };
 
         // Setting ARM mode at startup
@@ -449,6 +452,7 @@ impl Arm7tdmi {
     }
 
     pub fn step(&mut self) {
+        self.current_cycle += 1;
         match self.cpsr.cpu_state() {
             CpuState::Thumb => {
                 let to_execute = self.decoded_thumb;
@@ -705,11 +709,12 @@ impl std::fmt::Display for HalfwordTransferKind {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use crate::cpu::condition::Condition;
     use crate::cpu::flags::{HalfwordDataTransferOffsetKind, Indexing, LoadStoreKind, Offsetting};
     use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
     use crate::cpu::thumb::instruction::ThumbModeInstruction;
-    use pretty_assertions::assert_eq;
 
     use super::*;
 
