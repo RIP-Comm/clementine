@@ -16,7 +16,7 @@ pub struct SaveGame {
 }
 
 impl SaveGame {
-    pub fn new(gba: Arc<Mutex<Gba>>) -> Self {
+    pub const fn new(gba: Arc<Mutex<Gba>>) -> Self {
         Self { gba }
     }
 

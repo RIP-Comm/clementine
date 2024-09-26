@@ -16,7 +16,7 @@ pub struct GbaDisplay {
 }
 
 impl GbaDisplay {
-    pub(crate) fn new(gba: Arc<Mutex<Gba>>) -> Self {
+    pub(crate) const fn new(gba: Arc<Mutex<Gba>>) -> Self {
         Self { gba }
     }
 

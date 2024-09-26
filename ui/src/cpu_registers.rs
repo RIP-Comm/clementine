@@ -16,7 +16,7 @@ enum BaseKind {
 }
 
 impl CpuRegisters {
-    pub fn new(gba: Arc<Mutex<Gba>>) -> Self {
+    pub const fn new(gba: Arc<Mutex<Gba>>) -> Self {
         Self {
             gba,
             base_kind: BaseKind::Hex,
