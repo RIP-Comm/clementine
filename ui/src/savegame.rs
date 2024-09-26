@@ -31,14 +31,17 @@ impl SaveGame {
         let cpu = &self.gba.lock().unwrap().cpu;
 
         let encoded = bincode::serialize(cpu)?;
-        let mut file = fs::OpenOptions::new().write(true).create(true).open(path)?;
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(path)?;
 
         file.write_all(&encoded)?;
 
         Ok(())
     }
 
-    fn load_state(&mut self) -> Result<(), Box<dyn Error>> {
+    fn load_state(&self) -> Result<(), Box<dyn Error>> {
         let path = FileDialog::new()
             .set_location("~")
             .add_filter("Clementine save file", &["clm"])

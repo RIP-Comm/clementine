@@ -39,15 +39,6 @@ where
         *self = <Self as TryFrom<u128>>::try_from(bitwise).unwrap();
     }
 
-    /// Switches from 1 to 0, or conversely from 0 to 1
-    fn toggle_bit(&mut self, bit_idx: u8) {
-        debug_assert!(bit_idx < (size_of::<Self>() * 8) as u8);
-        let mut bitwise: u128 = <Self as Into<u128>>::into(self.clone());
-        let mask = 0b1 << bit_idx;
-        bitwise ^= mask;
-        *self = <Self as TryFrom<u128>>::try_from(bitwise).unwrap();
-    }
-
     fn set_bit(&mut self, bit_idx: u8, value: bool) {
         match value {
             false => self.set_bit_off(bit_idx),
@@ -163,7 +154,6 @@ impl Bits for u8 {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::Rng;
 
     #[test]
     fn test_is_on() {
@@ -205,17 +195,6 @@ mod tests {
         b.set_bit_off(6);
         b.set_bit_off(20);
         assert_eq!(b, 0b1100001100);
-    }
-
-    #[test]
-    fn toggle_bit() {
-        let original = rand::thread_rng().gen_range(1..=u32::MAX - 1);
-        let mut fin = original;
-        for i in 0..32 {
-            fin.toggle_bit(i)
-        }
-
-        assert_eq!(!original, fin);
     }
 
     #[test]

@@ -20,6 +20,7 @@ impl GbaDisplay {
         Self { gba }
     }
 
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn ui(&mut self, ui: &mut Ui) {
         //TODO: Fix this .lock().unwrap() repeated two times
         let rgb_data = self
