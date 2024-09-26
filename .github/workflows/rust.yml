@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup just
-        uses: extractions/setup-just@v1
+        uses: extractions/setup-just@v2
 
       - uses: actions/checkout@v4
 
