@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Setup just
-        uses: extractions/setup-just@v1
+        uses: extractions/setup-just@v2
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Test
