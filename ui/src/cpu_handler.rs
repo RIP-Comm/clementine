@@ -236,7 +236,6 @@ impl UiTool for CpuHandler {
                         "Greater than"
                     })
                     .show_ui(ui, |ui| {
-                        ui.style_mut().wrap = Some(false);
                         ui.set_width(40.0);
                         ui.set_max_width(100.0);
                         ui.selectable_value(

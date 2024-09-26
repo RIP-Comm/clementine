@@ -78,6 +78,24 @@ impl ClementineApp {
 
         Self { tools, open }
     }
+
+    pub fn checkboxes(&mut self, ui: &mut egui::Ui) {
+        let Self { tools, open } = self;
+        for tool in tools {
+            let mut is_open = open.contains(tool.name());
+            ui.toggle_value(&mut is_open, tool.name());
+            set_open(open, tool.name(), is_open);
+        }
+    }
+
+    fn windows(&mut self, ctx: &egui::Context) {
+        let Self { tools, open } = self;
+        for tool in tools {
+            let mut is_open = open.contains(tool.name());
+            tool.show(ctx, &mut is_open);
+            set_open(open, tool.name(), is_open);
+        }
+    }
 }
 
 impl eframe::App for ClementineApp {
@@ -106,26 +124,6 @@ impl eframe::App for ClementineApp {
             });
 
         self.windows(ctx);
-    }
-}
-
-impl ClementineApp {
-    pub fn checkboxes(&mut self, ui: &mut egui::Ui) {
-        let Self { tools, open } = self;
-        for tool in tools {
-            let mut is_open = open.contains(tool.name());
-            ui.toggle_value(&mut is_open, tool.name());
-            set_open(open, tool.name(), is_open);
-        }
-    }
-
-    fn windows(&mut self, ctx: &egui::Context) {
-        let Self { tools, open } = self;
-        for tool in tools {
-            let mut is_open = open.contains(tool.name());
-            tool.show(ctx, &mut is_open);
-            set_open(open, tool.name(), is_open);
-        }
     }
 }
 

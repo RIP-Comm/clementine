@@ -1,6 +1,5 @@
-extern crate ui;
-use ui::app::ClementineApp;
 extern crate logger;
+extern crate ui;
 use logger::log;
 
 #[cfg(feature = "logger")]
@@ -39,7 +38,7 @@ fn main() {
     eframe::run_native(
         "Clementine - A GBA Emulator",
         options,
-        Box::new(|_cc| Box::new(ClementineApp::new(cartridge_name))),
+        Box::new(|_cc| Ok(Box::new(ui::app::ClementineApp::new(cartridge_name)))),
     )
     .ok();
 }
