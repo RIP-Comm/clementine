@@ -41,6 +41,8 @@ cargo run -- ~/Desktop/my_game.gba
 All of those command are just a wrapper around `cargo run` and they are just for convenience.
 If you want more control on the execution of the emulator you can use `cargo run` directly.
 
+Another requirement is to have somewhere a file that represents the bios of the GBA. By default it is looking for `gba_bios.bin` in local folder. It is pretty easy to find online.
+
 ```zsh
 # simple run of a rom in debug mode
 just run <rom>
