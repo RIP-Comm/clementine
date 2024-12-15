@@ -82,7 +82,7 @@ impl UiTool for SaveGame {
                     .set_text(err.to_string().as_str())
                     .show_alert()
                     .unwrap();
-            })
+            });
         }
 
         if ui.button("Load").clicked() {
@@ -92,7 +92,7 @@ impl UiTool for SaveGame {
                     .set_text(err.to_string().as_str())
                     .show_alert()
                     .unwrap();
-            })
+            });
         }
     }
 }

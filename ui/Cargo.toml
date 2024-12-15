@@ -17,3 +17,12 @@ bincode = "1.3.3"
 
 [features]
 disassembler = []
+
+[lints.clippy]
+complexity = "warn"
+correctness = "warn"
+nursery = "warn"
+pedantic = "warn"
+perf = "warn"
+style = "warn"
+suspicious = "warn"

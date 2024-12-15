@@ -60,6 +60,7 @@ impl UiTool for GbaDisplay {
         "Gba Display"
     }
 
+    #[allow(clippy::cast_precision_loss)]
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
         egui::Window::new(self.name())
             .open(open)

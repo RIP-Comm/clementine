@@ -38,7 +38,7 @@ fn main() {
     eframe::run_native(
         "Clementine - A GBA Emulator",
         options,
-        Box::new(|_cc| Ok(Box::new(ui::app::ClementineApp::new(cartridge_name)))),
+        Box::new(|_cc| Ok(Box::new(ui::app::App::new(cartridge_name)))),
     )
     .ok();
 }

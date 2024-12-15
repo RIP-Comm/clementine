@@ -12,14 +12,7 @@ test:
 
 # run clippy with heavy config
 lint:
-    @cargo clippy --workspace -- -D warnings    \
-    -W clippy::complexity                       \
-    -W clippy::correctness                      \
-    -W clippy::nursery                          \
-    -W clippy::perf                             \
-    -W clippy::style                            \
-    -W clippy::suspicious                       \
-    -A clippy::large_stack_frames
+    @cargo clippy --workspace
 
 # clean build directory
 clean:

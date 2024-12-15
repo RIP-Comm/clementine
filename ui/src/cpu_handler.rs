@@ -111,12 +111,13 @@ impl UiTool for CpuHandler {
             });
     }
 
+    #[allow(clippy::too_many_lines)]
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("Cartridge name:");
-            let mut cartridge_name: String = Default::default();
+            let mut cartridge_name = String::default();
             if let Ok(gba) = self.gba.lock() {
-                cartridge_name = gba.cartridge_header.game_title.clone()
+                cartridge_name.clone_from(&gba.cartridge_header.game_title);
             }
             ui.text_edit_singleline(&mut cartridge_name);
 
@@ -140,8 +141,10 @@ impl UiTool for CpuHandler {
                 self.thread_handle = Some(thread::spawn(move || {
                     while play_clone.load(std::sync::atomic::Ordering::Relaxed) {
                         breakpoints_clone.lock().unwrap().iter().for_each(|&b| {
-                            let pc =
-                                gba_clone.lock().unwrap().cpu.registers.program_counter() as u32;
+                            let pc = u32::try_from(
+                                gba_clone.lock().unwrap().cpu.registers.program_counter(),
+                            )
+                            .expect("Failed to convert u16 to u32");
                             match b.kind {
                                 BreakpointType::Equal => {
                                     if pc == b.address {
@@ -186,7 +189,7 @@ impl UiTool for CpuHandler {
 
                 if ui.button("⏭x1").clicked() {
                     if let Ok(mut gba) = self.gba.lock() {
-                        gba.step()
+                        gba.step();
                     }
                 }
 
@@ -285,7 +288,7 @@ impl UiTool for CpuHandler {
                 ui.label("Active breakpoints:");
                 let breakpoints = self.breakpoints.lock().unwrap().clone();
 
-                for b in breakpoints.iter() {
+                for b in &breakpoints {
                     ui.horizontal(|ui| {
                         ui.label(format!("0x{:08X}", b.address));
                         if ui.button("X").clicked() {

@@ -29,3 +29,12 @@ rand = "0.8.5"
 [features]
 logger = ["logger/logger", "emu/logger"]
 disassembler = ["emu/disassembler", "ui/disassembler"]
+
+[lints.clippy]
+complexity = "warn"
+correctness = "warn"
+nursery = "warn"
+pedantic = "warn"
+perf = "warn"
+style = "warn"
+suspicious = "warn"
