@@ -9,8 +9,8 @@ use crate::cpu::{condition::Condition, cpu_modes::Mode};
 pub struct Psr(u32);
 
 impl Psr {
-    pub(crate) fn can_execute(&self, cond: Condition) -> bool {
-        use Condition::*;
+    pub(crate) fn can_execute(self, cond: Condition) -> bool {
+        use Condition::{AL, CC, CS, EQ, GE, GT, HI, LE, LS, LT, MI, NE, NV, PL, VC, VS};
         match cond {
             EQ => self.zero_flag(),                         // Equal (Z=1)
             NE => !self.zero_flag(),                        // Not equal (Z=0)
@@ -32,32 +32,32 @@ impl Psr {
     }
 
     /// N => Bit 31, (0=Not Signed, 1=Signed)
-    pub fn sign_flag(&self) -> bool {
+    pub fn sign_flag(self) -> bool {
         self.0.get_bit(31)
     }
 
     /// Z => Bit 30, (0=Not Zero, 1=Zero)
-    pub fn zero_flag(&self) -> bool {
+    pub fn zero_flag(self) -> bool {
         self.0.get_bit(30)
     }
 
     /// C => Bit 29, (0=Borrow/No Carry, 1=Carry/No Borrow)
-    pub fn carry_flag(&self) -> bool {
+    pub fn carry_flag(self) -> bool {
         self.0.get_bit(29)
     }
 
     /// V => Bit 28, (0=No Overflow, 1=Overflow)
-    pub fn overflow_flag(&self) -> bool {
+    pub fn overflow_flag(self) -> bool {
         self.0.get_bit(28)
     }
 
-    /// Q => Bit 27, (1=Sticky Overflow, ARMv5TE and up only)
-    pub fn sticky_overflow(&self) -> bool {
+    /// Q => Bit 27, (1=Sticky Overflow, `ARMv5TE` and up only)
+    pub fn sticky_overflow(self) -> bool {
         self.0.get_bit(27)
     }
 
     /// Reserved => Bits 26-8, (For future use) - Do not change manually!
-    pub const fn reserved_bits(&self) -> bool {
+    pub const fn reserved_bits() -> bool {
         // These bits are reserved for possible future implementations.
         // For best forwards compatibility, the user should never change the state of these bits,
         // and should not expect these bits to be set to a specific value.
@@ -65,22 +65,22 @@ impl Psr {
     }
 
     /// I => Bit 7, (0=Enable, 1=Disable)
-    pub fn irq_disable(&self) -> bool {
+    pub fn irq_disable(self) -> bool {
         self.0.get_bit(7)
     }
 
     /// F => Bit 6, (0=Enable, 1=Disable)
-    pub fn fiq_disable(&self) -> bool {
+    pub fn fiq_disable(self) -> bool {
         self.0.get_bit(6)
     }
 
     /// T => Bit 5, (0=ARM, 1=THUMB) - Do not change manually!
-    pub fn state_bit(&self) -> bool {
+    pub fn state_bit(self) -> bool {
         self.0.get_bit(5)
     }
 
     /// M4-M0 => Bits 4-0
-    pub fn mode(&self) -> Mode {
+    pub fn mode(self) -> Mode {
         Mode::try_from(self.0 & 0b11111).unwrap()
     }
 
@@ -96,7 +96,7 @@ impl Psr {
         self.0.set_bit(29, value);
     }
 
-    pub fn set_flags(&mut self, op_result: ArithmeticOpResult) {
+    pub fn set_flags(&mut self, op_result: &ArithmeticOpResult) {
         self.set_carry_flag(op_result.carry);
         self.set_zero_flag(op_result.zero);
         self.set_sign_flag(op_result.sign);
@@ -146,7 +146,7 @@ impl Psr {
     }
 
     /// The Mode Bits M4-M0 contain the current operating mode.
-    pub fn set_mode(&mut self, m: Mode) {
+    pub fn set_mode(&mut self, m: &Mode) {
         // Setting mode bits to 0
         self.0 &= 0b1111_1111_1111_1111_1111_1111_1110_0000;
 
@@ -162,7 +162,7 @@ impl Psr {
         }
     }
 
-    pub fn cpu_state(&self) -> CpuState {
+    pub fn cpu_state(self) -> CpuState {
         self.state_bit().into()
     }
 
@@ -175,7 +175,7 @@ impl From<Mode> for Psr {
     fn from(m: Mode) -> Self {
         let mut s = Self(0);
 
-        s.set_mode(m);
+        s.set_mode(&m);
 
         s
     }
@@ -208,9 +208,10 @@ impl From<CpuState> for bool {
 
 impl From<bool> for CpuState {
     fn from(state: bool) -> Self {
-        match state {
-            true => Self::Thumb,
-            false => Self::Arm,
+        if state {
+            Self::Thumb
+        } else {
+            Self::Arm
         }
     }
 }
@@ -256,8 +257,7 @@ mod tests {
 
     #[test]
     fn check_reserved_bits() {
-        let cpsr: Psr = Psr(0);
-        assert!(cpsr.reserved_bits());
+        assert!(Psr::reserved_bits());
     }
 
     #[test]
@@ -285,7 +285,7 @@ mod tests {
     fn check_user() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::User;
-        cpsr.set_mode(mode);
+        cpsr.set_mode(&mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10000);
 
         let cpsr = Psr(0b10000);
@@ -298,7 +298,7 @@ mod tests {
     fn check_fiq() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Fiq;
-        cpsr.set_mode(mode);
+        cpsr.set_mode(&mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10001);
 
         let cpsr = Psr(0b10001);
@@ -311,7 +311,7 @@ mod tests {
     fn check_irq() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Irq;
-        cpsr.set_mode(mode);
+        cpsr.set_mode(&mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10010);
 
         let cpsr = Psr(0b10010);
@@ -324,7 +324,7 @@ mod tests {
     fn check_supervisor() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Supervisor;
-        cpsr.set_mode(mode);
+        cpsr.set_mode(&mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10011);
 
         let cpsr = Psr(0b10011);
@@ -337,7 +337,7 @@ mod tests {
     fn check_abort() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Abort;
-        cpsr.set_mode(mode);
+        cpsr.set_mode(&mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10111);
 
         let cpsr = Psr(0b10111);
@@ -350,7 +350,7 @@ mod tests {
     fn check_undefined() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Undefined;
-        cpsr.set_mode(mode);
+        cpsr.set_mode(&mode);
         assert_eq!(cpsr.0 & 0b11111, 0b11011);
 
         let cpsr = Psr(0b11011);
@@ -363,7 +363,7 @@ mod tests {
     fn check_system() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::System;
-        cpsr.set_mode(mode);
+        cpsr.set_mode(&mode);
         assert_eq!(cpsr.0 & 0b11111, 0b11111);
 
         let cpsr = Psr(0b11111);

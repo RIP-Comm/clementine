@@ -36,23 +36,19 @@ impl Arm7tdmi {
             OperandKind::Register => self.registers.register_at(rn_offset3.into()),
         };
 
-        match op {
-            // TODO: Create a meaningful enum for this
-            // Add
-            false => {
-                let add_result = Self::add_inner_op(rs, offset);
-                self.registers
-                    .set_register_at(rd as usize, add_result.result);
-                self.cpsr.set_flags(add_result);
-            }
+        if op {
             // Sub
-            true => {
-                let sub_result = Self::sub_inner_op(rs, offset);
-                self.registers
-                    .set_register_at(rd as usize, sub_result.result);
-                self.cpsr.set_flags(sub_result);
-            }
-        };
+            let sub_result = Self::sub_inner_op(rs, offset);
+            self.registers
+                .set_register_at(rd as usize, sub_result.result);
+            self.cpsr.set_flags(&sub_result);
+        } else {
+            // Add
+            let add_result = Self::add_inner_op(rs, offset);
+            self.registers
+                .set_register_at(rd as usize, add_result.result);
+            self.cpsr.set_flags(&add_result);
+        }
     }
 
     pub fn move_compare_add_sub_imm(&mut self, op: Operation, r_destination: u16, offset: u32) {
@@ -75,19 +71,19 @@ impl Arm7tdmi {
             Operation::Cmp => {
                 let rd = self.registers.register_at(dest);
                 let sub_result = Self::sub_inner_op(rd, offset);
-                self.cpsr.set_flags(sub_result);
+                self.cpsr.set_flags(&sub_result);
             }
             Operation::Add => {
                 let rd_value = self.registers.register_at(dest);
                 let add_result = Self::add_inner_op(rd_value, offset);
                 self.registers.set_register_at(dest, add_result.result);
-                self.cpsr.set_flags(add_result);
+                self.cpsr.set_flags(&add_result);
             }
             Operation::Sub => {
                 let rd_value = self.registers.register_at(dest);
                 let sub_result = Self::sub_inner_op(rd_value, offset);
                 self.registers.set_register_at(dest, sub_result.result);
-                self.cpsr.set_flags(sub_result);
+                self.cpsr.set_flags(&sub_result);
             }
         };
     }
@@ -96,10 +92,10 @@ impl Arm7tdmi {
         let rs = self.registers.register_at(rs.into());
         match op {
             ThumbModeAluInstruction::And => {
-                self.and(rd.into(), self.registers.register_at(rd.into()), rs, true)
+                self.and(rd.into(), self.registers.register_at(rd.into()), rs, true);
             }
             ThumbModeAluInstruction::Eor => {
-                self.eor(rd.into(), self.registers.register_at(rd.into()), rs, true)
+                self.eor(rd.into(), self.registers.register_at(rd.into()), rs, true);
             }
             ThumbModeAluInstruction::Lsl => {
                 let destination = rd.into();
@@ -109,7 +105,7 @@ impl Arm7tdmi {
                 } else {
                     // Otherwise we reuse the ARM logic
                     self.shift_operand(
-                        crate::cpu::arm::alu_instruction::ArmModeAluInstruction::Mov,
+                        crate::cpu::arm::alu_instruction::ArmModeAluInstr::Mov,
                         true,
                         ShiftKind::Lsl,
                         rs,
@@ -127,7 +123,7 @@ impl Arm7tdmi {
                 } else {
                     // Otherwise we reuse the ARM logic
                     self.shift_operand(
-                        crate::cpu::arm::alu_instruction::ArmModeAluInstruction::Mov,
+                        crate::cpu::arm::alu_instruction::ArmModeAluInstr::Mov,
                         true,
                         ShiftKind::Lsr,
                         rs,
@@ -145,7 +141,7 @@ impl Arm7tdmi {
                 } else {
                     // Otherwise we reuse the ARM logic
                     self.shift_operand(
-                        crate::cpu::arm::alu_instruction::ArmModeAluInstruction::Mov,
+                        crate::cpu::arm::alu_instruction::ArmModeAluInstr::Mov,
                         true,
                         ShiftKind::Asr,
                         rs,
@@ -156,10 +152,10 @@ impl Arm7tdmi {
                 self.mov(destination, second_operand, true);
             }
             ThumbModeAluInstruction::Adc => {
-                self.adc(rd.into(), self.registers.register_at(rd.into()), rs, true)
+                self.adc(rd.into(), self.registers.register_at(rd.into()), rs, true);
             }
             ThumbModeAluInstruction::Sbc => {
-                self.sbc(rd.into(), self.registers.register_at(rd.into()), rs, true)
+                self.sbc(rd.into(), self.registers.register_at(rd.into()), rs, true);
             }
             ThumbModeAluInstruction::Ror => {
                 self.ror(rd.into(), rs);
@@ -175,10 +171,10 @@ impl Arm7tdmi {
                 self.cmn(op1, op2);
             }
             ThumbModeAluInstruction::Orr => {
-                self.orr(rd.into(), self.registers.register_at(rd.into()), rs, true)
+                self.orr(rd.into(), self.registers.register_at(rd.into()), rs, true);
             }
             ThumbModeAluInstruction::Mul => {
-                self.thumb_mul(rd.into(), rs, self.registers.register_at(rd.into()))
+                self.thumb_mul(rd.into(), rs, self.registers.register_at(rd.into()));
             }
             ThumbModeAluInstruction::Bic => {
                 let op1 = self.registers.register_at(rd.into());
@@ -212,7 +208,7 @@ impl Arm7tdmi {
             ThumbHighRegisterOperation::Cmp => {
                 let sub_result = Self::sub_inner_op(d_value, s_value);
 
-                self.cpsr.set_flags(sub_result);
+                self.cpsr.set_flags(&sub_result);
             }
             ThumbHighRegisterOperation::Mov => {
                 self.registers
@@ -335,11 +331,11 @@ impl Arm7tdmi {
         match (load_store, byte_word) {
             (LoadStoreKind::Store, ReadWriteKind::Word) => {
                 let v = self.registers.register_at(rd);
-                self.bus.write_word(address, v)
+                self.bus.write_word(address, v);
             }
             (LoadStoreKind::Store, ReadWriteKind::Byte) => {
                 let v = self.registers.register_at(rd);
-                self.bus.write_byte(address, v as u8)
+                self.bus.write_byte(address, v as u8);
             }
             (LoadStoreKind::Load, ReadWriteKind::Word) => {
                 let v = self.read_word(address);
@@ -558,8 +554,8 @@ impl Arm7tdmi {
     }
 
     pub fn uncond_branch(&mut self, offset: u32) {
-        let offset = offset.sign_extended(12) as i32;
-        let pc = self.registers.program_counter() as i32;
+        let offset = offset.sign_extended(12) as i64;
+        let pc = self.registers.program_counter() as i64;
         let new_pc = pc + offset;
         self.registers.set_program_counter(new_pc as u32);
 
@@ -599,7 +595,7 @@ impl Arm7tdmi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::thumb::instruction::ThumbModeInstruction;
+    use crate::cpu::thumb::instruction::Instruction;
     use crate::cpu::thumb::mode::ThumbModeOpcode;
     use pretty_assertions::assert_eq;
 
@@ -609,7 +605,7 @@ mod tests {
         let op_code = 0b0010_0000_0000_0000_u16;
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
-            ThumbModeInstruction::MoveCompareAddSubtractImm {
+            Instruction::MoveCompareAddSubtractImm {
                 operation: Operation::Mov,
                 destination_register: 0,
                 offset: 0,

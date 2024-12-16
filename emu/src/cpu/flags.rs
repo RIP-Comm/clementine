@@ -10,9 +10,10 @@ pub enum OperandKind {
 
 impl From<bool> for OperandKind {
     fn from(b: bool) -> Self {
-        match b {
-            false => Self::Register,
-            true => Self::Immediate,
+        if b {
+            Self::Immediate
+        } else {
+            Self::Register
         }
     }
 }
@@ -127,9 +128,10 @@ pub enum LoadStoreKind {
 
 impl From<bool> for LoadStoreKind {
     fn from(b: bool) -> Self {
-        match b {
-            false => Self::Store,
-            true => Self::Load,
+        if b {
+            Self::Load
+        } else {
+            Self::Store
         }
     }
 }
@@ -154,9 +156,10 @@ pub enum Indexing {
 
 impl From<bool> for Indexing {
     fn from(state: bool) -> Self {
-        match state {
-            false => Self::Post,
-            true => Self::Pre,
+        if state {
+            Self::Pre
+        } else {
+            Self::Post
         }
     }
 }
@@ -172,9 +175,10 @@ pub enum Offsetting {
 
 impl From<bool> for Offsetting {
     fn from(state: bool) -> Self {
-        match state {
-            false => Self::Down,
-            true => Self::Up,
+        if state {
+            Self::Up
+        } else {
+            Self::Down
         }
     }
 }

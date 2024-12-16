@@ -19,3 +19,12 @@ rand = "0.8.5"
 [features]
 logger = []
 disassembler = []
+
+[lints.clippy]
+complexity = "warn"
+correctness = "warn"
+nursery = "warn"
+pedantic = "warn"
+perf = "warn"
+style = "warn"
+suspicious = "warn"

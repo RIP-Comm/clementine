@@ -59,9 +59,10 @@ pub enum ColorMode {
 
 impl From<bool> for ColorMode {
     fn from(value: bool) -> Self {
-        match value {
-            false => Self::Palette4bpp,
-            true => Self::Palette8bpp,
+        if value {
+            Self::Palette8bpp
+        } else {
+            Self::Palette4bpp
         }
     }
 }
@@ -246,7 +247,8 @@ impl RotationScaling {
     /// T = [ x ]
     ///     [ y ]
     /// pa, pb, pc, pd are first converted to floating number from the fixed point representation
-    pub fn apply(&self, x: f64, y: f64) -> (f64, f64) {
+    #[allow(clippy::many_single_char_names)]
+    pub fn apply(self, x: f64, y: f64) -> (f64, f64) {
         let a = Self::get_float_from_fixed_point(self.pa);
         let b = Self::get_float_from_fixed_point(self.pb);
         let c = Self::get_float_from_fixed_point(self.pc);

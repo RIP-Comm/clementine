@@ -15,7 +15,7 @@ impl Registers {
     }
 
     pub fn set_program_counter(&mut self, new_value: u32) {
-        self.0[15] = new_value
+        self.0[15] = new_value;
     }
 
     pub fn advance_program_counter(&mut self, bytes: u32) {

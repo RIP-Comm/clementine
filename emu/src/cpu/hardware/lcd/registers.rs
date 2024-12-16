@@ -22,21 +22,21 @@ pub struct Registers {
     pub bg2cnt: u16,
     /// BG3 Control
     pub bg3cnt: u16,
-    /// BG0 X-Offset
+    /// BG0 `X-Offset`
     pub bg0hofs: u16,
-    /// BG0 Y_Offset
+    /// BG0 `Y_Offset`
     pub bg0vofs: u16,
-    /// BG1 X-Offset
+    /// BG1 `X-Offset`
     pub bg1hofs: u16,
-    /// BG1 Y_Offset
+    /// BG1 `Y_Offset`
     pub bg1vofs: u16,
-    /// BG2 X-Offset
+    /// BG2 `X-Offset`
     pub bg2hofs: u16,
-    /// BG2 Y_Offset
+    /// BG2 `Y_Offset`
     pub bg2vofs: u16,
-    /// BG3 X-Offset
+    /// BG3 `X-Offset`
     pub bg3hofs: u16,
-    /// BG3 Y_Offset
+    /// BG3 `Y_Offset`
     pub bg3vofs: u16,
     /// BG2 Rotation/Scaling Parameter A (dx)
     pub bg2pa: u16,

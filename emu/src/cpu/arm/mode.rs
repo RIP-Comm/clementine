@@ -64,7 +64,6 @@ impl std::fmt::Display for ArmModeOpcode {
                     "FMT: |_Cond__|0_0|I|1_0|P|1_0_1_0_0_0_1_1_1_1|_Operand____|"
                 }
             },
-            ArmModeInstruction::SingleDataSwap => "FMT: |_Cond__|",
             ArmModeInstruction::BranchAndExchange { .. } => {
                 "FMT: |_Cond__|0_0_0_1|0_0_1_0|1_1_1_1|1_1_1_1|1_1_1_1|0_0_0_1|__Rn___|"
             }
@@ -79,7 +78,6 @@ impl std::fmt::Display for ArmModeOpcode {
             ArmModeInstruction::SingleDataTransfer { .. } => {
                 "FMT: |_Cond__|0_1|I|P|U|B|W|L|__Rn___|__Rd___|________Offset_________|"
             }
-            ArmModeInstruction::Undefined => "FMT: |_Cond__|",
             ArmModeInstruction::BlockDataTransfer { .. } => {
                 "FMT: |_Cond__|1_0_0|P|U|S|W|L|__Rn___|_____________Reg_List__________|"
             }
@@ -89,9 +87,11 @@ impl std::fmt::Display for ArmModeOpcode {
             ArmModeInstruction::CoprocessorDataTransfer { .. } => {
                 "FMT: |_Cond__|1_1_0|P|U|N|W|L|__Rn___|__CRd__|__Cp#__|____Offset_____|"
             }
-            ArmModeInstruction::CoprocessorDataOperation => "FMT: |_Cond__|",
-            ArmModeInstruction::CoprocessorRegisterTransfer => "FMT: |_Cond__|",
-            ArmModeInstruction::SoftwareInterrupt => "FMT: |_Cond__|",
+            ArmModeInstruction::Undefined
+            | ArmModeInstruction::SingleDataSwap
+            | ArmModeInstruction::CoprocessorDataOperation
+            | ArmModeInstruction::CoprocessorRegisterTransfer
+            | ArmModeInstruction::SoftwareInterrupt => "FMT: |_Cond__|",
         };
 
         let mut raw_bits = String::new();

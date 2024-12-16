@@ -20,6 +20,9 @@ pub struct CartridgeHeader {
 }
 
 impl CartridgeHeader {
+    /// Create a new `CartridgeHeader` from a slice of bytes.
+    ///
+    /// # Errors
     pub fn new(data: &[u8]) -> Result<Self, String> {
         let rom_entry_point = Self::extract_rom_entry_point(data);
         let nintendo_logo = Self::extract_nintendo_logo(data);
@@ -60,7 +63,7 @@ impl CartridgeHeader {
         })
     }
 
-    /// 32bit ARM branch opcode, eg. "B rom_start"
+    /// 32bit ARM branch opcode, eg. "B `rom_start`"
     fn extract_rom_entry_point(data: &[u8]) -> [u8; 4] {
         data[0x000..=0x003]
             .try_into()
@@ -158,7 +161,7 @@ impl CartridgeHeader {
             .expect("extracting reserved area 2")
     }
 
-    /// 32bit ARM branch opcode, eg. "B ram_start"
+    /// 32bit ARM branch opcode, eg. "B `ram_start`"
     fn extract_ram_entry_point(data: &[u8]) -> [u8; 4] {
         // This entry is used only if the GBA has been booted
         // by using Normal or Multiplay transfer mode (but not by Joybus mode).
@@ -203,7 +206,7 @@ impl CartridgeHeader {
         data[0x0C6..=0x0DF].try_into().expect("extracting not used")
     }
 
-    /// 32bit ARM branch opcode, eg. "B joy_start"
+    /// 32bit ARM branch opcode, eg. "B `joy_start`"
     fn extract_joybus_mode_entry_point(data: &[u8]) -> [u8; 4] {
         // If the GBA has been booted by using Joybus transfer mode,
         // then the entry point is located at this address rather than at 20000C0h (ram_entry_point - data[0x0C0..=0x0C3]).

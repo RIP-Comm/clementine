@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::cpu::thumb::instruction::ThumbModeInstruction;
+use crate::cpu::thumb::instruction::Instruction;
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct ThumbModeOpcode {
-    pub instruction: ThumbModeInstruction,
+    pub instruction: Instruction,
     pub raw: u16,
 }
 
@@ -13,7 +13,7 @@ impl TryFrom<u16> for ThumbModeOpcode {
 
     fn try_from(op_code: u16) -> Result<Self, Self::Error> {
         Ok(Self {
-            instruction: ThumbModeInstruction::from(op_code),
+            instruction: Instruction::from(op_code),
             raw: op_code,
         })
     }
@@ -36,39 +36,29 @@ impl std::fmt::Display for ThumbModeOpcode {
         let bytes_pos2 = "     |5_4_3_2_1_0_9_8_7_6_5_4_3_2_1_0|\n";
 
         let op_code_format: &str = match &self.instruction {
-            ThumbModeInstruction::MoveShiftedRegister { .. } => {
-                "FMT: |0_0_1|Op_|__Offset_|_Rs__|_Rd__|"
-            }
-            ThumbModeInstruction::AddSubtract { .. } => "FMT: |0_0_0_1_1|I|O|RnOff|_Rs__|_Rd__|",
-            ThumbModeInstruction::MoveCompareAddSubtractImm { .. } => {
+            Instruction::MoveShiftedRegister { .. } => "FMT: |0_0_1|Op_|__Offset_|_Rs__|_Rd__|",
+            Instruction::AddSubtract { .. } => "FMT: |0_0_0_1_1|I|O|RnOff|_Rs__|_Rd__|",
+            Instruction::MoveCompareAddSubtractImm { .. } => {
                 "FMT: |0_0_1|Op_|_Rn__|____Offset_____|"
             }
-            ThumbModeInstruction::AluOp { .. } => "FMT: |0_1_0_0_0_0|__Op___|_Rs__|_Rd__|",
-            ThumbModeInstruction::HiRegisterOpBX { .. } => "FMT: |0_1_0_0_0_1|_Op|H|H|Rs/Hs|Rd/Hd|",
-            ThumbModeInstruction::PCRelativeLoad { .. } => "FMT: |0_1_0_0_1|_Rn__|_____Word8_____|",
-            ThumbModeInstruction::LoadStoreRegisterOffset { .. } => {
-                "FMT: |0_1_0_1|L|B|0|_Ro__|_Rb__|_Rd__|"
-            }
-            ThumbModeInstruction::LoadStoreSignExtByteHalfword { .. } => {
+            Instruction::AluOp { .. } => "FMT: |0_1_0_0_0_0|__Op___|_Rs__|_Rd__|",
+            Instruction::HiRegisterOpBX { .. } => "FMT: |0_1_0_0_0_1|_Op|H|H|Rs/Hs|Rd/Hd|",
+            Instruction::PCRelativeLoad { .. } => "FMT: |0_1_0_0_1|_Rn__|_____Word8_____|",
+            Instruction::LoadStoreRegisterOffset { .. } => "FMT: |0_1_0_1|L|B|0|_Ro__|_Rb__|_Rd__|",
+            Instruction::LoadStoreSignExtByteHalfword { .. } => {
                 "FMT: |0_1_0_1|H|S|1|_Ro__|_Rb__|_Rd__|"
             }
-            ThumbModeInstruction::LoadStoreImmOffset => "FMT: |0_1_1|B|L|_Offset5_|_Rb__|_Rd__|",
-            ThumbModeInstruction::LoadStoreHalfword { .. } => {
-                "FMT: |1_0_0_0|L|_Offset5_|_Rb__|_Rd__|"
-            }
-            ThumbModeInstruction::SPRelativeLoadStore { .. } => {
-                "FMT: |1_0_0_1|L|_Rd__|_____Word8_____|"
-            }
-            ThumbModeInstruction::LoadAddress { .. } => "FMT: |1_0_1_0|S|_Rd__|_____Word8_____|",
-            ThumbModeInstruction::AddOffsetSP { .. } => "FMT: |1_0_1_1_0_0_0_0|S|____Word7____|",
-            ThumbModeInstruction::PushPopReg { .. } => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
-            ThumbModeInstruction::MultipleLoadStore { .. } => {
-                "FMT: |1_1_0_0|L|_Rb__|_____Rlist_____|"
-            }
-            ThumbModeInstruction::CondBranch { .. } => "FMT: |1_1_0_1|_Cond__|_____Offset____|",
-            ThumbModeInstruction::Swi => todo!(),
-            ThumbModeInstruction::UncondBranch { .. } => "FMT: |1_1_1_0_0|________Offset11_____|",
-            ThumbModeInstruction::LongBranchLink { .. } => "FMT: |1_1_1_1|H|_______Offset________|",
+            Instruction::LoadStoreImmOffset => "FMT: |0_1_1|B|L|_Offset5_|_Rb__|_Rd__|",
+            Instruction::LoadStoreHalfword { .. } => "FMT: |1_0_0_0|L|_Offset5_|_Rb__|_Rd__|",
+            Instruction::SPRelativeLoadStore { .. } => "FMT: |1_0_0_1|L|_Rd__|_____Word8_____|",
+            Instruction::LoadAddress { .. } => "FMT: |1_0_1_0|S|_Rd__|_____Word8_____|",
+            Instruction::AddOffsetSP { .. } => "FMT: |1_0_1_1_0_0_0_0|S|____Word7____|",
+            Instruction::PushPopReg { .. } => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
+            Instruction::MultipleLoadStore { .. } => "FMT: |1_1_0_0|L|_Rb__|_____Rlist_____|",
+            Instruction::CondBranch { .. } => "FMT: |1_1_0_1|_Cond__|_____Offset____|",
+            Instruction::Swi => todo!(),
+            Instruction::UncondBranch { .. } => "FMT: |1_1_1_0_0|________Offset11_____|",
+            Instruction::LongBranchLink { .. } => "FMT: |1_1_1_1|H|_______Offset________|",
         };
 
         let mut raw_bits = String::new();

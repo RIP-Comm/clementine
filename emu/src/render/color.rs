@@ -10,6 +10,7 @@ pub enum PaletteType {
 pub struct Color(pub u16);
 
 impl Color {
+    #[must_use]
     pub fn from_rgb(red: u8, green: u8, blue: u8) -> Self {
         let red: u16 = red.into();
         let green: u16 = green.into();
@@ -18,19 +19,26 @@ impl Color {
         Self((blue << 10) + (green << 5) + red)
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    #[must_use]
     pub fn red(&self) -> u8 {
         self.0.get_bits(0..=4) as u8
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    #[must_use]
     pub fn green(&self) -> u8 {
         self.0.get_bits(5..=9) as u8
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    #[must_use]
     pub fn blue(&self) -> u8 {
         self.0.get_bits(10..=14) as u8
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 impl From<Color> for [u8; 2] {
     fn from(color: Color) -> Self {
         [(color.0 >> 8) as u8, color.0 as u8]

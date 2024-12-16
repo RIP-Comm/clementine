@@ -34,10 +34,12 @@ const WORLD_HEIGHT: u16 = 256;
 pub struct Color(pub u16);
 
 impl Color {
+    #[must_use]
     pub const fn from_palette_color(value: u16) -> Self {
         Self(value)
     }
 
+    #[must_use]
     pub fn from_rgb(red: u8, green: u8, blue: u8) -> Self {
         let red: u16 = red.into();
         let green: u16 = green.into();
@@ -46,14 +48,17 @@ impl Color {
         Self((blue << 10) + (green << 5) + red)
     }
 
+    #[must_use]
     pub fn red(&self) -> u8 {
         self.0.get_bits(0..=4) as u8
     }
 
+    #[must_use]
     pub fn green(&self) -> u8 {
         self.0.get_bits(5..=9) as u8
     }
 
+    #[must_use]
     pub fn blue(&self) -> u8 {
         self.0.get_bits(10..=14) as u8
     }
@@ -67,9 +72,10 @@ enum ObjMappingKind {
 
 impl From<bool> for ObjMappingKind {
     fn from(value: bool) -> Self {
-        match value {
-            false => Self::TwoDimensional,
-            true => Self::OneDimensional,
+        if value {
+            Self::OneDimensional
+        } else {
+            Self::TwoDimensional
         }
     }
 }
@@ -115,6 +121,8 @@ impl Default for Lcd {
         }
     }
 }
+
+#[allow(clippy::module_name_repetitions)]
 #[derive(Default)]
 pub struct LcdStepOutput {
     pub request_vblank_irq: bool,
@@ -237,16 +245,16 @@ impl Lcd {
         }
 
         if matches!(current_mode, 0 | 1) && self.registers.get_bg1_enabled() {
-            result.push(&self.layer_1)
+            result.push(&self.layer_1);
         }
 
         // BG2 is available in every mode
         if self.registers.get_bg2_enabled() {
-            result.push(&self.layer_2)
+            result.push(&self.layer_2);
         }
 
         if matches!(current_mode, 0 | 2) && self.registers.get_bg3_enabled() {
-            result.push(&self.layer_3)
+            result.push(&self.layer_3);
         }
 
         if self.registers.get_obj_enabled() {

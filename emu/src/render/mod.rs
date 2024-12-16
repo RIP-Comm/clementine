@@ -24,9 +24,9 @@ pub const MAX_COLORS_FULL_PALETTE: usize = 256;
 pub const MAX_PALETTES_BY_TYPE: usize = 16;
 
 /// Memory info about BG palette
-pub const BG_PALETTE_ADDRESS: u32 = 0x05000000;
+pub const BG_PALETTE_ADDRESS: u32 = 0x0500_0000;
 pub const _BG_PALETTE_SIZE: usize = 0x200;
 
 /// Memory info about OBJ palette
-pub const OBJ_PALETTE_ADDRESS: u32 = 0x05000200;
+pub const OBJ_PALETTE_ADDRESS: u32 = 0x0500_0200;
 pub const _OBJ_PALETTE_SIZE: usize = 0x200;

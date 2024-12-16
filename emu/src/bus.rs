@@ -4,7 +4,7 @@ use logger::log;
 use serde::{Deserialize, Serialize};
 
 use crate::bitwise::Bits;
-use crate::cpu::hardware::dma::{Dma, DmaRegisters};
+use crate::cpu::hardware::dma::{Dma, Registers};
 use crate::cpu::hardware::get_unmasked_address;
 use crate::cpu::hardware::internal_memory::InternalMemory;
 use crate::cpu::hardware::interrupt_control::InterruptControl;
@@ -48,7 +48,7 @@ enum IrqType {
 }
 
 impl IrqType {
-    /// Returns the index of the corresponding IrqType inside the Interrupt Request Flag register
+    /// Returns the index of the corresponding `IrqType` inside the Interrupt Request Flag register
     const fn get_idx_in_if(&self) -> u8 {
         match self {
             Self::VBlank => 0,
@@ -71,32 +71,32 @@ impl IrqType {
 impl Bus {
     fn read_interrupt_control_raw(&self, address: usize) -> u8 {
         match address {
-            0x04000200 => self.interrupt_control.interrupt_enable.get_byte(0),
-            0x04000201 => self.interrupt_control.interrupt_enable.get_byte(1),
-            0x04000202 => self
+            0x0400_0200 => self.interrupt_control.interrupt_enable.get_byte(0),
+            0x0400_0201 => self.interrupt_control.interrupt_enable.get_byte(1),
+            0x0400_0202 => self
                 .interrupt_control
                 .interrupt_request
                 .front()
                 .unwrap_or(&0)
                 .get_byte(0),
-            0x04000203 => self
+            0x0400_0203 => self
                 .interrupt_control
                 .interrupt_request
                 .front()
                 .unwrap_or(&0)
                 .get_byte(1),
-            0x04000204 => self.interrupt_control.wait_state_control.get_byte(0),
-            0x04000205 => self.interrupt_control.wait_state_control.get_byte(1),
-            0x04000208 => self.interrupt_control.interrupt_master_enable.get_byte(0),
-            0x04000209 => self.interrupt_control.interrupt_master_enable.get_byte(1),
-            0x04000300 => self.interrupt_control.post_boot_flag.get_byte(0),
-            0x04000301 => panic!("Reading a write-only InterruptControl address"),
-            0x04000410 => self.interrupt_control.purpose_unknown.get_byte(0),
-            0x04000206
-            | 0x04000207
-            | 0x400020A..=0x40002FF
-            | 0x04000302..=0x0400040F
-            | 0x04000411 => {
+            0x0400_0204 => self.interrupt_control.wait_state_control.get_byte(0),
+            0x0400_0205 => self.interrupt_control.wait_state_control.get_byte(1),
+            0x0400_0208 => self.interrupt_control.interrupt_master_enable.get_byte(0),
+            0x0400_0209 => self.interrupt_control.interrupt_master_enable.get_byte(1),
+            0x0400_0300 => self.interrupt_control.post_boot_flag.get_byte(0),
+            0x0400_0301 => panic!("Reading a write-only InterruptControl address"),
+            0x0400_0410 => self.interrupt_control.purpose_unknown.get_byte(0),
+            0x0400_0206
+            | 0x0400_0207
+            | 0x400_020A..=0x400_02FF
+            | 0x0400_0302..=0x0400_040F
+            | 0x0400_0411 => {
                 log("read on unused memory");
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
@@ -338,7 +338,7 @@ impl Bus {
     }
 
     fn read_dma_raw(&self, address: usize) -> u8 {
-        let read_dma_bank = |channel: &DmaRegisters, address: usize| match address {
+        let read_dma_bank = |channel: &Registers, address: usize| match address {
             0..=9 => panic!("Reading a write-only DMA I/O register"),
             10 => channel.control.get_byte(0),
             11 => channel.control.get_byte(1),
@@ -359,7 +359,7 @@ impl Bus {
     }
 
     fn write_dma_raw(&mut self, address: usize, value: u8) {
-        let write_dma_bank = |channel: &mut DmaRegisters, address: usize, value: u8| match address {
+        let write_dma_bank = |channel: &mut Registers, address: usize, value: u8| match address {
             0 => channel.source_address.set_byte(0, value),
             1 => channel.source_address.set_byte(1, value),
             2 => channel.source_address.set_byte(2, value),
@@ -377,16 +377,16 @@ impl Bus {
 
         match address {
             0x040000B0..=0x040000BB => {
-                write_dma_bank(&mut self.dma.channels[0], address - 0x040000B0, value)
+                write_dma_bank(&mut self.dma.channels[0], address - 0x040000B0, value);
             }
             0x040000BC..=0x040000C7 => {
-                write_dma_bank(&mut self.dma.channels[1], address - 0x040000BC, value)
+                write_dma_bank(&mut self.dma.channels[1], address - 0x040000BC, value);
             }
             0x040000C8..=0x040000D3 => {
-                write_dma_bank(&mut self.dma.channels[2], address - 0x040000C8, value)
+                write_dma_bank(&mut self.dma.channels[2], address - 0x040000C8, value);
             }
             0x040000D4..=0x040000DF => {
-                write_dma_bank(&mut self.dma.channels[3], address - 0x040000D4, value)
+                write_dma_bank(&mut self.dma.channels[3], address - 0x040000D4, value);
             }
             0x040000E0..=0x040000FF => {
                 log("write on unused memory");
@@ -475,7 +475,7 @@ impl Bus {
             0x04000088 => self.sound.sound_pwm_control.set_byte(0, value),
             0x04000089 => self.sound.sound_pwm_control.set_byte(1, value),
             0x04000090..=0x0400009F => {
-                self.sound.channel3_wave_pattern_ram[address - 0x04000090] = value
+                self.sound.channel3_wave_pattern_ram[address - 0x04000090] = value;
             }
             0x040000A0 => self.sound.channel_a_fifo.set_byte(0, value),
             0x040000A1 => self.sound.channel_a_fifo.set_byte(1, value),
@@ -519,7 +519,9 @@ impl Bus {
             0x0400000D => self.lcd.registers.bg2cnt.get_byte(1),
             0x0400000E => self.lcd.registers.bg3cnt.get_byte(0),
             0x0400000F => self.lcd.registers.bg3cnt.get_byte(1),
-            0x04000010..=0x04000047 => panic!("Reading a write-only LCD I/O register"),
+            (0x04000010..=0x04000047) | (0x04000054..=0x04000055) => {
+                panic!("Reading a write-only LCD I/O register")
+            }
             0x04000048 => self.lcd.registers.winin.get_byte(0),
             0x04000049 => self.lcd.registers.winin.get_byte(1),
             0x0400004A => self.lcd.registers.winout.get_byte(0),
@@ -530,7 +532,6 @@ impl Bus {
             0x04000051 => self.lcd.registers.bldcnt.get_byte(1),
             0x04000052 => self.lcd.registers.bldalpha.get_byte(0),
             0x04000053 => self.lcd.registers.bldalpha.get_byte(1),
-            0x04000054..=0x04000055 => panic!("Reading a write-only LCD I/O register"),
             0x0400004E..=0x0400004F | 0x04000056..=0x0400005F => {
                 log("read on unused memory");
                 self.unused_region.get(&address).map_or(0, |v| *v)
@@ -634,9 +635,10 @@ impl Bus {
         }
     }
 
+    #[must_use]
     pub fn read_raw(&self, address: usize) -> u8 {
         match address {
-            0x0000000..=0x0003FFF | 0x2000000..=0x03FFFFFF | 0x08000000..=0x0E00FFFF => {
+            (0x0000000..=0x0003FFF) | (0x2000000..=0x03FFFFFF) | (0x08000000..=0x0E00FFFF) => {
                 self.internal_memory.read_at(address)
             }
             0x4000000..=0x400005F => self.read_lcd_raw(address),
@@ -678,7 +680,7 @@ impl Bus {
 
                 self.lcd.memory.obj_attributes[unmasked_address - 0x07000000]
             }
-            0x0004000..=0x1FFFFFF | 0xE010000..=0xFFFFFFF | 0x10000000..=0xFFFFFFFF => {
+            0x000_4000..=0x1FF_FFFF | 0xE01_0000..=0xFFF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
                 log(format!("read on unused memory {address:x}"));
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
@@ -689,7 +691,7 @@ impl Bus {
     pub fn write_raw(&mut self, address: usize, value: u8) {
         match address {
             0x0000000..=0x0003FFF | 0x2000000..=0x03FFFFFF | 0x08000000..=0x0E00FFFF => {
-                self.internal_memory.write_at(address, value)
+                self.internal_memory.write_at(address, value);
             }
             0x4000000..=0x400005F => self.write_lcd_raw(address, value),
             0x4000060..=0x40000AF => self.write_sound_raw(address, value),
@@ -703,10 +705,10 @@ impl Bus {
 
                 match unmasked_address {
                     0x05000000..=0x050001FF => {
-                        self.lcd.memory.bg_palette_ram[unmasked_address - 0x05000000] = value
+                        self.lcd.memory.bg_palette_ram[unmasked_address - 0x05000000] = value;
                     }
                     0x05000200..=0x050003FF => {
-                        self.lcd.memory.obj_palette_ram[unmasked_address - 0x05000200] = value
+                        self.lcd.memory.obj_palette_ram[unmasked_address - 0x05000200] = value;
                     }
                     _ => unreachable!(),
                 };
@@ -717,20 +719,21 @@ impl Bus {
                 // VRAM is 64k+32k+32k with the last two 32k being one mirrors of each other
                 match unmasked_address {
                     0x06000000..=0x06017FFF => {
-                        self.lcd.memory.video_ram[unmasked_address - 0x06000000] = value
+                        self.lcd.memory.video_ram[unmasked_address - 0x06000000] = value;
                     }
                     0x06018000..=0x0601FFFF => {
-                        self.lcd.memory.video_ram[unmasked_address - 0x06000000 - 0x8000] = value
+                        self.lcd.memory.video_ram[unmasked_address - 0x06000000 - 0x8000] = value;
                     }
                     _ => unreachable!(),
                 }
             }
-            0x7000000..=0x7FFFFFF => {
-                let unmasked_address = get_unmasked_address(address, 0x00FFFF00, 0xFF0000FF, 8, 4);
+            0x700_0000..=0x7FF_FFFF => {
+                let unmasked_address =
+                    get_unmasked_address(address, 0x00FF_FF00, 0xFF00_00FF, 8, 4);
 
-                self.lcd.memory.obj_attributes[unmasked_address - 0x07000000] = value
+                self.lcd.memory.obj_attributes[unmasked_address - 0x0700_0000] = value;
             }
-            0x0004000..=0x1FFFFFF | 0xE010000..=0xFFFFFFF | 0x10000000..=0xFFFFFFFF => {
+            0x000_4000..=0x1FF_FFFF | 0xE01_0000..=0xFFF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
                 log(format!("write on unused memory {address:x}"));
                 self.unused_region.insert(address, value);
             }
@@ -776,20 +779,20 @@ impl Bus {
             let lcd_output = self.lcd.step();
 
             if lcd_output.request_hblank_irq {
-                self.request_interrupt(IrqType::HBlank);
+                self.request_interrupt(&IrqType::HBlank);
             }
 
             if lcd_output.request_vblank_irq {
-                self.request_interrupt(IrqType::VBlank);
+                self.request_interrupt(&IrqType::VBlank);
             }
 
             if lcd_output.request_vcount_irq {
-                self.request_interrupt(IrqType::VCount);
+                self.request_interrupt(&IrqType::VCount);
             }
         }
     }
 
-    fn request_interrupt(&mut self, irq_type: IrqType) {
+    fn request_interrupt(&mut self, irq_type: &IrqType) {
         self.interrupt_control
             .interrupt_request
             .back_mut()
@@ -797,6 +800,7 @@ impl Bus {
             .set_bit(irq_type.get_idx_in_if(), true);
     }
 
+    #[must_use]
     pub fn with_memory(memory: InternalMemory) -> Self {
         Self {
             internal_memory: memory,
@@ -805,14 +809,20 @@ impl Bus {
     }
 
     const fn get_wait_cycles(&self, address: usize) -> u128 {
-        let _is_sequential =
-            address == self.last_used_address || address + 4 == self.last_used_address;
+        let _ = self;
+        let _ = address;
 
-        match address {
-            // Bios
-            0x0..=0x3FFF => 1,
-            _ => 1,
-        }
+        // let _is_sequential =
+        // address == self.last_used_address || address + 4 == self.last_used_address;
+
+        // TODO: Restore this when we have a proper memory map
+        // match address {
+        // Bios
+        // 0x0..=0x3FFF => 1,
+        // _ => 1,
+        // }
+
+        1
     }
 
     pub fn read_word(&mut self, mut address: usize) -> u32 {
@@ -905,6 +915,10 @@ impl Bus {
         self.write_raw(address + 1, part_1);
     }
 
+    /// Returns the value of the interrupt control register
+    ///
+    /// # Panics
+    #[must_use]
     pub fn is_irq_pending(&self) -> bool {
         // Interrupt Master Enable has to be 1
         // && there needs to be an interrupt requested which is also enabled in the interrupt enable reg

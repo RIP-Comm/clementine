@@ -1,7 +1,5 @@
 use crate::bitwise::Bits;
-use crate::cpu::arm::alu_instruction::{
-    AluSecondOperandInfo, ArmModeAluInstruction, ShiftOperator,
-};
+use crate::cpu::arm::alu_instruction::{AluSecondOperandInfo, ArmModeAluInstr, ShiftOperator};
 use crate::cpu::arm7tdmi::HalfwordTransferKind;
 use crate::cpu::condition::Condition;
 use crate::cpu::flags::{
@@ -75,7 +73,7 @@ impl std::fmt::Display for SingleDataTransferOffsetInfo {
 pub enum ArmModeInstruction {
     DataProcessing {
         condition: Condition,
-        alu_instruction: ArmModeAluInstruction,
+        alu_instruction: ArmModeAluInstr,
         set_conditions: bool,
         op_kind: OperandKind,
         rn: u32,
@@ -179,6 +177,17 @@ pub enum ArmModeMultiplyLongVariant {
     Smlal,
 }
 
+impl std::fmt::Display for ArmModeMultiplyLongVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Umull => f.write_str("UMULL"),
+            Self::Umlal => f.write_str("UMLAL"),
+            Self::Smull => f.write_str("SMULL"),
+            Self::Smlal => f.write_str("SMLAL"),
+        }
+    }
+}
+
 impl From<u32> for ArmModeMultiplyVariant {
     fn from(op_code: u32) -> Self {
         let mul_op_code: u32 = op_code.get_bits(21..=24);
@@ -187,12 +196,6 @@ impl From<u32> for ArmModeMultiplyVariant {
             0b0001 => Self::Mla,
             _ => unreachable!(),
         }
-    }
-}
-
-impl std::fmt::Display for ArmModeMultiplyVariant {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
     }
 }
 
@@ -206,12 +209,6 @@ impl From<u32> for ArmModeMultiplyLongVariant {
             0b0111 => Self::Smlal,
             _ => unreachable!(),
         }
-    }
-}
-
-impl std::fmt::Display for ArmModeMultiplyLongVariant {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
     }
 }
 
@@ -230,27 +227,27 @@ impl ArmModeInstruction {
             } => {
                 let set_string = if *set_conditions { "S" } else { "" };
                 match alu_instruction {
-                    ArmModeAluInstruction::And
-                    | ArmModeAluInstruction::Eor
-                    | ArmModeAluInstruction::Sub
-                    | ArmModeAluInstruction::Rsb
-                    | ArmModeAluInstruction::Add
-                    | ArmModeAluInstruction::Adc
-                    | ArmModeAluInstruction::Sbc
-                    | ArmModeAluInstruction::Rsc
-                    | ArmModeAluInstruction::Orr
-                    | ArmModeAluInstruction::Bic => {
+                    ArmModeAluInstr::And
+                    | ArmModeAluInstr::Eor
+                    | ArmModeAluInstr::Sub
+                    | ArmModeAluInstr::Rsb
+                    | ArmModeAluInstr::Add
+                    | ArmModeAluInstr::Adc
+                    | ArmModeAluInstr::Sbc
+                    | ArmModeAluInstr::Rsc
+                    | ArmModeAluInstr::Orr
+                    | ArmModeAluInstr::Bic => {
                         format!(
                             "{alu_instruction}{condition}{set_string} R{destination}, R{rn}, {op2}"
                         )
                     }
-                    ArmModeAluInstruction::Tst
-                    | ArmModeAluInstruction::Teq
-                    | ArmModeAluInstruction::Cmp
-                    | ArmModeAluInstruction::Cmn => {
+                    ArmModeAluInstr::Tst
+                    | ArmModeAluInstr::Teq
+                    | ArmModeAluInstr::Cmp
+                    | ArmModeAluInstr::Cmn => {
                         format!("{alu_instruction}{condition} R{rn}, {op2}")
                     }
-                    ArmModeAluInstruction::Mov | ArmModeAluInstruction::Mvn => {
+                    ArmModeAluInstr::Mov | ArmModeAluInstr::Mvn => {
                         format!("{alu_instruction}{condition}{set_string} R{destination}, {op2}")
                     }
                 }
@@ -456,16 +453,15 @@ impl ArmModeInstruction {
 }
 
 impl From<u32> for ArmModeInstruction {
+    #[allow(clippy::too_many_lines)]
     fn from(op_code: u32) -> Self {
-        use ArmModeInstruction::*;
-
         let condition = Condition::from(op_code.get_bits(28..=31) as u8);
         // NOTE: The order is based on how many bits are already know at decoding time.
         // It can happen `op_code` coalesced into one/two or more than two possible solution, that's because
         // we tried to order with this priority.
         if op_code.get_bits(4..=27) == 0b0001_0010_1111_1111_1111_0001 {
             let register = op_code.get_bits(0..=3) as usize;
-            BranchAndExchange {
+            Self::BranchAndExchange {
                 condition,
                 register,
             }
@@ -473,7 +469,7 @@ impl From<u32> for ArmModeInstruction {
             && op_code.get_bits(20..=21) == 0b00
             && op_code.get_bits(4..=11) == 0b0000_1001
         {
-            SingleDataSwap
+            Self::SingleDataSwap
         } else if op_code.get_bits(23..=27) == 0b00001 && op_code.get_bits(4..=7) == 0b1001 {
             let variant = ArmModeMultiplyLongVariant::from(op_code);
 
@@ -484,7 +480,7 @@ impl From<u32> for ArmModeInstruction {
             let rdlo_destination_register = op_code.get_bits(12..=15);
             let rdhi_destination_register = op_code.get_bits(16..=19);
 
-            MultiplyLong {
+            Self::MultiplyLong {
                 variant,
                 condition,
                 should_set_codes,
@@ -493,7 +489,7 @@ impl From<u32> for ArmModeInstruction {
                 rm_operand_register,
                 rs_operand_register,
             }
-        } else if op_code.get_bits(22..=27) == 0b000000 && op_code.get_bits(4..=7) == 0b1001 {
+        } else if op_code.get_bits(22..=27) == 0b00_0000 && op_code.get_bits(4..=7) == 0b1001 {
             let variant = ArmModeMultiplyVariant::from(op_code);
 
             let should_set_codes = op_code.get_bit(20);
@@ -503,7 +499,7 @@ impl From<u32> for ArmModeInstruction {
             let rn_accumulate_register = op_code.get_bits(12..=15);
             let rd_destination_register = op_code.get_bits(16..=19);
 
-            Multiply {
+            Self::Multiply {
                 variant,
                 condition,
                 should_set_codes,
@@ -522,7 +518,7 @@ impl From<u32> for ArmModeInstruction {
             let transfer_kind: HalfwordTransferKind = (op_code.get_bits(5..=6) as u8).into();
             let operand_kind: OperandKind = op_code.get_bit(22).into();
 
-            HalfwordDataTransfer {
+            Self::HalfwordDataTransfer {
                 condition,
                 indexing,
                 offsetting,
@@ -546,13 +542,13 @@ impl From<u32> for ArmModeInstruction {
             }
         } else if op_code.get_bits(25..=27) == 0b011 && op_code.get_bit(4) {
             log("undefined instruction decode...");
-            Undefined
+            Self::Undefined
         } else if op_code.get_bits(24..=27) == 0b1111 {
-            SoftwareInterrupt
+            Self::SoftwareInterrupt
         } else if op_code.get_bits(24..=27) == 0b1110 && op_code.get_bit(4) {
-            CoprocessorRegisterTransfer
+            Self::CoprocessorRegisterTransfer
         } else if op_code.get_bits(24..=27) == 0b1110 && !op_code.get_bit(4) {
-            CoprocessorDataOperation
+            Self::CoprocessorDataOperation
         } else if op_code.get_bits(25..=27) == 0b110 {
             let indexing: Indexing = op_code.get_bit(24).into();
             let offsetting: Offsetting = op_code.get_bit(23).into();
@@ -565,7 +561,7 @@ impl From<u32> for ArmModeInstruction {
             let cp_number = op_code.get_bits(8..=11);
             let offset = op_code.get_bits(0..=7);
 
-            CoprocessorDataTransfer {
+            Self::CoprocessorDataTransfer {
                 condition,
                 indexing,
                 offsetting,
@@ -586,7 +582,7 @@ impl From<u32> for ArmModeInstruction {
             let rn = op_code.get_bits(16..=19);
             let reg_list = op_code.get_bits(0..=15);
 
-            BlockDataTransfer {
+            Self::BlockDataTransfer {
                 condition,
                 indexing,
                 offsetting,
@@ -599,7 +595,7 @@ impl From<u32> for ArmModeInstruction {
         } else if op_code.get_bits(25..=27) == 0b101 {
             let link = op_code.get_bit(24);
             let offset = op_code.get_bits(0..=23) << 2;
-            Branch {
+            Self::Branch {
                 condition,
                 link,
                 offset,
@@ -632,7 +628,7 @@ impl From<u32> for ArmModeInstruction {
                 }
             };
 
-            SingleDataTransfer {
+            Self::SingleDataTransfer {
                 condition,
                 kind: load_store,
                 quantity: byte_or_word,
@@ -652,14 +648,14 @@ impl From<u32> for ArmModeInstruction {
 
             if matches!(
                 alu_instruction,
-                ArmModeAluInstruction::Tst
-                    | ArmModeAluInstruction::Teq
-                    | ArmModeAluInstruction::Cmp
-                    | ArmModeAluInstruction::Cmn
+                ArmModeAluInstr::Tst
+                    | ArmModeAluInstr::Teq
+                    | ArmModeAluInstr::Cmp
+                    | ArmModeAluInstr::Cmn
             ) && !set_conditions
             {
                 // PSR instruction
-                return PSRTransfer {
+                return Self::PSRTransfer {
                     condition,
                     psr_kind: PsrKind::from(op_code.get_bit(22)),
                     kind: PsrOpKind::from(op_code),
@@ -692,7 +688,7 @@ impl From<u32> for ArmModeInstruction {
                 }
             };
 
-            DataProcessing {
+            Self::DataProcessing {
                 condition,
                 alu_instruction,
                 set_conditions,

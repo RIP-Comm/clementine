@@ -2,11 +2,18 @@ pub mod dma;
 pub mod internal_memory;
 pub mod interrupt_control;
 pub mod keypad;
+
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_lossless)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_possible_wrap)]
+#[allow(clippy::large_stack_frames)]
 pub mod lcd;
 pub mod serial;
 pub mod sound;
 pub mod timers;
 
+#[must_use]
 pub const fn get_unmasked_address(
     address: usize,
     mask_get: usize,

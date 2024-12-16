@@ -15,7 +15,7 @@ use crate::cpu::arm::mode::ArmModeOpcode;
 use crate::cpu::cpu_modes::Mode;
 use crate::cpu::psr::{CpuState, Psr};
 use crate::cpu::register_bank::RegisterBank;
-use crate::cpu::thumb::instruction::ThumbModeInstruction;
+use crate::cpu::thumb::instruction::Instruction;
 use crate::cpu::thumb::mode::ThumbModeOpcode;
 
 use super::registers::Registers;
@@ -55,8 +55,8 @@ enum ExceptionType {
 }
 
 impl ExceptionType {
-    pub const fn address(&self) -> usize {
-        match *self {
+    pub const fn address(self) -> usize {
+        match self {
             Self::Reset => 0x0,
             Self::UndefinedInstruction => 0x4,
             Self::SoftwareInterrupt => 0x8,
@@ -67,20 +67,18 @@ impl ExceptionType {
         }
     }
 
-    pub const fn mode(&self) -> Mode {
-        match *self {
-            Self::Reset => Mode::Supervisor,
+    pub const fn mode(self) -> Mode {
+        match self {
+            Self::SoftwareInterrupt | Self::Reset => Mode::Supervisor,
             Self::UndefinedInstruction => Mode::Undefined,
-            Self::SoftwareInterrupt => Mode::Supervisor,
-            Self::PrefetchAbort => Mode::Abort,
-            Self::DataAbort => Mode::Abort,
+            Self::PrefetchAbort | Self::DataAbort => Mode::Abort,
             Self::Irq => Mode::Irq,
             Self::Fiq => Mode::Fiq,
         }
     }
 
     pub fn next_instruction_func(
-        &self,
+        self,
         current_state: CpuState,
         current_pc: usize,
     ) -> Box<dyn Fn() -> usize> {
@@ -89,7 +87,7 @@ impl ExceptionType {
             CpuState::Thumb => current_pc - 4,
         };
 
-        match (current_state, *self) {
+        match (current_state, self) {
             (CpuState::Thumb, Self::SoftwareInterrupt | Self::UndefinedInstruction) => {
                 Box::new(move || current_executing_ins + 2)
             }
@@ -146,6 +144,7 @@ impl Arm7tdmi {
         self.fetched_thumb = None;
     }
 
+    #[must_use]
     pub fn fetch_arm(&mut self) -> u32 {
         let mut pc = self.registers.program_counter() as u32;
         pc.set_bit_off(0);
@@ -155,6 +154,7 @@ impl Arm7tdmi {
         self.bus.read_word(pc as usize)
     }
 
+    #[must_use]
     pub fn fetch_thumb(&mut self) -> u16 {
         let mut pc = self.registers.program_counter() as u32;
         pc.set_bit_off(0);
@@ -163,6 +163,10 @@ impl Arm7tdmi {
         self.bus.read_half_word(pc as usize)
     }
 
+    /// This function is used to execute the Data Processing instruction.
+    ///
+    /// # Panics
+    /// It can panics if `op_code` is not a `DataProcessing` instruction.
     pub fn decode<T, V>(op_code: V) -> T
     where
         T: std::fmt::Display + TryFrom<V>,
@@ -171,6 +175,7 @@ impl Arm7tdmi {
         T::try_from(op_code).unwrap()
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn execute_arm(&mut self, op_code: ArmModeOpcode) {
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
@@ -207,7 +212,7 @@ impl Arm7tdmi {
                 destination,
             ),
             ArmModeInstruction::PSRTransfer { psr_kind, kind, .. } => {
-                self.psr_transfer(kind, psr_kind)
+                self.psr_transfer(kind, psr_kind);
             }
             ArmModeInstruction::Multiply {
                 variant,
@@ -308,11 +313,16 @@ impl Arm7tdmi {
             ArmModeInstruction::CoprocessorDataOperation => todo!(),
             ArmModeInstruction::CoprocessorRegisterTransfer => todo!(),
             ArmModeInstruction::SoftwareInterrupt => {
-                self.handle_exception(ExceptionType::SoftwareInterrupt)
+                self.handle_exception(ExceptionType::SoftwareInterrupt);
             }
         };
     }
 
+    /// This function is used to execute the Data Processing instruction.
+    ///
+    /// # Panics
+    /// It can panics if destination register is None.
+    #[allow(clippy::too_many_lines)]
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
         #[cfg(feature = "disassembler")]
         {
@@ -325,46 +335,46 @@ impl Arm7tdmi {
         }
 
         match op_code.instruction {
-            ThumbModeInstruction::MoveShiftedRegister {
+            Instruction::MoveShiftedRegister {
                 shift_operation: op,
                 offset5,
                 source_register,
                 destination_register,
             } => self.move_shifted_reg(op, offset5, source_register, destination_register),
-            ThumbModeInstruction::AddSubtract {
+            Instruction::AddSubtract {
                 operation_kind,
                 op,
                 rn_offset3,
                 source_register: rs,
                 destination_register: rd,
             } => self.add_subtract(operation_kind, op, rn_offset3, rs, rd),
-            ThumbModeInstruction::MoveCompareAddSubtractImm {
+            Instruction::MoveCompareAddSubtractImm {
                 operation: op,
                 destination_register: r_destination,
                 offset,
             } => self.move_compare_add_sub_imm(op, r_destination, offset),
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: op,
                 source_register: rs,
                 destination_register: rd,
             } => self.alu_op(op, rs, rd),
-            ThumbModeInstruction::HiRegisterOpBX {
+            Instruction::HiRegisterOpBX {
                 register_operation: op,
                 source_register,
                 destination_register,
             } => self.hi_reg_operation_branch_ex(op, source_register, destination_register),
-            ThumbModeInstruction::PCRelativeLoad {
+            Instruction::PCRelativeLoad {
                 destination_register: r_destination,
                 immediate_value,
             } => self.pc_relative_load(r_destination, immediate_value),
-            ThumbModeInstruction::LoadStoreRegisterOffset {
+            Instruction::LoadStoreRegisterOffset {
                 load_store,
                 byte_word,
                 ro,
                 base_register: rb,
                 destination_register: rd,
             } => self.load_store_register_offset(load_store, byte_word, ro, rb, rd),
-            ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+            Instruction::LoadStoreSignExtByteHalfword {
                 h: h_flag,
                 sign_extend_flag,
                 offset_register: r_offset,
@@ -377,8 +387,8 @@ impl Arm7tdmi {
                 r_base,
                 r_destination,
             ),
-            ThumbModeInstruction::LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
-            ThumbModeInstruction::LoadStoreHalfword {
+            Instruction::LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
+            Instruction::LoadStoreHalfword {
                 load_store,
                 offset,
                 base_register,
@@ -389,34 +399,34 @@ impl Arm7tdmi {
                 base_register,
                 source_destination_register,
             ),
-            ThumbModeInstruction::SPRelativeLoadStore {
+            Instruction::SPRelativeLoadStore {
                 load_store,
                 destination_register: r_destination,
                 word8,
             } => self.sp_relative_load_store(load_store, r_destination, word8),
-            ThumbModeInstruction::LoadAddress {
+            Instruction::LoadAddress {
                 sp,
                 destination_register: r_destination,
                 offset,
             } => self.load_address(sp, r_destination.try_into().unwrap(), offset),
-            ThumbModeInstruction::AddOffsetSP { s, word7 } => self.add_offset_sp(s, word7),
-            ThumbModeInstruction::PushPopReg {
+            Instruction::AddOffsetSP { s, word7 } => self.add_offset_sp(s, word7),
+            Instruction::PushPopReg {
                 load_store,
                 pc_lr,
                 register_list,
             } => self.push_pop_register(load_store, pc_lr, register_list),
-            ThumbModeInstruction::MultipleLoadStore {
+            Instruction::MultipleLoadStore {
                 load_store,
                 base_register,
                 register_list,
             } => self.multiple_load_store(load_store, base_register as usize, register_list),
-            ThumbModeInstruction::CondBranch {
+            Instruction::CondBranch {
                 condition,
                 immediate_offset,
             } => self.cond_branch(condition, immediate_offset),
-            ThumbModeInstruction::Swi => unimplemented!(),
-            ThumbModeInstruction::UncondBranch { offset } => self.uncond_branch(offset),
-            ThumbModeInstruction::LongBranchLink { h, offset } => self.long_branch_link(h, offset),
+            Instruction::Swi => unimplemented!(),
+            Instruction::UncondBranch { offset } => self.uncond_branch(offset),
+            Instruction::LongBranchLink { h, offset } => self.long_branch_link(h, offset),
         };
     }
 
@@ -430,7 +440,7 @@ impl Arm7tdmi {
         // Every exception is handled in ARM
         self.cpsr.set_cpu_state(CpuState::Arm);
 
-        self.swap_mode(exception_type.mode());
+        self.swap_mode(&exception_type.mode());
 
         self.registers.set_register_at(14, next_ins as u32);
         self.spsr = old_cpsr;
@@ -518,6 +528,7 @@ impl Arm7tdmi {
         }
     }
 
+    #[must_use]
     pub fn new(bus: Bus) -> Self {
         Self {
             bus,
@@ -525,8 +536,9 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn swap_mode(&mut self, new_mode: Mode) {
-        if self.cpsr.mode() == new_mode {
+    #[allow(clippy::too_many_lines)]
+    pub fn swap_mode(&mut self, new_mode: &Mode) {
+        if self.cpsr.mode() == *new_mode {
             return;
         }
 
@@ -714,7 +726,7 @@ mod tests {
     use crate::cpu::condition::Condition;
     use crate::cpu::flags::{HalfwordDataTransferOffsetKind, Indexing, LoadStoreKind, Offsetting};
     use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
-    use crate::cpu::thumb::instruction::ThumbModeInstruction;
+    use crate::cpu::thumb::instruction::Instruction;
 
     use super::*;
 
@@ -1182,62 +1194,50 @@ mod tests {
             let op_code = 0b0110_0011_0111_1000;
             let mut cpu = Arm7tdmi::default();
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-            assert_eq!(
-                op_code.instruction,
-                ThumbModeInstruction::LoadStoreImmOffset
-            );
+            assert_eq!(op_code.instruction, Instruction::LoadStoreImmOffset);
 
             cpu.registers.set_register_at(7, 4);
-            cpu.registers.set_register_at(0, 0xFFFFFFFF);
+            cpu.registers.set_register_at(0, 0xFFFF_FFFF);
             cpu.execute_thumb(op_code);
 
             let mut bus = cpu.bus;
-            assert_eq!(bus.read_word(56), 0xFFFFFFFF);
+            assert_eq!(bus.read_word(56), 0xFFFF_FFFF);
         }
         {
             // Store Word misaligned
             let op_code = 0b0110_0011_0111_1000;
             let mut cpu = Arm7tdmi::default();
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-            assert_eq!(
-                op_code.instruction,
-                ThumbModeInstruction::LoadStoreImmOffset
-            );
+            assert_eq!(op_code.instruction, Instruction::LoadStoreImmOffset);
 
             cpu.registers.set_register_at(7, 2);
-            cpu.registers.set_register_at(0, 0xFFFFFFFF);
+            cpu.registers.set_register_at(0, 0xFFFF_FFFF);
             cpu.execute_thumb(op_code);
 
             let mut bus = cpu.bus;
-            assert_eq!(bus.read_word(52), 0xFFFFFFFF);
+            assert_eq!(bus.read_word(52), 0xFFFF_FFFF);
         }
         {
             // Load Word
             let op_code = 0b0110_1011_0000_1111;
             let mut cpu = Arm7tdmi::default();
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-            assert_eq!(
-                op_code.instruction,
-                ThumbModeInstruction::LoadStoreImmOffset
-            );
-            cpu.bus.write_word(1048, 0xFFFFFFFF);
+            assert_eq!(op_code.instruction, Instruction::LoadStoreImmOffset);
+            cpu.bus.write_word(1048, 0xFFFF_FFFF);
             cpu.registers.set_register_at(1, 1000);
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.registers.register_at(7), 0xFFFFFFFF);
+            assert_eq!(cpu.registers.register_at(7), 0xFFFF_FFFF);
         }
         {
             // Store Byte
             let op_code = 0b0111_0010_0011_1000;
             let mut cpu = Arm7tdmi::default();
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-            assert_eq!(
-                op_code.instruction,
-                ThumbModeInstruction::LoadStoreImmOffset
-            );
+            assert_eq!(op_code.instruction, Instruction::LoadStoreImmOffset);
 
             cpu.registers.set_register_at(7, 2);
-            cpu.registers.set_register_at(0, 0xFFFFFFFF);
+            cpu.registers.set_register_at(0, 0xFFFF_FFFF);
             cpu.execute_thumb(op_code);
 
             let mut bus = cpu.bus;
@@ -1471,7 +1471,7 @@ mod tests {
         cpu.spsr.set_carry_flag(true);
 
         // Simulating a mode swap from Supervisor to System
-        cpu.swap_mode(Mode::System);
+        cpu.swap_mode(&Mode::System);
 
         assert_eq!(cpu.registers.register_at(13), 0);
         assert_eq!(cpu.registers.register_at(14), 0);
@@ -1480,21 +1480,21 @@ mod tests {
         cpu.registers.set_register_at(14, 200);
 
         // Simulating a mode swap from System to IRQ
-        cpu.swap_mode(Mode::Irq);
+        cpu.swap_mode(&Mode::Irq);
 
         assert_eq!(cpu.registers.register_at(13), 0);
         assert_eq!(cpu.registers.register_at(14), 0);
         assert!(!cpu.spsr.carry_flag());
 
         // Simulating a mode swap back from IRQ to Supervisor
-        cpu.swap_mode(Mode::Supervisor);
+        cpu.swap_mode(&Mode::Supervisor);
 
         assert_eq!(cpu.registers.register_at(13), 13);
         assert_eq!(cpu.registers.register_at(14), 14);
         assert!(cpu.spsr.carry_flag());
 
         // Simulating a mode swap to FIQ
-        cpu.swap_mode(Mode::Fiq);
+        cpu.swap_mode(&Mode::Fiq);
         assert_eq!(cpu.registers.register_at(8), 0);
         assert_eq!(cpu.registers.register_at(9), 0);
         assert_eq!(cpu.registers.register_at(10), 0);
@@ -1505,7 +1505,7 @@ mod tests {
         assert!(!cpu.spsr.carry_flag());
 
         // Simulating a mode swap to System
-        cpu.swap_mode(Mode::System);
+        cpu.swap_mode(&Mode::System);
         assert_eq!(cpu.registers.register_at(8), 8);
         assert_eq!(cpu.registers.register_at(9), 9);
         assert_eq!(cpu.registers.register_at(10), 10);
@@ -1634,11 +1634,11 @@ mod tests {
 
             cpu.cpsr.set_sign_flag(true);
             cpu.cpsr.set_zero_flag(true);
-            cpu.registers.set_register_at(0, 0xFFFFFFFF);
+            cpu.registers.set_register_at(0, 0xFFFF_FFFF);
             cpu.registers.set_register_at(4, 1);
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.registers.register_at(0), 0xFFFFFFFF);
+            assert_eq!(cpu.registers.register_at(0), 0xFFFF_FFFF);
             assert!(cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
         }
@@ -1719,7 +1719,7 @@ mod tests {
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
-            ThumbModeInstruction::LongBranchLink {
+            Instruction::LongBranchLink {
                 h: true,
                 offset: 64
             }
@@ -1768,7 +1768,7 @@ mod tests {
     fn thumb_load_store_sign_extend_byte_halfword() {
         struct Test {
             opcode: u16,
-            expected_decode: ThumbModeInstruction,
+            expected_decode: Instruction,
             prepare_fn: Box<dyn Fn(&mut Arm7tdmi)>,
             check_fn: Box<dyn Fn(Arm7tdmi)>,
         }
@@ -1776,7 +1776,7 @@ mod tests {
         let cases = vec![
             Test {
                 opcode: 0b0101_0_0_1_000_001_010,
-                expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                expected_decode: Instruction::LoadStoreSignExtByteHalfword {
                     h: false,
                     sign_extend_flag: false,
                     offset_register: 0,
@@ -1794,7 +1794,7 @@ mod tests {
             },
             Test {
                 opcode: 0b0101_1_0_1_000_001_010,
-                expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                expected_decode: Instruction::LoadStoreSignExtByteHalfword {
                     h: true,
                     sign_extend_flag: false,
                     offset_register: 0,
@@ -1812,7 +1812,7 @@ mod tests {
             },
             Test {
                 opcode: 0b0101_0_1_1_000_001_010,
-                expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                expected_decode: Instruction::LoadStoreSignExtByteHalfword {
                     h: false,
                     sign_extend_flag: true,
                     offset_register: 0,
@@ -1830,7 +1830,7 @@ mod tests {
             },
             Test {
                 opcode: 0b0101_1_1_1_000_001_010,
-                expected_decode: ThumbModeInstruction::LoadStoreSignExtByteHalfword {
+                expected_decode: Instruction::LoadStoreSignExtByteHalfword {
                     h: true,
                     sign_extend_flag: true,
                     offset_register: 0,
@@ -1866,7 +1866,7 @@ mod tests {
     fn thumb_load_address() {
         struct Test {
             opcode: u16,
-            expected_decode: ThumbModeInstruction,
+            expected_decode: Instruction,
             prepare_fn: Box<dyn Fn(&mut Arm7tdmi)>,
             check_fn: Box<dyn Fn(Arm7tdmi)>,
         }
@@ -1874,7 +1874,7 @@ mod tests {
         for case in [
             Test {
                 opcode: 0b1010_1_001_00000010,
-                expected_decode: ThumbModeInstruction::LoadAddress {
+                expected_decode: Instruction::LoadAddress {
                     sp: true,
                     destination_register: 1,
                     offset: 8,
@@ -1889,7 +1889,7 @@ mod tests {
             },
             Test {
                 opcode: 0b1010_0_001_00000010,
-                expected_decode: ThumbModeInstruction::LoadAddress {
+                expected_decode: Instruction::LoadAddress {
                     sp: false,
                     destination_register: 1,
                     offset: 8,
@@ -1920,7 +1920,7 @@ mod tests {
     fn thumb_multiple_load_store() {
         struct Test {
             opcode: u16,
-            expected_decode: ThumbModeInstruction,
+            expected_decode: Instruction,
             prepare_fn: Box<dyn Fn(&mut Arm7tdmi)>,
             check_fn: Box<dyn Fn(Arm7tdmi)>,
         }
@@ -1928,7 +1928,7 @@ mod tests {
         let cases = vec![
             Test {
                 opcode: 0b1100_1_001_10100000,
-                expected_decode: ThumbModeInstruction::MultipleLoadStore {
+                expected_decode: Instruction::MultipleLoadStore {
                     load_store: LoadStoreKind::Load,
                     base_register: 1,
                     register_list: 160,
@@ -1946,7 +1946,7 @@ mod tests {
             },
             Test {
                 opcode: 0b1100_0_001_10100000,
-                expected_decode: ThumbModeInstruction::MultipleLoadStore {
+                expected_decode: Instruction::MultipleLoadStore {
                     load_store: LoadStoreKind::Store,
                     base_register: 1,
                     register_list: 160,

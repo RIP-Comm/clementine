@@ -40,9 +40,10 @@ where
     }
 
     fn set_bit(&mut self, bit_idx: u8, value: bool) {
-        match value {
-            false => self.set_bit_off(bit_idx),
-            true => self.set_bit_on(bit_idx),
+        if value {
+            self.set_bit_on(bit_idx);
+        } else {
+            self.set_bit_off(bit_idx);
         }
     }
 

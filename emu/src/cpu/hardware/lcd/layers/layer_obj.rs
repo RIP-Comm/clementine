@@ -49,7 +49,7 @@ impl Layer for LayerObj {
 }
 
 impl LayerObj {
-    const fn read_color_from_obj_palette(&self, color_idx: usize, obj_palette_ram: &[u8]) -> Color {
+    const fn read_color_from_obj_palette(color_idx: usize, obj_palette_ram: &[u8]) -> Color {
         let low_nibble = obj_palette_ram[color_idx] as u16;
         let high_nibble = obj_palette_ram[color_idx + 1] as u16;
 
@@ -98,11 +98,12 @@ impl LayerObj {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn process_sprites_scanline(&mut self, registers: &Registers, memory: &Memory) {
         self.sprite_pixels_scanline = [None; LCD_WIDTH];
         let y = registers.vcount;
 
-        for obj in self.obj_attributes_arr.into_iter() {
+        for obj in self.obj_attributes_arr {
             if matches!(
                 obj.attribute0.obj_mode,
                 object_attributes::ObjMode::Disabled
@@ -113,22 +114,48 @@ impl LayerObj {
                 continue;
             }
 
-            use object_attributes::ObjShape::*;
-            use object_attributes::ObjSize::*;
             let (sprite_width, sprite_height) =
                 match (obj.attribute0.obj_shape, obj.attribute1.obj_size) {
-                    (Square, Size0) => (8_u8, 8_u8),
-                    (Horizontal, Size0) => (16, 8),
-                    (Vertical, Size0) => (8, 16),
-                    (Square, Size1) => (16, 16),
-                    (Horizontal, Size1) => (32, 8),
-                    (Vertical, Size1) => (8, 32),
-                    (Square, Size2) => (32, 32),
-                    (Horizontal, Size2) => (32, 16),
-                    (Vertical, Size2) => (16, 32),
-                    (Square, Size3) => (64, 64),
-                    (Horizontal, Size3) => (64, 32),
-                    (Vertical, Size3) => (32, 64),
+                    (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size0) => {
+                        (8_u8, 8_u8)
+                    }
+                    (
+                        object_attributes::ObjShape::Horizontal,
+                        object_attributes::ObjSize::Size0,
+                    ) => (16, 8),
+                    (object_attributes::ObjShape::Vertical, object_attributes::ObjSize::Size0) => {
+                        (8, 16)
+                    }
+                    (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size1) => {
+                        (16, 16)
+                    }
+                    (
+                        object_attributes::ObjShape::Horizontal,
+                        object_attributes::ObjSize::Size1,
+                    ) => (32, 8),
+                    (object_attributes::ObjShape::Vertical, object_attributes::ObjSize::Size1) => {
+                        (8, 32)
+                    }
+                    (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size2) => {
+                        (32, 32)
+                    }
+                    (
+                        object_attributes::ObjShape::Horizontal,
+                        object_attributes::ObjSize::Size2,
+                    ) => (32, 16),
+                    (object_attributes::ObjShape::Vertical, object_attributes::ObjSize::Size2) => {
+                        (16, 32)
+                    }
+                    (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size3) => {
+                        (64, 64)
+                    }
+                    (
+                        object_attributes::ObjShape::Horizontal,
+                        object_attributes::ObjSize::Size3,
+                    ) => (64, 32),
+                    (object_attributes::ObjShape::Vertical, object_attributes::ObjSize::Size3) => {
+                        (32, 64)
+                    }
                 };
 
             // We can represent the size of the sprite using a point.
@@ -255,7 +282,7 @@ impl LayerObj {
                 }
 
                 let get_pixel_info_closure = || PixelInfo {
-                    color: self.read_color_from_obj_palette(
+                    color: Self::read_color_from_obj_palette(
                         color_offset as usize,
                         memory.obj_palette_ram.as_slice(),
                     ),

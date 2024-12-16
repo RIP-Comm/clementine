@@ -9,10 +9,10 @@ use super::get_unmasked_address;
 
 #[derive(Serialize, Deserialize)]
 pub struct InternalMemory {
-    /// From 0x00000000 to 0x00003FFF (16 KBytes).
+    /// From 0x00000000 to 0x00003FFF (16 `KBytes`).
     bios_system_rom: Vec<u8>,
 
-    /// From 0x02000000 to 0x0203FFFF (256 KBytes).
+    /// From 0x02000000 to 0x0203FFFF (256 `KBytes`).
     working_ram: Vec<u8>,
 
     /// From 0x03000000 to 0x03007FFF (32kb).
@@ -28,23 +28,24 @@ pub struct InternalMemory {
     // 0E010000-0FFFFFFF Not used
     pub rom: Vec<u8>,
 
-    /// From 0x00004000 to 0x01FFFFFF.
-    /// From 0x10000000 to 0xFFFFFFFF.
+    /// From 0x00004000 to `0x01FF_FFFF`.
+    /// From 0x10000000 to `0xFFFF_FFFF`.
     unused_region: HashMap<usize, u8>,
 }
 
 impl Default for InternalMemory {
     fn default() -> Self {
-        Self::new([0_u8; 0x00004000], vec![])
+        Self::new([0_u8; 0x0000_4000], vec![])
     }
 }
 
 impl InternalMemory {
-    pub fn new(bios: [u8; 0x00004000], rom: Vec<u8>) -> Self {
+    #[must_use]
+    pub fn new(bios: [u8; 0x0000_4000], rom: Vec<u8>) -> Self {
         Self {
             bios_system_rom: bios.to_vec(),
-            working_ram: vec![0; 0x00040000],
-            working_iram: vec![0; 0x00008000],
+            working_ram: vec![0; 0x0004_0000],
+            working_iram: vec![0; 0x0000_8000],
             rom,
             unused_region: HashMap::new(),
         }
@@ -80,22 +81,23 @@ impl InternalMemory {
 }
 
 impl InternalMemory {
+    #[must_use]
     pub fn read_at(&self, address: usize) -> u8 {
         match address {
-            0x00000000..=0x00003FFF => self.bios_system_rom[address],
-            0x02000000..=0x02FFFFFF => {
+            0x0000_0000..=0x0000_3FFF => self.bios_system_rom[address],
+            0x0200_0000..=0x02FF_FFFF => {
                 self.working_ram
-                    [get_unmasked_address(address, 0x00FF0000, 0xFF00FFFF, 16, 4) - 0x02000000]
+                    [get_unmasked_address(address, 0x00FF_0000, 0xFF00_FFFF, 16, 4) - 0x0200_0000]
             }
-            0x03000000..=0x03FFFFFF => {
+            0x0300_0000..=0x03FF_FFFF => {
                 self.working_iram
-                    [get_unmasked_address(address, 0x00FFF000, 0xFF000FFF, 12, 8) - 0x03000000]
+                    [get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8) - 0x0300_0000]
             }
-            0x08000000..=0x09FFFFFF => self.read_rom(address - 0x08000000),
-            0x0A000000..=0x0BFFFFFF => self.read_rom(address - 0x0A000000),
-            0x0C000000..=0x0DFFFFFF => self.read_rom(address - 0x0C000000),
-            0x0E000000..=0x0E00FFFF => unimplemented!("SRAM region is unimplemented"),
-            0x00004000..=0x01FFFFFF | 0x10000000..=0xFFFFFFFF => {
+            0x0800_0000..=0x09FF_FFFF => self.read_rom(address - 0x0800_0000),
+            0x0A00_0000..=0x0BFF_FFFF => self.read_rom(address - 0x0A00_0000),
+            0x0C00_0000..=0x0DFF_FFFF => self.read_rom(address - 0x0C00_0000),
+            0x0E00_0000..=0x0E00_FFFF => unimplemented!("SRAM region is unimplemented"),
+            0x0000_4000..=0x01FF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
                 log(format!("read on unused memory {address:x}"));
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
@@ -105,24 +107,22 @@ impl InternalMemory {
 
     pub fn write_at(&mut self, address: usize, value: u8) {
         match address {
-            0x00000000..=0x00003FFF => self.bios_system_rom[address] = value,
-            0x02000000..=0x0203FFFF => self.working_ram[address - 0x02000000] = value,
+            0x0000_0000..=0x0000_3FFF => self.bios_system_rom[address] = value,
+            0x0200_0000..=0x0203_FFFF => self.working_ram[address - 0x0200_0000] = value,
             // Mirror
-            0x02040000..=0x02FFFFFF => {
-                self.working_ram
-                    [get_unmasked_address(address, 0x00FF0000, 0xFF00FFFF, 16, 4) - 0x02000000] =
-                    value;
+            0x0204_0000..=0x02FF_FFFF => {
+                self.working_ram[get_unmasked_address(address, 0x00FF_0000, 0xFF00_FFFF, 16, 4)
+                    - 0x0200_0000] = value;
             }
-            0x03000000..=0x03007FFF => self.working_iram[address - 0x03000000] = value,
+            0x0300_0000..=0x0300_7FFF => self.working_iram[address - 0x0300_0000] = value,
             // Mirror
-            0x03008000..=0x03FFFFFF => {
-                self.working_iram
-                    [get_unmasked_address(address, 0x00FFF000, 0xFF000FFF, 12, 8) - 0x03000000] =
-                    value
+            0x0300_8000..=0x03FF_FFFF => {
+                self.working_iram[get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8)
+                    - 0x0300_0000] = value;
             }
-            0x08000000..=0x0FFFFFFF => {
+            0x0800_0000..=0x0FFF_FFFF => {
                 // TODO: this should be split
-                self.rom[address - 0x08000000] = value;
+                self.rom[address - 0x0800_0000] = value;
             }
             _ => unimplemented!("Unimplemented memory region {address:x}."),
         }

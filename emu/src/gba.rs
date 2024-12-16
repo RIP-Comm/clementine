@@ -15,9 +15,10 @@ pub struct Gba {
 }
 
 impl Gba {
+    #[must_use]
     pub fn new(
         cartridge_header: CartridgeHeader,
-        bios: [u8; 0x00004000],
+        bios: [u8; 0x0000_4000],
         cartridge: Vec<u8>,
     ) -> Self {
         let lcd = Arc::new(Mutex::new(Box::default()));

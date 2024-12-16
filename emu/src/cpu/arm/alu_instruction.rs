@@ -4,7 +4,7 @@ use crate::bitwise::Bits;
 use crate::cpu::flags::ShiftKind;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
-pub enum ArmModeAluInstruction {
+pub enum ArmModeAluInstr {
     And = 0x0,
     Eor = 0x1,
     Sub = 0x2,
@@ -23,7 +23,7 @@ pub enum ArmModeAluInstruction {
     Mvn = 0xF,
 }
 
-impl std::fmt::Display for ArmModeAluInstruction {
+impl std::fmt::Display for ArmModeAluInstr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::And => f.write_str("AND"),
@@ -47,50 +47,63 @@ impl std::fmt::Display for ArmModeAluInstruction {
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub enum AluInstructionKind {
+pub enum AIKind {
     Logical,
     Arithmetic,
 }
 
 pub trait Kind {
-    fn kind(&self) -> AluInstructionKind;
+    fn kind(&self) -> AIKind;
 }
 
-impl Kind for ArmModeAluInstruction {
-    fn kind(&self) -> AluInstructionKind {
-        use ArmModeAluInstruction::*;
+impl Kind for ArmModeAluInstr {
+    fn kind(&self) -> AIKind {
         match &self {
-            And | Eor | Tst | Teq | Orr | Mov | Bic | Mvn => AluInstructionKind::Logical,
-            Sub | Rsb | Add | Adc | Sbc | Rsc | Cmp | Cmn => AluInstructionKind::Arithmetic,
+            Self::And
+            | Self::Eor
+            | Self::Tst
+            | Self::Teq
+            | Self::Orr
+            | Self::Mov
+            | Self::Bic
+            | Self::Mvn => AIKind::Logical,
+            Self::Sub
+            | Self::Rsb
+            | Self::Add
+            | Self::Adc
+            | Self::Sbc
+            | Self::Rsc
+            | Self::Cmp
+            | Self::Cmn => AIKind::Arithmetic,
         }
     }
 }
 
-impl From<u32> for ArmModeAluInstruction {
+impl From<u32> for ArmModeAluInstr {
     fn from(alu_op_code: u32) -> Self {
-        use ArmModeAluInstruction::*;
         match alu_op_code {
-            0x0 => And,
-            0x1 => Eor,
-            0x2 => Sub,
-            0x3 => Rsb,
-            0x4 => Add,
-            0x5 => Adc,
-            0x6 => Sbc,
-            0x7 => Rsc,
-            0x8 => Tst,
-            0x9 => Teq,
-            0xA => Cmp,
-            0xB => Cmn,
-            0xC => Orr,
-            0xD => Mov,
-            0xE => Bic,
-            0xF => Mvn,
+            0x0 => Self::And,
+            0x1 => Self::Eor,
+            0x2 => Self::Sub,
+            0x3 => Self::Rsb,
+            0x4 => Self::Add,
+            0x5 => Self::Adc,
+            0x6 => Self::Sbc,
+            0x7 => Self::Rsc,
+            0x8 => Self::Tst,
+            0x9 => Self::Teq,
+            0xA => Self::Cmp,
+            0xB => Self::Cmn,
+            0xC => Self::Orr,
+            0xD => Self::Mov,
+            0xE => Self::Bic,
+            0xF => Self::Mvn,
             _ => unreachable!(),
         }
     }
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default)]
 pub struct ArithmeticOpResult {
     pub result: u32,
@@ -233,8 +246,8 @@ pub enum PsrOpKind {
 
 impl From<u32> for PsrOpKind {
     fn from(op_code: u32) -> Self {
-        if op_code.get_bits(23..=27) == 0b00010
-            && op_code.get_bits(16..=21) == 0b001111
+        if op_code.get_bits(23..=27) == 0b0_0010
+            && op_code.get_bits(16..=21) == 0b00_1111
             && op_code.get_bits(0..=11) == 0b0000_0000_0000
         {
             Self::Mrs {
@@ -362,16 +375,16 @@ mod tests {
     #[test]
     fn test_logical_instruction() {
         let alu_op_code = 9;
-        let instruction_kind = ArmModeAluInstruction::from(alu_op_code).kind();
+        let instruction_kind = ArmModeAluInstr::from(alu_op_code).kind();
 
-        assert_eq!(instruction_kind, AluInstructionKind::Logical);
+        assert_eq!(instruction_kind, AIKind::Logical);
     }
 
     #[test]
     fn test_arithmetic_instruction() {
         let alu_op_code = 2;
-        let instruction_kind = ArmModeAluInstruction::from(alu_op_code).kind();
+        let instruction_kind = ArmModeAluInstr::from(alu_op_code).kind();
 
-        assert_eq!(instruction_kind, AluInstructionKind::Arithmetic);
+        assert_eq!(instruction_kind, AIKind::Arithmetic);
     }
 }

@@ -1,6 +1,6 @@
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::{
-    shift, AluInstructionKind, ArithmeticOpResult, ArmModeAluInstruction, Kind, PsrOpKind,
+    shift, AIKind, ArithmeticOpResult, ArmModeAluInstr, Kind, PsrOpKind,
 };
 use crate::cpu::arm::instructions::{
     ArmModeMultiplyLongVariant, ArmModeMultiplyVariant, SingleDataTransferKind,
@@ -25,7 +25,7 @@ impl Arm7tdmi {
     pub fn data_processing(
         &mut self,
         op_code: ArmModeOpcode, // FIXME: This parameter will be remove after change `psr_transfer`.
-        alu_instruction: ArmModeAluInstruction,
+        alu_instruction: ArmModeAluInstr,
         set_conditions: bool,
         op_kind: OperandKind,
         rn: u32,
@@ -34,7 +34,7 @@ impl Arm7tdmi {
         let offset = match rn {
             // if Rn is R15(PC) we need to offset its value because of
             // instruction pipelining
-            REG_PROGRAM_COUNTER => self.get_pc_offset_alu(op_kind, op_code.get_bit(4)),
+            REG_PROGRAM_COUNTER => Self::get_pc_offset_alu(op_kind, op_code.get_bit(4)),
             _ => 0,
         };
         let op1 = self.registers.register_at(rn.try_into().unwrap()) + offset;
@@ -46,48 +46,79 @@ impl Arm7tdmi {
             op_code.get_bits(0..=11),
         );
 
-        use ArmModeAluInstruction::*;
         match alu_instruction {
-            And => self.and(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Eor => self.eor(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Sub => self.sub(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Rsb => self.rsb(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Add => self.add(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Adc => self.adc(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Sbc => self.sbc(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Rsc => self.rsc(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Tst => self.tst(op1, op2),
-            Teq => self.teq(op1, op2),
-            Cmp => self.cmp(op1, op2),
-            Cmn => self.cmn(op1, op2),
-            Orr => self.orr(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Mov => self.mov(destination.try_into().unwrap(), op2, set_conditions),
-            Bic => self.bic(destination.try_into().unwrap(), op1, op2, set_conditions),
-            Mvn => self.mvn(destination.try_into().unwrap(), op2, set_conditions),
+            ArmModeAluInstr::And => {
+                self.and(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Eor => {
+                self.eor(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Sub => {
+                self.sub(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Rsb => {
+                self.rsb(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Add => {
+                self.add(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Adc => {
+                self.adc(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Sbc => {
+                self.sbc(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Rsc => {
+                self.rsc(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Tst => self.tst(op1, op2),
+            ArmModeAluInstr::Teq => self.teq(op1, op2),
+            ArmModeAluInstr::Cmp => self.cmp(op1, op2),
+            ArmModeAluInstr::Cmn => self.cmn(op1, op2),
+            ArmModeAluInstr::Orr => {
+                self.orr(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Mov => {
+                self.mov(destination.try_into().unwrap(), op2, set_conditions);
+            }
+            ArmModeAluInstr::Bic => {
+                self.bic(destination.try_into().unwrap(), op1, op2, set_conditions);
+            }
+            ArmModeAluInstr::Mvn => {
+                self.mvn(destination.try_into().unwrap(), op2, set_conditions);
+            }
         };
 
         if set_conditions && destination == REG_PROGRAM_COUNTER {
             // We move current SPSR into the CPSR.
 
-            if self.cpsr.mode() == Mode::User {
-                // S = 1 and Rd = 0xF should not be allowed in User Mode.
-                panic!("S=1 and Rd=0xF is forbidden in User mode")
-            }
+            assert!(
+                !(self.cpsr.mode() == Mode::User),
+                "S=1 and Rd=0xF is forbidden in User mode"
+            );
 
             // We store the current spsr in a temp variable because `swap_mode` would overwrite it.
             // We need to call `swap_mode` because we need to swap banked registers.
             let current_spsr = self.spsr;
-            self.swap_mode(current_spsr.mode());
+            self.swap_mode(&current_spsr.mode());
             self.cpsr = current_spsr;
         }
 
         // Test instructions do not modify destination so we don't flush pipeline even if
         // destination == R15
-        if !matches!(alu_instruction, Teq | Cmn | Cmp | Tst) && destination == REG_PROGRAM_COUNTER {
+        if !matches!(
+            alu_instruction,
+            ArmModeAluInstr::Teq
+                | ArmModeAluInstr::Cmn
+                | ArmModeAluInstr::Cmp
+                | ArmModeAluInstr::Tst
+        ) && destination == REG_PROGRAM_COUNTER
+        {
             self.flush_pipeline();
         }
     }
 
+    #[allow(clippy::manual_assert)]
     pub fn psr_transfer(&mut self, op_kind: PsrOpKind, psr_kind: PsrKind) {
         if matches!(self.cpsr.mode(), Mode::System | Mode::User) && psr_kind == PsrKind::Spsr {
             panic!("Can't access SPSR in System/User mode")
@@ -97,9 +128,10 @@ impl Arm7tdmi {
             PsrOpKind::Mrs {
                 destination_register,
             } => {
-                if destination_register == REG_PROGRAM_COUNTER {
-                    panic!("PSR transfer should not use R15 as source/destination");
-                }
+                assert!(
+                    destination_register != REG_PROGRAM_COUNTER,
+                    "PSR transfer should not use R15 as source/destination"
+                );
 
                 let psr = match psr_kind {
                     PsrKind::Cpsr => self.cpsr,
@@ -110,9 +142,10 @@ impl Arm7tdmi {
                     .set_register_at(destination_register.try_into().unwrap(), psr.into());
             }
             PsrOpKind::Msr { source_register } => {
-                if source_register == REG_PROGRAM_COUNTER {
-                    panic!("PSR transfer should not use R15 as source/destination");
-                }
+                assert!(
+                    source_register != REG_PROGRAM_COUNTER,
+                    "PSR transfer should not use R15 as source/destination"
+                );
 
                 let rm = self
                     .registers
@@ -141,7 +174,7 @@ impl Arm7tdmi {
                         // Should we set it? I guess software are written in order to not switch this bit
                         // but who knows?
                         if psr.state_bit() != rm.get_bit(5) {
-                            log("WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.")
+                            log("WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.");
                         }
                         psr.set_state_bit(rm.get_bit(5));
                     }
@@ -150,7 +183,7 @@ impl Arm7tdmi {
                 // If we're modifying CPSR we need to be sure we're not in User mode.
                 // Since in User mode we can only modify flags.
                 if psr_kind == PsrKind::Cpsr && self.cpsr.mode() != Mode::User {
-                    self.swap_mode(rm.get_bits(0..=4).try_into().unwrap());
+                    self.swap_mode(&rm.get_bits(0..=4).try_into().unwrap());
                 } else if psr_kind == PsrKind::Spsr {
                     // If we're modifying SPSR we're sure we're not in System|User (checked before)
                     // We use `set_mode_raw` since the BIOS sometimes writes 0 in the SPSR.
@@ -183,7 +216,7 @@ impl Arm7tdmi {
 
     pub fn shift_operand(
         &mut self,
-        alu_instruction: ArmModeAluInstruction,
+        alu_instruction: ArmModeAluInstr,
         s: bool,
         shift_kind: ShiftKind,
         shift_amount: u32,
@@ -192,7 +225,7 @@ impl Arm7tdmi {
         let result = shift(shift_kind, shift_amount, rm, self.cpsr.carry_flag());
 
         // If the instruction is a logical ALU instruction and S is set we set the carry flag
-        if alu_instruction.kind() == AluInstructionKind::Logical && s {
+        if alu_instruction.kind() == AIKind::Logical && s {
             self.cpsr.set_carry_flag(result.carry);
         }
 
@@ -201,7 +234,7 @@ impl Arm7tdmi {
 
     pub fn get_operand(
         &mut self,
-        alu_instruction: ArmModeAluInstruction,
+        alu_instruction: ArmModeAluInstr,
         s: bool,
         i: OperandKind,
         op2: u32,
@@ -216,32 +249,27 @@ impl Arm7tdmi {
                 let offset = match rm {
                     // if Rm is R15(PC) we need to offset its value because of
                     // instruction pipelining
-                    REG_PROGRAM_COUNTER => self.get_pc_offset_alu(i, r),
+                    REG_PROGRAM_COUNTER => Self::get_pc_offset_alu(i, r),
                     _ => 0,
                 };
                 let rm = self.registers.register_at(rm.try_into().unwrap()) + offset;
                 let shift_kind = op2.get_bits(5..=6).into();
 
-                let shift_amount = match r {
-                    // the shift amount is in the instruction
-                    false => {
-                        // bits [7-11] - Shift amount
-                        op2.get_bits(7..=11)
-                    }
+                let shift_amount = if r {
                     // the shift amount is read from Rs
-                    true => {
-                        // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
-                        let rs = op2.get_bits(8..=11);
-
-                        let rs = self.registers.register_at(rs.try_into().unwrap()) & 0xFF;
-
-                        // If shift is taken from register and the value is 0 Rm is directly used as operand
-                        if rs == 0 {
-                            return rm;
-                        }
-
-                        rs
+                    // bits [11-8] - Shift register (R0-R14) - only lower 8bit 0-255 used
+                    let rs = op2.get_bits(8..=11);
+                    let rs = self.registers.register_at(rs.try_into().unwrap()) & 0xFF;
+                    // If shift is taken from register and the value is 0 Rm is directly used as operand
+                    if rs == 0 {
+                        return rm;
                     }
+
+                    rs
+                } else {
+                    // the shift amount is in the instruction
+                    // bits [7-11] - Shift amount
+                    op2.get_bits(7..=11)
                 };
 
                 self.shift_operand(alu_instruction, s, shift_kind, shift_amount, rm)
@@ -271,7 +299,7 @@ impl Arm7tdmi {
     ///
     /// * `i` - A boolean value representing whether the 2nd operand is immediate or not
     /// * `r` - A boolean value representing whether the shift amount is to be taken from register or not
-    pub(crate) fn get_pc_offset_alu(&self, i: OperandKind, r: bool) -> u32 {
+    pub(crate) fn get_pc_offset_alu(i: OperandKind, r: bool) -> u32 {
         if i == OperandKind::Register && r {
             4
         } else {
@@ -323,7 +351,7 @@ impl Arm7tdmi {
         self.registers.set_register_at(rd, result_op.result);
 
         if s {
-            self.cpsr.set_flags(result_op);
+            self.cpsr.set_flags(&result_op);
         }
     }
 
@@ -347,7 +375,7 @@ impl Arm7tdmi {
         self.registers.set_register_at(rd, result.result);
 
         if s {
-            self.cpsr.set_flags(result);
+            self.cpsr.set_flags(&result);
         }
     }
 
@@ -372,7 +400,7 @@ impl Arm7tdmi {
         self.registers.set_register_at(rd, sub_result.result);
 
         if s {
-            self.cpsr.set_flags(sub_result);
+            self.cpsr.set_flags(&sub_result);
         }
     }
 
@@ -380,6 +408,7 @@ impl Arm7tdmi {
         self.sub(rd, op2, rn, s);
     }
 
+    #[must_use]
     pub fn add_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
         // we do the sum in 64bits so that the 32nd bit is the carry
         let result_and_carry = (first_op as u64).wrapping_add(second_op as u64);
@@ -389,7 +418,7 @@ impl Arm7tdmi {
         let sign_op2 = second_op.get_bit(31);
         let sign_r = result.get_bit(31);
 
-        let carry = (result_and_carry & 0x100000000) >> 32 == 1;
+        let carry = (result_and_carry & 0x0001_0000_0000) >> 32 == 1;
 
         // overflow only occurs when operands have the same sign and result has the opposite one
         let same_sign = sign_op1 == sign_op2;
@@ -403,6 +432,7 @@ impl Arm7tdmi {
         }
     }
 
+    #[must_use]
     pub fn sub_inner_op(first_op: u32, second_op: u32) -> ArithmeticOpResult {
         let result = first_op.wrapping_sub(second_op);
 
@@ -427,7 +457,7 @@ impl Arm7tdmi {
         self.registers.set_register_at(rd, add_result.result);
 
         if s {
-            self.cpsr.set_flags(add_result);
+            self.cpsr.set_flags(&add_result);
         }
     }
 
@@ -452,13 +482,13 @@ impl Arm7tdmi {
     pub fn cmp(&mut self, rn: u32, op2: u32) {
         let sub_result = Self::sub_inner_op(rn, op2);
 
-        self.cpsr.set_flags(sub_result);
+        self.cpsr.set_flags(&sub_result);
     }
 
     pub fn cmn(&mut self, rn: u32, op2: u32) {
         let add_result = Self::add_inner_op(rn, op2);
 
-        self.cpsr.set_flags(add_result);
+        self.cpsr.set_flags(&add_result);
     }
 
     pub fn orr(&mut self, rd: usize, rn: u32, op2: u32, s: bool) {
@@ -545,14 +575,13 @@ impl Arm7tdmi {
             .register_at(base_register.try_into().unwrap());
 
         if base_register == REG_PROGRAM_COUNTER {
-            if write_back {
-                panic!("WriteBack should not be specified when using R15 as base register.");
-            }
+            assert!(
+                !write_back,
+                "WriteBack should not be specified when using R15 as base register."
+            );
 
-            if indexing == Indexing::Post {
-                panic!("Post indexing uses write back but we're using R15 as base register.
-                Documentation says that when using R15 as base register WB should not be used. What should we do?");
-            }
+            assert!(!(indexing == Indexing::Post), "Post indexing uses write back but we're using R15 as base register.
+                 Documentation says that when using R15 as base register WB should not be used. What should we do?");
         }
 
         let effective = match offsetting {
@@ -668,7 +697,7 @@ impl Arm7tdmi {
                 ReadWriteKind::Byte => {
                     let value = self.bus.read_byte(address) as u32;
                     self.registers
-                        .set_register_at(rd.try_into().unwrap(), value)
+                        .set_register_at(rd.try_into().unwrap(), value);
                 }
                 ReadWriteKind::Word => {
                     let v = self.bus.read_word(address);
@@ -684,7 +713,7 @@ impl Arm7tdmi {
                         v += 4;
                     }
 
-                    self.bus.write_byte(address, v as u8)
+                    self.bus.write_byte(address, v as u8);
                 }
                 ReadWriteKind::Word => {
                     let mut v = self.registers.register_at(rd.try_into().unwrap());
@@ -697,7 +726,7 @@ impl Arm7tdmi {
                     self.bus.write_word(address, v);
                 }
             },
-            _ => todo!("implement single data transfer operation"),
+            SingleDataTransferKind::Pld => todo!("implement single data transfer operation"),
         }
 
         // If LDR and Rd == R15 we flush the pipeline
@@ -819,12 +848,15 @@ impl Arm7tdmi {
         rs: u32,
         rm: u32,
     ) {
-        use ArmModeMultiplyVariant::*;
         match mul_variant {
             // Unsiged multiply (32-bit by 32-bit, bottom 32-bit result).
-            Mul => self.mul_or_mla(set_condition_codes, false, rd, rn, rs, rm),
+            ArmModeMultiplyVariant::Mul => {
+                self.mul_or_mla(set_condition_codes, false, rd, rn, rs, rm);
+            }
             // Unsiged multiply-accumulate (32-bit by 32-bit, bottom 32-bit accumulate and result).
-            Mla => self.mul_or_mla(set_condition_codes, true, rd, rn, rs, rm),
+            ArmModeMultiplyVariant::Mla => {
+                self.mul_or_mla(set_condition_codes, true, rd, rn, rs, rm);
+            }
         }
     }
 
@@ -837,16 +869,23 @@ impl Arm7tdmi {
         rs: u32,
         rm: u32,
     ) {
-        use ArmModeMultiplyLongVariant::*;
         match mul_variant {
             // Unsigned long multiply (32-bit by 32-bit, 64-bit result)
-            Umull => self.umull_or_umlal(set_condition_codes, false, rdhi, rdlo, rs, rm),
+            ArmModeMultiplyLongVariant::Umull => {
+                self.umull_or_umlal(set_condition_codes, false, rdhi, rdlo, rs, rm);
+            }
             // Unsigned long multiply-accumulate (32-bit by 32-bit, 64-bit accumulate and result)
-            Umlal => self.umull_or_umlal(set_condition_codes, true, rdhi, rdlo, rs, rm),
+            ArmModeMultiplyLongVariant::Umlal => {
+                self.umull_or_umlal(set_condition_codes, true, rdhi, rdlo, rs, rm);
+            }
             // Signed long multiply (32-bit by 32-bit, 64-bit result)
-            Smull => self.smull_or_smlal(set_condition_codes, false, rdhi, rdlo, rs, rm),
+            ArmModeMultiplyLongVariant::Smull => {
+                self.smull_or_smlal(set_condition_codes, false, rdhi, rdlo, rs, rm);
+            }
             // Signed multiply-accumulate (32-bit by 32-bit, 64-bit accumulate and result)
-            Smlal => self.smull_or_smlal(set_condition_codes, true, rdhi, rdlo, rs, rm),
+            ArmModeMultiplyLongVariant::Smlal => {
+                self.smull_or_smlal(set_condition_codes, true, rdhi, rdlo, rs, rm);
+            }
         }
     }
 
@@ -866,7 +905,7 @@ impl Arm7tdmi {
         if does_accumulate {
             let rn_register_value = self.registers.register_at(rn as usize);
             let (result_add, _) = result.overflowing_add(rn_register_value);
-            result = result_add
+            result = result_add;
         }
 
         self.registers.set_register_at(rd as usize, result);
@@ -1047,7 +1086,7 @@ mod tests {
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
                     condition: Condition::AL,
-                    alu_instruction: ArmModeAluInstruction::Teq,
+                    alu_instruction: ArmModeAluInstr::Teq,
                     set_conditions: true,
                     op_kind: OperandKind::Immediate,
                     rn: 12,
@@ -1062,7 +1101,7 @@ mod tests {
                 assert_eq!(asm, "TEQ R12, #1");
             }
 
-            cpu.registers.set_register_at(12, 0xFFFFFFFF);
+            cpu.registers.set_register_at(12, 0xFFFF_FFFF);
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.carry_flag());
@@ -1103,7 +1142,7 @@ mod tests {
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
                     condition: Condition::AL,
-                    alu_instruction: ArmModeAluInstruction::Teq,
+                    alu_instruction: ArmModeAluInstr::Teq,
                     set_conditions: true,
                     op_kind: OperandKind::Register,
                     rn: 9,
@@ -1134,7 +1173,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Cmp,
+                alu_instruction: ArmModeAluInstr::Cmp,
                 set_conditions: true,
                 op_kind: OperandKind::Immediate,
                 rn: 14,
@@ -1169,7 +1208,7 @@ mod tests {
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
                     condition: Condition::EQ,
-                    alu_instruction: ArmModeAluInstruction::Orr,
+                    alu_instruction: ArmModeAluInstr::Orr,
                     set_conditions: false,
                     op_kind: OperandKind::Immediate,
                     rn: 12,
@@ -1200,7 +1239,7 @@ mod tests {
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
                     condition: Condition::EQ,
-                    alu_instruction: ArmModeAluInstruction::Mov,
+                    alu_instruction: ArmModeAluInstr::Mov,
                     set_conditions: false,
                     op_kind: OperandKind::Immediate,
                     rn: 0,
@@ -1224,7 +1263,7 @@ mod tests {
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
                     condition: Condition::AL,
-                    alu_instruction: ArmModeAluInstruction::Mov,
+                    alu_instruction: ArmModeAluInstr::Mov,
                     set_conditions: false,
                     op_kind: OperandKind::Immediate,
                     rn: 0,
@@ -1262,7 +1301,7 @@ mod tests {
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
                     condition: Condition::AL,
-                    alu_instruction: ArmModeAluInstruction::Mov,
+                    alu_instruction: ArmModeAluInstr::Mov,
                     set_conditions: false,
                     op_kind: OperandKind::Immediate,
                     rn: 0,
@@ -1301,7 +1340,7 @@ mod tests {
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
                     condition: Condition::AL,
-                    alu_instruction: ArmModeAluInstruction::Add,
+                    alu_instruction: ArmModeAluInstr::Add,
                     set_conditions: false,
                     op_kind: OperandKind::Immediate,
                     rn: 15,
@@ -1336,7 +1375,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Add,
+                alu_instruction: ArmModeAluInstr::Add,
                 set_conditions: false,
                 op_kind: OperandKind::Immediate,
                 rn: 15,
@@ -1360,7 +1399,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Add,
+                alu_instruction: ArmModeAluInstr::Add,
                 set_conditions: false,
                 op_kind: OperandKind::Register,
                 rn: 1,
@@ -1392,7 +1431,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Add,
+                alu_instruction: ArmModeAluInstr::Add,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 15,
@@ -1439,7 +1478,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Mov,
+                alu_instruction: ArmModeAluInstr::Mov,
                 set_conditions: false,
                 op_kind: OperandKind::Immediate,
                 rn: 0,
@@ -1463,7 +1502,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Mov,
+                alu_instruction: ArmModeAluInstr::Mov,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1500,7 +1539,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Add,
+                alu_instruction: ArmModeAluInstr::Add,
                 set_conditions: false,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1531,7 +1570,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::And,
+                alu_instruction: ArmModeAluInstr::And,
                 set_conditions: false,
                 op_kind: OperandKind::Immediate,
                 rn: 0,
@@ -1560,7 +1599,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Eor,
+                alu_instruction: ArmModeAluInstr::Eor,
                 set_conditions: false,
                 op_kind: OperandKind::Immediate,
                 rn: 0,
@@ -1607,7 +1646,7 @@ mod tests {
                 op_code.instruction,
                 ArmModeInstruction::DataProcessing {
                     condition: Condition::AL,
-                    alu_instruction: ArmModeAluInstruction::Tst,
+                    alu_instruction: ArmModeAluInstr::Tst,
                     set_conditions: true,
                     op_kind: OperandKind::Immediate,
                     rn: 0,
@@ -1632,7 +1671,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Bic,
+                alu_instruction: ArmModeAluInstr::Bic,
                 set_conditions: false,
                 op_kind: OperandKind::Immediate,
                 rn: 0,
@@ -1660,7 +1699,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Mvn,
+                alu_instruction: ArmModeAluInstr::Mvn,
                 set_conditions: true,
                 op_kind: OperandKind::Immediate,
                 rn: 0,
@@ -1687,7 +1726,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sub,
+                alu_instruction: ArmModeAluInstr::Sub,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1729,7 +1768,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sub,
+                alu_instruction: ArmModeAluInstr::Sub,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1764,7 +1803,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Adc,
+                alu_instruction: ArmModeAluInstr::Adc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1797,7 +1836,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Adc,
+                alu_instruction: ArmModeAluInstr::Adc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1830,7 +1869,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Adc,
+                alu_instruction: ArmModeAluInstr::Adc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1863,7 +1902,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Adc,
+                alu_instruction: ArmModeAluInstr::Adc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1897,7 +1936,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Adc,
+                alu_instruction: ArmModeAluInstr::Adc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1934,7 +1973,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sbc,
+                alu_instruction: ArmModeAluInstr::Sbc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -1967,7 +2006,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sbc,
+                alu_instruction: ArmModeAluInstr::Sbc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -2000,7 +2039,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sbc,
+                alu_instruction: ArmModeAluInstr::Sbc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -2033,7 +2072,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sbc,
+                alu_instruction: ArmModeAluInstr::Sbc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -2066,7 +2105,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sbc,
+                alu_instruction: ArmModeAluInstr::Sbc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -2099,7 +2138,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sbc,
+                alu_instruction: ArmModeAluInstr::Sbc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -2132,7 +2171,7 @@ mod tests {
             op_code.instruction,
             ArmModeInstruction::DataProcessing {
                 condition: Condition::AL,
-                alu_instruction: ArmModeAluInstruction::Sbc,
+                alu_instruction: ArmModeAluInstr::Sbc,
                 set_conditions: true,
                 op_kind: OperandKind::Register,
                 rn: 0,
@@ -2189,7 +2228,7 @@ mod tests {
                     }
                 }
             );
-            cpu.cpsr.set_mode(Mode::User);
+            cpu.cpsr.set_mode(&Mode::User);
 
             cpu.cpsr.set_carry_flag(true);
             cpu.cpsr.set_overflow_flag(true);
@@ -2220,13 +2259,13 @@ mod tests {
             );
 
             cpu.register_bank.spsr_fiq.set_state_bit(true);
-            cpu.register_bank.spsr_fiq.set_mode(Mode::Fiq);
+            cpu.register_bank.spsr_fiq.set_mode(&Mode::Fiq);
             cpu.register_bank.spsr_fiq.set_carry_flag(true);
             cpu.register_bank.spsr_fiq.set_overflow_flag(true);
             cpu.register_bank.spsr_fiq.set_zero_flag(true);
             cpu.register_bank.spsr_fiq.set_sign_flag(true);
 
-            cpu.swap_mode(Mode::Fiq);
+            cpu.swap_mode(&Mode::Fiq);
 
             cpu.execute_arm(op_code);
 
@@ -2248,7 +2287,7 @@ mod tests {
                     kind: PsrOpKind::Msr { source_register: 0 }
                 }
             );
-            cpu.cpsr.set_mode(Mode::User);
+            cpu.cpsr.set_mode(&Mode::User);
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
 
@@ -2270,7 +2309,7 @@ mod tests {
                     kind: PsrOpKind::Msr { source_register: 0 }
                 }
             );
-            cpu.cpsr.set_mode(Mode::Fiq);
+            cpu.cpsr.set_mode(&Mode::Fiq);
 
             cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10001));
 
@@ -2298,7 +2337,7 @@ mod tests {
                     }
                 }
             );
-            cpu.cpsr.set_mode(Mode::User);
+            cpu.cpsr.set_mode(&Mode::User);
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
 
@@ -2326,7 +2365,7 @@ mod tests {
                     }
                 }
             );
-            cpu.cpsr.set_mode(Mode::Fiq);
+            cpu.cpsr.set_mode(&Mode::Fiq);
 
             // Trying to change MODE bits to a User mode
             cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10000));

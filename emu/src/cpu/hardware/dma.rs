@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
-pub struct DmaRegisters {
+pub struct Registers {
     pub source_address: u32,
     pub destination_address: u32,
     pub word_count: u16,
@@ -10,5 +10,5 @@ pub struct DmaRegisters {
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Dma {
-    pub channels: [DmaRegisters; 4],
+    pub channels: [Registers; 4],
 }

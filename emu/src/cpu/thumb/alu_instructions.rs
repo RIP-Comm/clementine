@@ -22,7 +22,9 @@ pub enum ThumbModeAluInstruction {
 
 impl From<u16> for ThumbModeAluInstruction {
     fn from(alu_op_code: u16) -> Self {
-        use ThumbModeAluInstruction::*;
+        use ThumbModeAluInstruction::{
+            Adc, And, Asr, Bic, Cmn, Cmp, Eor, Lsl, Lsr, Mul, Mvn, Neg, Orr, Ror, Sbc, Tst,
+        };
         match alu_op_code {
             0x0 => And,
             0x1 => Eor,

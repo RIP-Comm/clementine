@@ -8,7 +8,7 @@ use logger::log;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
-pub enum ThumbModeInstruction {
+pub enum Instruction {
     MoveShiftedRegister {
         shift_operation: ShiftKind,
         offset5: u16,
@@ -100,13 +100,20 @@ pub enum ThumbModeInstruction {
     },
 }
 
-impl From<u16> for ThumbModeInstruction {
+impl From<u16> for Instruction {
+    #[allow(clippy::too_many_lines)]
     fn from(op_code: u16) -> Self {
-        use ThumbModeInstruction::*;
+        use Instruction::{
+            AddOffsetSP, AddSubtract, AluOp, CondBranch, HiRegisterOpBX, LoadAddress,
+            LoadStoreHalfword, LoadStoreImmOffset, LoadStoreRegisterOffset,
+            LoadStoreSignExtByteHalfword, LongBranchLink, MoveCompareAddSubtractImm,
+            MoveShiftedRegister, MultipleLoadStore, PCRelativeLoad, PushPopReg,
+            SPRelativeLoadStore, Swi, UncondBranch,
+        };
 
-        if op_code.get_bits(8..=15) == 0b11011111 {
+        if op_code.get_bits(8..=15) == 0b1101_1111 {
             Swi
-        } else if op_code.get_bits(8..=15) == 0b10110000 {
+        } else if op_code.get_bits(8..=15) == 0b1011_0000 {
             AddOffsetSP {
                 // 0 - positive, 1 - negative TODO
                 s: op_code.get_bit(7),
@@ -115,13 +122,13 @@ impl From<u16> for ThumbModeInstruction {
                 // since the assembler places #Imm >> 2 in the Word8 field.
                 word7: op_code.get_bits(0..=6) << 2,
             }
-        } else if op_code.get_bits(10..=15) == 0b010000 {
+        } else if op_code.get_bits(10..=15) == 0b01_0000 {
             AluOp {
                 alu_operation: op_code.get_bits(6..=9).into(),
                 source_register: op_code.get_bits(3..=5),
                 destination_register: op_code.get_bits(0..=2),
             }
-        } else if op_code.get_bits(10..=15) == 0b010001 {
+        } else if op_code.get_bits(10..=15) == 0b01_0001 {
             let h1 = op_code.get_bit(7);
             let rd_hd = op_code.get_bits(0..=2);
             let destination_register = if h1 { rd_hd | (1 << 3) } else { rd_hd };
@@ -235,14 +242,14 @@ impl From<u16> for ThumbModeInstruction {
     }
 }
 
-impl std::fmt::Display for ThumbModeInstruction {
+impl std::fmt::Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
 }
 
 #[cfg(feature = "disassembler")]
-impl ThumbModeInstruction {
+impl Instruction {
     pub(crate) fn disassembler(&self) -> String {
         match self {
             Self::MoveShiftedRegister {
@@ -471,9 +478,9 @@ mod test {
 
     #[test]
     fn decode_multiple_load_store() {
-        let output = ThumbModeInstruction::from(0b1100_1001_1010_0000);
+        let output = Instruction::from(0b1100_1001_1010_0000);
         assert_eq!(
-            ThumbModeInstruction::MultipleLoadStore {
+            Instruction::MultipleLoadStore {
                 load_store: LoadStoreKind::Load,
                 base_register: 1,
                 register_list: 160,
@@ -485,9 +492,9 @@ mod test {
 
     #[test]
     fn decode_pc_relative_load() {
-        let output = ThumbModeInstruction::from(0b0100_1001_0101_1000);
+        let output = Instruction::from(0b0100_1001_0101_1000);
         assert_eq!(
-            ThumbModeInstruction::PCRelativeLoad {
+            Instruction::PCRelativeLoad {
                 destination_register: 1,
                 immediate_value: 352,
             },
@@ -498,9 +505,9 @@ mod test {
 
     #[test]
     fn decode_load_store_register_offset() {
-        let output = ThumbModeInstruction::from(0b0101_00_0_000_001_010);
+        let output = Instruction::from(0b0101_00_0_000_001_010);
         assert_eq!(
-            ThumbModeInstruction::LoadStoreRegisterOffset {
+            Instruction::LoadStoreRegisterOffset {
                 load_store: LoadStoreKind::Store,
                 byte_word: Default::default(),
                 ro: 0,
@@ -514,16 +521,16 @@ mod test {
 
     #[test]
     fn decode_uncond_branch() {
-        let output = ThumbModeInstruction::from(0b1110_0001_0010_1111);
-        assert_eq!(ThumbModeInstruction::UncondBranch { offset: 606 }, output);
+        let output = Instruction::from(0b1110_0001_0010_1111);
+        assert_eq!(Instruction::UncondBranch { offset: 606 }, output);
         assert_eq!("B #606", output.disassembler()); // FIXME: Should this be decimal or hex?
     }
 
     #[test]
     fn decode_hi_reg_operation() {
-        let output = ThumbModeInstruction::from(0b0100_0111_0111_0000);
+        let output = Instruction::from(0b0100_0111_0111_0000);
         assert_eq!(
-            ThumbModeInstruction::HiRegisterOpBX {
+            Instruction::HiRegisterOpBX {
                 register_operation: ThumbHighRegisterOperation::BxOrBlx,
                 source_register: 14,
                 destination_register: 0,
@@ -532,9 +539,9 @@ mod test {
         );
         assert_eq!("BX R0, R14", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b010001_00_0_1_000_001);
+        let output = Instruction::from(0b010001_00_0_1_000_001);
         assert_eq!(
-            ThumbModeInstruction::HiRegisterOpBX {
+            Instruction::HiRegisterOpBX {
                 register_operation: ThumbHighRegisterOperation::Add,
                 source_register: 8,
                 destination_register: 1,
@@ -546,9 +553,9 @@ mod test {
 
     #[test]
     fn decode_push_pop_register() {
-        let output = ThumbModeInstruction::from(0b1011_0101_1111_0000);
+        let output = Instruction::from(0b1011_0101_1111_0000);
         assert_eq!(
-            ThumbModeInstruction::PushPopReg {
+            Instruction::PushPopReg {
                 load_store: LoadStoreKind::Store,
                 pc_lr: true,
                 register_list: 240,
@@ -561,9 +568,9 @@ mod test {
 
     #[test]
     fn decode_alu_operation() {
-        let output = ThumbModeInstruction::from(0b0100_0011_0110_0000);
+        let output = Instruction::from(0b0100_0011_0110_0000);
         assert_eq!(
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Mul,
                 source_register: 4,
                 destination_register: 0,
@@ -572,9 +579,9 @@ mod test {
         );
         assert_eq!("MUL R0, R4", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0000_0001_1000);
+        let output = Instruction::from(0b0100_0000_0001_1000);
         assert_eq!(
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::And,
                 source_register: 3,
                 destination_register: 0,
@@ -583,9 +590,9 @@ mod test {
         );
         assert_eq!("AND R0, R3", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0010_0011_1110);
+        let output = Instruction::from(0b0100_0010_0011_1110);
         assert_eq!(
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Tst,
                 source_register: 7,
                 destination_register: 6,
@@ -594,9 +601,9 @@ mod test {
         );
         assert_eq!("TST R6, R7", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0011_0010_1010);
+        let output = Instruction::from(0b0100_0011_0010_1010);
         assert_eq!(
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Orr,
                 source_register: 5,
                 destination_register: 2,
@@ -605,9 +612,9 @@ mod test {
         );
         assert_eq!("ORR R2, R5", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0011_1100_1111);
+        let output = Instruction::from(0b0100_0011_1100_1111);
         assert_eq!(
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Mvn,
                 source_register: 1,
                 destination_register: 7,
@@ -616,9 +623,9 @@ mod test {
         );
         assert_eq!("MVN R7, R1", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0001_1110_0011);
+        let output = Instruction::from(0b0100_0001_1110_0011);
         assert_eq!(
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Ror,
                 source_register: 4,
                 destination_register: 3,
@@ -627,9 +634,9 @@ mod test {
         );
         assert_eq!("ROR R3, R4", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0000_0101_0011);
+        let output = Instruction::from(0b0100_0000_0101_0011);
         assert_eq!(
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Eor,
                 source_register: 2,
                 destination_register: 3,
@@ -638,9 +645,9 @@ mod test {
         );
         assert_eq!("EOR R3, R2", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0010_0100_0000);
+        let output = Instruction::from(0b0100_0010_0100_0000);
         assert_eq!(
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Neg,
                 source_register: 0,
                 destination_register: 0,
@@ -649,10 +656,10 @@ mod test {
         );
         assert_eq!("NEG R0, R0", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0000_1000_1000);
+        let output = Instruction::from(0b0100_0000_1000_1000);
         assert_eq!(
             output,
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Lsl,
                 source_register: 1,
                 destination_register: 0,
@@ -660,10 +667,10 @@ mod test {
         );
         assert_eq!("LSL R0, R1", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b0100_0001_0000_1000);
+        let output = Instruction::from(0b0100_0001_0000_1000);
         assert_eq!(
             output,
-            ThumbModeInstruction::AluOp {
+            Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Asr,
                 source_register: 1,
                 destination_register: 0,
@@ -674,9 +681,9 @@ mod test {
 
     #[test]
     fn decode_load_store_half_word() {
-        let output = ThumbModeInstruction::from(0b1000_1_00001_000_001);
+        let output = Instruction::from(0b1000_1_00001_000_001);
         assert_eq!(
-            ThumbModeInstruction::LoadStoreHalfword {
+            Instruction::LoadStoreHalfword {
                 load_store: LoadStoreKind::Load,
                 offset: 2,
                 base_register: 0,
@@ -686,9 +693,9 @@ mod test {
         );
         assert_eq!("LDRH R1, [R0, #2]", output.disassembler());
 
-        let output = ThumbModeInstruction::from(0b1000_0_00001_000_001);
+        let output = Instruction::from(0b1000_0_00001_000_001);
         assert_eq!(
-            ThumbModeInstruction::LoadStoreHalfword {
+            Instruction::LoadStoreHalfword {
                 load_store: LoadStoreKind::Store,
                 offset: 2,
                 base_register: 0,
