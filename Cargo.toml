@@ -1,7 +1,7 @@
 [package]
 name = "clementine"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [workspace]
 members = ["emu", "ui", "logger", "vecfixed"]
@@ -9,7 +9,7 @@ members = ["emu", "ui", "logger", "vecfixed"]
 [workspace.package]
 readme = "./README.md"
 description = "Gameboy Advance emulator."
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/RIP-Comm/clementine"
 license = "MIT"
 
