@@ -123,7 +123,7 @@ where
 mod tests {
     use std::fs;
 
-    use crate::{init_logger, log, LogKind};
+    use crate::{LogKind, init_logger, log};
 
     #[test]
     fn logger_file() {

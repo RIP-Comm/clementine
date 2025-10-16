@@ -1,4 +1,4 @@
-use super::{memory::Memory, registers::Registers, PixelInfo};
+use super::{PixelInfo, memory::Memory, registers::Registers};
 
 pub mod layer_0;
 pub mod layer_1;

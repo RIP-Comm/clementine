@@ -293,11 +293,7 @@ pub enum PsrKind {
 
 impl From<bool> for PsrKind {
     fn from(value: bool) -> Self {
-        if value {
-            Self::Spsr
-        } else {
-            Self::Cpsr
-        }
+        if value { Self::Spsr } else { Self::Cpsr }
     }
 }
 

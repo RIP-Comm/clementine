@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use vecfixed::VecFixed;
 
 fn criterion_benchmark(c: &mut Criterion) {

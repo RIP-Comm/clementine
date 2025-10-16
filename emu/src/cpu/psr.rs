@@ -208,11 +208,7 @@ impl From<CpuState> for bool {
 
 impl From<bool> for CpuState {
     fn from(state: bool) -> Self {
-        if state {
-            Self::Thumb
-        } else {
-            Self::Arm
-        }
+        if state { Self::Thumb } else { Self::Arm }
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::{
-    shift, AIKind, ArithmeticOpResult, ArmModeAluInstr, Kind, PsrOpKind,
+    AIKind, ArithmeticOpResult, ArmModeAluInstr, Kind, PsrOpKind, shift,
 };
 use crate::cpu::arm::instructions::{
     ArmModeMultiplyLongVariant, ArmModeMultiplyVariant, SingleDataTransferKind,
@@ -174,7 +174,9 @@ impl Arm7tdmi {
                         // Should we set it? I guess software are written in order to not switch this bit
                         // but who knows?
                         if psr.state_bit() != rm.get_bit(5) {
-                            log("WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.");
+                            log(
+                                "WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.",
+                            );
                         }
                         psr.set_state_bit(rm.get_bit(5));
                     }

@@ -1,4 +1,4 @@
-use super::{color::Color, GBC_LCD_HEIGHT, GBC_LCD_WIDTH, LCD_HEIGHT, LCD_WIDTH};
+use super::{GBC_LCD_HEIGHT, GBC_LCD_WIDTH, LCD_HEIGHT, LCD_WIDTH, color::Color};
 
 pub struct GbaLcd {
     pixels: [[Color; LCD_WIDTH]; LCD_HEIGHT],

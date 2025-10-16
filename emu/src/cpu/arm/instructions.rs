@@ -26,11 +26,7 @@ impl From<u32> for SingleDataTransferKind {
     fn from(op_code: u32) -> Self {
         let must_for_pld = op_code.are_bits_on(28..=31);
         if op_code.get_bit(20) {
-            if must_for_pld {
-                Self::Pld
-            } else {
-                Self::Ldr
-            }
+            if must_for_pld { Self::Pld } else { Self::Ldr }
         } else {
             Self::Str
         }
@@ -251,7 +247,7 @@ impl ArmModeInstruction {
                         format!("{alu_instruction}{condition}{set_string} R{destination}, {op2}")
                     }
                 }
-            },
+            }
             Self::Multiply {
                 variant,
                 condition,
@@ -260,13 +256,13 @@ impl ArmModeInstruction {
                 rn_accumulate_register,
                 rs_operand_register,
                 rm_operand_register,
-            } => {
-                match variant {
-                    ArmModeMultiplyVariant::Mul =>
-                        format!("MUL{condition}{should_set_codes} {rd_destination_register}, {rm_operand_register}, {rs_operand_register}"),
-                    ArmModeMultiplyVariant::Mla =>
-                        format!("MLA{condition}{should_set_codes} {rd_destination_register}, {rm_operand_register}, {rs_operand_register}, {rn_accumulate_register}"),
-                }
+            } => match variant {
+                ArmModeMultiplyVariant::Mul => format!(
+                    "MUL{condition}{should_set_codes} {rd_destination_register}, {rm_operand_register}, {rs_operand_register}"
+                ),
+                ArmModeMultiplyVariant::Mla => format!(
+                    "MLA{condition}{should_set_codes} {rd_destination_register}, {rm_operand_register}, {rs_operand_register}, {rn_accumulate_register}"
+                ),
             },
             Self::MultiplyLong {
                 variant,
@@ -277,8 +273,10 @@ impl ArmModeInstruction {
                 rs_operand_register,
                 rm_operand_register,
             } => {
-                format!("{variant}{condition}{should_set_codes} {rdlo_destination_register}, {rdhi_destination_register}, {rm_operand_register}, {rs_operand_register}")
-            },
+                format!(
+                    "{variant}{condition}{should_set_codes} {rdlo_destination_register}, {rdhi_destination_register}, {rm_operand_register}, {rs_operand_register}"
+                )
+            }
             Self::PSRTransfer {
                 condition,
                 psr_kind,
@@ -342,7 +340,9 @@ impl ArmModeInstruction {
                     }
                 };
 
-                format!("{load_store_kind}{condition}{transfer_kind} R{source_destination_register}, {address}")
+                format!(
+                    "{load_store_kind}{condition}{transfer_kind} R{source_destination_register}, {address}"
+                )
             }
             Self::SingleDataTransfer {
                 condition,
@@ -446,7 +446,9 @@ impl ArmModeInstruction {
                 format!("{op}{condition}{long_transfer} p{cp_number},{crd},{address:08X}")
             }
             Self::CoprocessorDataOperation => panic!("CoprocessorDataOperation not implemented"),
-            Self::CoprocessorRegisterTransfer => panic!("CoprocessorRegisterTransfer not implemented"),
+            Self::CoprocessorRegisterTransfer => {
+                panic!("CoprocessorRegisterTransfer not implemented")
+            }
             Self::SoftwareInterrupt => panic!("SoftwareInterrupt not implemented"),
         }
     }

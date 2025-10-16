@@ -1,7 +1,7 @@
 use super::Layer;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
-use crate::cpu::hardware::lcd::{Color, PixelInfo, LCD_WIDTH};
+use crate::cpu::hardware::lcd::{Color, LCD_WIDTH, PixelInfo};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_with::serde_as;

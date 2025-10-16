@@ -10,11 +10,7 @@ pub enum OperandKind {
 
 impl From<bool> for OperandKind {
     fn from(b: bool) -> Self {
-        if b {
-            Self::Immediate
-        } else {
-            Self::Register
-        }
+        if b { Self::Immediate } else { Self::Register }
     }
 }
 
@@ -106,11 +102,7 @@ pub enum ReadWriteKind {
 
 impl From<bool> for ReadWriteKind {
     fn from(value: bool) -> Self {
-        if value {
-            Self::Byte
-        } else {
-            Self::Word
-        }
+        if value { Self::Byte } else { Self::Word }
     }
 }
 
@@ -128,11 +120,7 @@ pub enum LoadStoreKind {
 
 impl From<bool> for LoadStoreKind {
     fn from(b: bool) -> Self {
-        if b {
-            Self::Load
-        } else {
-            Self::Store
-        }
+        if b { Self::Load } else { Self::Store }
     }
 }
 
@@ -156,11 +144,7 @@ pub enum Indexing {
 
 impl From<bool> for Indexing {
     fn from(state: bool) -> Self {
-        if state {
-            Self::Pre
-        } else {
-            Self::Post
-        }
+        if state { Self::Pre } else { Self::Post }
     }
 }
 
@@ -175,11 +159,7 @@ pub enum Offsetting {
 
 impl From<bool> for Offsetting {
     fn from(state: bool) -> Self {
-        if state {
-            Self::Up
-        } else {
-            Self::Down
-        }
+        if state { Self::Up } else { Self::Down }
     }
 }
 

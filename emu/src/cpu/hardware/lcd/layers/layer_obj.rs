@@ -1,10 +1,10 @@
 use crate::cpu::hardware::lcd;
+use crate::cpu::hardware::lcd::Color;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::object_attributes;
 use crate::cpu::hardware::lcd::point::Point;
 use crate::cpu::hardware::lcd::registers::Registers;
-use crate::cpu::hardware::lcd::Color;
-use crate::cpu::hardware::lcd::{PixelInfo, LCD_WIDTH, WORLD_HEIGHT};
+use crate::cpu::hardware::lcd::{LCD_WIDTH, PixelInfo, WORLD_HEIGHT};
 
 use super::Layer;
 use crate::bitwise::Bits;

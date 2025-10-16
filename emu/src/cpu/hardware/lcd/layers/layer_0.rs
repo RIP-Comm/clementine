@@ -1,6 +1,6 @@
+use crate::cpu::hardware::lcd::PixelInfo;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
-use crate::cpu::hardware::lcd::PixelInfo;
 
 use super::Layer;
 use serde::Deserialize;

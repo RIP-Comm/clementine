@@ -222,10 +222,10 @@ impl UiTool for CpuHandler {
                 ui.label("Step (custom) CPU cycles:");
                 ui.add(egui::DragValue::new(&mut self.cycle_to_skip_custom_value).speed(100));
 
-                if ui.button("Step").clicked() {
-                    if let Ok(mut gba) = self.gba.lock() {
-                        (0..self.cycle_to_skip_custom_value).for_each(|_| gba.step());
-                    }
+                if ui.button("Step").clicked()
+                    && let Ok(mut gba) = self.gba.lock()
+                {
+                    (0..self.cycle_to_skip_custom_value).for_each(|_| gba.step());
                 }
             })
         });
