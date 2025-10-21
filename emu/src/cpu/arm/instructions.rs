@@ -399,12 +399,13 @@ impl ArmModeInstruction {
                     Indexing::Post => "A",
                 };
 
-                let mut registers = String::new();
+                let mut regs = Vec::new();
                 for i in 0..=15 {
                     if register_list.get_bit(i) {
-                        registers.push_str(&format!("R{i}, "));
+                        regs.push(format!("R{i}"));
                     }
                 }
+                let registers = regs.join("- ");
 
                 let w = if *write_back { "!" } else { "" };
                 let f = if *load_psr { "^" } else { "" };
