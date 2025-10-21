@@ -405,7 +405,7 @@ impl ArmModeInstruction {
                         regs.push(format!("R{i}"));
                     }
                 }
-                let registers = regs.join("- ");
+                let registers = regs.join("-");
 
                 let w = if *write_back { "!" } else { "" };
                 let f = if *load_psr { "^" } else { "" };

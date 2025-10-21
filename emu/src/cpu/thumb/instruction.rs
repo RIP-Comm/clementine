@@ -428,7 +428,7 @@ impl Instruction {
                 } else {
                     regs.push("LR".to_string());
                 }
-                let registers = regs.join("- ");
+                let registers = regs.join("-");
                 format!("{instr} {{{registers}}}")
             }
             Self::MultipleLoadStore {
@@ -447,7 +447,7 @@ impl Instruction {
                         regs.push(format!("R{i}"));
                     }
                 }
-                let registers = regs.join("- ");
+                let registers = regs.join("-");
                 format!("{instr} R{base_register}!, {{{registers}}}")
             }
             Self::CondBranch {
