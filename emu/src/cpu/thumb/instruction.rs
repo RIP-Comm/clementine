@@ -417,19 +417,18 @@ impl Instruction {
                     LoadStoreKind::Store => "PUSH",
                 };
 
-                let mut registers = String::new();
+                let mut regs = Vec::new();
                 for i in 0..=7 {
                     if register_list.get_bit(i) {
-                        registers.push_str(&format!("R{i}, "));
+                        regs.push(format!("R{i}"));
                     }
                 }
-
                 if *pc_lr {
-                    registers.push_str("PC");
+                    regs.push("PC".to_string());
                 } else {
-                    registers.push_str("LR");
+                    regs.push("LR".to_string());
                 }
-
+                let registers = regs.join("- ");
                 format!("{instr} {{{registers}}}")
             }
             Self::MultipleLoadStore {
@@ -442,13 +441,13 @@ impl Instruction {
                     LoadStoreKind::Store => "STMIA",
                 };
 
-                let mut registers = String::new();
+                let mut regs = Vec::new();
                 for i in 0..=7 {
                     if register_list.get_bit(i) {
-                        registers.push_str(&format!("R{i}, "));
+                        regs.push(format!("R{i}"));
                     }
                 }
-
+                let registers = regs.join("- ");
                 format!("{instr} R{base_register}!, {{{registers}}}")
             }
             Self::CondBranch {
