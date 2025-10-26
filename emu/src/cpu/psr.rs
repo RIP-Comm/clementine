@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use logger::log;
+
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::ArithmeticOpResult;
 use crate::cpu::{condition::Condition, cpu_modes::Mode};
@@ -80,8 +82,18 @@ impl Psr {
     }
 
     /// M4-M0 => Bits 4-0
+    ///
+    /// NOTE: The BIOS sometimes writes invalid mode values (like 0) to SPSR.
+    /// This method returns Supervisor mode as a safe default if the mode bits are invalid.
     pub fn mode(self) -> Mode {
-        Mode::try_from(self.0 & 0b11111).unwrap()
+        let mode_bits = self.0 & 0b11111;
+        Mode::try_from(mode_bits).unwrap_or_else(|_| {
+            log(format!(
+                "Warning: Invalid mode bits 0b{:05b} in PSR=0x{:08X}, defaulting to Supervisor",
+                mode_bits, self.0
+            ));
+            Mode::Supervisor
+        })
     }
 
     pub fn set_sign_flag(&mut self, value: bool) {
