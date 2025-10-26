@@ -100,7 +100,20 @@ impl Arm7tdmi {
             // We store the current spsr in a temp variable because `swap_mode` would overwrite it.
             // We need to call `swap_mode` because we need to swap banked registers.
             let current_spsr = self.spsr;
-            self.swap_mode(&current_spsr.mode());
+
+            // Try to get the mode from SPSR. If it's invalid (e.g., BIOS wrote 0),
+            // we skip the mode swap and just copy the CPSR value.
+            // The CPU will be in an undefined state, but we won't panic.
+            let spsr_value: u32 = current_spsr.into();
+            if let Ok(spsr_mode) = Mode::try_from(spsr_value & 0b11111) {
+                self.swap_mode(&spsr_mode);
+            } else {
+                log(format!(
+                    "Warning: SPSR has invalid mode bits (0b{:05b}), skipping mode swap",
+                    spsr_value & 0b11111
+                ));
+            }
+
             self.cpsr = current_spsr;
         }
 
