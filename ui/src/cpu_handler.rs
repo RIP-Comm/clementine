@@ -232,7 +232,7 @@ impl UiTool for CpuHandler {
 
         ui.collapsing("Breakpoints", |ui| {
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_source("breakpoint-type")
+                egui::ComboBox::from_id_salt("breakpoint-type")
                     .selected_text(if self.breakpoint_combo == BreakpointType::Equal {
                         "Equal to"
                     } else {
