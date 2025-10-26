@@ -59,3 +59,8 @@ just run-disassebler <rom>
 # all debug feature enabled
 just run-all-debug <rom>
 ```
+
+
+## Tests ROM
+
+- [x] Thumb rom
