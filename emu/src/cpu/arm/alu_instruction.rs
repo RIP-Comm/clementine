@@ -279,7 +279,14 @@ impl From<u32> for PsrOpKind {
                 },
             }
         } else {
-            unreachable!()
+            panic!(
+                "Invalid PSR operation opcode: 0x{:08X}\nBits 23-27: 0b{:05b}, Bits 16-21: 0b{:06b}, Bits 12-21: 0b{:010b}, Bits 0-11: 0b{:012b}",
+                op_code,
+                op_code.get_bits(23..=27),
+                op_code.get_bits(16..=21),
+                op_code.get_bits(12..=21),
+                op_code.get_bits(0..=11)
+            )
         }
     }
 }
