@@ -1,6 +1,5 @@
-use std::convert::TryInto;
-
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 
 #[cfg(feature = "logger")]
 use logger::log;
@@ -114,8 +113,8 @@ impl Default for Arm7tdmi {
     fn default() -> Self {
         let mut s = Self {
             bus: Bus::default(),
-            cpsr: Psr::from(Mode::Supervisor), // FIXME: Starting as Supervisor? Not sure
-            spsr: Psr::default(),
+            cpsr: Psr::from(Mode::Supervisor),
+            spsr: Psr::from(Mode::Supervisor), // initialize SPSR to valid mode
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
             #[cfg(feature = "disassembler")]
@@ -291,7 +290,12 @@ impl Arm7tdmi {
                 offset_info,
                 offsetting,
             ),
-            ArmModeInstruction::Undefined => todo!(),
+            ArmModeInstruction::Undefined => {
+                // Undefined instruction exception
+                let pc = self.registers.program_counter();
+                logger::log(format!("Undefined instruction exception at PC=0x{pc:08X}"));
+                self.handle_exception(ExceptionType::UndefinedInstruction);
+            }
             ArmModeInstruction::BlockDataTransfer {
                 condition: _,
                 indexing,
