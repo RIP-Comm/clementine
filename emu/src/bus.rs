@@ -711,7 +711,7 @@ impl Bus {
                         self.lcd.memory.obj_palette_ram[unmasked_address - 0x05000200] = value;
                     }
                     _ => unreachable!(),
-                };
+                }
             }
             0x6000000..=0x6FFFFFF => {
                 let unmasked_address = get_unmasked_address(address, 0x00FF0000, 0xFF00FFFF, 16, 2);
@@ -775,7 +775,7 @@ impl Bus {
         self.interrupt_control.interrupt_request.push(val);
 
         // A pixel takes 4 cycles to get drawn
-        if self.cycles_count % 4 == 0 {
+        if self.cycles_count.is_multiple_of(4) {
             let lcd_output = self.lcd.step();
 
             if lcd_output.request_hblank_irq {

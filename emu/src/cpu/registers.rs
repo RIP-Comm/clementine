@@ -14,15 +14,15 @@ impl Registers {
         self.0[15].try_into().unwrap()
     }
 
-    pub fn set_program_counter(&mut self, new_value: u32) {
+    pub const fn set_program_counter(&mut self, new_value: u32) {
         self.0[15] = new_value;
     }
 
-    pub fn advance_program_counter(&mut self, bytes: u32) {
+    pub const fn advance_program_counter(&mut self, bytes: u32) {
         self.0[15] = self.0[15].wrapping_add(bytes);
     }
 
-    pub fn set_register_at(&mut self, reg: usize, new_value: u32) {
+    pub const fn set_register_at(&mut self, reg: usize, new_value: u32) {
         self.0[reg] = new_value;
     }
 

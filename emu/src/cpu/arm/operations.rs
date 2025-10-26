@@ -87,7 +87,7 @@ impl Arm7tdmi {
             ArmModeAluInstr::Mvn => {
                 self.mvn(destination.try_into().unwrap(), op2, set_conditions);
             }
-        };
+        }
 
         if set_conditions && destination == REG_PROGRAM_COUNTER {
             // We move current SPSR into the CPSR.
@@ -611,7 +611,7 @@ impl Arm7tdmi {
                         self.bus.write_half_word(address, value as u16);
                     }
                     _ => unreachable!("HS flags can't be != from 01 for STORE (L=0)"),
-                };
+                }
             }
             LoadStoreKind::Load => match transfer_kind {
                 HalfwordTransferKind::UnsignedHalfwords => {
@@ -780,7 +780,7 @@ impl Arm7tdmi {
         if write_back {
             self.registers
                 .set_register_at(base_register, address.try_into().unwrap());
-        };
+        }
 
         // If LDM and R15 is in register list we flush the pipeline
         if load_store == LoadStoreKind::Load && reg_list.is_bit_on(15) {

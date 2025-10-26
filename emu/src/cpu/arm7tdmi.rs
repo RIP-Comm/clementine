@@ -137,7 +137,7 @@ impl Default for Arm7tdmi {
 }
 
 impl Arm7tdmi {
-    pub fn flush_pipeline(&mut self) {
+    pub const fn flush_pipeline(&mut self) {
         self.decoded_arm = None;
         self.decoded_thumb = None;
         self.fetched_arm = None;
@@ -315,7 +315,7 @@ impl Arm7tdmi {
             ArmModeInstruction::SoftwareInterrupt => {
                 self.handle_exception(ExceptionType::SoftwareInterrupt);
             }
-        };
+        }
     }
 
     /// This function is used to execute the Data Processing instruction.
@@ -427,7 +427,7 @@ impl Arm7tdmi {
             Instruction::Swi => unimplemented!(),
             Instruction::UncondBranch { offset } => self.uncond_branch(offset),
             Instruction::LongBranchLink { h, offset } => self.long_branch_link(h, offset),
-        };
+        }
     }
 
     fn handle_exception(&mut self, exception_type: ExceptionType) {

@@ -342,16 +342,16 @@ impl std::fmt::Display for AluSecondOperandInfo {
                 shift_kind,
                 register,
             } => {
-                if let ShiftOperator::Immediate(shift) = shift_op {
-                    if shift == 0 {
-                        return if shift_kind == ShiftKind::Lsl {
-                            write!(f, "R{register}")
-                        } else if shift_kind == ShiftKind::Ror {
-                            write!(f, "R{register}, RRX")
-                        } else {
-                            write!(f, "R{register}, {shift_kind} #32")
-                        };
-                    }
+                if let ShiftOperator::Immediate(shift) = shift_op
+                    && shift == 0
+                {
+                    return if shift_kind == ShiftKind::Lsl {
+                        write!(f, "R{register}")
+                    } else if shift_kind == ShiftKind::Ror {
+                        write!(f, "R{register}, RRX")
+                    } else {
+                        write!(f, "R{register}, {shift_kind} #32")
+                    };
                 }
 
                 write!(f, "R{register}, {shift_kind} {shift_op}")

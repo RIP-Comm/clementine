@@ -60,7 +60,7 @@ impl std::fmt::Display for SingleDataTransferOffsetInfo {
             } => {
                 write!(f, "{reg_offset}, {shift_kind} #{shift_amount}")?;
             }
-        };
+        }
 
         Ok(())
     }

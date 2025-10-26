@@ -102,7 +102,7 @@ where
         let mask: u128 = !(0xFF << (8 * byte_nth));
 
         // We shift the new octet in place.
-        let shifted_value: u128 = (value as u128) << (8 * byte_nth);
+        let shifted_value: u128 = u128::from(value) << (8 * byte_nth);
 
         // We set the byte_nth octet to 0 using the mask and we
         // do the OR with the new octet.

@@ -263,7 +263,7 @@ impl LayerObj {
                         // A tile is 32bytes long in 4bpp.
                         let tile_data = tile_number * 32 + y_tile_idx * 4 + x_tile_idx / 2;
 
-                        let palette_offset_low = if tile_data % 2 == 0 {
+                        let palette_offset_low = if tile_data.is_multiple_of(2) {
                             tile_data.get_bits(0..=3)
                         } else {
                             tile_data.get_bits(4..=7)

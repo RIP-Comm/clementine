@@ -85,7 +85,7 @@ impl Arm7tdmi {
                 self.registers.set_register_at(dest, sub_result.result);
                 self.cpsr.set_flags(&sub_result);
             }
-        };
+        }
     }
 
     pub fn alu_op(&mut self, op: ThumbModeAluInstruction, rs: u16, rd: u16) {
@@ -270,7 +270,7 @@ impl Arm7tdmi {
                 let value = self.read_word(address);
                 self.registers.set_register_at(rd, value);
             }
-        };
+        }
     }
 
     pub fn load_store_sign_extend_byte_halfword(
