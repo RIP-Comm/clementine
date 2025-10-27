@@ -25,7 +25,7 @@ We love collaborating with others, so feel free to interact with us however you 
 - clone the repository :)
 - we are using `just` and not `make` then if you want take the benefit of this install it `cargo install just`
 
-> Tip: Run `just` to see all the available commands 
+> Tip: Run `just` to see all the available commands
 
 ```zsh
 # quick check all is working on you machine
@@ -62,5 +62,7 @@ just run-all-debug <rom>
 
 
 ## Tests ROM
+
+All tests + implementation are based on [jsmolka/gba-tests.git](https://github.com/jsmolka/gba-tests.git) + documentation in Wiki and online resources.
 
 - [x] Thumb rom

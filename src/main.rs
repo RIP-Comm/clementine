@@ -3,7 +3,7 @@ extern crate ui;
 use logger::log;
 
 #[cfg(feature = "logger")]
-use logger::{LogKind, init_logger};
+use logger::{init_logger, LogKind};
 
 fn main() {
     let args = std::env::args().skip(1).collect::<Vec<String>>();
