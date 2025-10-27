@@ -486,7 +486,7 @@ mod test {
             },
             output
         );
-        assert_eq!("LDMIA R1!, {R5, R7, }", output.disassembler());
+        assert_eq!("LDMIA R1!, {R5-R7}", output.disassembler());
     }
 
     #[test]
@@ -562,7 +562,7 @@ mod test {
             output
         );
 
-        assert_eq!("PUSH {R4, R5, R6, R7, PC}", output.disassembler());
+        assert_eq!("PUSH {R4-R5-R6-R7-PC}", output.disassembler());
     }
 
     #[test]
