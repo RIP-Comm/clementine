@@ -32,7 +32,7 @@ impl LoggerImpl {
                 let now = Utc::now();
                 let filename = format!("clementine-{}.log", now.timestamp());
                 let path = std::env::temp_dir().join(filename);
-                println!("Logging to file: {:?}", path);
+                eprintln!("Logging to file: {:?}", path);
                 let file = File::create(path).unwrap();
                 // Use BufWriter for much better performance (batches writes)
                 Self {
@@ -151,23 +151,47 @@ mod tests {
 
     #[test]
     fn logger_file() {
+        use chrono::Utc;
+
+        // Record timestamp before creating logger to identify the file we create
+        let timestamp_before = Utc::now().timestamp();
+
         init_logger(LogKind::FILE);
         log("ok".to_string());
         // Flush to ensure the buffered write is committed to disk
         crate::flush();
+
         let dir = std::env::temp_dir();
         let files = fs::read_dir(dir).unwrap();
+
+        // Find and verify only the log file we just created
+        let mut found = false;
         for f in files.flatten() {
             let p = f.path();
             if let Some(ext) = p.extension() {
                 let s = p.to_str().unwrap();
                 if ext == "log" && s.contains("clementine") {
-                    print!("{p:?}");
-                    let s = fs::read_to_string(p.clone()).unwrap();
-                    fs::remove_file(p).unwrap();
-                    assert_eq!(s, "[00:00:00.000] ok\n".to_string());
+                    // Extract timestamp from filename
+                    if let Some(filename) = p.file_name().and_then(|n| n.to_str()) {
+                        if let Some(ts_str) = filename
+                            .strip_prefix("clementine-")
+                            .and_then(|s| s.strip_suffix(".log"))
+                        {
+                            if let Ok(file_timestamp) = ts_str.parse::<i64>() {
+                                // Only check files created during this test (timestamp >= timestamp_before)
+                                if file_timestamp >= timestamp_before {
+                                    let contents = fs::read_to_string(p.clone()).unwrap();
+                                    fs::remove_file(p).unwrap();
+                                    assert_eq!(contents, "[00:00:00.000] ok\n".to_string());
+                                    found = true;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+
+        assert!(found, "Log file was not created");
     }
 }
