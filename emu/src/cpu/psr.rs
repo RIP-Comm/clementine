@@ -131,7 +131,6 @@ impl Psr {
 
     /// These bits [7-0] below may change when an exception occurs.
     /// In privileged modes (non-user modes) they may be also changed manually.
-
     /// The interrupt bit I is used to disable/enable IRQ interrupts respectively (1 means disabled and 0 means enabled).
     pub fn set_irq_disable(&mut self, value: bool) {
         // TODO: Should we check we are in privileged modes or it occurred an exeption?

@@ -22,7 +22,8 @@ impl Registers {
         self.0[15] = self.0[15].wrapping_add(bytes);
     }
 
-    pub const fn set_register_at(&mut self, reg: usize, new_value: u32) {
+    pub fn set_register_at(&mut self, reg: usize, new_value: u32) {
+        assert!(reg <= 15, "Invalid register index: {reg} (0x{reg:X})");
         self.0[reg] = new_value;
     }
 

@@ -290,8 +290,11 @@ impl ArmModeInstruction {
                 PsrOpKind::Msr { source_register } => {
                     format!("MSR{condition} {psr_kind}, R{source_register}")
                 }
-                PsrOpKind::MsrFlg { operand } => {
-                    format!("MSR{condition} {psr_kind}_flg, {operand}")
+                PsrOpKind::MsrFlg {
+                    operand,
+                    field_mask,
+                } => {
+                    format!("MSR{condition} {psr_kind}, {operand} (mask: 0x{field_mask:X})")
                 }
             },
             Self::SingleDataSwap => panic!("SingleDataSwap not implemented"),
@@ -670,7 +673,8 @@ impl From<u32> for ArmModeInstruction {
 
                 let is_msr_flg = op_code.get_bits(26..=27) == 0b00
                     && op_code.get_bits(23..=24) == 0b10
-                    && op_code.get_bits(12..=21) == 0b10_1000_1111;
+                    && op_code.get_bits(20..=21) == 0b10
+                    && op_code.get_bits(12..=15) == 0b1111;
 
                 if is_mrs || is_msr || is_msr_flg {
                     // Valid PSR instruction

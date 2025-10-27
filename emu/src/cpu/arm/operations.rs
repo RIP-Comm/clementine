@@ -17,7 +17,7 @@ use crate::cpu::psr::CpuState;
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use logger::log;
 
-use super::alu_instruction::{AluSecondOperandInfo, PsrKind};
+use super::alu_instruction::PsrKind;
 
 pub const SIZE_OF_INSTRUCTION: u32 = 4;
 
@@ -134,7 +134,12 @@ impl Arm7tdmi {
     #[allow(clippy::manual_assert)]
     pub fn psr_transfer(&mut self, op_kind: PsrOpKind, psr_kind: PsrKind) {
         if matches!(self.cpsr.mode(), Mode::System | Mode::User) && psr_kind == PsrKind::Spsr {
-            panic!("Can't access SPSR in System/User mode")
+            panic!(
+                "Can't access SPSR in System/User mode. Current mode: {:?}, PC: 0x{:08X}, op_kind: {:?}",
+                self.cpsr.mode(),
+                self.registers.program_counter() - 8,
+                op_kind
+            )
         }
 
         match op_kind {
@@ -216,26 +221,75 @@ impl Arm7tdmi {
                     self.cpsr.set_mode_raw(rm.get_bits(0..=4));
                 }
             }
-            PsrOpKind::MsrFlg { operand } => {
+            PsrOpKind::MsrFlg {
+                operand,
+                field_mask,
+            } => {
                 let op = match operand {
-                    AluSecondOperandInfo::Register {
+                    crate::cpu::arm::alu_instruction::AluSecondOperandInfo::Register {
                         shift_op: _,
                         shift_kind: _,
                         register,
                     } => self.registers.register_at(register.try_into().unwrap()),
-                    AluSecondOperandInfo::Immediate { base, shift } => base.rotate_right(shift),
+                    crate::cpu::arm::alu_instruction::AluSecondOperandInfo::Immediate {
+                        base,
+                        shift,
+                    } => base.rotate_right(shift),
                 };
+                let current_mode = self.cpsr.mode();
+
+                // field_mask bits: bit 0 = control (0-7), bit 1 = extension (8-15),
+                //                   bit 2 = status (16-23), bit 3 = flags (24-31)
+
+                // If we're modifying CPSR control field (mode bits), swap banked registers FIRST
+                if psr_kind == PsrKind::Cpsr
+                    && field_mask & 0b0001 != 0
+                    && current_mode != Mode::User
+                {
+                    let new_mode_bits = op.get_bits(0..=4);
+                    if let Ok(new_mode) = Mode::try_from(new_mode_bits)
+                        && current_mode != new_mode
+                    {
+                        self.swap_mode(&new_mode);
+                    }
+                }
 
                 let psr = match psr_kind {
                     PsrKind::Cpsr => &mut self.cpsr,
                     PsrKind::Spsr => &mut self.spsr,
                 };
 
-                // Setting flags
-                psr.set_sign_flag(op.get_bit(31));
-                psr.set_zero_flag(op.get_bit(30));
-                psr.set_carry_flag(op.get_bit(29));
-                psr.set_overflow_flag(op.get_bit(28));
+                // Update fields based on field_mask
+                if field_mask & 0b1000 != 0 {
+                    // Flags field (bits 24-31)
+                    psr.set_sign_flag(op.get_bit(31));
+                    psr.set_zero_flag(op.get_bit(30));
+                    psr.set_carry_flag(op.get_bit(29));
+                    psr.set_overflow_flag(op.get_bit(28));
+                }
+
+                if field_mask & 0b0001 != 0 && current_mode != Mode::User {
+                    // Control field (bits 0-7): mode bits, IRQ/FIQ disable, state bit
+                    psr.set_irq_disable(op.get_bit(7));
+                    psr.set_fiq_disable(op.get_bit(6));
+
+                    if psr.state_bit() != op.get_bit(5) {
+                        log(
+                            "WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.",
+                        );
+                    }
+                    psr.set_state_bit(op.get_bit(5));
+
+                    // Set mode bits
+                    if psr_kind == PsrKind::Spsr {
+                        psr.set_mode_raw(op.get_bits(0..=4));
+                    } else if psr_kind == PsrKind::Cpsr {
+                        // For CPSR, mode bits were already swapped above
+                        psr.set_mode_raw(op.get_bits(0..=4));
+                    }
+                }
+
+                // Extension and status fields (bits 8-23) are reserved/unused on ARM7TDMI
             }
         }
     }
@@ -730,7 +784,7 @@ impl Arm7tdmi {
             Indexing::Pre => {
                 if write_back {
                     self.registers
-                        .set_register_at(offset_address as usize, base_register);
+                        .set_register_at(base_register as usize, offset_address);
                 }
                 offset_address as usize
             }
@@ -2148,8 +2202,9 @@ mod tests {
                         operand: AluSecondOperandInfo::Register {
                             shift_op: ShiftOperator::Immediate(0),
                             shift_kind: ShiftKind::Lsl,
-                            register: 0
-                        }
+                            register: 0,
+                        },
+                        field_mask: op_code.get_bits(16..=19),
                     }
                 }
             );
@@ -2176,8 +2231,9 @@ mod tests {
                         operand: AluSecondOperandInfo::Register {
                             shift_op: ShiftOperator::Immediate(0),
                             shift_kind: ShiftKind::Lsl,
-                            register: 0
-                        }
+                            register: 0,
+                        },
+                        field_mask: op_code.get_bits(16..=19),
                     }
                 }
             );

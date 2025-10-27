@@ -240,8 +240,11 @@ pub enum PsrOpKind {
     Mrs { destination_register: u32 },
     /// MSR operation (transfer register contents to PSR)
     Msr { source_register: u32 },
-    /// MSR flags operation (transfer register contents or immediate value to PSR flag bits only)
-    MsrFlg { operand: AluSecondOperandInfo },
+    /// MSR with field mask operation (transfer register or immediate value to PSR based on field mask)
+    MsrFlg {
+        operand: AluSecondOperandInfo,
+        field_mask: u32,
+    },
 }
 
 impl From<u32> for PsrOpKind {
@@ -262,21 +265,26 @@ impl From<u32> for PsrOpKind {
             }
         } else if op_code.get_bits(26..=27) == 0b00
             && op_code.get_bits(23..=24) == 0b10
-            && op_code.get_bits(12..=21) == 0b10_1000_1111
+            && op_code.get_bits(20..=21) == 0b10
+            && op_code.get_bits(12..=15) == 0b1111
         {
+            // MSR with field mask: can be immediate (bit 25=1) or register (bit 25=0)
             Self::MsrFlg {
                 operand: if op_code.get_bit(25) {
+                    // Immediate form
                     AluSecondOperandInfo::Immediate {
                         base: op_code.get_bits(0..=7),
                         shift: op_code.get_bits(8..=11) * 2,
                     }
                 } else {
+                    // Register form
                     AluSecondOperandInfo::Register {
                         shift_op: ShiftOperator::Immediate(0),
                         shift_kind: ShiftKind::Lsl,
                         register: op_code.get_bits(0..=3),
                     }
                 },
+                field_mask: op_code.get_bits(16..=19),
             }
         } else {
             panic!(
