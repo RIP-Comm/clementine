@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 #[cfg(feature = "logger")]
 use std::{
     fs::File,
-    io::{self, Write},
+    io::{self, BufWriter, Write},
     sync::Mutex,
     time::Instant,
 };
@@ -32,8 +32,11 @@ impl LoggerImpl {
                 let now = Utc::now();
                 let filename = format!("clementine-{}.log", now.timestamp());
                 let path = std::env::temp_dir().join(filename);
+                println!("Logging to file: {:?}", path);
+                let file = File::create(path).unwrap();
+                // Use BufWriter for much better performance (batches writes)
                 Self {
-                    sink: Box::new(File::create(path).unwrap()),
+                    sink: Box::new(BufWriter::new(file)),
                     start_instant,
                 }
             }
@@ -56,6 +59,10 @@ impl LoggerImpl {
             "[{hours:02}:{minutes:02}:{seconds:02}.{milliseconds:03}] {data}"
         )
         .unwrap();
+    }
+
+    fn flush(&mut self) {
+        self.sink.flush().ok();
     }
 }
 
@@ -100,6 +107,12 @@ impl Logger {
             inner.log(data);
         }
     }
+
+    fn flush(&self) {
+        if let Ok(ref mut inner) = self.inner_impl.lock() {
+            inner.flush();
+        }
+    }
 }
 
 #[cfg(feature = "logger")]
@@ -118,6 +131,17 @@ where
     }
 }
 
+/// Flushes any buffered logs to disk.
+/// This is useful to ensure logs are written before a potential crash or at important checkpoints.
+/// For file logging, this forces the BufWriter to write its buffer to disk.
+/// For stdout logging, this calls flush on stdout (though stdout is usually auto-flushed on newlines).
+pub fn flush() {
+    #[cfg(feature = "logger")]
+    if let Some(logger) = LOGGER.get() {
+        logger.flush()
+    }
+}
+
 #[cfg(feature = "logger")]
 #[cfg(test)]
 mod tests {
@@ -129,6 +153,8 @@ mod tests {
     fn logger_file() {
         init_logger(LogKind::FILE);
         log("ok".to_string());
+        // Flush to ensure the buffered write is committed to disk
+        crate::flush();
         let dir = std::env::temp_dir();
         let files = fs::read_dir(dir).unwrap();
         for f in files.flatten() {
