@@ -711,9 +711,9 @@ impl Arm7tdmi {
             }
             LoadStoreKind::Load => match transfer_kind {
                 HalfwordTransferKind::UnsignedHalfwords => {
-                    let v = self.bus.read_half_word(address);
+                    let v = self.read_half_word(address, false);
                     self.registers
-                        .set_register_at(source_destination_register as usize, v.into());
+                        .set_register_at(source_destination_register as usize, v);
                 }
                 HalfwordTransferKind::SignedByte => {
                     let v = self.bus.read_byte(address) as u32;
@@ -721,9 +721,9 @@ impl Arm7tdmi {
                         .set_register_at(source_destination_register as usize, v.sign_extended(8));
                 }
                 HalfwordTransferKind::SignedHalfwords => {
-                    let v = self.bus.read_half_word(address) as u32;
+                    let v = self.read_half_word(address, true);
                     self.registers
-                        .set_register_at(source_destination_register as usize, v.sign_extended(16));
+                        .set_register_at(source_destination_register as usize, v);
                 }
             },
         }
@@ -3161,6 +3161,26 @@ mod tests {
         assert_eq!(
             stored_value, mem,
             "Stored value should be OLD r0 value (before writeback)"
+        );
+    }
+
+    #[test]
+    fn test_misaligned_halfword_load_rotation() {
+        // Test for ARM7 misaligned halfword load behavior (test 408)
+        // When loading a halfword from a misaligned address, the result should be rotated
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000;
+
+        // Store halfword 32 (0x0020) at aligned address
+        cpu.bus.write_half_word(mem, 32);
+
+        // Test direct read_half_word method
+        // Load from mem+1 (misaligned), should rotate by 8 bits
+        // 0x00000020 ror 8 = 0x20000000 (536870912)
+        let result = cpu.read_half_word(mem + 1, false);
+        assert_eq!(
+            result, 0x20000000,
+            "Misaligned halfword load should rotate: 0x0020 ror 8 = 0x20000000"
         );
     }
 }
