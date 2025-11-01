@@ -798,7 +798,7 @@ impl Arm7tdmi {
                         .set_register_at(rd.try_into().unwrap(), value);
                 }
                 ReadWriteKind::Word => {
-                    let v = self.bus.read_word(address);
+                    let v = self.read_word(address);
                     self.registers.set_register_at(rd.try_into().unwrap(), v);
                 }
             },
@@ -3067,6 +3067,53 @@ mod tests {
         assert!(
             !cpu.cpsr.carry_flag(),
             "Carry should be CLEAR (borrow occurred)"
+        );
+    }
+
+    #[test]
+    fn test_misaligned_word_load_rotation() {
+        // Test for ARM7 misaligned load behavior (test 355)
+        // When loading a word from a misaligned address, the result should be rotated
+        let mut cpu = Arm7tdmi::default();
+
+        // Store 0x00000020 at aligned address
+        let mem = 0x03000000; // IWRAM
+        cpu.bus.write_word(mem, 0x00000020);
+
+        // First test the Arm7tdmi::read_word method directly
+        // 0x00000020 ror 24 = 0x00002000 (8192)
+        let direct_read = cpu.read_word(mem + 3);
+        assert_eq!(direct_read, 0x00002000, "Direct read_word should rotate correctly");
+
+        // Now test via LDR instruction
+        // LDR r1, [r11, #3]  - Load from misaligned address (offset by 3)
+        // Expected: value should be rotated right by 24 bits
+        // 0x00000020 ror 24 = 0x00002000
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(26..=27, 0b01); // Single data transfer
+        op_code.set_bits(25..=25, 0); // Immediate offset
+        op_code.set_bits(24..=24, 1); // Pre-indexed
+        op_code.set_bits(23..=23, 1); // Up
+        op_code.set_bits(22..=22, 0); // Word
+        op_code.set_bits(21..=21, 0); // No write-back
+        op_code.set_bits(20..=20, 1); // Load
+        op_code.set_bits(16..=19, 11); // Base register (r11)
+        op_code.set_bits(12..=15, 1); // Destination register (r1)
+        op_code.set_bits(0..=11, 3); // Offset of 3
+
+        cpu.registers.set_register_at(11, mem as u32);
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        let result = cpu.registers.register_at(1);
+
+        // Check that r1 contains the rotated value
+        assert_eq!(
+            result,
+            0x00002000,
+            "Misaligned load should rotate value: 0x00000020 ror 24 = 0x00002000"
         );
     }
 }
