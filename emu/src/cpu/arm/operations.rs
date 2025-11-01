@@ -774,6 +774,19 @@ impl Arm7tdmi {
             Offsetting::Up => address.wrapping_add(amount),
         };
 
+        // For STR with writeback when rd == base_register, we need to save the old value
+        // before writeback modifies it
+        let str_value_before_writeback = if kind == SingleDataTransferKind::Str {
+            let mut v = self.registers.register_at(rd.try_into().unwrap());
+            // If R15 we get the value of the current instruction + 4 (it is +8 already)
+            if rd == REG_PROGRAM_COUNTER {
+                v += 4;
+            }
+            Some(v)
+        } else {
+            None
+        };
+
         let address = match indexing {
             Indexing::Post => {
                 // write back is always true when using post indexing
@@ -802,28 +815,18 @@ impl Arm7tdmi {
                     self.registers.set_register_at(rd.try_into().unwrap(), v);
                 }
             },
-            SingleDataTransferKind::Str => match quantity {
-                ReadWriteKind::Byte => {
-                    let mut v = self.registers.register_at(rd.try_into().unwrap());
-
-                    // If R15 we get the value of the current instruction + 4 (it is +8 already)
-                    if rd == REG_PROGRAM_COUNTER {
-                        v += 4;
+            SingleDataTransferKind::Str => {
+                // Use the value saved before writeback
+                let v = str_value_before_writeback.unwrap();
+                match quantity {
+                    ReadWriteKind::Byte => {
+                        self.bus.write_byte(address, v as u8);
                     }
-
-                    self.bus.write_byte(address, v as u8);
-                }
-                ReadWriteKind::Word => {
-                    let mut v = self.registers.register_at(rd.try_into().unwrap());
-
-                    // If R15 we get the value of the current instruction + 4 (it is +8 already)
-                    if rd == REG_PROGRAM_COUNTER {
-                        v += 4;
+                    ReadWriteKind::Word => {
+                        self.bus.write_word(address, v);
                     }
-
-                    self.bus.write_word(address, v);
                 }
-            },
+            }
             SingleDataTransferKind::Pld => todo!("implement single data transfer operation"),
         }
 
@@ -3114,6 +3117,50 @@ mod tests {
             result,
             0x00002000,
             "Misaligned load should rotate value: 0x00000020 ror 24 = 0x00002000"
+        );
+    }
+
+    #[test]
+    fn test_str_writeback_same_register() {
+        // Test for ARM7 STR with writeback to same register (test 358)
+        // When STR writes back to the same register being stored, the OLD value
+        // (before writeback) should be stored, not the new value after writeback
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000;
+
+        // STR r0, [r0, #4]! - Pre-indexed with writeback
+        // opcode: 0xE5A00004
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(26..=27, 0b01); // Single data transfer
+        op_code.set_bits(25..=25, 0); // Immediate offset
+        op_code.set_bits(24..=24, 1); // Pre-indexed
+        op_code.set_bits(23..=23, 1); // Up
+        op_code.set_bits(22..=22, 0); // Word
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 0); // Store
+        op_code.set_bits(16..=19, 0); // Base register (r0)
+        op_code.set_bits(12..=15, 0); // Source register (r0)
+        op_code.set_bits(0..=11, 4); // Offset of 4
+
+        cpu.registers.set_register_at(0, mem);
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // After execution:
+        // 1. r0 should be updated to mem + 4 (writeback)
+        assert_eq!(
+            cpu.registers.register_at(0),
+            mem + 4,
+            "r0 should be written back to mem + 4"
+        );
+
+        // 2. The value stored at [mem + 4] should be the OLD value of r0 (mem)
+        let stored_value = cpu.bus.read_word((mem + 4) as usize);
+        assert_eq!(
+            stored_value, mem,
+            "Stored value should be OLD r0 value (before writeback)"
         );
     }
 }
