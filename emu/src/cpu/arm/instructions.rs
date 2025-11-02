@@ -99,7 +99,13 @@ pub enum ArmModeInstruction {
         psr_kind: PsrKind,
         kind: PsrOpKind,
     },
-    SingleDataSwap,
+    SingleDataSwap {
+        condition: Condition,
+        byte: bool, // true = byte, false = word
+        rn: u32,    // base register (address)
+        rd: u32,    // destination register
+        rm: u32,    // source register
+    },
     BranchAndExchange {
         condition: Condition,
         register: usize,
@@ -297,7 +303,16 @@ impl ArmModeInstruction {
                     format!("MSR{condition} {psr_kind}, {operand} (mask: 0x{field_mask:X})")
                 }
             },
-            Self::SingleDataSwap => panic!("SingleDataSwap not implemented"),
+            Self::SingleDataSwap {
+                condition,
+                byte,
+                rn,
+                rd,
+                rm,
+            } => {
+                let mnemonic = if *byte { "swpb" } else { "swp" };
+                format!("{}{} r{}, r{}, [r{}]", mnemonic, condition, rd, rm, rn)
+            }
             Self::BranchAndExchange {
                 condition,
                 register,
@@ -475,7 +490,18 @@ impl From<u32> for ArmModeInstruction {
             && op_code.get_bits(20..=21) == 0b00
             && op_code.get_bits(4..=11) == 0b0000_1001
         {
-            Self::SingleDataSwap
+            let byte = op_code.get_bit(22);
+            let rn = op_code.get_bits(16..=19);
+            let rd = op_code.get_bits(12..=15);
+            let rm = op_code.get_bits(0..=3);
+
+            Self::SingleDataSwap {
+                condition,
+                byte,
+                rn,
+                rd,
+                rm,
+            }
         } else if op_code.get_bits(23..=27) == 0b00001 && op_code.get_bits(4..=7) == 0b1001 {
             let variant = ArmModeMultiplyLongVariant::from(op_code);
 

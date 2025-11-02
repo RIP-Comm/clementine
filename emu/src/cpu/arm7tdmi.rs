@@ -245,7 +245,28 @@ impl Arm7tdmi {
                 rm_operand_register,
                 rs_operand_register,
             ),
-            ArmModeInstruction::SingleDataSwap => todo!(),
+            ArmModeInstruction::SingleDataSwap {
+                condition: _,
+                byte,
+                rn,
+                rd,
+                rm,
+            } => {
+                let address: usize = self.registers.register_at(rn as usize).try_into().unwrap();
+                let rm_value = self.registers.register_at(rm as usize);
+
+                if byte {
+                    // byte swap (SWPB)
+                    let old_value = self.bus.read_byte(address) as u32;
+                    self.bus.write_byte(address, rm_value as u8);
+                    self.registers.set_register_at(rd as usize, old_value);
+                } else {
+                    // word swap (SWP)
+                    let old_value = self.bus.read_word(address);
+                    self.bus.write_word(address, rm_value);
+                    self.registers.set_register_at(rd as usize, old_value);
+                }
+            }
             ArmModeInstruction::BranchAndExchange {
                 condition: _,
                 register,

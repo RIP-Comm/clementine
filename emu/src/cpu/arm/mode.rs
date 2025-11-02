@@ -87,8 +87,10 @@ impl std::fmt::Display for ArmModeOpcode {
             ArmModeInstruction::CoprocessorDataTransfer { .. } => {
                 "FMT: |_Cond__|1_1_0|P|U|N|W|L|__Rn___|__CRd__|__Cp#__|____Offset_____|"
             }
+            ArmModeInstruction::SingleDataSwap { .. } => {
+                "FMT: |_Cond__|0_0_0_1_0|B|0_0|__Rn___|__Rd___|0_0_0_0|1_0_0_1|__Rm___|"
+            }
             ArmModeInstruction::Undefined
-            | ArmModeInstruction::SingleDataSwap
             | ArmModeInstruction::CoprocessorDataOperation
             | ArmModeInstruction::CoprocessorRegisterTransfer
             | ArmModeInstruction::SoftwareInterrupt => "FMT: |_Cond__|",
