@@ -687,20 +687,40 @@ impl Arm7tdmi {
             Offsetting::Up => address.wrapping_add(offset),
         };
 
+        // For STORE with writeback when Rd == Rn, save the value before writeback
+        let store_value_before_writeback = if load_store_kind == LoadStoreKind::Store {
+            if source_destination_register == REG_PROGRAM_COUNTER {
+                let pc: u32 = self.registers.program_counter().try_into().unwrap();
+                Some(pc + 4)
+            } else {
+                Some(self.registers.register_at(source_destination_register as usize))
+            }
+        } else {
+            None
+        };
+
+        // Perform writeback before load to match ARM behavior
+        // This ensures that when Rd == Rn in a load, the loaded value is preserved
         let address: usize = match indexing {
-            Indexing::Pre => effective.try_into().unwrap(),
-            Indexing::Post => address.try_into().unwrap(),
+            Indexing::Post => {
+                // Post-indexing: use original address, then writeback
+                self.registers
+                    .set_register_at(base_register.try_into().unwrap(), effective);
+                address.try_into().unwrap()
+            }
+            Indexing::Pre => {
+                if write_back {
+                    self.registers
+                        .set_register_at(base_register.try_into().unwrap(), effective);
+                }
+                effective.try_into().unwrap()
+            }
         };
 
         match load_store_kind {
             LoadStoreKind::Store => {
-                let value = if source_destination_register == REG_PROGRAM_COUNTER {
-                    let pc: u32 = self.registers.program_counter().try_into().unwrap();
-                    pc + 4
-                } else {
-                    self.registers
-                        .register_at(source_destination_register as usize)
-                };
+                // Use the value saved before writeback
+                let value = store_value_before_writeback.unwrap();
 
                 match transfer_kind {
                     HalfwordTransferKind::UnsignedHalfwords => {
@@ -726,11 +746,6 @@ impl Arm7tdmi {
                         .set_register_at(source_destination_register as usize, v);
                 }
             },
-        }
-
-        if indexing == Indexing::Post || write_back {
-            self.registers
-                .set_register_at(base_register.try_into().unwrap(), effective);
         }
 
         if load_store_kind == LoadStoreKind::Load
