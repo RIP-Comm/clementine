@@ -247,29 +247,31 @@ pub enum PsrOpKind {
     },
 }
 
-impl From<u32> for PsrOpKind {
-    fn from(op_code: u32) -> Self {
+impl TryFrom<u32> for PsrOpKind {
+    type Error = String;
+
+    fn try_from(op_code: u32) -> Result<Self, Self::Error> {
         if op_code.get_bits(23..=27) == 0b0_0010
             && op_code.get_bits(16..=21) == 0b00_1111
             && op_code.get_bits(0..=11) == 0b0000_0000_0000
         {
-            Self::Mrs {
+            Ok(Self::Mrs {
                 destination_register: op_code.get_bits(12..=15),
-            }
+            })
         } else if op_code.get_bits(23..=27) == 0b00010
             && op_code.get_bits(12..=21) == 0b10_1001_1111
             && op_code.get_bits(4..=11) == 0b0000_0000
         {
-            Self::Msr {
+            Ok(Self::Msr {
                 source_register: op_code.get_bits(0..=3),
-            }
+            })
         } else if op_code.get_bits(26..=27) == 0b00
             && op_code.get_bits(23..=24) == 0b10
             && op_code.get_bits(20..=21) == 0b10
             && op_code.get_bits(12..=15) == 0b1111
         {
             // MSR with field mask: can be immediate (bit 25=1) or register (bit 25=0)
-            Self::MsrFlg {
+            Ok(Self::MsrFlg {
                 operand: if op_code.get_bit(25) {
                     // Immediate form
                     AluSecondOperandInfo::Immediate {
@@ -285,16 +287,16 @@ impl From<u32> for PsrOpKind {
                     }
                 },
                 field_mask: op_code.get_bits(16..=19),
-            }
+            })
         } else {
-            panic!(
+            Err(format!(
                 "Invalid PSR operation opcode: 0x{:08X}\nBits 23-27: 0b{:05b}, Bits 16-21: 0b{:06b}, Bits 12-21: 0b{:010b}, Bits 0-11: 0b{:012b}",
                 op_code,
                 op_code.get_bits(23..=27),
                 op_code.get_bits(16..=21),
                 op_code.get_bits(12..=21),
                 op_code.get_bits(0..=11)
-            )
+            ))
         }
     }
 }

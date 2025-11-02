@@ -707,7 +707,8 @@ impl From<u32> for ArmModeInstruction {
                     return Self::PSRTransfer {
                         condition,
                         psr_kind: PsrKind::from(op_code.get_bit(22)),
-                        kind: PsrOpKind::from(op_code),
+                        kind: PsrOpKind::try_from(op_code)
+                            .expect("PSR instruction validation passed but conversion failed"),
                     };
                 }
                 // TST/TEQ/CMP/CMN with S=0 but doesn't match PSR patterns
