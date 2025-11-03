@@ -3509,4 +3509,43 @@ mod tests {
             "r0 should be incremented by 0x40 even though PC changed"
         );
     }
+
+    #[test]
+    fn test_block_transfer_empty_list_test513_514() {
+        // Exact simulation of tests 513/514 from arm.gba
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000;
+
+        // Simulate t513: adr r0, t514; str r0, [mem]; mov r0, mem
+        let t514_address = 0x08001000; // Simulated address of t514
+        cpu.bus.write_word(mem, t514_address);
+        cpu.registers.set_register_at(0, mem as u32);
+
+        // Execute: ldmia r0!, {} (0xE8B00000)
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, 0xE); // AL
+        op_code.set_bits(25..=27, 0b100); // Block transfer
+        op_code.set_bits(24..=24, 0); // Post-indexed
+        op_code.set_bits(23..=23, 1); // Up
+        op_code.set_bits(22..=22, 0); // No S bit
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 1); // Load
+        op_code.set_bits(16..=19, 0); // Rn = r0
+        op_code.set_bits(0..=15, 0); // Empty reg list
+
+        assert_eq!(op_code, 0xE8B00000, "Instruction encoding should match test");
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // Simulate t514: sub r0, 0x40; cmp r0, mem
+        let r0_after_ldm = cpu.registers.register_at(0);
+        let r0_after_sub = r0_after_ldm.wrapping_sub(0x40);
+
+        assert_eq!(
+            r0_after_sub, mem as u32,
+            "After sub r0, 0x40, r0 should equal mem. r0_after_ldm=0x{:08X}, expected=0x{:08X}",
+            r0_after_ldm, (mem + 0x40) as u32
+        );
+    }
 }
