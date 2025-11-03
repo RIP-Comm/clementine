@@ -3538,7 +3538,10 @@ mod tests {
         op_code.set_bits(16..=19, 0); // Rn = r0
         op_code.set_bits(0..=15, 0); // Empty reg list
 
-        assert_eq!(op_code, 0xE8B00000, "Instruction encoding should match test");
+        assert_eq!(
+            op_code, 0xE8B00000,
+            "Instruction encoding should match test"
+        );
 
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
@@ -3548,9 +3551,11 @@ mod tests {
         let r0_after_sub = r0_after_ldm.wrapping_sub(0x40);
 
         assert_eq!(
-            r0_after_sub, mem as u32,
+            r0_after_sub,
+            mem as u32,
             "After sub r0, 0x40, r0 should equal mem. r0_after_ldm=0x{:08X}, expected=0x{:08X}",
-            r0_after_ldm, (mem + 0x40) as u32
+            r0_after_ldm,
+            (mem + 0x40) as u32
         );
     }
 
