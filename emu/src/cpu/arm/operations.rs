@@ -3198,4 +3198,47 @@ mod tests {
             "Misaligned halfword load should rotate: 0x0020 ror 8 = 0x20000000"
         );
     }
+
+    #[test]
+    fn test_misaligned_swap() {
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000; // IWRAM
+
+        // store 64 at aligned address
+        cpu.bus.write_word(mem, 64);
+
+        // SWP r3, r0, [r2] where r0=32, r2=mem+1 (misaligned by 1 byte)
+        // r3 should contain 64 rotated right by 8 bits = 0x40000000
+        // after swap, reading from mem should give 32
+
+        cpu.registers.set_register_at(0, 32); // r0 = 32
+        cpu.registers.set_register_at(2, (mem + 1) as u32); // r2 = mem+1 (misaligned)
+
+        // build SWP instruction: swp r3, r0, [r2]
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(23..=27, 0b00010); // Single data swap
+        op_code.set_bits(22..=22, 0); // Word (not byte)
+        op_code.set_bits(16..=19, 2); // Rn = r2 (base register)
+        op_code.set_bits(12..=15, 3); // Rd = r3 (destination)
+        op_code.set_bits(4..=7, 0b1001); // Fixed bits for swap
+        op_code.set_bits(0..=3, 0); // Rm = r0 (source)
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // r3 contains the rotated value: 64 ror 8 = 0x40000000
+        assert_eq!(
+            cpu.registers.register_at(3),
+            0x40000000,
+            "Misaligned swap should rotate read value: 64 ror 8 = 0x40000000"
+        );
+
+        // reading from aligned address gives 32
+        let mem_value = cpu.bus.read_word(mem);
+        assert_eq!(
+            mem_value, 32,
+            "After swap, memory at aligned address should contain 32"
+        );
+    }
 }

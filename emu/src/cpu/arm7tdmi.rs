@@ -262,7 +262,7 @@ impl Arm7tdmi {
                     self.registers.set_register_at(rd as usize, old_value);
                 } else {
                     // word swap (SWP)
-                    let old_value = self.bus.read_word(address);
+                    let old_value = self.read_word(address);
                     self.bus.write_word(address, rm_value);
                     self.registers.set_register_at(rd as usize, old_value);
                 }
