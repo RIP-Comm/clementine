@@ -693,7 +693,10 @@ impl Arm7tdmi {
                 let pc: u32 = self.registers.program_counter().try_into().unwrap();
                 Some(pc + 4)
             } else {
-                Some(self.registers.register_at(source_destination_register as usize))
+                Some(
+                    self.registers
+                        .register_at(source_destination_register as usize),
+                )
             }
         } else {
             None
@@ -866,12 +869,11 @@ impl Arm7tdmi {
         let memory_base = self.registers.register_at(base_register);
         let mut address = memory_base.try_into().unwrap();
 
-        if load_psr {
-            unimplemented!();
-        }
+        let r15_in_list = reg_list.is_bit_on(15);
+        let use_user_registers = load_psr && !r15_in_list;
 
-        let transfer = match load_store {
-            LoadStoreKind::Store => {
+        let transfer = match (load_store, use_user_registers) {
+            (LoadStoreKind::Store, false) => {
                 |arm: &mut Self, address: usize, reg_source: usize| {
                     let mut value = arm.registers.register_at(reg_source);
 
@@ -883,10 +885,32 @@ impl Arm7tdmi {
                     arm.bus.write_word(address, value);
                 }
             }
-            LoadStoreKind::Load => |arm: &mut Self, address: usize, reg_destination: usize| {
-                let v = arm.bus.read_word(address);
-                arm.registers.set_register_at(reg_destination, v);
-            },
+            (LoadStoreKind::Store, true) => {
+                // STM with S bit and R15 not in list: Store user mode registers
+                |arm: &mut Self, address: usize, reg_source: usize| {
+                    let mut value = arm.read_user_register(reg_source);
+
+                    // If R15 we get the value of the current instruction + 4 (it is +8 already)
+                    if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
+                        value += 4;
+                    }
+
+                    arm.bus.write_word(address, value);
+                }
+            }
+            (LoadStoreKind::Load, false) => {
+                |arm: &mut Self, address: usize, reg_destination: usize| {
+                    let v = arm.bus.read_word(address);
+                    arm.registers.set_register_at(reg_destination, v);
+                }
+            }
+            (LoadStoreKind::Load, true) => {
+                // LDM with S bit and R15 not in list: Load into user mode registers
+                |arm: &mut Self, address: usize, reg_destination: usize| {
+                    let v = arm.bus.read_word(address);
+                    arm.write_user_register(reg_destination, v);
+                }
+            }
         };
 
         self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
@@ -896,8 +920,14 @@ impl Arm7tdmi {
                 .set_register_at(base_register, address.try_into().unwrap());
         }
 
+        // If LDM with S bit and R15 is in register list: Copy SPSR to CPSR (exception return)
+        if load_store == LoadStoreKind::Load && load_psr && r15_in_list {
+            let spsr = self.spsr;
+            self.cpsr = spsr;
+        }
+
         // If LDM and R15 is in register list we flush the pipeline
-        if load_store == LoadStoreKind::Load && reg_list.is_bit_on(15) {
+        if load_store == LoadStoreKind::Load && r15_in_list {
             self.flush_pipeline();
         }
     }
@@ -3101,7 +3131,10 @@ mod tests {
         // First test the Arm7tdmi::read_word method directly
         // 0x00000020 ror 24 = 0x00002000 (8192)
         let direct_read = cpu.read_word(mem + 3);
-        assert_eq!(direct_read, 0x00002000, "Direct read_word should rotate correctly");
+        assert_eq!(
+            direct_read, 0x00002000,
+            "Direct read_word should rotate correctly"
+        );
 
         // Now test via LDR instruction
         // LDR r1, [r11, #3]  - Load from misaligned address (offset by 3)
@@ -3129,8 +3162,7 @@ mod tests {
 
         // Check that r1 contains the rotated value
         assert_eq!(
-            result,
-            0x00002000,
+            result, 0x00002000,
             "Misaligned load should rotate value: 0x00000020 ror 24 = 0x00002000"
         );
     }
@@ -3239,6 +3271,99 @@ mod tests {
         assert_eq!(
             mem_value, 32,
             "After swap, memory at aligned address should contain 32"
+        );
+    }
+
+    #[test]
+    fn test_block_transfer_store_user_registers() {
+        // Test for ARM7 block transfer with S bit: Store user registers (test 511)
+        // When in FIQ mode and using STM with S bit (^), should store user mode registers
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000; // IWRAM
+
+        // Set system mode r8 = 32
+        cpu.registers.set_register_at(8, 32);
+
+        // Switch to FIQ mode
+        cpu.swap_mode(&Mode::Fiq);
+        // Set FIQ mode r8 = 64 (banked register)
+        cpu.registers.set_register_at(8, 64);
+
+        // Build STMFD instruction with S bit: stmfd r0, {r8, r9}^
+        // This should store user mode r8, r9 (not FIQ banked)
+        cpu.registers.set_register_at(0, mem as u32);
+
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100); // Block data transfer
+        op_code.set_bits(24..=24, 1); // Pre-indexed
+        op_code.set_bits(23..=23, 0); // Down
+        op_code.set_bits(22..=22, 1); // S bit set (load_psr)
+        op_code.set_bits(21..=21, 0); // No write-back
+        op_code.set_bits(20..=20, 0); // Store
+        op_code.set_bits(16..=19, 0); // Base register r0
+        op_code.set_bits(8..=9, 0b11); // Register list: r8, r9
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // Switch back to system mode and check stored values
+        cpu.swap_mode(&Mode::System);
+        let stored_r8 = cpu.bus.read_word(mem - 8);
+
+        assert_eq!(
+            stored_r8, 32,
+            "STMFD with S bit should store user mode r8 (32), not FIQ mode r8 (64)"
+        );
+    }
+
+    #[test]
+    fn test_block_transfer_load_user_registers() {
+        // Test for ARM7 block transfer with S bit: Load user registers (test 512)
+        // When in FIQ mode and using LDM with S bit (^), should load into user mode registers
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000; // IWRAM
+
+        // Store value 0xA at mem-4 (where r9 will be loaded from with LDMFD descending)
+        cpu.bus.write_word(mem - 4, 0xA);
+
+        // Switch to FIQ mode and set FIQ r8 and r9 = 0xB
+        cpu.swap_mode(&Mode::Fiq);
+        cpu.registers.set_register_at(8, 0xB);
+        cpu.registers.set_register_at(9, 0xB);
+
+        // Build LDMFD instruction with S bit: ldmfd r0, {r8, r9}^
+        // LDMFD with base=mem loads r9 from mem-4, r8 from mem-8 (pre-indexed, down, reversed order)
+        // This should load into user mode r8, r9 (not FIQ banked)
+        cpu.registers.set_register_at(0, mem as u32);
+
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100); // Block data transfer
+        op_code.set_bits(24..=24, 1); // Pre-indexed
+        op_code.set_bits(23..=23, 0); // Down
+        op_code.set_bits(22..=22, 1); // S bit set (load_psr)
+        op_code.set_bits(21..=21, 0); // No write-back
+        op_code.set_bits(20..=20, 1); // Load
+        op_code.set_bits(16..=19, 0); // Base register r0
+        op_code.set_bits(8..=9, 0b11); // Register list: r8, r9
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // FIQ mode r9 should still be 0xB (unchanged)
+        assert_eq!(
+            cpu.registers.register_at(9),
+            0xB,
+            "FIQ mode r9 should remain unchanged (0xB)"
+        );
+
+        // Switch to system mode and check user mode r9
+        cpu.swap_mode(&Mode::System);
+        assert_eq!(
+            cpu.registers.register_at(9),
+            0xA,
+            "User mode r9 should now be 0xA (loaded from memory)"
         );
     }
 }

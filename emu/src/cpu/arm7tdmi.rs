@@ -683,6 +683,40 @@ impl Arm7tdmi {
         self.cpsr.set_mode(new_mode);
     }
 
+    /// Read a register value from user mode register bank
+    /// Used for LDM/STM with S bit when R15 is not in register list
+    pub(crate) fn read_user_register(&self, reg: usize) -> u32 {
+        match reg {
+            0..=7 => self.registers.register_at(reg), // r0-r7 are never banked
+            8 => self.register_bank.r8_old,
+            9 => self.register_bank.r9_old,
+            10 => self.register_bank.r10_old,
+            11 => self.register_bank.r11_old,
+            12 => self.register_bank.r12_old,
+            13 => self.register_bank.r13_old,
+            14 => self.register_bank.r14_old,
+            15 => self.registers.register_at(15), // PC is never banked
+            _ => panic!("Invalid register: {reg}"),
+        }
+    }
+
+    /// Write a register value to user mode register bank
+    /// Used for LDM/STM with S bit when R15 is not in register list
+    pub(crate) fn write_user_register(&mut self, reg: usize, value: u32) {
+        match reg {
+            0..=7 => self.registers.set_register_at(reg, value), // r0-r7 are never banked
+            8 => self.register_bank.r8_old = value,
+            9 => self.register_bank.r9_old = value,
+            10 => self.register_bank.r10_old = value,
+            11 => self.register_bank.r11_old = value,
+            12 => self.register_bank.r12_old = value,
+            13 => self.register_bank.r13_old = value,
+            14 => self.register_bank.r14_old = value,
+            15 => self.registers.set_register_at(15, value), // PC is never banked
+            _ => panic!("Invalid register: {reg}"),
+        }
+    }
+
     pub fn read_half_word(&mut self, address: usize, sign_extended: bool) -> u32 {
         // Misaligned reads are unsupported in ARMv4.
         // When reading an half-word from a misaligned halfword address (even address)
