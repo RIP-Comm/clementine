@@ -869,7 +869,8 @@ impl Arm7tdmi {
         let memory_base = self.registers.register_at(base_register);
         let mut address: usize = memory_base.try_into().unwrap();
 
-        let r15_in_list = reg_list.is_bit_on(15);
+        let is_empty_list = reg_list == 0;
+        let r15_in_list = reg_list.is_bit_on(15) || is_empty_list; // Empty list loads/stores R15
         let use_user_registers = load_psr && !r15_in_list;
 
         let transfer = match (load_store, use_user_registers) {
@@ -914,7 +915,7 @@ impl Arm7tdmi {
         };
 
         // Handle empty register list: Load/Store R15 and adjust base by 0x40
-        if reg_list == 0 {
+        if is_empty_list {
             // For empty register list, R15 is transferred and base is adjusted by 0x40
             let transfer_address = match (indexing, offsetting) {
                 (Indexing::Post, Offsetting::Up) => address, // Transfer at current, then add 0x40
@@ -3461,6 +3462,51 @@ mod tests {
             cpu.registers.register_at(0),
             (mem - 0x40) as u32,
             "r0 should be decremented by 0x40 after STMDA with empty list"
+        );
+    }
+
+    #[test]
+    fn test_block_transfer_empty_list_loads_pc() {
+        // Test that empty register list loads R15 and jumps (test 513/514)
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000;
+        let target_address = 0x08000100;
+
+        // Store target address at [mem]
+        cpu.bus.write_word(mem, target_address);
+
+        // Set r0 to mem
+        cpu.registers.set_register_at(0, mem as u32);
+
+        let pc_before = cpu.registers.program_counter();
+
+        // Build LDMIA r0!, {} instruction
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100);
+        op_code.set_bits(24..=24, 0); // Post-indexed
+        op_code.set_bits(23..=23, 1); // Up
+        op_code.set_bits(22..=22, 0); // No S bit
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 1); // Load
+        op_code.set_bits(16..=19, 0); // Base register r0
+        op_code.set_bits(0..=15, 0); // Empty register list
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // PC should have changed to target_address
+        let pc_after = cpu.registers.program_counter();
+        assert_ne!(
+            pc_after, pc_before,
+            "PC should have changed after loading R15 from empty list"
+        );
+
+        // r0 should be incremented by 0x40
+        assert_eq!(
+            cpu.registers.register_at(0),
+            (mem + 0x40) as u32,
+            "r0 should be incremented by 0x40 even though PC changed"
         );
     }
 }
