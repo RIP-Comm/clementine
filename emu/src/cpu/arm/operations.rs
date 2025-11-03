@@ -867,7 +867,7 @@ impl Arm7tdmi {
     ) {
         let base_register = rn.try_into().unwrap();
         let memory_base = self.registers.register_at(base_register);
-        let mut address = memory_base.try_into().unwrap();
+        let mut address: usize = memory_base.try_into().unwrap();
 
         let r15_in_list = reg_list.is_bit_on(15);
         let use_user_registers = load_psr && !r15_in_list;
@@ -913,7 +913,26 @@ impl Arm7tdmi {
             }
         };
 
-        self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
+        // Handle empty register list: Load/Store R15 and adjust base by 0x40
+        if reg_list == 0 {
+            // For empty register list, R15 is transferred and base is adjusted by 0x40
+            let transfer_address = match (indexing, offsetting) {
+                (Indexing::Post, Offsetting::Up) => address, // Transfer at current, then add 0x40
+                (Indexing::Post, Offsetting::Down) => address.wrapping_sub(0x3C), // Transfer at base-0x3C, final base-0x40
+                (Indexing::Pre, Offsetting::Up) => address.wrapping_add(4), // Increment first, transfer, final base+0x40
+                (Indexing::Pre, Offsetting::Down) => address.wrapping_sub(0x40), // Decrement to final, transfer
+            };
+
+            transfer(self, transfer_address, 15);
+
+            // Update base by 0x40 total
+            address = match offsetting {
+                Offsetting::Up => memory_base.wrapping_add(0x40).try_into().unwrap(),
+                Offsetting::Down => memory_base.wrapping_sub(0x40).try_into().unwrap(),
+            };
+        } else {
+            self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
+        }
 
         if write_back {
             self.registers
@@ -3364,6 +3383,84 @@ mod tests {
             cpu.registers.register_at(9),
             0xA,
             "User mode r9 should now be 0xA (loaded from memory)"
+        );
+    }
+
+    #[test]
+    fn test_block_transfer_empty_register_list_ldmia() {
+        // Test for empty register list with LDMIA (test 513)
+        // LDMIA r0!, {} should load R15 from [r0] and increment r0 by 0x40
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000;
+
+        // Store a test value at mem (this would be loaded into R15/PC)
+        cpu.bus.write_word(mem, 0x08000100);
+
+        // Set r0 to mem
+        cpu.registers.set_register_at(0, mem as u32);
+
+        // Build LDMIA r0!, {} instruction
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100); // Block data transfer
+        op_code.set_bits(24..=24, 0); // Post-indexed
+        op_code.set_bits(23..=23, 1); // Up
+        op_code.set_bits(22..=22, 0); // No S bit
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 1); // Load
+        op_code.set_bits(16..=19, 0); // Base register r0
+        op_code.set_bits(0..=15, 0); // Empty register list
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // r0 should be incremented by 0x40
+        assert_eq!(
+            cpu.registers.register_at(0),
+            (mem + 0x40) as u32,
+            "r0 should be incremented by 0x40 after LDMIA with empty list"
+        );
+    }
+
+    #[test]
+    fn test_block_transfer_empty_register_list_stmda() {
+        // Test for empty register list with STMDA (test 530)
+        // STMDA r0!, {} should store PC at [r0 - 0x3C] and set r0 = r0 - 0x40
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000100;
+
+        cpu.registers.set_register_at(0, mem as u32);
+
+        // Build STMDA r0!, {} instruction
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100); // Block data transfer
+        op_code.set_bits(24..=24, 0); // Post-indexed
+        op_code.set_bits(23..=23, 0); // Down
+        op_code.set_bits(22..=22, 0); // No S bit
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 0); // Store
+        op_code.set_bits(16..=19, 0); // Base register r0
+        op_code.set_bits(0..=15, 0); // Empty register list
+
+        let pc_before = cpu.registers.program_counter();
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // PC should be stored at [mem - 0x3C]
+        let stored_pc = cpu.bus.read_word(mem - 0x3C);
+        assert_eq!(
+            stored_pc,
+            (pc_before + 4) as u32, // PC+4 for STM
+            "PC+4 should be stored at [base - 0x3C] for STMDA with empty list"
+        );
+
+        // r0 should be decremented by 0x40
+        assert_eq!(
+            cpu.registers.register_at(0),
+            (mem - 0x40) as u32,
+            "r0 should be decremented by 0x40 after STMDA with empty list"
         );
     }
 }
