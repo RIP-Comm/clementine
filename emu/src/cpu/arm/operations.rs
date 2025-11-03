@@ -935,7 +935,12 @@ impl Arm7tdmi {
             self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
         }
 
-        if write_back {
+        // Writeback: Update base register with final address
+        // Exception: On LDM, if base is in register list, the loaded value takes precedence
+        let base_in_list = reg_list.is_bit_on(base_register as u8);
+        let skip_writeback = write_back && load_store == LoadStoreKind::Load && base_in_list;
+
+        if write_back && !skip_writeback {
             self.registers
                 .set_register_at(base_register, address.try_into().unwrap());
         }
@@ -3546,6 +3551,60 @@ mod tests {
             r0_after_sub, mem as u32,
             "After sub r0, 0x40, r0 should equal mem. r0_after_ldm=0x{:08X}, expected=0x{:08X}",
             r0_after_ldm, (mem + 0x40) as u32
+        );
+    }
+
+    #[test]
+    fn test_block_transfer_base_in_list_first() {
+        // Test 516: Load writeback base first in rlist
+        // When base register is in the list, loaded value takes precedence over writeback
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000;
+
+        // Store r0=0xA and r2 to memory
+        cpu.registers.set_register_at(0, 0xA);
+        cpu.registers.set_register_at(1, mem as u32);
+
+        // STMFD r1!, {r0, r2} - Store r0 and r2, decrement r1
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100);
+        op_code.set_bits(24..=24, 1); // Pre-indexed
+        op_code.set_bits(23..=23, 0); // Down
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 0); // Store
+        op_code.set_bits(16..=19, 1); // Base r1
+        op_code.set_bits(0..=0, 1); // r0
+        op_code.set_bits(2..=2, 1); // r2
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        let r1_after_store = cpu.registers.register_at(1);
+
+        // LDMFA r1!, {r1, r2} = LDMIA r1!, {r1, r2}
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100);
+        op_code.set_bits(24..=24, 0); // Post-indexed
+        op_code.set_bits(23..=23, 1); // Up
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 1); // Load
+        op_code.set_bits(16..=19, 1); // Base r1
+        op_code.set_bits(1..=1, 1); // r1
+        op_code.set_bits(2..=2, 1); // r2
+
+        assert_eq!(op_code, 0xE8B10006, "Should match test instruction");
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // r1 should be 0xA (loaded value), not the writeback address
+        assert_eq!(
+            cpu.registers.register_at(1),
+            0xA,
+            "r1 should be loaded value (0xA), not writeback. r1_after_store was 0x{:08X}",
+            r1_after_store
         );
     }
 }
