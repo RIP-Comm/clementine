@@ -914,6 +914,37 @@ impl Arm7tdmi {
             }
         };
 
+        // When STM includes the base register with writeback,
+        // the value stored depends on the base's position in the register list:
+        // - If base is FIRST in register list (lowest numbered): store original value
+        // - If base is NOT first in register list: store modified (writeback) value
+        // We handle this by temporarily updating the base register before transfers if needed.
+        let base_in_list = reg_list.is_bit_on(base_register as u8);
+        let restore_base =
+            if write_back && base_in_list && load_store == LoadStoreKind::Store && !is_empty_list {
+                // final writeback
+                let num_registers = reg_list.count_ones();
+                let final_address = match offsetting {
+                    Offsetting::Up => memory_base.wrapping_add(num_registers * 4),
+                    Offsetting::Down => memory_base.wrapping_sub(num_registers * 4),
+                };
+
+                // Check if base is the first register in the register list (lowest numbered)
+                // This is independent of transfer order
+                let first_register_in_list =
+                    (0..=15).find(|&i| reg_list.is_bit_on(i as u8)).unwrap();
+
+                // If base is NOT first in register list, store the writeback value
+                if first_register_in_list != base_register as usize {
+                    self.registers.set_register_at(base_register, final_address);
+                    Some(memory_base) // Remember to restore after
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
         // Handle empty register list: Load/Store R15 and adjust base by 0x40
         if is_empty_list {
             // For empty register list, R15 is transferred and base is adjusted by 0x40
@@ -935,9 +966,14 @@ impl Arm7tdmi {
             self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
         }
 
+        // Restore base register if we temporarily modified it
+        if let Some(original_value) = restore_base {
+            self.registers
+                .set_register_at(base_register, original_value);
+        }
+
         // Writeback: Update base register with final address
         // Exception: On LDM, if base is in register list, the loaded value takes precedence
-        let base_in_list = reg_list.is_bit_on(base_register as u8);
         let skip_writeback = write_back && load_store == LoadStoreKind::Load && base_in_list;
 
         if write_back && !skip_writeback {
@@ -3610,6 +3646,135 @@ mod tests {
             0xA,
             "r1 should be loaded value (0xA), not writeback. r1_after_store was 0x{:08X}",
             r1_after_store
+        );
+    }
+
+    #[test]
+    fn test_stmfd_base_first_in_register_list() {
+        // Test 518: STMFD base first in rlist
+        // When base register is first in register list (lowest numbered),
+        // the OLD value (before writeback) should be stored
+        use crate::cpu::condition::Condition;
+
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000u32;
+
+        // Setup: r0 = mem, r1 = 0xA
+        cpu.registers.set_register_at(0, mem);
+        cpu.registers.set_register_at(1, 0xA);
+
+        // Execute: stmfd r0!, {r0, r1}
+        // This should store OLD r0 (mem) and r1 (0xA) with writeback
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100); // Block data transfer
+        op_code.set_bits(24..=24, 1); // Pre-indexed
+        op_code.set_bits(23..=23, 0); // Down
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 0); // Store
+        op_code.set_bits(16..=19, 0); // Base r0
+        op_code.set_bits(0..=0, 1); // r0 in list
+        op_code.set_bits(1..=1, 1); // r1 in list
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // r0 should be updated by writeback (mem - 8)
+        let r0_after = cpu.registers.register_at(0);
+        assert_eq!(r0_after, mem - 8, "r0 should be written back to mem - 8");
+
+        // Now load back and verify
+        // Execute: ldmfd r0!, {r1, r2}
+        // LDMFD = LDMIA (Increment After) - opposite of STMFD
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100); // Block data transfer
+        op_code.set_bits(24..=24, 0); // Post-indexed
+        op_code.set_bits(23..=23, 1); // Up
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 1); // Load
+        op_code.set_bits(16..=19, 0); // Base r0
+        op_code.set_bits(1..=1, 1); // r1 in list
+        op_code.set_bits(2..=2, 1); // r2 in list
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        let r1_loaded = cpu.registers.register_at(1);
+
+        // The key assertion: r1 should contain the OLD value of r0 (mem)
+        // not the writeback value (mem - 8)
+        assert_eq!(
+            r1_loaded, mem,
+            "Test 518: r1 should equal original mem value (0x{:08X}), got 0x{:08X}. \
+             When base is first in register list, OLD value should be stored.",
+            mem, r1_loaded
+        );
+    }
+
+    #[test]
+    fn test_stmfd_base_not_first_in_register_list() {
+        // Test 519: STMED base first in rlist (same as STMFD behavior)
+        // When base register is NOT first in register list,
+        // the writeback value should be stored
+        use crate::cpu::condition::Condition;
+
+        let mut cpu = Arm7tdmi::default();
+        let mem = 0x03000000u32;
+
+        // Setup: r1 = mem, r0 = 0xA
+        cpu.registers.set_register_at(1, mem);
+        cpu.registers.set_register_at(0, 0xA);
+
+        // Execute: stmfd r1!, {r0, r1}
+        // r1 is base but NOT first (r0 comes first)
+        // This should store writeback value for r1
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100); // Block data transfer
+        op_code.set_bits(24..=24, 1); // Pre-indexed
+        op_code.set_bits(23..=23, 0); // Down
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 0); // Store
+        op_code.set_bits(16..=19, 1); // Base r1
+        op_code.set_bits(0..=0, 1); // r0 in list
+        op_code.set_bits(1..=1, 1); // r1 in list
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        // r1 should be updated by writeback (mem - 8)
+        let r1_after = cpu.registers.register_at(1);
+        assert_eq!(r1_after, mem - 8, "r1 should be written back to mem - 8");
+
+        // Now load back and verify
+        // Execute: ldmfd r1!, {r1, r2}
+        let mut op_code = 0u32;
+        op_code.set_bits(28..=31, Condition::AL as u32);
+        op_code.set_bits(25..=27, 0b100); // Block data transfer
+        op_code.set_bits(24..=24, 0); // Post-indexed
+        op_code.set_bits(23..=23, 1); // Up
+        op_code.set_bits(21..=21, 1); // Write-back
+        op_code.set_bits(20..=20, 1); // Load
+        op_code.set_bits(16..=19, 1); // Base r1
+        op_code.set_bits(1..=1, 1); // r1 in list
+        op_code.set_bits(2..=2, 1); // r2 in list
+
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        let r2_loaded = cpu.registers.register_at(2);
+
+        // The key assertion: r2 should contain the writeback value (mem - 8)
+        // not the original value (mem), since r1 was NOT first in the register list
+        // (r2 loaded from mem-4, where r1's value was stored)
+        assert_eq!(
+            r2_loaded,
+            mem - 8,
+            "Test 519: When base is NOT first in register list, writeback value should be stored. \
+             Expected 0x{:08X}, got 0x{:08X}",
+            mem - 8,
+            r2_loaded
         );
     }
 }
