@@ -66,3 +66,4 @@ just run-all-debug <rom>
 All tests + implementation are based on [jsmolka/gba-tests.git](https://github.com/jsmolka/gba-tests.git) + documentation in Wiki and online resources.
 
 - [x] Thumb rom
+- [x] ARM rom
