@@ -27,6 +27,10 @@ pub struct Bus {
     cycles_count: u128,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
+    /// Tracks the last opcode fetched from BIOS for read protection
+    last_bios_opcode: u32,
+    /// Tracks the current program counter
+    current_pc: usize,
 }
 
 #[allow(dead_code)]
@@ -638,7 +642,16 @@ impl Bus {
     #[must_use]
     pub fn read_raw(&self, address: usize) -> u8 {
         match address {
-            (0x0000000..=0x0003FFF) | (0x2000000..=0x03FFFFFF) | (0x08000000..=0x0E00FFFF) => {
+            0x0000000..=0x0003FFF => {
+                // BIOS read protection: if PC is outside BIOS, return last BIOS opcode
+                if self.current_pc >= 0x4000 {
+                    // Return the appropriate byte from last_bios_opcode
+                    self.last_bios_opcode.get_byte((address & 0b11) as u8)
+                } else {
+                    self.internal_memory.read_at(address)
+                }
+            }
+            (0x2000000..=0x03FFFFFF) | (0x08000000..=0x0E00FFFF) => {
                 self.internal_memory.read_at(address)
             }
             0x4000000..=0x400005F => self.read_lcd_raw(address),
@@ -926,6 +939,16 @@ impl Bus {
             && (self.interrupt_control.interrupt_enable
                 & *self.interrupt_control.interrupt_request.front().unwrap()
                 != 0)
+    }
+
+    /// Updates the current program counter for BIOS read protection
+    pub const fn set_current_pc(&mut self, pc: usize) {
+        self.current_pc = pc;
+    }
+
+    /// Updates the last BIOS opcode for BIOS read protection
+    pub const fn set_last_bios_opcode(&mut self, opcode: u32) {
+        self.last_bios_opcode = opcode;
     }
 }
 

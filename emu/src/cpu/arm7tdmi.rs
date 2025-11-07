@@ -150,7 +150,17 @@ impl Arm7tdmi {
         pc.set_bit_off(1);
         self.registers.set_program_counter(pc);
 
-        self.bus.read_word(pc as usize)
+        // Update current PC for BIOS read protection
+        self.bus.set_current_pc(pc as usize);
+
+        let opcode = self.bus.read_word(pc as usize);
+
+        // If fetching from BIOS, save this opcode for read protection
+        if (pc as usize) < 0x4000 {
+            self.bus.set_last_bios_opcode(opcode);
+        }
+
+        opcode
     }
 
     #[must_use]
@@ -159,7 +169,17 @@ impl Arm7tdmi {
         pc.set_bit_off(0);
         self.registers.set_program_counter(pc);
 
-        self.bus.read_half_word(pc as usize)
+        // Update current PC for BIOS read protection
+        self.bus.set_current_pc(pc as usize);
+
+        let opcode = self.bus.read_half_word(pc as usize);
+
+        // If fetching from BIOS, save this opcode for read protection (extended to 32-bit)
+        if (pc as usize) < 0x4000 {
+            self.bus.set_last_bios_opcode(u32::from(opcode));
+        }
+
+        opcode
     }
 
     /// This function is used to execute the Data Processing instruction.

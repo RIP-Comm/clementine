@@ -935,11 +935,11 @@ impl Arm7tdmi {
                     (0..=15).find(|&i| reg_list.is_bit_on(i as u8)).unwrap();
 
                 // If base is NOT first in register list, store the writeback value
-                if first_register_in_list != base_register as usize {
+                if first_register_in_list == base_register {
+                    None
+                } else {
                     self.registers.set_register_at(base_register, final_address);
                     Some(memory_base) // Remember to restore after
-                } else {
-                    None
                 }
             } else {
                 None
