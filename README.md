@@ -67,3 +67,5 @@ All tests + implementation are based on [jsmolka/gba-tests.git](https://github.c
 
 - [x] Thumb rom
 - [x] ARM rom
+- [ ] Memory rom
+- [ ] Bios rom
