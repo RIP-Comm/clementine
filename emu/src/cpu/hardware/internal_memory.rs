@@ -28,6 +28,10 @@ pub struct InternalMemory {
     // 0E010000-0FFFFFFF Not used
     pub rom: Vec<u8>,
 
+    /// From 0x0E000000 to 0x0E00FFFF (64 KBytes).
+    /// Game Pak SRAM used for save data.
+    sram: Vec<u8>,
+
     /// From 0x00004000 to `0x01FF_FFFF`.
     /// From 0x10000000 to `0xFFFF_FFFF`.
     unused_region: HashMap<usize, u8>,
@@ -47,6 +51,7 @@ impl InternalMemory {
             working_ram: vec![0; 0x0004_0000],
             working_iram: vec![0; 0x0000_8000],
             rom,
+            sram: vec![0xFF; 0x0001_0000], // 64KB SRAM, initialized to 0xFF (typical for flash)
             unused_region: HashMap::new(),
         }
     }
@@ -96,7 +101,7 @@ impl InternalMemory {
             0x0800_0000..=0x09FF_FFFF => self.read_rom(address - 0x0800_0000),
             0x0A00_0000..=0x0BFF_FFFF => self.read_rom(address - 0x0A00_0000),
             0x0C00_0000..=0x0DFF_FFFF => self.read_rom(address - 0x0C00_0000),
-            0x0E00_0000..=0x0E00_FFFF => unimplemented!("SRAM region is unimplemented"),
+            0x0E00_0000..=0x0E00_FFFF => self.sram[address - 0x0E00_0000],
             0x0000_4000..=0x01FF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
                 log(format!("read on unused memory {address:x}"));
                 self.unused_region.get(&address).map_or(0, |v| *v)
@@ -120,9 +125,17 @@ impl InternalMemory {
                 self.working_iram[get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8)
                     - 0x0300_0000] = value;
             }
-            0x0800_0000..=0x0FFF_FFFF => {
-                // TODO: this should be split
-                self.rom[address - 0x0800_0000] = value;
+            0x0800_0000..=0x0DFF_FFFF => {
+                // ROM is read-only, writes are ignored
+                log(format!("Attempted write to ROM at {address:#010x}"));
+            }
+            0x0E00_0000..=0x0E00_FFFF => {
+                // SRAM write
+                self.sram[address - 0x0E00_0000] = value;
+            }
+            0x0E01_0000..=0x0FFF_FFFF => {
+                // Outside SRAM range, ignore
+                log(format!("Attempted write to unused GamePak region at {address:#010x}"));
             }
             _ => unimplemented!("Unimplemented memory region {address:x}."),
         }
