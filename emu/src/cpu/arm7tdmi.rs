@@ -469,7 +469,9 @@ impl Arm7tdmi {
                 condition,
                 immediate_offset,
             } => self.cond_branch(condition, immediate_offset),
-            Instruction::Swi => unimplemented!(),
+            Instruction::Swi => {
+                self.handle_exception(ExceptionType::SoftwareInterrupt);
+            }
             Instruction::UncondBranch { offset } => self.uncond_branch(offset),
             Instruction::LongBranchLink { h, offset } => self.long_branch_link(h, offset),
         }
