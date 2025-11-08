@@ -771,6 +771,39 @@ impl Bus {
 
         self.last_used_address = address;
 
+        // Special handling for video memory byte writes
+        match address {
+            // in OAM (object attributes map) byte writes are ignored
+            0x7000000..=0x7FFFFFF => {
+                log("OAM byte write ignored");
+                return;
+            }
+            // in VRAM byte writes are only valid for first 80KB (0x14000 bytes)
+            0x6000000..=0x6FFFFFF => {
+                let unmasked_address = get_unmasked_address(address, 0x00FF0000, 0xFF00FFFF, 16, 2);
+
+                // Byte writes only work in first 80KB (0x06000000-0x06013FFF)
+                if unmasked_address < 0x06014000 {
+                    // Write as halfword with byte duplicated, aligned to halfword boundary
+                    let aligned_address = address & !1;
+                    self.write_raw(aligned_address, value);
+                    self.write_raw(aligned_address + 1, value);
+                } else {
+                    log("VRAM byte write ignored (address >= 0x06014000)");
+                }
+                return;
+            }
+            // in palette RAM byte writes are duplicated into halfwords
+            0x5000000..=0x5FFFFFF => {
+                // Write as halfword with byte duplicated, aligned to halfword boundary
+                let aligned_address = address & !1;
+                self.write_raw(aligned_address, value);
+                self.write_raw(aligned_address + 1, value);
+                return;
+            }
+            _ => {}
+        }
+
         self.write_raw(address, value);
     }
 
