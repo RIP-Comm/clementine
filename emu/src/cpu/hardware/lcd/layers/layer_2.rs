@@ -33,11 +33,17 @@ impl Layer for Layer2 {
         let idx: usize = y * LCD_WIDTH + x;
 
         let color_idx = memory.video_ram[idx] as usize;
-        let low_nibble = memory.bg_palette_ram[color_idx * 2] as u16;
-        let high_nibble = memory.bg_palette_ram[color_idx * 2 + 1] as u16;
+
+        // Palette index 0 is transparent
+        if color_idx == 0 {
+            return None;
+        }
+
+        let low_byte = memory.bg_palette_ram[color_idx * 2] as u16;
+        let high_byte = memory.bg_palette_ram[color_idx * 2 + 1] as u16;
 
         Some(PixelInfo {
-            color: Color::from_palette_color((high_nibble << 8) | low_nibble),
+            color: Color::from_palette_color((high_byte << 8) | low_byte),
             priority: 0,
         })
     }

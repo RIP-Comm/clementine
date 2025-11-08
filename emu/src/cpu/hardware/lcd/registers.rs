@@ -153,4 +153,22 @@ impl Registers {
     pub(super) fn set_vcounter_flag(&mut self, value: bool) {
         self.dispstat.set_bit(2, value);
     }
+
+    // BG0 Control Register helpers
+    pub(super) fn get_bg0_priority(&self) -> u8 {
+        self.bg0cnt.get_bits(0..=1) as u8
+    }
+
+    pub(super) fn get_bg0_character_base_block(&self) -> u8 {
+        self.bg0cnt.get_bits(2..=3) as u8
+    }
+
+    pub(super) fn get_bg0_screen_base_block(&self) -> u8 {
+        self.bg0cnt.get_bits(8..=12) as u8
+    }
+
+    pub(super) fn get_bg0_color_mode(&self) -> bool {
+        // false = 4bpp (16 colors), true = 8bpp (256 colors)
+        self.bg0cnt.get_bit(7)
+    }
 }

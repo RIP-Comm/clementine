@@ -194,8 +194,14 @@ impl Lcd {
 
             let first_pixel = layers_with_pixel.first();
 
+            // If no layer renders a pixel, use the backdrop color (palette index 0 of BG palette)
+            let backdrop_color = Color::from_palette_color(u16::from_le_bytes([
+                self.memory.bg_palette_ram[0],
+                self.memory.bg_palette_ram[1],
+            ]));
+
             self.buffer[pixel_y as usize][pixel_x as usize] =
-                first_pixel.map_or_else(|| Color::from_rgb(31, 31, 31), |info| info.color);
+                first_pixel.map_or(backdrop_color, |info| info.color);
         }
 
         log(format!(

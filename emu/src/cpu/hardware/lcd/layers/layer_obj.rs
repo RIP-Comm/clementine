@@ -281,6 +281,11 @@ impl LayerObj {
                     continue;
                 }
 
+                // Palette index 0 is transparent for sprites
+                if color_offset == 0 {
+                    continue;
+                }
+
                 let get_pixel_info_closure = || PixelInfo {
                     color: Self::read_color_from_obj_palette(
                         color_offset as usize,
