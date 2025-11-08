@@ -56,7 +56,7 @@ impl std::fmt::Display for ThumbModeOpcode {
             Instruction::PushPopReg { .. } => "FMT: |1_0_1_1|L|1_0|R|_____Rlist_____|",
             Instruction::MultipleLoadStore { .. } => "FMT: |1_1_0_0|L|_Rb__|_____Rlist_____|",
             Instruction::CondBranch { .. } => "FMT: |1_1_0_1|_Cond__|_____Offset____|",
-            Instruction::Swi => todo!(),
+            Instruction::Swi => "FMT: |1_1_1_1_0_0_0_0|S|____Word7____|",
             Instruction::UncondBranch { .. } => "FMT: |1_1_1_0_0|________Offset11_____|",
             Instruction::LongBranchLink { .. } => "FMT: |1_1_1_1|H|_______Offset________|",
         };
