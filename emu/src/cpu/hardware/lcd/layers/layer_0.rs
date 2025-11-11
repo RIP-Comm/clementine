@@ -1,8 +1,8 @@
+use crate::bitwise::Bits;
+use crate::cpu::hardware::lcd::Color;
 use crate::cpu::hardware::lcd::PixelInfo;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
-use crate::cpu::hardware::lcd::Color;
-use crate::bitwise::Bits;
 
 use super::Layer;
 use serde::Deserialize;
@@ -51,8 +51,16 @@ impl Layer for Layer0 {
         let palette_bank = tilemap_entry.get_bits(12..=15) as usize;
 
         // Apply flipping to pixel coordinates
-        let final_pixel_x = if horizontal_flip { 7 - pixel_x_in_tile } else { pixel_x_in_tile };
-        let final_pixel_y = if vertical_flip { 7 - pixel_y_in_tile } else { pixel_y_in_tile };
+        let final_pixel_x = if horizontal_flip {
+            7 - pixel_x_in_tile
+        } else {
+            pixel_x_in_tile
+        };
+        let final_pixel_y = if vertical_flip {
+            7 - pixel_y_in_tile
+        } else {
+            pixel_y_in_tile
+        };
 
         // Get character base block address (each block is 16KB = 0x4000)
         let char_base = registers.get_bg0_character_base_block() as usize * 0x4000;
@@ -64,7 +72,8 @@ impl Layer for Layer0 {
             memory.video_ram[tile_data_offset] as usize
         } else {
             // 4bpp mode: each pixel is 4 bits (2 pixels per byte)
-            let tile_data_offset = char_base + tile_number * 32 + final_pixel_y * 4 + final_pixel_x / 2;
+            let tile_data_offset =
+                char_base + tile_number * 32 + final_pixel_y * 4 + final_pixel_x / 2;
             let byte = memory.video_ram[tile_data_offset];
 
             if final_pixel_x % 2 == 0 {
