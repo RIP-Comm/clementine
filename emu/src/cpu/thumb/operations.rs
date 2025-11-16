@@ -3,10 +3,10 @@ use crate::cpu::arm::alu_instruction::shift; // TODO: Move this to a more approp
 use crate::cpu::arm7tdmi::Arm7tdmi;
 use crate::cpu::condition::Condition;
 use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, ShiftKind};
+use crate::cpu::psr::CpuState;
 use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
 use crate::cpu::thumb;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
-use crate::cpu::thumb::mode::ThumbModeOpcode;
 use std::ops::Mul;
 
 pub const SIZE_OF_INSTRUCTION: u32 = 2;
@@ -220,10 +220,27 @@ impl Arm7tdmi {
             }
             ThumbHighRegisterOperation::BxOrBlx => {
                 let new_state = s_value.get_bit(0);
+                let old_state = self.cpsr.cpu_state();
                 self.cpsr.set_cpu_state(new_state.into());
-                let new_pc = s_value & !1;
-                self.registers.set_program_counter(new_pc);
 
+                // Clear appropriate bits based on target mode
+                let mut new_pc = s_value;
+                match self.cpsr.cpu_state() {
+                    CpuState::Thumb => new_pc.set_bit_off(0),
+                    CpuState::Arm => {
+                        new_pc.set_bit_off(0);
+                        new_pc.set_bit_off(1);
+                    }
+                }
+
+                // Warn if jumping to internal WRAM (0x03000000-0x03007FFF)
+                if (0x03000000..0x03008000).contains(&new_pc) {
+                    logger::log(format!(
+                        "!!! WARNING: BX jumping to internal WRAM @ 0x{new_pc:08X} - verify this memory contains valid code!"
+                    ));
+                }
+
+                self.registers.set_program_counter(new_pc);
                 self.flush_pipeline();
             }
         }
@@ -312,18 +329,17 @@ impl Arm7tdmi {
         }
     }
 
-    pub fn load_store_immediate_offset(&mut self, op_code: ThumbModeOpcode) {
-        let byte_word: ReadWriteKind = op_code.get_bit(12).into();
-        let load_store: LoadStoreKind = op_code.get_bit(11).into();
-        let offset5 = op_code.get_bits(6..=10) as u32;
-        let offset = offset5
-            << match byte_word {
-                ReadWriteKind::Word => 2,
-                ReadWriteKind::Byte => 0,
-            };
-
-        let rb = op_code.get_bits(3..=5);
-        let rd = op_code.get_bits(0..=2).into();
+    pub fn load_store_immediate_offset(
+        &mut self,
+        load_store: LoadStoreKind,
+        byte_word: ReadWriteKind,
+        offset: u16,
+        base_register: u16,
+        destination_register: u16,
+    ) {
+        let rb = base_register;
+        let rd = destination_register as usize;
+        let offset = offset as u32;
 
         let base = self.registers.register_at(rb.into());
         let address = base.wrapping_add(offset).try_into().unwrap();
@@ -431,19 +447,15 @@ impl Arm7tdmi {
             LoadStoreKind::Store => {
                 if pc_lr {
                     reg_sp -= 4;
-                    self.bus.write_word(
-                        reg_sp.try_into().unwrap(),
-                        self.registers.register_at(REG_LR),
-                    );
+                    let lr_value = self.registers.register_at(REG_LR);
+                    self.bus.write_word(reg_sp.try_into().unwrap(), lr_value);
                 }
 
                 for r in (0..=7).rev() {
                     if register_list.get_bit(r) {
                         reg_sp -= 4;
-                        self.bus.write_word(
-                            reg_sp.try_into().unwrap(),
-                            self.registers.register_at(r.into()),
-                        );
+                        let value = self.registers.register_at(r.into());
+                        self.bus.write_word(reg_sp.try_into().unwrap(), value);
                     }
                 }
             }
@@ -460,6 +472,17 @@ impl Arm7tdmi {
 
                 if pc_lr {
                     let value = self.read_word(reg_sp.try_into().unwrap());
+                    logger::log(format!(
+                        "POP PC from stack @ 0x{reg_sp:08X}: value = 0x{value:08X}"
+                    ));
+
+                    // Warn if jumping to internal WRAM (0x03000000-0x03007FFF)
+                    if (0x03000000..0x03008000).contains(&value) {
+                        logger::log(format!(
+                            "!!! WARNING: POP PC jumping to internal WRAM @ 0x{value:08X} - verify this memory contains valid code!"
+                        ));
+                    }
+
                     self.registers.set_program_counter(value);
 
                     reg_sp += 4;
