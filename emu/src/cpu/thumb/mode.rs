@@ -48,7 +48,7 @@ impl std::fmt::Display for ThumbModeOpcode {
             Instruction::LoadStoreSignExtByteHalfword { .. } => {
                 "FMT: |0_1_0_1|H|S|1|_Ro__|_Rb__|_Rd__|"
             }
-            Instruction::LoadStoreImmOffset => "FMT: |0_1_1|B|L|_Offset5_|_Rb__|_Rd__|",
+            Instruction::LoadStoreImmOffset { .. } => "FMT: |0_1_1|B|L|_Offset5_|_Rb__|_Rd__|",
             Instruction::LoadStoreHalfword { .. } => "FMT: |1_0_0_0|L|_Offset5_|_Rb__|_Rd__|",
             Instruction::SPRelativeLoadStore { .. } => "FMT: |1_0_0_1|L|_Rd__|_____Word8_____|",
             Instruction::LoadAddress { .. } => "FMT: |1_0_1_0|S|_Rd__|_____Word8_____|",
@@ -59,6 +59,7 @@ impl std::fmt::Display for ThumbModeOpcode {
             Instruction::Swi => "FMT: |1_1_1_1_0_0_0_0|S|____Word7____|",
             Instruction::UncondBranch { .. } => "FMT: |1_1_1_0_0|________Offset11_____|",
             Instruction::LongBranchLink { .. } => "FMT: |1_1_1_1|H|_______Offset________|",
+            Instruction::Nop => "FMT: |NOP/Hint instruction|",
         };
 
         let mut raw_bits = String::new();
