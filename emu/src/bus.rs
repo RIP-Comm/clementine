@@ -54,7 +54,7 @@ pub(crate) enum IrqType {
 
 impl IrqType {
     /// Returns the index of the corresponding `IrqType` inside the Interrupt Request Flag register
-    const fn get_idx_in_if(&self) -> u8 {
+    const fn get_idx_in_if(self) -> u8 {
         match self {
             Self::VBlank => 0,
             Self::HBlank => 1,
@@ -970,7 +970,6 @@ impl Bus {
                     self.write_raw(aligned_address, value);
                     self.write_raw(aligned_address + 1, value);
                 } else {
-                    // Beyond VRAM range - should not happen after unmasking
                     log(format!(
                         "VRAM byte write ignored (unmasked address 0x{unmasked_address:08X} >= 0x06018000)"
                     ));

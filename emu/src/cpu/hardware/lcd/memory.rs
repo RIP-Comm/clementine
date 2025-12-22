@@ -20,6 +20,7 @@ pub struct Memory {
 }
 
 impl Default for Memory {
+    #[allow(clippy::large_stack_arrays)]
     fn default() -> Self {
         Self {
             bg_palette_ram: Box::new([0; 0x200]),

@@ -107,9 +107,11 @@ pub enum Instruction {
     Nop, // For undefined/hint instructions that should be treated as NOP
 }
 
-impl From<u16> for Instruction {
+impl TryFrom<u16> for Instruction {
+    type Error = String;
+
     #[allow(clippy::too_many_lines)]
-    fn from(op_code: u16) -> Self {
+    fn try_from(op_code: u16) -> Result<Self, Self::Error> {
         use Instruction::{
             AddOffsetSP, AddSubtract, AluOp, CondBranch, HiRegisterOpBX, LoadAddress,
             LoadStoreHalfword, LoadStoreImmOffset, LoadStoreRegisterOffset,
@@ -119,132 +121,132 @@ impl From<u16> for Instruction {
         };
 
         if op_code.get_bits(8..=15) == 0b1101_1111 {
-            Swi
+            Ok(Swi)
         } else if op_code.get_bits(8..=15) == 0b1011_0000 {
-            AddOffsetSP {
+            Ok(AddOffsetSP {
                 // 0 - positive, 1 - negative TODO
                 s: op_code.get_bit(7),
                 // The offset supplied in #Imm is a full 10-bit address,
                 // but must always be word-aligned (ie bits 1:0 set to 0),
                 // since the assembler places #Imm >> 2 in the Word8 field.
                 word7: op_code.get_bits(0..=6) << 2,
-            }
+            })
         } else if op_code.get_bits(10..=15) == 0b01_0000 {
-            AluOp {
+            Ok(AluOp {
                 alu_operation: op_code.get_bits(6..=9).into(),
                 source_register: op_code.get_bits(3..=5),
                 destination_register: op_code.get_bits(0..=2),
-            }
+            })
         } else if op_code.get_bits(10..=15) == 0b01_0001 {
             let h1 = op_code.get_bit(7);
             let rd_hd = op_code.get_bits(0..=2);
             let destination_register = if h1 { rd_hd | (1 << 3) } else { rd_hd };
             let source_register = op_code.get_bits(3..=6);
 
-            HiRegisterOpBX {
+            Ok(HiRegisterOpBX {
                 register_operation: op_code.get_bits(8..=9).into(),
                 source_register,
                 destination_register,
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b1011 && op_code.get_bits(9..=10) == 0b10 {
-            PushPopReg {
+            Ok(PushPopReg {
                 load_store: op_code.get_bit(11).into(),
                 pc_lr: op_code.get_bit(8),
                 register_list: op_code.get_bits(0..=7),
-            }
+            })
         } else if op_code.get_bits(11..=15) == 0b00011 {
-            AddSubtract {
+            Ok(AddSubtract {
                 operation_kind: op_code.get_bit(10).into(),
                 // 0 - Add, 1 - Sub TODO
                 op: op_code.get_bit(9),
                 rn_offset3: op_code.get_bits(6..=8),
                 source_register: op_code.get_bits(3..=5),
                 destination_register: op_code.get_bits(0..=2),
-            }
+            })
         } else if op_code.get_bits(11..=15) == 0b01001 {
-            PCRelativeLoad {
+            Ok(PCRelativeLoad {
                 destination_register: op_code.get_bits(8..=10),
                 immediate_value: op_code.get_bits(0..=7) << 2,
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b0101 && !op_code.get_bit(9) {
-            LoadStoreRegisterOffset {
+            Ok(LoadStoreRegisterOffset {
                 load_store: op_code.get_bit(11).into(),
                 byte_word: op_code.get_bit(10).into(),
                 ro: op_code.get_bits(6..=8),
                 base_register: op_code.get_bits(3..=5),
                 destination_register: op_code.get_bits(0..=2),
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b0101 && op_code.get_bit(9) {
-            LoadStoreSignExtByteHalfword {
+            Ok(LoadStoreSignExtByteHalfword {
                 h: op_code.get_bit(11),
                 sign_extend_flag: op_code.get_bit(10),
                 offset_register: op_code.get_bits(6..=8) as u32,
                 base_register: op_code.get_bits(3..=5) as u32,
                 destination_register: op_code.get_bits(0..=2) as u32,
-            }
+            })
         } else if op_code.get_bits(11..=15) == 0b11100 {
-            UncondBranch {
+            Ok(UncondBranch {
                 offset: (op_code.get_bits(0..=10) << 1) as u32,
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b1000 {
-            LoadStoreHalfword {
+            Ok(LoadStoreHalfword {
                 load_store: op_code.get_bit(11).into(),
                 offset: op_code.get_bits(6..=10) << 1,
                 base_register: op_code.get_bits(3..=5),
                 source_destination_register: op_code.get_bits(0..=2),
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b1001 {
-            SPRelativeLoadStore {
+            Ok(SPRelativeLoadStore {
                 load_store: op_code.get_bit(11).into(),
                 destination_register: op_code.get_bits(8..=10),
                 // The offset supplied in #Imm is a full 10-bit address,
                 // but must always be word-aligned (ie bits 1:0 set to 0),
                 // since the assembler places #Imm >> 2 in the Word8 field.
                 word8: op_code.get_bits(0..=7) << 2,
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b1010 {
-            LoadAddress {
+            Ok(LoadAddress {
                 sp: op_code.get_bit(11),
                 destination_register: op_code.get_bits(8..=10) as u32,
                 offset: (op_code.get_bits(0..=7) as u32) << 2,
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b1100 {
-            MultipleLoadStore {
+            Ok(MultipleLoadStore {
                 load_store: op_code.get_bit(11).into(),
                 base_register: op_code.get_bits(8..=10),
                 register_list: op_code.get_bits(0..=7),
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b1101 {
             // 9 bits signed offset (assembler puts `label` >> 1 in this field so we should <<1)
             let offset = (op_code.get_bits(0..=7) << 1) as u32;
             let immediate_offset = offset.sign_extended(9) as i32;
 
-            CondBranch {
+            Ok(CondBranch {
                 condition: Condition::from(op_code.get_bits(8..=11) as u8),
                 immediate_offset,
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b1111 || op_code.get_bits(12..=15) == 0b1110 {
             // Format 19: Long branch with link (BL/BLX)
             // 1111 0xxx xxxx xxxx - H=0: Setup high offset in LR
             // 1111 1xxx xxxx xxxx - H=1: Add low offset and branch to LR
             // 1110 1xxx xxxx xxxx - BLX variant (ARMv5+, exchanges to ARM mode)
-            LongBranchLink {
+            Ok(LongBranchLink {
                 h: op_code.get_bit(11),
                 offset: op_code.get_bits(0..=10) as u32,
-            }
+            })
         } else if op_code.get_bits(13..=15) == 0b000 {
-            MoveShiftedRegister {
+            Ok(MoveShiftedRegister {
                 shift_operation: op_code.get_bits(11..=12).into(),
                 offset5: op_code.get_bits(6..=10),
                 source_register: op_code.get_bits(3..=5),
                 destination_register: op_code.get_bits(0..=2),
-            }
+            })
         } else if op_code.get_bits(13..=15) == 0b001 {
-            MoveCompareAddSubtractImm {
+            Ok(MoveCompareAddSubtractImm {
                 operation: op_code.get_bits(11..=12).into(),
                 destination_register: op_code.get_bits(8..=10),
                 offset: op_code.get_bits(0..=7).into(),
-            }
+            })
         } else if op_code.get_bits(13..=15) == 0b011 {
             let byte_word: ReadWriteKind = op_code.get_bit(12).into();
             let offset = match byte_word {
@@ -254,27 +256,26 @@ impl From<u16> for Instruction {
                 ReadWriteKind::Byte => op_code.get_bits(6..=10),
             };
 
-            LoadStoreImmOffset {
+            Ok(LoadStoreImmOffset {
                 load_store: op_code.get_bit(11).into(),
                 byte_word,
                 offset,
                 base_register: op_code.get_bits(3..=5),
                 destination_register: op_code.get_bits(0..=2),
-            }
+            })
         } else if op_code.get_bits(12..=15) == 0b1011 {
             // Other 0xBxxx instructions that don't match specific patterns
-            // These are typically undefined or hint instructions - treat as NOP
             log(format!(
                 "Treating undefined/hint instruction 0x{op_code:04X} as NOP",
             ));
-            Nop
+            Ok(Nop)
         } else {
-            panic!(
+            Err(format!(
                 "Unimplemented Thumb instruction: 0x{:04X} (bits 15-13: 0b{:03b}, bits 12-11: 0b{:02b})",
                 op_code,
                 op_code.get_bits(13..=15),
                 op_code.get_bits(11..=12)
-            )
+            ))
         }
     }
 }
@@ -529,7 +530,7 @@ mod test {
 
     #[test]
     fn decode_multiple_load_store() {
-        let output = Instruction::from(0b1100_1001_1010_0000);
+        let output = Instruction::try_from(0b1100_1001_1010_0000).unwrap();
         assert_eq!(
             Instruction::MultipleLoadStore {
                 load_store: LoadStoreKind::Load,
@@ -543,7 +544,7 @@ mod test {
 
     #[test]
     fn decode_pc_relative_load() {
-        let output = Instruction::from(0b0100_1001_0101_1000);
+        let output = Instruction::try_from(0b0100_1001_0101_1000).unwrap();
         assert_eq!(
             Instruction::PCRelativeLoad {
                 destination_register: 1,
@@ -556,7 +557,7 @@ mod test {
 
     #[test]
     fn decode_load_store_register_offset() {
-        let output = Instruction::from(0b0101_00_0_000_001_010);
+        let output = Instruction::try_from(0b0101_00_0_000_001_010).unwrap();
         assert_eq!(
             Instruction::LoadStoreRegisterOffset {
                 load_store: LoadStoreKind::Store,
@@ -572,14 +573,14 @@ mod test {
 
     #[test]
     fn decode_uncond_branch() {
-        let output = Instruction::from(0b1110_0001_0010_1111);
+        let output = Instruction::try_from(0b1110_0001_0010_1111).unwrap();
         assert_eq!(Instruction::UncondBranch { offset: 606 }, output);
         assert_eq!("B #606", output.disassembler()); // FIXME: Should this be decimal or hex?
     }
 
     #[test]
     fn decode_hi_reg_operation() {
-        let output = Instruction::from(0b0100_0111_0111_0000);
+        let output = Instruction::try_from(0b0100_0111_0111_0000).unwrap();
         assert_eq!(
             Instruction::HiRegisterOpBX {
                 register_operation: ThumbHighRegisterOperation::BxOrBlx,
@@ -590,7 +591,7 @@ mod test {
         );
         assert_eq!("BX R0, R14", output.disassembler());
 
-        let output = Instruction::from(0b010001_00_0_1_000_001);
+        let output = Instruction::try_from(0b010001_00_0_1_000_001).unwrap();
         assert_eq!(
             Instruction::HiRegisterOpBX {
                 register_operation: ThumbHighRegisterOperation::Add,
@@ -604,7 +605,7 @@ mod test {
 
     #[test]
     fn decode_push_pop_register() {
-        let output = Instruction::from(0b1011_0101_1111_0000);
+        let output = Instruction::try_from(0b1011_0101_1111_0000).unwrap();
         assert_eq!(
             Instruction::PushPopReg {
                 load_store: LoadStoreKind::Store,
@@ -619,7 +620,7 @@ mod test {
 
     #[test]
     fn decode_alu_operation() {
-        let output = Instruction::from(0b0100_0011_0110_0000);
+        let output = Instruction::try_from(0b0100_0011_0110_0000).unwrap();
         assert_eq!(
             Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Mul,
@@ -630,7 +631,7 @@ mod test {
         );
         assert_eq!("MUL R0, R4", output.disassembler());
 
-        let output = Instruction::from(0b0100_0000_0001_1000);
+        let output = Instruction::try_from(0b0100_0000_0001_1000).unwrap();
         assert_eq!(
             Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::And,
@@ -641,7 +642,7 @@ mod test {
         );
         assert_eq!("AND R0, R3", output.disassembler());
 
-        let output = Instruction::from(0b0100_0010_0011_1110);
+        let output = Instruction::try_from(0b0100_0010_0011_1110).unwrap();
         assert_eq!(
             Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Tst,
@@ -652,7 +653,7 @@ mod test {
         );
         assert_eq!("TST R6, R7", output.disassembler());
 
-        let output = Instruction::from(0b0100_0011_0010_1010);
+        let output = Instruction::try_from(0b0100_0011_0010_1010).unwrap();
         assert_eq!(
             Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Orr,
@@ -663,7 +664,7 @@ mod test {
         );
         assert_eq!("ORR R2, R5", output.disassembler());
 
-        let output = Instruction::from(0b0100_0011_1100_1111);
+        let output = Instruction::try_from(0b0100_0011_1100_1111).unwrap();
         assert_eq!(
             Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Mvn,
@@ -674,7 +675,7 @@ mod test {
         );
         assert_eq!("MVN R7, R1", output.disassembler());
 
-        let output = Instruction::from(0b0100_0001_1110_0011);
+        let output = Instruction::try_from(0b0100_0001_1110_0011).unwrap();
         assert_eq!(
             Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Ror,
@@ -685,7 +686,7 @@ mod test {
         );
         assert_eq!("ROR R3, R4", output.disassembler());
 
-        let output = Instruction::from(0b0100_0000_0101_0011);
+        let output = Instruction::try_from(0b0100_0000_0101_0011).unwrap();
         assert_eq!(
             Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Eor,
@@ -696,7 +697,7 @@ mod test {
         );
         assert_eq!("EOR R3, R2", output.disassembler());
 
-        let output = Instruction::from(0b0100_0010_0100_0000);
+        let output = Instruction::try_from(0b0100_0010_0100_0000).unwrap();
         assert_eq!(
             Instruction::AluOp {
                 alu_operation: ThumbModeAluInstruction::Neg,
@@ -707,7 +708,7 @@ mod test {
         );
         assert_eq!("NEG R0, R0", output.disassembler());
 
-        let output = Instruction::from(0b0100_0000_1000_1000);
+        let output = Instruction::try_from(0b0100_0000_1000_1000).unwrap();
         assert_eq!(
             output,
             Instruction::AluOp {
@@ -718,7 +719,7 @@ mod test {
         );
         assert_eq!("LSL R0, R1", output.disassembler());
 
-        let output = Instruction::from(0b0100_0001_0000_1000);
+        let output = Instruction::try_from(0b0100_0001_0000_1000).unwrap();
         assert_eq!(
             output,
             Instruction::AluOp {
@@ -732,7 +733,7 @@ mod test {
 
     #[test]
     fn decode_load_store_half_word() {
-        let output = Instruction::from(0b1000_1_00001_000_001);
+        let output = Instruction::try_from(0b1000_1_00001_000_001).unwrap();
         assert_eq!(
             Instruction::LoadStoreHalfword {
                 load_store: LoadStoreKind::Load,
@@ -744,7 +745,7 @@ mod test {
         );
         assert_eq!("LDRH R1, [R0, #2]", output.disassembler());
 
-        let output = Instruction::from(0b1000_0_00001_000_001);
+        let output = Instruction::try_from(0b1000_0_00001_000_001).unwrap();
         assert_eq!(
             Instruction::LoadStoreHalfword {
                 load_store: LoadStoreKind::Store,
@@ -762,7 +763,7 @@ mod test {
         // LDR R2, [R1, #8] - word load with immediate offset
         // Format: 011 B L offset5 Rb Rd
         // B=0 (word), L=1 (load), offset=2 (<<2 = 8), Rb=1, Rd=2
-        let output = Instruction::from(0b0110_1_00010_001_010);
+        let output = Instruction::try_from(0b0110_1_00010_001_010).unwrap();
         assert_eq!(
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Load,
@@ -777,7 +778,7 @@ mod test {
 
         // STR R3, [R4, #16] - word store with immediate offset
         // B=0 (word), L=0 (store), offset=4 (<<2 = 16), Rb=4, Rd=3
-        let output = Instruction::from(0b0110_0_00100_100_011);
+        let output = Instruction::try_from(0b0110_0_00100_100_011).unwrap();
         assert_eq!(
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Store,
@@ -792,7 +793,7 @@ mod test {
 
         // LDRB R5, [R6, #7] - byte load with immediate offset
         // B=1 (byte), L=1 (load), offset=7, Rb=6, Rd=5
-        let output = Instruction::from(0b0111_1_00111_110_101);
+        let output = Instruction::try_from(0b0111_1_00111_110_101).unwrap();
         assert_eq!(
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Load,
@@ -807,7 +808,7 @@ mod test {
 
         // STRB R0, [R1, #0] - byte store with zero offset
         // B=1 (byte), L=0 (store), offset=0, Rb=1, Rd=0
-        let output = Instruction::from(0b0111_0_00000_001_000);
+        let output = Instruction::try_from(0b0111_0_00000_001_000).unwrap();
         assert_eq!(
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Store,
@@ -828,7 +829,7 @@ mod test {
         // Second: 1111 1xxx xxxx xxxx (H=1, completes the call)
 
         // First half: setup high offset
-        let output = Instruction::from(0b1111_0_000_0000_0001);
+        let output = Instruction::try_from(0b1111_0_000_0000_0001).unwrap();
         assert_eq!(
             Instruction::LongBranchLink {
                 h: false,
@@ -838,7 +839,7 @@ mod test {
         );
 
         // Second half: complete branch
-        let output = Instruction::from(0b1111_1_000_0000_0010);
+        let output = Instruction::try_from(0b1111_1_000_0000_0010).unwrap();
         assert_eq!(Instruction::LongBranchLink { h: true, offset: 2 }, output);
     }
 }

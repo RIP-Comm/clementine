@@ -549,11 +549,6 @@ impl Arm7tdmi {
         );
 
         let old_cpsr = self.cpsr;
-        let old_mode_str = if matches!(old_cpsr.cpu_state(), CpuState::Arm) {
-            "ARM"
-        } else {
-            "Thumb"
-        };
 
         // IRQ handling: Always use BIOS exception vector (no HLE for now)
         // This is more accurate to real hardware and avoids HLE bugs
@@ -668,16 +663,14 @@ impl Arm7tdmi {
                     // Log PC advancement for debugging the loop
                     if old_pc == 0x081DCA90 || old_pc == 0x081DCA92 || old_pc == 0x081DCCE8 {
                         logger::log(format!(
-                            "ADVANCING PC (Thumb): 0x{:08X} -> 0x{:08X}",
-                            old_pc, new_pc
+                            "ADVANCING PC (Thumb): 0x{old_pc:08X} -> 0x{new_pc:08X}"
                         ));
                     }
 
                     // Detect PC going to invalid address (not ROM 0x08000000+, not RAM 0x02000000+ or 0x03000000+, not BIOS 0x0-0x4000)
                     if new_pc > 0x00010000 && new_pc < 0x02000000 {
                         logger::log(format!(
-                            "!!! SUSPICIOUS PC JUMP (Thumb) !!!\n  PC advancing to 0x{:08X} (invalid address range!)",
-                            new_pc
+                            "!!! SUSPICIOUS PC JUMP (Thumb) !!!\n  PC advancing to 0x{new_pc:08X} (invalid address range!)"
                         ));
                     }
 
@@ -985,8 +978,6 @@ impl Arm7tdmi {
         match swi_num {
             // SWI 0x00: SoftReset - Reset the GBA
             0x00 => {
-                logger::log("HLE SWI 0x00: SoftReset");
-
                 // Clear 200h bytes of IWRAM work area (03007E00h-03007FFFh)
                 for addr in 0x03007E00..=0x03007FFF {
                     self.bus.write_byte(addr, 0);
@@ -1031,8 +1022,7 @@ impl Arm7tdmi {
                 self.flush_pipeline();
 
                 logger::log(format!(
-                    "SoftReset: Jumping to 0x{:08X} (flag was {})",
-                    entry_point, flag
+                    "SoftReset: Jumping to 0x{entry_point:08X} (flag was {flag})"
                 ));
 
                 true
@@ -1172,10 +1162,10 @@ impl Arm7tdmi {
                     0
                 } else {
                     let mut x = input;
-                    let mut y = (x + 1) / 2;
+                    let mut y = x.div_ceil(2);
                     while y < x {
                         x = y;
-                        y = (x + input / x) / 2;
+                        y = u32::midpoint(x, input / x);
                     }
                     x
                 };

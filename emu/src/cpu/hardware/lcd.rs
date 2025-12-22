@@ -64,7 +64,7 @@ impl Color {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 enum ObjMappingKind {
     TwoDimensional,
     OneDimensional,
@@ -106,6 +106,7 @@ pub struct Lcd {
 }
 
 impl Default for Lcd {
+    #[allow(clippy::large_stack_arrays)]
     fn default() -> Self {
         Self {
             registers: Registers::default(),
@@ -115,7 +116,7 @@ impl Default for Lcd {
             should_draw: false,
             layer_0: Layer0,
             layer_1: Layer1,
-            layer_2: Layer2::default(),
+            layer_2: Layer2,
             layer_3: Layer3,
             layer_obj: LayerObj::default(),
         }
@@ -175,45 +176,68 @@ impl Lcd {
             let pixel_y = self.registers.vcount;
             let pixel_x = self.pixel_index;
 
-            // We get the enabled layers (depending on BG mode and registers), we call render on them
-            // we filter out the `None` and we sort by priority.
-            let mut layers_with_pixel = self
-                .get_enabled_layers()
-                .into_iter()
-                .filter_map(|layer| {
-                    layer.render(
-                        pixel_x as usize,
-                        pixel_y as usize,
-                        &self.memory,
-                        &self.registers,
-                    )
-                })
-                .collect::<Vec<PixelInfo>>();
+            // Check forced blank (bit 7 of DISPCNT)
+            // When set, display white screen regardless of layer settings
+            if self.registers.dispcnt.get_bit(7) {
+                self.buffer[pixel_y as usize][pixel_x as usize] = Color::from_rgb(31, 31, 31);
+            } else {
+                // We get the enabled layers (depending on BG mode and registers), we call render on them
+                // we filter out the `None` and we sort by priority.
+                let mut layers_with_pixel = self
+                    .get_enabled_layers()
+                    .into_iter()
+                    .filter_map(|layer| {
+                        layer.render(
+                            pixel_x as usize,
+                            pixel_y as usize,
+                            &self.memory,
+                            &self.registers,
+                        )
+                    })
+                    .collect::<Vec<PixelInfo>>();
 
-            layers_with_pixel.sort_unstable_by_key(|pixel| pixel.priority);
+                layers_with_pixel.sort_unstable_by_key(|pixel| pixel.priority);
 
-            let first_pixel = layers_with_pixel.first();
+                let first_pixel = layers_with_pixel.first();
 
-            // If no layer renders a pixel, use the backdrop color (palette index 0 of BG palette)
-            let backdrop_color = Color::from_palette_color(u16::from_le_bytes([
-                self.memory.bg_palette_ram[0],
-                self.memory.bg_palette_ram[1],
-            ]));
+                // If no layer renders a pixel, use the backdrop color (palette index 0 of BG palette)
+                let backdrop_color = Color::from_palette_color(u16::from_le_bytes([
+                    self.memory.bg_palette_ram[0],
+                    self.memory.bg_palette_ram[1],
+                ]));
 
-            self.buffer[pixel_y as usize][pixel_x as usize] =
-                first_pixel.map_or(backdrop_color, |info| info.color);
+                // Debug: Log backdrop color once per frame
+                if pixel_x == 0 && pixel_y == 0 {
+                    let enabled_layers = self.get_enabled_layers();
+                    log(format!(
+                        "DISPCNT=0x{:04X}, mode={}, BG2 enabled={}, {} layers in list, {} rendered pixel, backdrop=0x{:04X}",
+                        self.registers.dispcnt,
+                        self.registers.get_bg_mode(),
+                        self.registers.get_bg2_enabled(),
+                        enabled_layers.len(),
+                        layers_with_pixel.len(),
+                        backdrop_color.0
+                    ));
+                }
+
+                self.buffer[pixel_y as usize][pixel_x as usize] =
+                    first_pixel.map_or(backdrop_color, |info| info.color);
+            }
         }
 
-        log(format!(
-            "mode: {:?}, BG2: {:?} BG3: {:?}, OBJ: {:?}, WIN0: {:?}, WIN1: {:?}, WINOJB: {:?}",
-            self.registers.get_bg_mode(),
-            self.registers.get_bg2_enabled(),
-            self.registers.get_bg3_enabled(),
-            self.registers.get_obj_enabled(),
-            self.registers.get_win0_enabled(),
-            self.registers.get_win1_enabled(),
-            self.registers.get_winobj_enabled(),
-        ));
+        // Disabled verbose per-pixel logging
+        // log(format!(
+        //     "mode: {:?}, BG0: {:?}, BG1: {:?}, BG2: {:?}, BG3: {:?}, OBJ: {:?}, WIN0: {:?}, WIN1: {:?}, WINOJB: {:?}",
+        //     self.registers.get_bg_mode(),
+        //     self.registers.get_bg0_enabled(),
+        //     self.registers.get_bg1_enabled(),
+        //     self.registers.get_bg2_enabled(),
+        //     self.registers.get_bg3_enabled(),
+        //     self.registers.get_obj_enabled(),
+        //     self.registers.get_win0_enabled(),
+        //     self.registers.get_win1_enabled(),
+        //     self.registers.get_winobj_enabled(),
+        // ));
 
         self.pixel_index += 1;
 

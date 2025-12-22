@@ -41,10 +41,10 @@ impl Layer for Layer2 {
                 // Mode 0, 1: regular tiled background (not yet implemented)
                 None
             }
-            2 => self.render_affine(x, y, memory, registers),
-            3 => self.render_mode3(x, y, memory),
-            4 => self.render_mode4(x, y, memory, registers),
-            5 => self.render_mode5(x, y, memory),
+            2 => Self::render_affine(x, y, memory, registers),
+            3 => Self::render_mode3(x, y, memory),
+            4 => Self::render_mode4(x, y, memory, registers),
+            5 => Self::render_mode5(x, y, memory),
             _ => None,
         }
     }
@@ -53,7 +53,6 @@ impl Layer for Layer2 {
 impl Layer2 {
     /// Render BG2 as an affine (rotation/scaling) background in Mode 2
     fn render_affine(
-        &self,
         screen_x: usize,
         screen_y: usize,
         memory: &Memory,
@@ -76,8 +75,8 @@ impl Layer2 {
         let texture_y = (pc as i32 * screen_x as i32) + (pd as i32 * screen_y as i32) + ref_y;
 
         // Convert from 8.8 fixed point to integer (shift right by 8)
-        let tex_x = (texture_x >> 8) as i32;
-        let tex_y = (texture_y >> 8) as i32;
+        let tex_x = texture_x >> 8;
+        let tex_y = texture_y >> 8;
 
         // Read BG2 control register
         let bg2cnt = registers.bg2cnt;
@@ -167,7 +166,7 @@ impl Layer2 {
     }
 
     /// Render BG2 in Mode 3 (240x160, 15-bit direct color bitmap)
-    fn render_mode3(&self, x: usize, y: usize, memory: &Memory) -> Option<PixelInfo> {
+    fn render_mode3(x: usize, y: usize, memory: &Memory) -> Option<PixelInfo> {
         // Mode 3: 240x160 pixels, 16-bit color (15-bit RGB + unused bit)
         // VRAM layout: linear bitmap starting at 0x06000000
         let offset = (y * 240 + x) * 2;
@@ -188,7 +187,6 @@ impl Layer2 {
 
     /// Render BG2 in Mode 4 (240x160, 8-bit paletted bitmap with page flipping)
     fn render_mode4(
-        &self,
         x: usize,
         y: usize,
         memory: &Memory,
@@ -226,7 +224,7 @@ impl Layer2 {
     }
 
     /// Render BG2 in Mode 5 (160x128, 15-bit direct color bitmap with page flipping)
-    fn render_mode5(&self, x: usize, y: usize, memory: &Memory) -> Option<PixelInfo> {
+    fn render_mode5(x: usize, y: usize, memory: &Memory) -> Option<PixelInfo> {
         // Mode 5: 160x128 pixels, 16-bit color
         // Smaller resolution than screen, centered or scaled
         if x >= 160 || y >= 128 {

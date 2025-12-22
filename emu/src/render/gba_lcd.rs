@@ -5,6 +5,7 @@ pub struct GbaLcd {
 }
 
 impl Default for GbaLcd {
+    #[allow(clippy::large_stack_arrays)]
     fn default() -> Self {
         Self {
             pixels: [[Color::default(); LCD_WIDTH]; LCD_HEIGHT],

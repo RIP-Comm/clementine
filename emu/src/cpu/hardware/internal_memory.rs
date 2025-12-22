@@ -154,10 +154,9 @@ impl InternalMemory {
                 let value = self.working_iram[idx];
 
                 // Debug: Log reads around the problematic address
-                if unmasked >= 0x030036A0 && unmasked <= 0x030036B0 {
+                if (0x0300_36A0..=0x0300_36B0).contains(&unmasked) {
                     log(format!(
-                        "IWRAM READ: addr=0x{:08X}, unmasked=0x{:08X}, idx=0x{:04X}, value=0x{:02X}",
-                        address, unmasked, idx, value
+                        "IWRAM READ: addr=0x{address:08X}, unmasked=0x{unmasked:08X}, idx=0x{idx:04X}, value=0x{value:02X}"
                     ));
                 }
 
@@ -180,14 +179,13 @@ impl InternalMemory {
                 // In ID mode, return manufacturer/device ID
                 if self.flash_state == FlashState::IdMode {
                     let id_value = match offset {
-                        // Sanyo LE26FV10N1TS (128KB / 1Mbit) - same as mGBA uses
+                        // Sanyo LE26FV10N1TS (128KB / 1Mbit), same as mGBA uses
                         0x0000 => 0x62, // Manufacturer ID (Sanyo)
                         0x0001 => 0x13, // Device ID (1Mbit = 128KB)
                         _ => 0xFF,
                     };
                     log(format!(
-                        "Flash ID READ: addr=0x{:08X}, offset=0x{:04X}, value=0x{:02X}",
-                        address, offset, id_value
+                        "Flash ID READ: addr=0x{address:08X}, offset=0x{offset:04X}, value=0x{id_value:02X}"
                     ));
                     return id_value;
                 }
@@ -206,13 +204,14 @@ impl InternalMemory {
                 value
             }
             0x0000_4000..=0x01FF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
-                log(format!("READ on unused memory 0x{:08X}", address));
+                log(format!("READ on unused memory 0x{address:08X}"));
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn write_at(&mut self, address: usize, value: u8) {
         match address {
             0x0000_0000..=0x0000_3FFF => {
@@ -241,11 +240,10 @@ impl InternalMemory {
                     ));
                 }
                 // Debug: Log writes around the problematic address
-                if address >= 0x030036A0 && address <= 0x030036B0 {
+                if (0x0300_36A0..=0x0300_36B0).contains(&address) {
                     let idx = address - 0x0300_0000;
                     log(format!(
-                        "IWRAM WRITE: addr=0x{:08X}, idx=0x{:04X}, value=0x{:02X}",
-                        address, idx, value
+                        "IWRAM WRITE: addr=0x{address:08X}, idx=0x{idx:04X}, value=0x{value:02X}"
                     ));
                 }
                 self.working_iram[address - 0x0300_0000] = value;
@@ -267,8 +265,7 @@ impl InternalMemory {
                 let rom_offset = address & 0x01FFFFFF; // Mask to get offset within ROM region
                 if (0xC4..=0xC9).contains(&rom_offset) {
                     log(format!(
-                        "GPIO WRITE: offset 0x{:04X} = 0x{:02X}",
-                        rom_offset, value
+                        "GPIO WRITE: offset 0x{rom_offset:04X} = 0x{value:02X}"
                     ));
                     match rom_offset {
                         0xC4 => self.gpio_data.set_byte(0, value),
@@ -343,7 +340,7 @@ impl InternalMemory {
                                     self.flash_state = FlashState::BankSelect;
                                 }
                                 _ => {
-                                    log(format!("Flash: Unknown command 0x{:02X}", value));
+                                    log(format!("Flash: Unknown command 0x{value:02X}"));
                                     self.flash_state = FlashState::Ready;
                                 }
                             }
@@ -375,7 +372,7 @@ impl InternalMemory {
                             // Sector erase (4KB sector)
                             let sector_base =
                                 (self.flash_bank as usize * 0x10000) + (offset & 0xF000);
-                            log(format!("Flash: Sector erase at 0x{:05X}", sector_base));
+                            log(format!("Flash: Sector erase at 0x{sector_base:05X}"));
                             for i in 0..0x1000 {
                                 if sector_base + i < self.sram.len() {
                                     self.sram[sector_base + i] = 0xFF;
@@ -401,8 +398,7 @@ impl InternalMemory {
                             // Flash write: can only clear bits (AND operation)
                             self.sram[real_offset] &= value;
                             log(format!(
-                                "Flash: Write 0x{:02X} to offset 0x{:05X}",
-                                value, real_offset
+                                "Flash: Write 0x{value:02X} to offset 0x{real_offset:05X}"
                             ));
                         }
                         self.flash_state = FlashState::Ready;
@@ -417,8 +413,7 @@ impl InternalMemory {
             }
             _ => {
                 log(format!(
-                    "WRITE to unused memory 0x{:08X} = 0x{:02X}",
-                    address, value
+                    "WRITE to unused memory 0x{address:08X} = 0x{value:02X}"
                 ));
                 self.unused_region.insert(address, value);
             }

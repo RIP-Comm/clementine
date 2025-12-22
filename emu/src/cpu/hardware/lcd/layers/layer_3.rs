@@ -22,7 +22,7 @@ impl Layer for Layer3 {
         // BG3 is only available in mode 0 and mode 2
         // In mode 2, it's an affine background
         if mode == 2 {
-            self.render_affine(x, y, memory, registers)
+            Self::render_affine(x, y, memory, registers)
         } else if mode == 0 {
             // Mode 0: regular tiled background (not yet implemented)
             None
@@ -35,7 +35,6 @@ impl Layer for Layer3 {
 impl Layer3 {
     /// Render BG3 as an affine (rotation/scaling) background in Mode 2
     fn render_affine(
-        &self,
         screen_x: usize,
         screen_y: usize,
         memory: &Memory,

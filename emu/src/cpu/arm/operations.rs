@@ -606,17 +606,6 @@ impl Arm7tdmi {
     }
 
     pub fn mov(&mut self, rd: usize, op2: u32, s: bool) {
-        // Log when R0 is being set to track down the 0x04000000 source
-        if rd == 0 {
-            logger::log(format!(
-                "!!! MOV R0 !!!\n  \
-                 Setting R0 = 0x{:08X}\n  \
-                 Current PC = 0x{:08X}",
-                op2,
-                self.registers.program_counter()
-            ));
-        }
-
         self.registers.set_register_at(rd, op2);
 
         if s {
@@ -648,11 +637,9 @@ impl Arm7tdmi {
     }
 
     pub fn branch_and_exchange(&mut self, register: usize) {
-        let pc_when_executing = self.registers.program_counter();
         let mut rn = self.registers.register_at(register);
         let state: CpuState = rn.get_bit(0).into();
 
-        let old_state = self.cpsr.cpu_state();
         self.cpsr.set_cpu_state(state);
 
         // Clear appropriate bits based on target mode
@@ -662,37 +649,6 @@ impl Arm7tdmi {
                 rn.set_bit_off(0);
                 rn.set_bit_off(1);
             }
-        }
-
-        // Log BX instruction with state change
-        let old_state_str = if matches!(old_state, CpuState::Arm) {
-            "ARM"
-        } else {
-            "Thumb"
-        };
-        let new_state_str = if matches!(self.cpsr.cpu_state(), CpuState::Arm) {
-            "ARM"
-        } else {
-            "Thumb"
-        };
-
-        // Special logging for BX from problematic area
-        if (0x0000_0BB0..=0x0000_0BD0).contains(&pc_when_executing) {
-            let reg_value = self.registers.register_at(register);
-            logger::log(format!(
-                "!!! BX R{register} FROM PROBLEM AREA !!! PC=0x{pc_when_executing:08X}, R{register}=0x{reg_value:08X}, target=0x{rn:08X}, {old_state_str} -> {new_state_str}"
-            ));
-        }
-
-        logger::log(format!(
-            "ARM BX R{register} @ PC=0x{pc_when_executing:08X}: target=0x{rn:08X}, state change {old_state_str} -> {new_state_str}"
-        ));
-
-        // Warn if jumping to internal WRAM (0x03000000-0x03007FFF)
-        if (0x0300_0000..0x0300_8000).contains(&rn) {
-            logger::log(format!(
-                "!!! WARNING: BX jumping to internal WRAM @ 0x{rn:08X} - verify this memory contains valid code!"
-            ));
         }
 
         self.registers.set_program_counter(rn);
@@ -775,17 +731,12 @@ impl Arm7tdmi {
                 // Use the value saved before writeback
                 let value = store_value_before_writeback.unwrap();
 
+                // On ARM7TDMI, SH=10 (LDRD) and SH=11 (STRD) with L=0 are undefined
+                // Some games may hit these encodings. We treat them as STRH for compatibility.
                 match transfer_kind {
-                    HalfwordTransferKind::UnsignedHalfwords => {
-                        self.bus.write_half_word(address, value as u16);
-                    }
-                    // On ARM7TDMI, SH=10 (LDRD) and SH=11 (STRD) with L=0 are undefined
-                    // Some games may hit these encodings. We treat them as STRH for compatibility.
-                    HalfwordTransferKind::SignedByte | HalfwordTransferKind::SignedHalfwords => {
-                        logger::log(format!(
-                            "Warning: Undefined halfword store encoding (SH={:?}), treating as STRH",
-                            transfer_kind
-                        ));
+                    HalfwordTransferKind::UnsignedHalfwords
+                    | HalfwordTransferKind::SignedByte
+                    | HalfwordTransferKind::SignedHalfwords => {
                         self.bus.write_half_word(address, value as u16);
                     }
                 }
@@ -888,23 +839,6 @@ impl Arm7tdmi {
                 }
                 ReadWriteKind::Word => {
                     let v = self.read_word(address);
-
-                    // Log when loading into PC (R15) to track bad jumps
-                    if rd == REG_PROGRAM_COUNTER {
-                        logger::log(format!(
-                            "!!! LDR PC (R15) !!!\n  \
-                             Loading value 0x{:08X} from address 0x{:08X}\n  \
-                             Base register R{} = 0x{:08X}, offset_address = 0x{:08X}\n  \
-                             Current PC = 0x{:08X}",
-                            v,
-                            address,
-                            base_register,
-                            self.registers
-                                .register_at(base_register.try_into().unwrap()),
-                            offset_address,
-                            self.registers.program_counter()
-                        ));
-                    }
 
                     self.registers.set_register_at(rd.try_into().unwrap(), v);
                 }
@@ -1111,17 +1045,6 @@ impl Arm7tdmi {
     pub fn branch(&mut self, is_link: bool, offset: u32) {
         let offset = offset.sign_extended(26) as i32;
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
-
-        logger::log(format!(
-            "!!! BRANCH !!!\n  \
-             Old PC: 0x{:08X}, Offset: 0x{:08X} ({}), New PC: 0x{:08X}\n  \
-             Link: {}",
-            old_pc,
-            offset,
-            offset,
-            (old_pc as i32 + offset) as u32,
-            is_link
-        ));
 
         if is_link {
             self.registers

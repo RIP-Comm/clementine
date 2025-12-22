@@ -8,7 +8,7 @@ use super::ObjMappingKind;
 pub struct Registers {
     /// LCD Control
     pub dispcnt: u16,
-    /// Undocumented - Green Swap
+    /// Undocumented
     pub green_swap: u16,
     /// General LCD Status (STAT, LYC)
     pub dispstat: u16,
@@ -103,18 +103,6 @@ impl Registers {
 
     pub(super) fn get_obj_enabled(&self) -> bool {
         self.dispcnt.get_bit(12)
-    }
-
-    pub(super) fn get_win0_enabled(&self) -> bool {
-        self.dispcnt.get_bit(13)
-    }
-
-    pub(super) fn get_win1_enabled(&self) -> bool {
-        self.dispcnt.get_bit(14)
-    }
-
-    pub(super) fn get_winobj_enabled(&self) -> bool {
-        self.dispcnt.get_bit(15)
     }
 
     /// Info about vram fields used to render display.

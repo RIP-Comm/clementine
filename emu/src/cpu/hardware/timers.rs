@@ -4,6 +4,7 @@ use crate::bitwise::Bits;
 
 /// Timer overflow result indicating which IRQs to request
 #[derive(Default)]
+#[allow(clippy::struct_excessive_bools)] // One bool per timer is clearest
 pub struct TimerOverflowResult {
     pub timer0_overflow: bool,
     pub timer1_overflow: bool,
@@ -17,7 +18,7 @@ pub struct Timers {
     pub tm0cnt_l: u16,
     /// Timer 0 Control
     pub tm0cnt_h: u16,
-    /// Timer 0 Reload value (written to tm0cnt_l, loaded on overflow)
+    /// Timer 0 Reload value (written to `tm0cnt_l`, loaded on overflow)
     pub(crate) tm0_reload: u16,
     /// Timer 0 prescaler counter
     tm0_prescaler_counter: u32,
@@ -77,8 +78,8 @@ impl Timers {
         control.get_bit(6)
     }
 
-    /// Called when writing to TMxCNT_L - sets the reload value
-    pub fn set_reload(&mut self, timer: usize, value: u16) {
+    /// Called when writing to `TMxCNT_L`, sets the reload value
+    pub const fn set_reload(&mut self, timer: usize, value: u16) {
         match timer {
             0 => self.tm0_reload = value,
             1 => self.tm1_reload = value,
@@ -88,7 +89,7 @@ impl Timers {
         }
     }
 
-    /// Called when writing to TMxCNT_H - may start/restart timer
+    /// Called when writing to `TMxCNT_H`, may start/restart timer
     pub fn set_control(&mut self, timer: usize, value: u16) {
         let (old_control, counter, reload) = match timer {
             0 => (self.tm0cnt_h, &mut self.tm0cnt_l, self.tm0_reload),

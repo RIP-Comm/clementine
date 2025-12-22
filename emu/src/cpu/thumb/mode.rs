@@ -13,7 +13,7 @@ impl TryFrom<u16> for ThumbModeOpcode {
 
     fn try_from(op_code: u16) -> Result<Self, Self::Error> {
         Ok(Self {
-            instruction: Instruction::from(op_code),
+            instruction: Instruction::try_from(op_code)?,
             raw: op_code,
         })
     }

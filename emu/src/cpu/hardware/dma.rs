@@ -21,7 +21,7 @@ pub struct Dma {
 
 impl Dma {
     /// Check if any DMA channel needs to run immediately (timing mode = 0)
-    /// Returns channel_index if a transfer should start
+    /// Returns `channel_index` if a transfer should start
     pub fn check_immediate_transfer(&mut self) -> Option<usize> {
         for (idx, channel) in self.channels.iter_mut().enumerate() {
             let enable = channel.control.get_bit(15);

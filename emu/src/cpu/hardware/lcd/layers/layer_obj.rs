@@ -13,6 +13,7 @@ use serde_with::serde_as;
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
+#[allow(clippy::unsafe_derive_deserialize)]
 pub struct LayerObj {
     #[serde_as(as = "[_; 128]")]
     obj_attributes_arr: [object_attributes::ObjAttributes; 128],
@@ -205,6 +206,7 @@ impl LayerObj {
             let sprite_y_end = (sprite_y_start + sprite_screen_size.y) % WORLD_HEIGHT;
 
             // Debug: Log first sprite check on scanline 30
+            #[allow(clippy::items_after_statements)]
             static mut DEBUG_LOGGED: bool = false;
             unsafe {
                 if y == 30 && !DEBUG_LOGGED {
@@ -436,9 +438,8 @@ impl LayerObj {
         (self.obj_attributes_arr, self.rotation_scaling_params) =
             object_attributes::get_attributes(memory.obj_attributes.as_slice());
 
-        // OAM debug logging - check sprites once per second (at vcount 0)
+        // OAM debug logging, check sprites once per second (at vcount 0)
         if registers.vcount == 0 {
-            static mut LAST_LOG_CYCLE: u128 = 0;
             static mut LOG_COUNTER: u32 = 0;
 
             unsafe {

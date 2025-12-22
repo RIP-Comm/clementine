@@ -592,8 +592,7 @@ impl From<u32> for ArmModeInstruction {
             }
         } else if op_code.get_bits(25..=27) == 0b011 && op_code.get_bit(4) {
             log(format!(
-                "undefined instruction decode: opcode=0x{:08X}, bits[25-27]=0b011, bit[4]=1",
-                op_code
+                "undefined instruction decode: opcode=0x{op_code:08X}, bits[25-27]=0b011, bit[4]=1"
             ));
             Self::Undefined
         } else if op_code.get_bits(24..=27) == 0b1111 {

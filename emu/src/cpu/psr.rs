@@ -58,7 +58,7 @@ impl Psr {
         self.0.get_bit(27)
     }
 
-    /// Reserved => Bits 26-8, (For future use) - Do not change manually!
+    /// Reserved => Bits 26-8, (For future use)
     pub const fn reserved_bits() -> bool {
         // These bits are reserved for possible future implementations.
         // For best forwards compatibility, the user should never change the state of these bits,
@@ -199,6 +199,7 @@ impl From<Psr> for u32 {
 }
 
 /// Represents the CPU state (ARM/THUMB).
+#[derive(PartialEq, Eq)]
 pub enum CpuState {
     /// Which operates with 16-bit, halfword-aligned THUMB instructions.
     /// In this state, the PC uses bit 1 to select between alternate halfwords.
