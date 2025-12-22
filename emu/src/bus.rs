@@ -34,7 +34,8 @@ pub struct Bus {
 }
 
 #[allow(dead_code)]
-enum IrqType {
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub(crate) enum IrqType {
     VBlank,
     HBlank,
     VCount,
@@ -77,31 +78,21 @@ impl Bus {
         match address {
             0x0400_0200 => self.interrupt_control.interrupt_enable.get_byte(0),
             0x0400_0201 => self.interrupt_control.interrupt_enable.get_byte(1),
-            0x0400_0202 => self
-                .interrupt_control
-                .interrupt_request
-                .front()
-                .unwrap_or(&0)
-                .get_byte(0),
-            0x0400_0203 => self
-                .interrupt_control
-                .interrupt_request
-                .front()
-                .unwrap_or(&0)
-                .get_byte(1),
+            0x0400_0202 => self.interrupt_control.interrupt_request.get_byte(0),
+            0x0400_0203 => self.interrupt_control.interrupt_request.get_byte(1),
             0x0400_0204 => self.interrupt_control.wait_state_control.get_byte(0),
             0x0400_0205 => self.interrupt_control.wait_state_control.get_byte(1),
             0x0400_0208 => self.interrupt_control.interrupt_master_enable.get_byte(0),
             0x0400_0209 => self.interrupt_control.interrupt_master_enable.get_byte(1),
             0x0400_0300 => self.interrupt_control.post_boot_flag.get_byte(0),
-            0x0400_0301 => panic!("Reading a write-only InterruptControl address"),
+            0x0400_0301 => self.interrupt_control.power_down_control.get_byte(0),
             0x0400_0410 => self.interrupt_control.purpose_unknown.get_byte(0),
             0x0400_0206
             | 0x0400_0207
             | 0x400_020A..=0x400_02FF
             | 0x0400_0302..=0x0400_040F
             | 0x0400_0411 => {
-                log("read on unused memory");
+                log(format!("read on unused memory 0x{address:08X}"));
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
             _ => match address & 0b111 {
@@ -110,7 +101,7 @@ impl Bus {
                 0x802 => self.interrupt_control.internal_memory_control.get_byte(2),
                 0x803 => self.interrupt_control.internal_memory_control.get_byte(3),
                 _ => {
-                    log("read on unused memory");
+                    log(format!("read on unused memory 0x{address:08X}"));
                     *self.unused_region.get(&address).unwrap_or(&0)
                 }
             },
@@ -122,25 +113,25 @@ impl Bus {
             0x04000200 => self.interrupt_control.interrupt_enable.set_byte(0, value),
             0x04000201 => self.interrupt_control.interrupt_enable.set_byte(1, value),
             0x04000202 => {
-                let current_val = self.interrupt_control.interrupt_request.back_mut().unwrap();
-
-                *current_val &= !(value as u16);
+                // Writing 1 to a bit clears it (acknowledges the interrupt)
+                self.interrupt_control.interrupt_request &= !(value as u16);
             }
             0x04000203 => {
-                let current_val = self.interrupt_control.interrupt_request.back_mut().unwrap();
-
-                *current_val &= !((value as u16) << 8);
+                // Writing 1 to a bit clears it (acknowledges the interrupt)
+                self.interrupt_control.interrupt_request &= !((value as u16) << 8);
             }
             0x04000204 => self.interrupt_control.wait_state_control.set_byte(0, value),
             0x04000205 => self.interrupt_control.wait_state_control.set_byte(1, value),
-            0x04000208 => self
-                .interrupt_control
-                .interrupt_master_enable
-                .set_byte(0, value),
-            0x04000209 => self
-                .interrupt_control
-                .interrupt_master_enable
-                .set_byte(1, value),
+            0x04000208 => {
+                self.interrupt_control
+                    .interrupt_master_enable
+                    .set_byte(0, value);
+            }
+            0x04000209 => {
+                self.interrupt_control
+                    .interrupt_master_enable
+                    .set_byte(1, value);
+            }
             0x04000300 => self.interrupt_control.post_boot_flag.set_byte(0, value),
             0x04000301 => self.interrupt_control.power_down_control.set_byte(0, value),
             0x04000410 => self.interrupt_control.purpose_unknown.set_byte(0, value),
@@ -229,13 +220,13 @@ impl Bus {
             0x04000158 => self.serial.sio_joy_bus_receive_status.get_byte(0),
             0x04000159 => self.serial.sio_joy_bus_receive_status.get_byte(1),
             0x0400012C..=0x0400012F
-            | 0x04000138..=0x04000139
+            | 0x04000138..=0x04000141
             | 0x04000142..=0x0400014F
             | 0x0400015A..=0x040001FF => {
                 log(format!("read on unused memory {address:x}"));
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
-            _ => panic!("Serial read address is out of bound"),
+            _ => panic!("Serial read address is out of bound: {address:#010x}"),
         }
     }
 
@@ -288,7 +279,12 @@ impl Bus {
                 log(format!("write on unused memory {address:x}"));
                 self.unused_region.insert(address, value);
             }
-            _ => panic!("Serial write address is out of bound"),
+            _ => {
+                log(format!(
+                    "Serial write to unhandled address: 0x{address:08X}"
+                ));
+                self.unused_region.insert(address, value);
+            }
         }
     }
 
@@ -317,22 +313,94 @@ impl Bus {
 
     fn write_timers_raw(&mut self, address: usize, value: u8) {
         match address {
-            0x04000100 => self.timers.tm0cnt_l.set_byte(0, value),
-            0x04000101 => self.timers.tm0cnt_l.set_byte(1, value),
-            0x04000102 => self.timers.tm0cnt_h.set_byte(0, value),
-            0x04000103 => self.timers.tm0cnt_h.set_byte(1, value),
-            0x04000104 => self.timers.tm1cnt_l.set_byte(0, value),
-            0x04000105 => self.timers.tm1cnt_l.set_byte(1, value),
-            0x04000106 => self.timers.tm1cnt_h.set_byte(0, value),
-            0x04000107 => self.timers.tm1cnt_h.set_byte(1, value),
-            0x04000108 => self.timers.tm2cnt_l.set_byte(0, value),
-            0x04000109 => self.timers.tm2cnt_l.set_byte(1, value),
-            0x0400010A => self.timers.tm2cnt_h.set_byte(0, value),
-            0x0400010B => self.timers.tm2cnt_h.set_byte(1, value),
-            0x0400010C => self.timers.tm3cnt_l.set_byte(0, value),
-            0x0400010D => self.timers.tm3cnt_l.set_byte(1, value),
-            0x0400010E => self.timers.tm3cnt_h.set_byte(0, value),
-            0x0400010F => self.timers.tm3cnt_h.set_byte(1, value),
+            // Timer 0 reload (writing to CNT_L sets reload value, not counter)
+            0x04000100 => {
+                let mut reload = self.timers.tm0_reload; // Use reload as base for byte write
+                reload.set_byte(0, value);
+                self.timers.set_reload(0, reload);
+            }
+            0x04000101 => {
+                let mut reload = self.timers.tm0_reload;
+                reload.set_byte(1, value);
+                self.timers.set_reload(0, reload);
+            }
+            // Timer 0 control
+            0x04000102 => {
+                let mut control = self.timers.tm0cnt_h;
+                control.set_byte(0, value);
+                self.timers.set_control(0, control);
+            }
+            0x04000103 => {
+                let mut control = self.timers.tm0cnt_h;
+                control.set_byte(1, value);
+                self.timers.set_control(0, control);
+            }
+            // Timer 1 reload
+            0x04000104 => {
+                let mut reload = self.timers.tm1_reload;
+                reload.set_byte(0, value);
+                self.timers.set_reload(1, reload);
+            }
+            0x04000105 => {
+                let mut reload = self.timers.tm1_reload;
+                reload.set_byte(1, value);
+                self.timers.set_reload(1, reload);
+            }
+            // Timer 1 control
+            0x04000106 => {
+                let mut control = self.timers.tm1cnt_h;
+                control.set_byte(0, value);
+                self.timers.set_control(1, control);
+            }
+            0x04000107 => {
+                let mut control = self.timers.tm1cnt_h;
+                control.set_byte(1, value);
+                self.timers.set_control(1, control);
+            }
+            // Timer 2 reload
+            0x04000108 => {
+                let mut reload = self.timers.tm2_reload;
+                reload.set_byte(0, value);
+                self.timers.set_reload(2, reload);
+            }
+            0x04000109 => {
+                let mut reload = self.timers.tm2_reload;
+                reload.set_byte(1, value);
+                self.timers.set_reload(2, reload);
+            }
+            // Timer 2 control
+            0x0400010A => {
+                let mut control = self.timers.tm2cnt_h;
+                control.set_byte(0, value);
+                self.timers.set_control(2, control);
+            }
+            0x0400010B => {
+                let mut control = self.timers.tm2cnt_h;
+                control.set_byte(1, value);
+                self.timers.set_control(2, control);
+            }
+            // Timer 3 reload
+            0x0400010C => {
+                let mut reload = self.timers.tm3_reload;
+                reload.set_byte(0, value);
+                self.timers.set_reload(3, reload);
+            }
+            0x0400010D => {
+                let mut reload = self.timers.tm3_reload;
+                reload.set_byte(1, value);
+                self.timers.set_reload(3, reload);
+            }
+            // Timer 3 control
+            0x0400010E => {
+                let mut control = self.timers.tm3cnt_h;
+                control.set_byte(0, value);
+                self.timers.set_control(3, control);
+            }
+            0x0400010F => {
+                let mut control = self.timers.tm3cnt_h;
+                control.set_byte(1, value);
+                self.timers.set_control(3, control);
+            }
             0x04000110..=0x0400011F => {
                 log(format!("write on unused memory {address:x}"));
                 self.unused_region.insert(address, value);
@@ -343,7 +411,16 @@ impl Bus {
 
     fn read_dma_raw(&self, address: usize) -> u8 {
         let read_dma_bank = |channel: &Registers, address: usize| match address {
-            0..=9 => panic!("Reading a write-only DMA I/O register"),
+            0 => channel.source_address.get_byte(0),
+            1 => channel.source_address.get_byte(1),
+            2 => channel.source_address.get_byte(2),
+            3 => channel.source_address.get_byte(3),
+            4 => channel.destination_address.get_byte(0),
+            5 => channel.destination_address.get_byte(1),
+            6 => channel.destination_address.get_byte(2),
+            7 => channel.destination_address.get_byte(3),
+            8 => channel.word_count.get_byte(0),
+            9 => channel.word_count.get_byte(1),
             10 => channel.control.get_byte(0),
             11 => channel.control.get_byte(1),
             _ => panic!("DMA channel read address is out of bound"),
@@ -351,11 +428,11 @@ impl Bus {
 
         match address {
             0x040000B0..=0x040000BB => read_dma_bank(&self.dma.channels[0], address - 0x040000B0),
-            0x040000BC..=0x040000C7 => read_dma_bank(&self.dma.channels[0], address - 0x040000BC),
-            0x040000C8..=0x040000D3 => read_dma_bank(&self.dma.channels[0], address - 0x040000C8),
-            0x040000D4..=0x040000DF => read_dma_bank(&self.dma.channels[0], address - 0x040000D4),
+            0x040000BC..=0x040000C7 => read_dma_bank(&self.dma.channels[1], address - 0x040000BC),
+            0x040000C8..=0x040000D3 => read_dma_bank(&self.dma.channels[2], address - 0x040000C8),
+            0x040000D4..=0x040000DF => read_dma_bank(&self.dma.channels[3], address - 0x040000D4),
             0x040000E0..=0x040000FF => {
-                log("read on unused memory");
+                log(format!("read on unused memory 0x{address:08X}"));
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => panic!("DMA read address is out of bound"),
@@ -398,6 +475,36 @@ impl Bus {
             }
             _ => panic!("Not implemented write memory address: {address:x}"),
         }
+
+        // After writing DMA registers, check if an immediate transfer was triggered
+        self.check_and_execute_dma();
+    }
+
+    /// Check if a DMA transfer should start and execute it completely
+    fn check_and_execute_dma(&mut self) {
+        if let Some(channel_idx) = self.dma.check_immediate_transfer() {
+            // Execute all transfers for this DMA channel
+            let is_32bit = self.dma.channels[channel_idx].control & (1 << 10) != 0;
+
+            loop {
+                let source = self.dma.channels[channel_idx].internal_source as usize;
+                let dest = self.dma.channels[channel_idx].internal_dest as usize;
+
+                // Perform the actual memory copy
+                if is_32bit {
+                    let value = self.read_word(source);
+                    self.write_word(dest, value);
+                } else {
+                    let value = self.read_half_word(source);
+                    self.write_half_word(dest, value);
+                }
+
+                // Update DMA state (increments internal_source and internal_dest) and check if more transfers remain
+                if !self.dma.execute_transfer(channel_idx, |_, _, _| {}) {
+                    break;
+                }
+            }
+        }
     }
 
     fn read_sound_raw(&self, address: usize) -> u8 {
@@ -430,8 +537,15 @@ impl Bus {
             0x04000085 => self.sound.control_sound_on_off.get_byte(1),
             0x04000088 => self.sound.sound_pwm_control.get_byte(0),
             0x04000089 => self.sound.sound_pwm_control.get_byte(1),
-            0x04000090..=0x0400009F => self.sound.channel3_wave_pattern_ram[address - 0x0400090],
-            0x040000A0..=0x040000A7 => panic!("Reading a write-only Sound I/O register"),
+            0x04000090..=0x0400009F => self.sound.channel3_wave_pattern_ram[address - 0x04000090],
+            0x040000A0 => self.sound.channel_a_fifo.get_byte(0),
+            0x040000A1 => self.sound.channel_a_fifo.get_byte(1),
+            0x040000A2 => self.sound.channel_a_fifo.get_byte(2),
+            0x040000A3 => self.sound.channel_a_fifo.get_byte(3),
+            0x040000A4 => self.sound.channel_b_fifo.get_byte(0),
+            0x040000A5 => self.sound.channel_b_fifo.get_byte(1),
+            0x040000A6 => self.sound.channel_b_fifo.get_byte(2),
+            0x040000A7 => self.sound.channel_b_fifo.get_byte(3),
             0x04000066..=0x04000067
             | 0x0400006A..=0x0400006B
             | 0x0400006E..=0x0400006F
@@ -523,9 +637,62 @@ impl Bus {
             0x0400000D => self.lcd.registers.bg2cnt.get_byte(1),
             0x0400000E => self.lcd.registers.bg3cnt.get_byte(0),
             0x0400000F => self.lcd.registers.bg3cnt.get_byte(1),
-            (0x04000010..=0x04000047) | (0x04000054..=0x04000055) => {
-                panic!("Reading a write-only LCD I/O register")
-            }
+            0x04000010 => self.lcd.registers.bg0hofs.get_byte(0),
+            0x04000011 => self.lcd.registers.bg0hofs.get_byte(1),
+            0x04000012 => self.lcd.registers.bg0vofs.get_byte(0),
+            0x04000013 => self.lcd.registers.bg0vofs.get_byte(1),
+            0x04000014 => self.lcd.registers.bg1hofs.get_byte(0),
+            0x04000015 => self.lcd.registers.bg1hofs.get_byte(1),
+            0x04000016 => self.lcd.registers.bg1vofs.get_byte(0),
+            0x04000017 => self.lcd.registers.bg1vofs.get_byte(1),
+            0x04000018 => self.lcd.registers.bg2hofs.get_byte(0),
+            0x04000019 => self.lcd.registers.bg2hofs.get_byte(1),
+            0x0400001A => self.lcd.registers.bg2vofs.get_byte(0),
+            0x0400001B => self.lcd.registers.bg2vofs.get_byte(1),
+            0x0400001C => self.lcd.registers.bg3hofs.get_byte(0),
+            0x0400001D => self.lcd.registers.bg3hofs.get_byte(1),
+            0x0400001E => self.lcd.registers.bg3vofs.get_byte(0),
+            0x0400001F => self.lcd.registers.bg3vofs.get_byte(1),
+            0x04000020 => self.lcd.registers.bg2pa.get_byte(0),
+            0x04000021 => self.lcd.registers.bg2pa.get_byte(1),
+            0x04000022 => self.lcd.registers.bg2pb.get_byte(0),
+            0x04000023 => self.lcd.registers.bg2pb.get_byte(1),
+            0x04000024 => self.lcd.registers.bg2pc.get_byte(0),
+            0x04000025 => self.lcd.registers.bg2pc.get_byte(1),
+            0x04000026 => self.lcd.registers.bg2pd.get_byte(0),
+            0x04000027 => self.lcd.registers.bg2pd.get_byte(1),
+            0x04000028 => self.lcd.registers.bg2x.get_byte(0),
+            0x04000029 => self.lcd.registers.bg2x.get_byte(1),
+            0x0400002A => self.lcd.registers.bg2x.get_byte(2),
+            0x0400002B => self.lcd.registers.bg2x.get_byte(3),
+            0x0400002C => self.lcd.registers.bg2y.get_byte(0),
+            0x0400002D => self.lcd.registers.bg2y.get_byte(1),
+            0x0400002E => self.lcd.registers.bg2y.get_byte(2),
+            0x0400002F => self.lcd.registers.bg2y.get_byte(3),
+            0x04000030 => self.lcd.registers.bg3pa.get_byte(0),
+            0x04000031 => self.lcd.registers.bg3pa.get_byte(1),
+            0x04000032 => self.lcd.registers.bg3pb.get_byte(0),
+            0x04000033 => self.lcd.registers.bg3pb.get_byte(1),
+            0x04000034 => self.lcd.registers.bg3pc.get_byte(0),
+            0x04000035 => self.lcd.registers.bg3pc.get_byte(1),
+            0x04000036 => self.lcd.registers.bg3pd.get_byte(0),
+            0x04000037 => self.lcd.registers.bg3pd.get_byte(1),
+            0x04000038 => self.lcd.registers.bg3x.get_byte(0),
+            0x04000039 => self.lcd.registers.bg3x.get_byte(1),
+            0x0400003A => self.lcd.registers.bg3x.get_byte(2),
+            0x0400003B => self.lcd.registers.bg3x.get_byte(3),
+            0x0400003C => self.lcd.registers.bg3y.get_byte(0),
+            0x0400003D => self.lcd.registers.bg3y.get_byte(1),
+            0x0400003E => self.lcd.registers.bg3y.get_byte(2),
+            0x0400003F => self.lcd.registers.bg3y.get_byte(3),
+            0x04000040 => self.lcd.registers.win0h.get_byte(0),
+            0x04000041 => self.lcd.registers.win0h.get_byte(1),
+            0x04000042 => self.lcd.registers.win1h.get_byte(0),
+            0x04000043 => self.lcd.registers.win1h.get_byte(1),
+            0x04000044 => self.lcd.registers.win0v.get_byte(0),
+            0x04000045 => self.lcd.registers.win0v.get_byte(1),
+            0x04000046 => self.lcd.registers.win1v.get_byte(0),
+            0x04000047 => self.lcd.registers.win1v.get_byte(1),
             0x04000048 => self.lcd.registers.winin.get_byte(0),
             0x04000049 => self.lcd.registers.winin.get_byte(1),
             0x0400004A => self.lcd.registers.winout.get_byte(0),
@@ -536,8 +703,10 @@ impl Bus {
             0x04000051 => self.lcd.registers.bldcnt.get_byte(1),
             0x04000052 => self.lcd.registers.bldalpha.get_byte(0),
             0x04000053 => self.lcd.registers.bldalpha.get_byte(1),
+            0x04000054 => self.lcd.registers.bldy.get_byte(0),
+            0x04000055 => self.lcd.registers.bldy.get_byte(1),
             0x0400004E..=0x0400004F | 0x04000056..=0x0400005F => {
-                log("read on unused memory");
+                log(format!("read on unused memory 0x{address:08X}"));
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => panic!("LCD read address is out of bound"),
@@ -546,8 +715,12 @@ impl Bus {
 
     fn write_lcd_raw(&mut self, address: usize, value: u8) {
         match address {
-            0x04000000 => self.lcd.registers.dispcnt.set_byte(0, value),
-            0x04000001 => self.lcd.registers.dispcnt.set_byte(1, value),
+            0x04000000 => {
+                self.lcd.registers.dispcnt.set_byte(0, value);
+            }
+            0x04000001 => {
+                self.lcd.registers.dispcnt.set_byte(1, value);
+            }
             0x04000002 => self.lcd.registers.green_swap.set_byte(0, value),
             0x04000003 => self.lcd.registers.green_swap.set_byte(1, value),
             0x04000004 => self.lcd.registers.dispstat.set_byte(0, value),
@@ -641,12 +814,15 @@ impl Bus {
 
     #[must_use]
     pub fn read_raw(&self, address: usize) -> u8 {
+        // Mask address to 32-bit to handle potential overflow issues
+        let address = address & 0xFFFF_FFFF;
         match address {
             0x0000000..=0x0003FFF => {
                 // BIOS read protection: if PC is outside BIOS, return last BIOS opcode
                 if self.current_pc >= 0x4000 {
                     // Return the appropriate byte from last_bios_opcode
-                    self.last_bios_opcode.get_byte((address & 0b11) as u8)
+                    self.last_bios_opcode
+                        .get_byte(u8::try_from(address & 0b11).unwrap())
                 } else {
                     self.internal_memory.read_at(address)
                 }
@@ -658,8 +834,8 @@ impl Bus {
             0x4000060..=0x40000AF => self.read_sound_raw(address),
             0x40000B0..=0x40000FF => self.read_dma_raw(address),
             0x4000100..=0x400011F => self.read_timers_raw(address),
-            0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.read_serial_raw(address),
             0x4000130..=0x4000133 => self.read_keypad_raw(address),
+            0x4000120..=0x400012F | 0x4000134..=0x40001FF => self.read_serial_raw(address),
             0x4000200..=0x4FFFFFF => self.read_interrupt_control_raw(address),
             0x5000000..=0x5FFFFFF => {
                 let unmasked_address = get_unmasked_address(address, 0x00FFFF00, 0xFF0000FF, 8, 4);
@@ -702,6 +878,8 @@ impl Bus {
     }
 
     pub fn write_raw(&mut self, address: usize, value: u8) {
+        // Mask address to 32-bit to handle potential overflow issues
+        let address = address & 0xFFFF_FFFF;
         match address {
             0x0000000..=0x0003FFF | 0x2000000..=0x03FFFFFF | 0x08000000..=0x0E00FFFF => {
                 self.internal_memory.write_at(address, value);
@@ -750,14 +928,15 @@ impl Bus {
                 log(format!("write on unused memory {address:x}"));
                 self.unused_region.insert(address, value);
             }
-            _ => unimplemented!(),
+            _ => {
+                panic!("Unimplemented write to address 0x{address:08X} with value 0x{value:02X}");
+            }
         }
     }
 
     pub fn read_byte(&mut self, address: usize) -> u8 {
-        for _ in 0..self.get_wait_cycles(address) {
-            self.step();
-        }
+        // TODO: Implement proper cycle-based timing
+        self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
@@ -765,9 +944,8 @@ impl Bus {
     }
 
     pub fn write_byte(&mut self, address: usize, value: u8) {
-        for _ in 0..self.get_wait_cycles(address) {
-            self.step();
-        }
+        // TODO: Implement proper cycle-based timing
+        self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
@@ -778,18 +956,24 @@ impl Bus {
                 log("OAM byte write ignored");
                 return;
             }
-            // in VRAM byte writes are only valid for first 80KB (0x14000 bytes)
+            // VRAM byte writes: In bitmap modes, byte writes are duplicated to halfwords
+            // and work throughout the framebuffer area. In tile modes, byte writes to
+            // OBJ VRAM (0x06010000-0x06017FFF) have special behavior.
+            // For now, allow byte writes to all of VRAM (96KB = 0x18000 bytes)
             0x6000000..=0x6FFFFFF => {
                 let unmasked_address = get_unmasked_address(address, 0x00FF0000, 0xFF00FFFF, 16, 2);
 
-                // Byte writes only work in first 80KB (0x06000000-0x06013FFF)
-                if unmasked_address < 0x06014000 {
+                // Byte writes work throughout VRAM (duplicated as halfword)
+                if unmasked_address < 0x06018000 {
                     // Write as halfword with byte duplicated, aligned to halfword boundary
                     let aligned_address = address & !1;
                     self.write_raw(aligned_address, value);
                     self.write_raw(aligned_address + 1, value);
                 } else {
-                    log("VRAM byte write ignored (address >= 0x06014000)");
+                    // Beyond VRAM range - should not happen after unmasking
+                    log(format!(
+                        "VRAM byte write ignored (unmasked address 0x{unmasked_address:08X} >= 0x06018000)"
+                    ));
                 }
                 return;
             }
@@ -807,42 +991,45 @@ impl Bus {
         self.write_raw(address, value);
     }
 
-    fn step(&mut self) {
-        // Step cycles at beginning or end?
-        // It may have an impact when we will introduce timers.
+    pub(crate) fn step(&mut self) {
         self.cycles_count += 1;
 
-        // TODO: move this somewhere in the UI
-        #[cfg(feature = "logger")]
-        log(format!("CPU Cycles: {}", self.cycles_count));
-
-        // Step ppu, dma, interrupts, timers, etc...
-        let val = *self.interrupt_control.interrupt_request.back().unwrap();
-        self.interrupt_control.interrupt_request.push(val);
+        // Step timers every CPU cycle
+        let timer_result = self.timers.step();
+        if timer_result.timer0_overflow {
+            self.request_interrupt(IrqType::Timer0);
+        }
+        if timer_result.timer1_overflow {
+            self.request_interrupt(IrqType::Timer1);
+        }
+        if timer_result.timer2_overflow {
+            self.request_interrupt(IrqType::Timer2);
+        }
+        if timer_result.timer3_overflow {
+            self.request_interrupt(IrqType::Timer3);
+        }
 
         // A pixel takes 4 cycles to get drawn
         if self.cycles_count.is_multiple_of(4) {
             let lcd_output = self.lcd.step();
 
             if lcd_output.request_hblank_irq {
-                self.request_interrupt(&IrqType::HBlank);
+                self.request_interrupt(IrqType::HBlank);
             }
 
             if lcd_output.request_vblank_irq {
-                self.request_interrupt(&IrqType::VBlank);
+                self.request_interrupt(IrqType::VBlank);
             }
 
             if lcd_output.request_vcount_irq {
-                self.request_interrupt(&IrqType::VCount);
+                self.request_interrupt(IrqType::VCount);
             }
         }
     }
 
-    fn request_interrupt(&mut self, irq_type: &IrqType) {
+    pub(crate) fn request_interrupt(&mut self, irq_type: IrqType) {
         self.interrupt_control
             .interrupt_request
-            .back_mut()
-            .unwrap()
             .set_bit(irq_type.get_idx_in_if(), true);
     }
 
@@ -879,9 +1066,8 @@ impl Bus {
         // In reality for example WRAM has a bus width of 16 bits so we would
         // have to repeat this cycle 2 times (to emulate the fact that we will access the memory
         // two times)
-        for _ in 0..self.get_wait_cycles(address) {
-            self.step();
-        }
+        // TODO: Implement proper cycle-based timing
+        self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
@@ -900,9 +1086,8 @@ impl Bus {
 
     pub fn write_word(&mut self, mut address: usize, value: u32) {
         // TODO: Look at read_word
-        for _ in 0..self.get_wait_cycles(address) {
-            self.step();
-        }
+        // TODO: Implement proper cycle-based timing
+        self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
@@ -923,10 +1108,9 @@ impl Bus {
     }
 
     pub fn read_half_word(&mut self, mut address: usize) -> u16 {
-        // TODO: Look at read_word
-        for _ in 0..self.get_wait_cycles(address) {
-            self.step();
-        }
+        // TODO: Implement proper cycle-based timing instead of recursive step() calls
+        // For now, just track cycles without stepping to avoid recursion bugs
+        self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
@@ -943,9 +1127,8 @@ impl Bus {
 
     pub fn write_half_word(&mut self, mut address: usize, value: u16) {
         // TODO: Look at read_word
-        for _ in 0..self.get_wait_cycles(address) {
-            self.step();
-        }
+        // TODO: Implement proper cycle-based timing
+        self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
@@ -961,16 +1144,13 @@ impl Bus {
         self.write_raw(address + 1, part_1);
     }
 
-    /// Returns the value of the interrupt control register
-    ///
-    /// # Panics
+    /// Returns true if there is an enabled interrupt pending
     #[must_use]
-    pub fn is_irq_pending(&self) -> bool {
+    pub const fn is_irq_pending(&self) -> bool {
         // Interrupt Master Enable has to be 1
         // && there needs to be an interrupt requested which is also enabled in the interrupt enable reg
         (self.interrupt_control.interrupt_master_enable == 1)
-            && (self.interrupt_control.interrupt_enable
-                & *self.interrupt_control.interrupt_request.front().unwrap()
+            && (self.interrupt_control.interrupt_enable & self.interrupt_control.interrupt_request
                 != 0)
     }
 
@@ -1023,8 +1203,9 @@ mod tests {
         let mut bus = Bus::default();
         let address = 0x04000100;
 
+        // Writing to TM0CNT_L sets the reload value, not the counter directly
         bus.write_raw(address, 10);
-        assert_eq!(bus.timers.tm0cnt_l, 10);
+        assert_eq!(bus.timers.tm0_reload, 10);
     }
 
     #[test]
@@ -1222,5 +1403,95 @@ mod tests {
 
         bus.write_raw(0x07FFFD34, 13);
         assert_eq!(bus.lcd.memory.obj_attributes[0x134], 13);
+    }
+
+    #[test]
+    fn test_timer_reload_vs_counter() {
+        let mut bus = Bus::default();
+
+        // Set reload value via write to TM0CNT_L
+        bus.write_raw(0x04000100, 0x34); // low byte
+        bus.write_raw(0x04000101, 0x12); // high byte
+
+        // Reload value should be set
+        assert_eq!(bus.timers.tm0_reload, 0x1234);
+
+        // Counter should still be 0 (reload only takes effect when timer starts)
+        assert_eq!(bus.timers.tm0cnt_l, 0);
+
+        // Reading TM0CNT_L returns counter value, not reload
+        assert_eq!(bus.read_raw(0x04000100), 0);
+        assert_eq!(bus.read_raw(0x04000101), 0);
+    }
+
+    #[test]
+    fn test_timer_control_write() {
+        let mut bus = Bus::default();
+
+        // Write control register TM0CNT_H
+        bus.write_raw(0x04000102, 0x80); // Enable timer (bit 7)
+        assert!(bus.timers.tm0cnt_h & 0x80 != 0);
+
+        // Write prescaler value
+        bus.write_raw(0x04000102, 0x01); // Prescaler F/64
+        assert_eq!(bus.timers.tm0cnt_h & 0x03, 0x01);
+    }
+
+    #[test]
+    fn test_interrupt_request_acknowledge() {
+        let mut bus = Bus::default();
+
+        // Set some interrupt request flags directly
+        bus.interrupt_control.interrupt_request = 0b0000_0000_0000_0111; // VBlank, HBlank, VCount
+
+        // Verify flags are set
+        assert_eq!(bus.read_raw(0x04000202), 0x07);
+
+        // Acknowledge VBlank by writing 1 to bit 0
+        bus.write_raw(0x04000202, 0x01);
+
+        // VBlank flag should be cleared, others remain
+        assert_eq!(
+            bus.interrupt_control.interrupt_request,
+            0b0000_0000_0000_0110
+        );
+
+        // Acknowledge remaining flags
+        bus.write_raw(0x04000202, 0x06);
+        assert_eq!(bus.interrupt_control.interrupt_request, 0);
+    }
+
+    #[test]
+    fn test_interrupt_enable_read_write() {
+        let mut bus = Bus::default();
+
+        // Write to interrupt enable register
+        bus.write_raw(0x04000200, 0xFF);
+        bus.write_raw(0x04000201, 0x3F);
+
+        assert_eq!(bus.interrupt_control.interrupt_enable, 0x3FFF);
+
+        // Read it back
+        assert_eq!(bus.read_raw(0x04000200), 0xFF);
+        assert_eq!(bus.read_raw(0x04000201), 0x3F);
+    }
+
+    #[test]
+    fn test_interrupt_master_enable() {
+        let mut bus = Bus::default();
+
+        // IME is disabled by default
+        assert_eq!(bus.interrupt_control.interrupt_master_enable, 0);
+
+        // Enable IME
+        bus.write_raw(0x04000208, 0x01);
+        assert_eq!(bus.interrupt_control.interrupt_master_enable, 1);
+
+        // Read it back
+        assert_eq!(bus.read_raw(0x04000208), 0x01);
+
+        // Disable IME
+        bus.write_raw(0x04000208, 0x00);
+        assert_eq!(bus.interrupt_control.interrupt_master_enable, 0);
     }
 }
