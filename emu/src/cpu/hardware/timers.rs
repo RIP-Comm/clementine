@@ -18,7 +18,7 @@ pub struct Timers {
     /// Timer 0 Control
     pub tm0cnt_h: u16,
     /// Timer 0 Reload value (written to tm0cnt_l, loaded on overflow)
-    tm0_reload: u16,
+    pub(crate) tm0_reload: u16,
     /// Timer 0 prescaler counter
     tm0_prescaler_counter: u32,
 
@@ -27,7 +27,7 @@ pub struct Timers {
     /// Timer 1 Control
     pub tm1cnt_h: u16,
     /// Timer 1 Reload value
-    tm1_reload: u16,
+    pub(crate) tm1_reload: u16,
     /// Timer 1 prescaler counter
     tm1_prescaler_counter: u32,
 
@@ -36,7 +36,7 @@ pub struct Timers {
     /// Timer 2 Control
     pub tm2cnt_h: u16,
     /// Timer 2 Reload value
-    tm2_reload: u16,
+    pub(crate) tm2_reload: u16,
     /// Timer 2 prescaler counter
     tm2_prescaler_counter: u32,
 
@@ -45,7 +45,7 @@ pub struct Timers {
     /// Timer 3 Control
     pub tm3cnt_h: u16,
     /// Timer 3 Reload value
-    tm3_reload: u16,
+    pub(crate) tm3_reload: u16,
     /// Timer 3 prescaler counter
     tm3_prescaler_counter: u32,
 }
