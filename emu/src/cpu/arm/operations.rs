@@ -131,16 +131,21 @@ impl Arm7tdmi {
         }
     }
 
-    #[allow(clippy::manual_assert)]
+    #[allow(clippy::manual_assert, clippy::too_many_lines)]
     pub fn psr_transfer(&mut self, op_kind: PsrOpKind, psr_kind: PsrKind) {
-        if matches!(self.cpsr.mode(), Mode::System | Mode::User) && psr_kind == PsrKind::Spsr {
-            panic!(
-                "Can't access SPSR in System/User mode. Current mode: {:?}, PC: 0x{:08X}, op_kind: {:?}",
-                self.cpsr.mode(),
-                self.registers.program_counter() - 8,
-                op_kind
-            )
-        }
+        // Accessing SPSR in User/System mode has unpredictable behavior on real hardware
+        // Most implementations return CPSR instead
+        let effective_psr_kind = if matches!(self.cpsr.mode(), Mode::System | Mode::User)
+            && psr_kind == PsrKind::Spsr
+        {
+            logger::log(format!(
+                "Warning: Attempting to access SPSR in User/System mode at PC=0x{:08X}, returning CPSR instead",
+                self.registers.program_counter().wrapping_sub(8)
+            ));
+            PsrKind::Cpsr
+        } else {
+            psr_kind
+        };
 
         match op_kind {
             PsrOpKind::Mrs {
@@ -151,7 +156,7 @@ impl Arm7tdmi {
                     "PSR transfer should not use R15 as source/destination"
                 );
 
-                let psr = match psr_kind {
+                let psr = match effective_psr_kind {
                     PsrKind::Cpsr => self.cpsr,
                     PsrKind::Spsr => self.spsr,
                 };
@@ -173,7 +178,7 @@ impl Arm7tdmi {
 
                 // If we're modifying CPSR and changing modes, swap banked registers FIRST
                 // before updating CPSR, otherwise swap_mode will see we're already in the new mode
-                if psr_kind == PsrKind::Cpsr && current_mode != Mode::User {
+                if effective_psr_kind == PsrKind::Cpsr && current_mode != Mode::User {
                     let new_mode_bits = rm.get_bits(0..=4);
                     if let Ok(new_mode) = Mode::try_from(new_mode_bits)
                         && current_mode != new_mode
@@ -183,7 +188,7 @@ impl Arm7tdmi {
                 }
 
                 {
-                    let psr = match psr_kind {
+                    let psr = match effective_psr_kind {
                         PsrKind::Cpsr => &mut self.cpsr,
                         PsrKind::Spsr => &mut self.spsr,
                     };
@@ -212,11 +217,11 @@ impl Arm7tdmi {
                 }
 
                 // If modifying SPSR, update mode bits using set_mode_raw
-                if psr_kind == PsrKind::Spsr {
+                if effective_psr_kind == PsrKind::Spsr {
                     // If we're modifying SPSR we're sure we're not in System|User (checked before)
                     // We use `set_mode_raw` since the BIOS sometimes writes 0 in the SPSR.
                     self.spsr.set_mode_raw(rm.get_bits(0..=4));
-                } else if psr_kind == PsrKind::Cpsr && current_mode != Mode::User {
+                } else if effective_psr_kind == PsrKind::Cpsr && current_mode != Mode::User {
                     // For CPSR, set the mode bits directly (swap was already done above)
                     self.cpsr.set_mode_raw(rm.get_bits(0..=4));
                 }
@@ -242,7 +247,7 @@ impl Arm7tdmi {
                 //                   bit 2 = status (16-23), bit 3 = flags (24-31)
 
                 // If we're modifying CPSR control field (mode bits), swap banked registers FIRST
-                if psr_kind == PsrKind::Cpsr
+                if effective_psr_kind == PsrKind::Cpsr
                     && field_mask & 0b0001 != 0
                     && current_mode != Mode::User
                 {
@@ -254,7 +259,7 @@ impl Arm7tdmi {
                     }
                 }
 
-                let psr = match psr_kind {
+                let psr = match effective_psr_kind {
                     PsrKind::Cpsr => &mut self.cpsr,
                     PsrKind::Spsr => &mut self.spsr,
                 };
@@ -281,9 +286,9 @@ impl Arm7tdmi {
                     psr.set_state_bit(op.get_bit(5));
 
                     // Set mode bits
-                    if psr_kind == PsrKind::Spsr {
+                    if effective_psr_kind == PsrKind::Spsr {
                         psr.set_mode_raw(op.get_bits(0..=4));
-                    } else if psr_kind == PsrKind::Cpsr {
+                    } else if effective_psr_kind == PsrKind::Cpsr {
                         // For CPSR, mode bits were already swapped above
                         psr.set_mode_raw(op.get_bits(0..=4));
                     }
@@ -601,6 +606,17 @@ impl Arm7tdmi {
     }
 
     pub fn mov(&mut self, rd: usize, op2: u32, s: bool) {
+        // Log when R0 is being set to track down the 0x04000000 source
+        if rd == 0 {
+            logger::log(format!(
+                "!!! MOV R0 !!!\n  \
+                 Setting R0 = 0x{:08X}\n  \
+                 Current PC = 0x{:08X}",
+                op2,
+                self.registers.program_counter()
+            ));
+        }
+
         self.registers.set_register_at(rd, op2);
 
         if s {
@@ -632,10 +648,14 @@ impl Arm7tdmi {
     }
 
     pub fn branch_and_exchange(&mut self, register: usize) {
+        let pc_when_executing = self.registers.program_counter();
         let mut rn = self.registers.register_at(register);
         let state: CpuState = rn.get_bit(0).into();
+
+        let old_state = self.cpsr.cpu_state();
         self.cpsr.set_cpu_state(state);
 
+        // Clear appropriate bits based on target mode
         match self.cpsr.cpu_state() {
             CpuState::Thumb => rn.set_bit_off(0),
             CpuState::Arm => {
@@ -644,8 +664,38 @@ impl Arm7tdmi {
             }
         }
 
-        self.registers.set_program_counter(rn);
+        // Log BX instruction with state change
+        let old_state_str = if matches!(old_state, CpuState::Arm) {
+            "ARM"
+        } else {
+            "Thumb"
+        };
+        let new_state_str = if matches!(self.cpsr.cpu_state(), CpuState::Arm) {
+            "ARM"
+        } else {
+            "Thumb"
+        };
 
+        // Special logging for BX from problematic area
+        if (0x0000_0BB0..=0x0000_0BD0).contains(&pc_when_executing) {
+            let reg_value = self.registers.register_at(register);
+            logger::log(format!(
+                "!!! BX R{register} FROM PROBLEM AREA !!! PC=0x{pc_when_executing:08X}, R{register}=0x{reg_value:08X}, target=0x{rn:08X}, {old_state_str} -> {new_state_str}"
+            ));
+        }
+
+        logger::log(format!(
+            "ARM BX R{register} @ PC=0x{pc_when_executing:08X}: target=0x{rn:08X}, state change {old_state_str} -> {new_state_str}"
+        ));
+
+        // Warn if jumping to internal WRAM (0x03000000-0x03007FFF)
+        if (0x0300_0000..0x0300_8000).contains(&rn) {
+            logger::log(format!(
+                "!!! WARNING: BX jumping to internal WRAM @ 0x{rn:08X} - verify this memory contains valid code!"
+            ));
+        }
+
+        self.registers.set_program_counter(rn);
         self.flush_pipeline();
     }
 
@@ -729,7 +779,15 @@ impl Arm7tdmi {
                     HalfwordTransferKind::UnsignedHalfwords => {
                         self.bus.write_half_word(address, value as u16);
                     }
-                    _ => unreachable!("HS flags can't be != from 01 for STORE (L=0)"),
+                    // On ARM7TDMI, SH=10 (LDRD) and SH=11 (STRD) with L=0 are undefined
+                    // Some games may hit these encodings. We treat them as STRH for compatibility.
+                    HalfwordTransferKind::SignedByte | HalfwordTransferKind::SignedHalfwords => {
+                        logger::log(format!(
+                            "Warning: Undefined halfword store encoding (SH={:?}), treating as STRH",
+                            transfer_kind
+                        ));
+                        self.bus.write_half_word(address, value as u16);
+                    }
                 }
             }
             LoadStoreKind::Load => match transfer_kind {
@@ -830,6 +888,24 @@ impl Arm7tdmi {
                 }
                 ReadWriteKind::Word => {
                     let v = self.read_word(address);
+
+                    // Log when loading into PC (R15) to track bad jumps
+                    if rd == REG_PROGRAM_COUNTER {
+                        logger::log(format!(
+                            "!!! LDR PC (R15) !!!\n  \
+                             Loading value 0x{:08X} from address 0x{:08X}\n  \
+                             Base register R{} = 0x{:08X}, offset_address = 0x{:08X}\n  \
+                             Current PC = 0x{:08X}",
+                            v,
+                            address,
+                            base_register,
+                            self.registers
+                                .register_at(base_register.try_into().unwrap()),
+                            offset_address,
+                            self.registers.program_counter()
+                        ));
+                    }
+
                     self.registers.set_register_at(rd.try_into().unwrap(), v);
                 }
             },
@@ -959,8 +1035,8 @@ impl Arm7tdmi {
 
             // Update base by 0x40 total
             address = match offsetting {
-                Offsetting::Up => memory_base.wrapping_add(0x40).try_into().unwrap(),
-                Offsetting::Down => memory_base.wrapping_sub(0x40).try_into().unwrap(),
+                Offsetting::Up => memory_base.wrapping_add(0x40) as usize,
+                Offsetting::Down => memory_base.wrapping_sub(0x40) as usize,
             };
         } else {
             self.exec_data_transfer(reg_list, indexing, &mut address, offsetting, transfer);
@@ -978,7 +1054,7 @@ impl Arm7tdmi {
 
         if write_back && !skip_writeback {
             self.registers
-                .set_register_at(base_register, address.try_into().unwrap());
+                .set_register_at(base_register, (address & 0xFFFF_FFFF) as u32);
         }
 
         // If LDM with S bit and R15 is in register list: Copy SPSR to CPSR (exception return)
@@ -1035,6 +1111,18 @@ impl Arm7tdmi {
     pub fn branch(&mut self, is_link: bool, offset: u32) {
         let offset = offset.sign_extended(26) as i32;
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();
+
+        logger::log(format!(
+            "!!! BRANCH !!!\n  \
+             Old PC: 0x{:08X}, Offset: 0x{:08X} ({}), New PC: 0x{:08X}\n  \
+             Link: {}",
+            old_pc,
+            offset,
+            offset,
+            (old_pc as i32 + offset) as u32,
+            is_link
+        ));
+
         if is_link {
             self.registers
                 .set_register_at(14, old_pc.wrapping_sub(SIZE_OF_INSTRUCTION));
@@ -2356,6 +2444,54 @@ mod tests {
             // All flags set, mode bits should remain as Supervisor (0b10011)
             assert_eq!(u32::from(cpu.spsr), 0b1111 << 28 | 0b10011);
         }
+        {
+            // Test MRS with SPSR in User mode - should return CPSR instead of panicking
+            // This tests the graceful fallback behavior for SPSR access in User/System modes
+            let mut cpu = Arm7tdmi::default();
+            // MRS R1, SPSR (but we're in User mode, so it should return CPSR)
+            let op_code = 0b1110_00010_1_001111_0001_000000000000;
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+            assert_eq!(
+                op_code.instruction,
+                ArmModeInstruction::PSRTransfer {
+                    condition: Condition::AL,
+                    psr_kind: PsrKind::Spsr,
+                    kind: PsrOpKind::Mrs {
+                        destination_register: 1
+                    }
+                }
+            );
+
+            cpu.cpsr.set_mode(&Mode::User);
+            cpu.cpsr.set_carry_flag(true);
+            cpu.cpsr.set_zero_flag(true);
+
+            // This should NOT panic - instead it should return CPSR value
+            cpu.execute_arm(op_code);
+
+            // R1 should contain CPSR (with carry and zero flags set, User mode)
+            let result = cpu.registers.register_at(1);
+            assert!(result.get_bit(29)); // carry flag
+            assert!(result.get_bit(30)); // zero flag
+            assert_eq!(result.get_bits(0..=4), 0b10000); // User mode
+        }
+        {
+            // Test MRS with SPSR in System mode - should also return CPSR
+            let mut cpu = Arm7tdmi::default();
+            let op_code = 0b1110_00010_1_001111_0010_000000000000;
+            let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+
+            cpu.cpsr.set_mode(&Mode::System);
+            cpu.cpsr.set_sign_flag(true);
+            cpu.cpsr.set_overflow_flag(true);
+
+            cpu.execute_arm(op_code);
+
+            let result = cpu.registers.register_at(2);
+            assert!(result.get_bit(31)); // sign flag
+            assert!(result.get_bit(28)); // overflow flag
+            assert_eq!(result.get_bits(0..=4), 0b11111); // System mode
+        }
     }
 
     #[test]
@@ -2593,6 +2729,8 @@ mod tests {
 
     #[test]
     fn check_ldr_word() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
         let op_code = 0b1110_0101_1001_1111_1101_0000_0010_1000;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
@@ -2611,12 +2749,15 @@ mod tests {
             }
         );
 
-        // simulate mem already contains something.
+        // Set PC to EWRAM base so the PC-relative load lands in EWRAM
+        cpu.registers.set_program_counter(EWRAM);
+        // simulate mem already contains something at PC + offset.
         // in u32 this is 16843009 00000001_00000001_00000001_00000001.
-        cpu.bus.write_word(0x28, 0x01010101);
+        // Address = PC + 40 = EWRAM + 40
+        cpu.bus.write_word((EWRAM + 40) as usize, 0x01010101);
         cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(13), 16843009);
-        assert_eq!(cpu.registers.program_counter(), 0);
+        assert_eq!(cpu.registers.program_counter(), EWRAM as usize);
     }
 
     #[test]
