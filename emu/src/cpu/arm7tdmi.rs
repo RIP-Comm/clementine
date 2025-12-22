@@ -17,7 +17,7 @@ use crate::cpu::register_bank::RegisterBank;
 use crate::cpu::thumb::instruction::Instruction;
 use crate::cpu::thumb::mode::ThumbModeOpcode;
 
-use super::registers::Registers;
+use super::registers::{REG_SP, Registers};
 use super::thumb;
 
 #[derive(Serialize, Deserialize)]
@@ -41,7 +41,7 @@ pub struct Arm7tdmi {
     pub current_cycle: u128,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[allow(dead_code)]
 enum ExceptionType {
     Reset,
@@ -145,15 +145,34 @@ impl Arm7tdmi {
 
     #[must_use]
     pub fn fetch_arm(&mut self) -> u32 {
+        // Get PC and align it for ARM (word-aligned = clear bits 0-1)
         let mut pc = self.registers.program_counter() as u32;
         pc.set_bit_off(0);
         pc.set_bit_off(1);
-        self.registers.set_program_counter(pc);
+
+        // NOTE: We do NOT write PC back here. PC should already be aligned from when it was set.
+        // Writing it back here causes bugs because fetch happens before execution in the pipeline.
 
         // Update current PC for BIOS read protection
         self.bus.set_current_pc(pc as usize);
 
         let opcode = self.bus.read_word(pc as usize);
+
+        // Log ARM fetches from BIOS around problematic area
+        if (pc as usize) >= 0x00000BA0 && (pc as usize) <= 0x00000BE0 {
+            logger::log(format!(
+                "ARM FETCH: fetching from 0x{:08X}: opcode=0x{:08X}",
+                pc, opcode
+            ));
+        }
+
+        // Log ARM fetches from IWRAM around problematic area
+        if (pc as usize) >= 0x03003580 && (pc as usize) <= 0x03003700 {
+            logger::log(format!(
+                "ARM FETCH FROM IWRAM: PC=0x{:08X}, opcode=0x{:08X}",
+                pc, opcode
+            ));
+        }
 
         // If fetching from BIOS, save this opcode for read protection
         if (pc as usize) < 0x4000 {
@@ -165,14 +184,50 @@ impl Arm7tdmi {
 
     #[must_use]
     pub fn fetch_thumb(&mut self) -> u16 {
-        let mut pc = self.registers.program_counter() as u32;
+        // Get PC and align it for Thumb (halfword-aligned = clear bit 0)
+        let pc_raw = self.registers.program_counter() as u32;
+        let mut pc = pc_raw;
         pc.set_bit_off(0);
-        self.registers.set_program_counter(pc);
+
+        // Log if we're at problematic PCs
+        if pc_raw == 0x081DCA94 || pc == 0x081DCCE8 {
+            logger::log(format!(
+                "FETCH_THUMB: pc_raw=0x{:08X}, aligned pc=0x{:08X}, about to write back",
+                pc_raw, pc
+            ));
+        }
+
+        // NOTE: We do NOT write PC back here. PC should already be aligned from when it was set.
+        // Writing it back here causes bugs because fetch happens before execution in the pipeline,
+        // so if PC was advanced to an odd address, this would incorrectly align it BEFORE the
+        // instruction that set PC executes.
 
         // Update current PC for BIOS read protection
         self.bus.set_current_pc(pc as usize);
 
+        // Log before read
+        if pc_raw == 0x081DCA94 || pc == 0x081DCCE8 {
+            logger::log(format!("FETCH_THUMB: about to read from 0x{:08X}", pc));
+        }
+
         let opcode = self.bus.read_half_word(pc as usize);
+
+        // Log after read
+        if pc_raw == 0x081DCA94 || pc == 0x081DCCE8 {
+            let pc_after_read = self.registers.program_counter() as u32;
+            logger::log(format!(
+                "FETCH_THUMB: after read, PC=0x{:08X}, opcode=0x{:04X}",
+                pc_after_read, opcode
+            ));
+        }
+
+        // Debug: Log when fetching BX R3 instruction
+        if opcode == 0x4718 {
+            logger::log(format!(
+                "FETCH THUMB: opcode 0x4718 (BX R3) from address 0x{:08X} (PC was 0x{:08X} before alignment)",
+                pc, pc_raw
+            ));
+        }
 
         // If fetching from BIOS, save this opcode for read protection (extended to 32-bit)
         if (pc as usize) < 0x4000 {
@@ -198,7 +253,18 @@ impl Arm7tdmi {
     pub fn execute_arm(&mut self, op_code: ArmModeOpcode) {
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
-        if !self.cpsr.can_execute(op_code.condition) {
+        let can_execute = self.cpsr.can_execute(op_code.condition);
+
+        // Log when important instructions are skipped
+        if !can_execute {
+            if let ArmModeInstruction::BranchAndExchange { register, .. } = op_code.instruction {
+                logger::log(format!(
+                    "!!! SKIPPING BX R{} @ PC=0x{:08X} due to condition {:?}",
+                    register,
+                    self.registers.program_counter(),
+                    op_code.condition
+                ));
+            }
             return;
         }
 
@@ -334,7 +400,24 @@ impl Arm7tdmi {
             ArmModeInstruction::Undefined => {
                 // Undefined instruction exception
                 let pc = self.registers.program_counter();
-                logger::log(format!("Undefined instruction exception at PC=0x{pc:08X}"));
+                let pcode = op_code.raw;
+                logger::log(format!(
+                    "!!! UNDEFINED INSTRUCTION EXCEPTION !!!\n  \
+                     PC=0x{pc:08X}, opcode=0x{:08X}, mode=ARM\n  \
+                     Binary: {:032b}\n  \
+                     R0=0x{:08X} R1=0x{:08X} R2=0x{:08X} R3=0x{:08X}\n  \
+                     R4=0x{:08X} R5=0x{:08X} R6=0x{:08X} R7=0x{:08X}",
+                    pcode,
+                    pcode,
+                    self.registers.register_at(0),
+                    self.registers.register_at(1),
+                    self.registers.register_at(2),
+                    self.registers.register_at(3),
+                    self.registers.register_at(4),
+                    self.registers.register_at(5),
+                    self.registers.register_at(6),
+                    self.registers.register_at(7),
+                ));
                 self.handle_exception(ExceptionType::UndefinedInstruction);
             }
             ArmModeInstruction::BlockDataTransfer {
@@ -354,9 +437,27 @@ impl Arm7tdmi {
                 link,
                 offset,
             } => self.branch(link, offset),
-            ArmModeInstruction::CoprocessorDataTransfer { .. } => todo!(),
-            ArmModeInstruction::CoprocessorDataOperation => todo!(),
-            ArmModeInstruction::CoprocessorRegisterTransfer => todo!(),
+            ArmModeInstruction::CoprocessorDataTransfer { .. } => {
+                logger::log(format!(
+                    "!!! UNIMPLEMENTED: CoprocessorDataTransfer at PC=0x{:08X}",
+                    self.registers.program_counter() - 8
+                ));
+                // Coprocessor instructions are typically ignored on GBA (no coprocessor)
+            }
+            ArmModeInstruction::CoprocessorDataOperation => {
+                logger::log(format!(
+                    "!!! UNIMPLEMENTED: CoprocessorDataOperation at PC=0x{:08X}",
+                    self.registers.program_counter() - 8
+                ));
+                // Coprocessor instructions are typically ignored on GBA (no coprocessor)
+            }
+            ArmModeInstruction::CoprocessorRegisterTransfer => {
+                logger::log(format!(
+                    "!!! UNIMPLEMENTED: CoprocessorRegisterTransfer at PC=0x{:08X}",
+                    self.registers.program_counter() - 8
+                ));
+                // Coprocessor instructions are typically ignored on GBA (no coprocessor)
+            }
             ArmModeInstruction::SoftwareInterrupt => {
                 self.handle_exception(ExceptionType::SoftwareInterrupt);
             }
@@ -432,7 +533,19 @@ impl Arm7tdmi {
                 r_base,
                 r_destination,
             ),
-            Instruction::LoadStoreImmOffset => self.load_store_immediate_offset(op_code),
+            Instruction::LoadStoreImmOffset {
+                load_store,
+                byte_word,
+                offset,
+                base_register,
+                destination_register,
+            } => self.load_store_immediate_offset(
+                load_store,
+                byte_word,
+                offset,
+                base_register,
+                destination_register,
+            ),
             Instruction::LoadStoreHalfword {
                 load_store,
                 offset,
@@ -474,6 +587,9 @@ impl Arm7tdmi {
             }
             Instruction::UncondBranch { offset } => self.uncond_branch(offset),
             Instruction::LongBranchLink { h, offset } => self.long_branch_link(h, offset),
+            Instruction::Nop => {
+                // NOP - do nothing
+            }
         }
     }
 
@@ -483,12 +599,62 @@ impl Arm7tdmi {
         );
 
         let old_cpsr = self.cpsr;
+        let old_mode_str = if matches!(old_cpsr.cpu_state(), CpuState::Arm) {
+            "ARM"
+        } else {
+            "Thumb"
+        };
+
+        logger::log(format!(
+            "EXCEPTION: {:?} at PC=0x{:08X} (mode={}), will return to 0x{:08X}",
+            exception_type,
+            self.registers.program_counter(),
+            old_mode_str,
+            next_ins
+        ));
+
+        // IRQ handling: Always use BIOS exception vector (no HLE for now)
+        // This is more accurate to real hardware and avoids HLE bugs
+        if matches!(exception_type, ExceptionType::Irq) {
+            let handler_addr = self.bus.read_word(0x03007FFC);
+            logger::log(format!(
+                "IRQ: User handler pointer = 0x{:08X}, using BIOS exception vector",
+                handler_addr
+            ));
+            // Fall through to normal exception handling
+        }
+
+        // HLE: For SWI, implement common BIOS functions directly
+        if matches!(exception_type, ExceptionType::SoftwareInterrupt) {
+            // Get the SWI number from the instruction
+            // For Thumb: bits 0-7 of the instruction
+            // For ARM: bits 0-23 of the instruction (but GBA BIOS only uses 0-7)
+            let swi_num = if matches!(old_cpsr.cpu_state(), CpuState::Thumb) {
+                // Thumb SWI: read the byte before the return address
+                let swi_pc = (next_ins as u32).wrapping_sub(2);
+                self.bus.read_byte(swi_pc as usize) as u32
+            } else {
+                // ARM SWI: read the word at PC-8 and extract bits 0-23
+                let swi_pc = (next_ins as u32).wrapping_sub(4);
+                let swi_instr = self.bus.read_word(swi_pc as usize);
+                swi_instr & 0xFF // GBA BIOS only uses lower 8 bits
+            };
+
+            // Try to handle the SWI with HLE
+            if self.handle_swi_hle(swi_num, old_cpsr, next_ins as u32) {
+                return; // HLE handled it
+            }
+            // Otherwise fall through to normal BIOS handling
+        }
 
         // Every exception is handled in ARM
         self.cpsr.set_cpu_state(CpuState::Arm);
 
         self.swap_mode(&exception_type.mode());
 
+        // Set LR to return address
+        // Note: LR should NOT have bit 0 set for exceptions - the return mode is stored in SPSR
+        // The Thumb bit convention (bit 0 set for Thumb addresses) is only used with BX instruction
         self.registers.set_register_at(14, next_ins as u32);
         self.spsr = old_cpsr;
 
@@ -499,22 +665,30 @@ impl Arm7tdmi {
         }
 
         let new_pc = exception_type.address() as u32;
+        logger::log(format!(
+            "  Exception vector: {:?} -> address 0x{:08X}, mode {:?}",
+            exception_type,
+            new_pc,
+            exception_type.mode()
+        ));
         self.registers.set_program_counter(new_pc);
 
-        self.decoded_arm = Some(Self::decode(self.fetch_arm()));
-        self.registers
-            .set_program_counter(new_pc + arm::operations::SIZE_OF_INSTRUCTION);
-
-        self.fetched_arm = Some(self.fetch_arm());
+        // Flush pipeline - let the next step() refill it naturally
+        self.flush_pipeline();
     }
 
     pub fn step(&mut self) {
         self.current_cycle += 1;
-        match self.cpsr.cpu_state() {
+        let initial_mode = self.cpsr.cpu_state();
+
+        match initial_mode {
             CpuState::Thumb => {
                 let to_execute = self.decoded_thumb;
 
+                // Move fetched instruction to decode stage
                 self.decoded_thumb = self.fetched_thumb.map(Self::decode);
+
+                // Fetch new instruction into pipeline
                 self.fetched_thumb = Some(self.fetch_thumb());
 
                 if let Some(decoded) = to_execute {
@@ -524,28 +698,61 @@ impl Arm7tdmi {
                         return;
                     }
 
-                    #[cfg(feature = "logger")]
-                    let current_ins = self.registers.program_counter() - 4;
-                    #[cfg(feature = "logger")]
-                    log(format!("PC: 0x{current_ins:X} {decoded}"));
-
                     self.execute_thumb(decoded);
+
+                    // If execution changed CPU mode, clear the ENTIRE pipeline
+                    // since we're switching between ARM/Thumb modes
+                    if self.cpsr.cpu_state() != initial_mode {
+                        logger::log(format!(
+                            "MODE CHANGE DETECTED (Thumb): Clearing pipeline (PC=0x{:08X})",
+                            self.registers.program_counter()
+                        ));
+                        self.flush_pipeline();
+                    }
+
+                    // If execution flushed the pipeline, clear decoded too
+                    if self.fetched_thumb.is_none() {
+                        self.decoded_thumb = None;
+                    }
                 }
 
-                // This means that the instruction flushed the pipeline
-                if self.fetched_thumb.is_none() {
-                    return;
-                }
+                // Advance PC to point to the next instruction to fetch
+                // This happens every cycle to maintain the pipeline
+                // BUT: If the pipeline was flushed (by a branch), don't advance PC
+                // because the branch already set the correct target address
+                if self.fetched_thumb.is_some() {
+                    let old_pc = self.registers.program_counter() as u32;
+                    let mut new_pc = old_pc + thumb::operations::SIZE_OF_INSTRUCTION;
 
-                self.registers.set_program_counter(
-                    self.registers.program_counter() as u32
-                        + thumb::operations::SIZE_OF_INSTRUCTION,
-                );
+                    // Ensure PC stays halfword-aligned in Thumb mode
+                    new_pc.set_bit_off(0);
+
+                    // Log PC advancement for debugging the loop
+                    if old_pc == 0x081DCA90 || old_pc == 0x081DCA92 || old_pc == 0x081DCCE8 {
+                        logger::log(format!(
+                            "ADVANCING PC (Thumb): 0x{:08X} -> 0x{:08X}",
+                            old_pc, new_pc
+                        ));
+                    }
+
+                    // Detect PC going to invalid address (not ROM 0x08000000+, not RAM 0x02000000+ or 0x03000000+, not BIOS 0x0-0x4000)
+                    if new_pc > 0x00010000 && new_pc < 0x02000000 {
+                        logger::log(format!(
+                            "!!! SUSPICIOUS PC JUMP (Thumb) !!!\n  PC advancing to 0x{:08X} (invalid address range!)",
+                            new_pc
+                        ));
+                    }
+
+                    self.registers.set_program_counter(new_pc);
+                }
             }
             CpuState::Arm => {
                 let to_execute = self.decoded_arm;
 
+                // Move fetched instruction to decode stage
                 self.decoded_arm = self.fetched_arm.map(Self::decode);
+
+                // Fetch new instruction into pipeline
                 self.fetched_arm = Some(self.fetch_arm());
 
                 if let Some(decoded) = to_execute {
@@ -555,32 +762,90 @@ impl Arm7tdmi {
                         return;
                     }
 
-                    #[cfg(feature = "logger")]
-                    let current_ins = self.registers.program_counter() - 8;
-                    #[cfg(feature = "logger")]
-                    log(format!("PC: 0x{current_ins:X} {decoded}"));
-
                     self.execute_arm(decoded);
+
+                    // If execution changed CPU mode, clear the ENTIRE pipeline
+                    // since we're switching between ARM/Thumb modes
+                    if self.cpsr.cpu_state() != initial_mode {
+                        logger::log(format!(
+                            "MODE CHANGE DETECTED (ARM): Clearing pipeline (PC=0x{:08X})",
+                            self.registers.program_counter()
+                        ));
+                        self.flush_pipeline();
+                    }
+
+                    // If execution flushed the pipeline (e.g. BX without mode change),
+                    // the flush_pipeline() already set fetched_arm and decoded_arm to None.
+                    // We need to also clear the decoded instruction we set BEFORE execute.
+                    // But since we set fetched_arm to Some() before execute, we can detect
+                    // a flush by checking if fetched_arm is now None.
+                    if self.fetched_arm.is_none() {
+                        self.decoded_arm = None;
+                    }
                 }
 
-                // This means that the instruction flushed the pipeline
-                if self.fetched_arm.is_none() {
-                    return;
-                }
+                // Advance PC to point to the next instruction to fetch
+                // This happens every cycle to maintain the pipeline
+                // BUT: If the pipeline was flushed (by a branch), don't advance PC
+                // because the branch already set the correct target address
+                if self.fetched_arm.is_some() {
+                    let mut new_pc = self.registers.program_counter() as u32
+                        + arm::operations::SIZE_OF_INSTRUCTION;
 
-                self.registers.set_program_counter(
-                    self.registers.program_counter() as u32 + arm::operations::SIZE_OF_INSTRUCTION,
-                );
+                    // Ensure PC stays word-aligned in ARM mode
+                    new_pc.set_bit_off(0);
+                    new_pc.set_bit_off(1);
+
+                    // Detect PC going to invalid address
+                    if new_pc > 0x00010000 && new_pc < 0x02000000 {
+                        logger::log(format!(
+                            "!!! SUSPICIOUS PC JUMP (ARM) !!!\n  PC advancing to 0x{new_pc:08X} (invalid address range!)",
+                        ));
+                    }
+
+                    self.registers.set_program_counter(new_pc);
+                }
             }
         }
+
+        // Step the bus (LCD, timers, DMA, etc.) after CPU instruction completes
+        // This ensures peripherals advance in sync with CPU cycles
+        self.bus.step();
     }
 
     #[must_use]
     pub fn new(bus: Bus) -> Self {
-        Self {
+        let mut cpu = Self {
             bus,
             ..Default::default()
-        }
+        };
+
+        // Initialize stack pointers for different modes
+        // These values match what the GBA BIOS sets up
+        cpu.initialize_stack_pointers();
+
+        cpu
+    }
+
+    /// Initialize stack pointers for all CPU modes to match GBA BIOS behavior
+    fn initialize_stack_pointers(&mut self) {
+        // Save current mode
+        let current_mode = self.cpsr.mode();
+
+        // Set up IRQ mode stack pointer
+        self.swap_mode(&Mode::Irq);
+        self.registers.set_register_at(REG_SP, 0x0300_7FA0);
+
+        // Set up Supervisor mode stack pointer
+        self.swap_mode(&Mode::Supervisor);
+        self.registers.set_register_at(REG_SP, 0x0300_7FE0);
+
+        // Set up System mode stack pointer
+        self.swap_mode(&Mode::System);
+        self.registers.set_register_at(REG_SP, 0x0300_7F00);
+
+        // Restore original mode (Supervisor)
+        self.swap_mode(&current_mode);
     }
 
     #[allow(clippy::too_many_lines)]
@@ -769,6 +1034,333 @@ impl Arm7tdmi {
         // read word will be in the lower 0-7 bits of the register. That's why we rotate it.
         let rotation = ((address & 0b11) * 8) as u32;
         self.bus.read_word(address).rotate_right(rotation)
+    }
+
+    /// Handle SWI calls with High-Level Emulation
+    /// Returns true if handled, false if BIOS should handle it
+    fn handle_swi_hle(&mut self, swi_num: u32, old_cpsr: Psr, return_addr: u32) -> bool {
+        match swi_num {
+            // SWI 0x00: SoftReset - Reset the GBA
+            0x00 => {
+                logger::log("HLE SWI 0x00: SoftReset");
+
+                // Clear 200h bytes of IWRAM work area (03007E00h-03007FFFh)
+                for addr in 0x03007E00..=0x03007FFF {
+                    self.bus.write_byte(addr, 0);
+                }
+
+                // Check flag at 03007FFAh to determine entry point
+                let flag = self.bus.read_byte(0x03007FFA);
+                let entry_point = if flag == 0 { 0x08000000 } else { 0x02000000 };
+
+                // Set R0-R12 to 0
+                for i in 0..=12 {
+                    self.registers.set_register_at(i, 0);
+                }
+
+                // Set up stack pointers (same as BIOS init)
+                // Supervisor mode SP = 0x03007FE0
+                // IRQ mode SP = 0x03007FA0
+                // User/System mode SP = 0x03007F00
+
+                // Switch to Supervisor mode temporarily to set its SP
+                self.cpsr.set_mode(&Mode::Supervisor);
+                self.registers.set_register_at(13, 0x03007FE0);
+
+                // Switch to IRQ mode to set its SP
+                self.cpsr.set_mode(&Mode::Irq);
+                self.registers.set_register_at(13, 0x03007FA0);
+
+                // Switch to System mode for entry
+                self.cpsr.set_mode(&Mode::System);
+                self.registers.set_register_at(13, 0x03007F00);
+
+                // Clear IRQ disable flag
+                self.cpsr.set_irq_disable(false);
+
+                // Clear state bit (ARM mode)
+                self.cpsr.set_state_bit(false);
+
+                // Jump to entry point
+                self.registers.set_program_counter(entry_point);
+
+                // Flush pipeline
+                self.flush_pipeline();
+
+                logger::log(format!(
+                    "SoftReset: Jumping to 0x{:08X} (flag was {})",
+                    entry_point, flag
+                ));
+
+                true
+            }
+            // SWI 0x01: RegisterRamReset - Clear memory and I/O
+            0x01 => {
+                let flags = self.registers.register_at(0) as u8;
+                // Clear memory regions based on flags
+                // Bit 0: Clear 256K EWRAM (0x02000000-0x0203FFFF), excluding last 0x200 bytes
+                if flags & 0x01 != 0 {
+                    for addr in 0x02000000..0x0203FE00 {
+                        self.bus.write_byte(addr, 0);
+                    }
+                }
+
+                // Bit 1: Clear 32K IWRAM (0x03000000-0x03007FFF), excluding last 0x200 bytes
+                // NOTE: Skipping IWRAM clear for now as it breaks IRQ handlers that games set up before calling this
+                // The real BIOS might have special logic to preserve certain areas
+                // TODO: Investigate proper BIOS behavior
+                if flags & 0x02 != 0 {
+                    // Don't clear IWRAM for now - needs more investigation
+                    logger::log(
+                        "RegisterRamReset: Skipping IWRAM clear (would break IRQ handlers)",
+                    );
+                }
+
+                // Bit 2: Clear Palette RAM (0x05000000-0x050003FF)
+                if flags & 0x04 != 0 {
+                    for addr in 0x05000000..0x05000400 {
+                        self.bus.write_byte(addr, 0);
+                    }
+                }
+
+                // Bit 3: Clear VRAM (0x06000000-0x06017FFF)
+                if flags & 0x08 != 0 {
+                    for addr in 0x06000000..0x06018000 {
+                        self.bus.write_byte(addr, 0);
+                    }
+                }
+
+                // Bit 4: Clear OAM (0x07000000-0x070003FF)
+                if flags & 0x10 != 0 {
+                    for addr in 0x07000000..0x07000400 {
+                        self.bus.write_byte(addr, 0);
+                    }
+                }
+
+                // Bits 5-7: Reset I/O registers (not fully implemented)
+                // Bit 5: SIO registers
+                // Bit 6: Sound registers
+                // Bit 7: All other registers
+
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x02: Halt - Low power mode until interrupt
+            0x02 => {
+                logger::log("HLE SWI 0x02: Halt");
+                // Just return - the main loop will handle waiting for interrupts
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x03: Stop - Very low power mode
+            0x03 => {
+                logger::log("HLE SWI 0x03: Stop");
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x04: IntrWait - Wait for interrupt
+            0x04 => {
+                logger::log(format!(
+                    "HLE SWI 0x04: IntrWait - discard={}, flags=0x{:08X}",
+                    self.registers.register_at(0),
+                    self.registers.register_at(1)
+                ));
+                // Just return for now - proper implementation would wait for specific interrupts
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x05: VBlankIntrWait - Wait for VBlank interrupt
+            0x05 => {
+                logger::log("HLE SWI 0x05: VBlankIntrWait");
+                // Just return for now
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x06: Div - Signed division
+            // R0 = numerator, R1 = denominator
+            // Returns: R0 = result, R1 = remainder, R3 = abs(result)
+            0x06 => {
+                let numerator = self.registers.register_at(0) as i32;
+                let denominator = self.registers.register_at(1) as i32;
+                if denominator == 0 {
+                    logger::log("HLE SWI 0x06: Div by zero!");
+                    // On real hardware, division by zero causes weird behavior
+                    self.registers.set_register_at(0, 0);
+                    self.registers.set_register_at(1, 0);
+                    self.registers.set_register_at(3, 0);
+                } else {
+                    let result = numerator / denominator;
+                    let modulo = numerator % denominator;
+                    self.registers.set_register_at(0, result as u32);
+                    self.registers.set_register_at(1, modulo as u32);
+                    self.registers.set_register_at(3, result.unsigned_abs());
+                }
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x07: DivArm - Same as Div but with swapped arguments
+            // R0 = denominator, R1 = numerator (swapped from SWI 0x06)
+            // Returns: R0 = result, R1 = remainder, R3 = abs(result)
+            0x07 => {
+                let denominator = self.registers.register_at(0) as i32;
+                let numerator = self.registers.register_at(1) as i32;
+                if denominator == 0 {
+                    logger::log("HLE SWI 0x07: DivArm by zero!");
+                    self.registers.set_register_at(0, 0);
+                    self.registers.set_register_at(1, 0);
+                    self.registers.set_register_at(3, 0);
+                } else {
+                    let result = numerator / denominator;
+                    let modulo = numerator % denominator;
+                    self.registers.set_register_at(0, result as u32);
+                    self.registers.set_register_at(1, modulo as u32);
+                    self.registers.set_register_at(3, result.unsigned_abs());
+                }
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x08: Sqrt - Square root
+            // R0 = input (32-bit unsigned)
+            // Returns: R0 = sqrt(input)
+            0x08 => {
+                let input = self.registers.register_at(0);
+                // Integer square root using Newton's method
+                let result = if input == 0 {
+                    0
+                } else {
+                    let mut x = input;
+                    let mut y = (x + 1) / 2;
+                    while y < x {
+                        x = y;
+                        y = (x + input / x) / 2;
+                    }
+                    x
+                };
+                self.registers.set_register_at(0, result);
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x09: ArcTan - Arc tangent
+            // R0 = tan (16-bit, range -1.0 to 1.0 scaled to -0x4000 to 0x4000)
+            // Returns: R0 = angle (-pi/4 to pi/4 scaled to -0x2000 to 0x2000)
+            0x09 => {
+                // Simplified implementation - just return a reasonable approximation
+                let tan = self.registers.register_at(0) as i16 as i32;
+                // Simple linear approximation for small angles: arctan(x) ≈ x
+                // Scale from tan range to angle range (divide by 2)
+                let result = (tan / 2) as u32;
+                self.registers.set_register_at(0, result);
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x0A: ArcTan2 - Arc tangent of y/x
+            // R0 = x, R1 = y
+            // Returns: R0 = angle (0 to 2*pi scaled to 0x0000 to 0xFFFF)
+            0x0A => {
+                let x = self.registers.register_at(0) as i16 as f64;
+                let y = self.registers.register_at(1) as i16 as f64;
+                let angle = y.atan2(x);
+                // Convert from radians (-pi to pi) to GBA format (0 to 0xFFFF)
+                let result = ((angle + std::f64::consts::PI) / (2.0 * std::f64::consts::PI)
+                    * 65536.0) as u32
+                    & 0xFFFF;
+                self.registers.set_register_at(0, result);
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x0B: CpuSet - Memory copy
+            0x0B => {
+                let src = self.registers.register_at(0);
+                let dest = self.registers.register_at(1);
+                let control = self.registers.register_at(2);
+
+                let count = control & 0x1FFFFF;
+                let is_32bit = (control & (1 << 26)) != 0;
+                let is_fill = (control & (1 << 24)) != 0;
+
+                if is_fill {
+                    // Fill mode: read one value from src and write it count times to dest
+                    let value = if is_32bit {
+                        self.bus.read_word(src as usize)
+                    } else {
+                        self.bus.read_half_word(src as usize) as u32
+                    };
+
+                    for i in 0..count {
+                        let offset = if is_32bit { i * 4 } else { i * 2 };
+                        if is_32bit {
+                            self.bus.write_word((dest + offset) as usize, value);
+                        } else {
+                            self.bus
+                                .write_half_word((dest + offset) as usize, value as u16);
+                        }
+                    }
+                } else {
+                    // Copy mode
+                    for i in 0..count {
+                        let offset = if is_32bit { i * 4 } else { i * 2 };
+                        let value = if is_32bit {
+                            self.bus.read_word((src + offset) as usize)
+                        } else {
+                            self.bus.read_half_word((src + offset) as usize) as u32
+                        };
+
+                        if is_32bit {
+                            self.bus.write_word((dest + offset) as usize, value);
+                        } else {
+                            self.bus
+                                .write_half_word((dest + offset) as usize, value as u16);
+                        }
+                    }
+                }
+
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            // SWI 0x0C: CpuFastSet - Fast memory copy (32-bit only)
+            0x0C => {
+                let src = self.registers.register_at(0);
+                let dest = self.registers.register_at(1);
+                let control = self.registers.register_at(2);
+
+                let count = control & 0x1FFFFF;
+                let is_fill = (control & (1 << 24)) != 0;
+
+                if is_fill {
+                    let value = self.bus.read_word(src as usize);
+                    for i in 0..count {
+                        self.bus.write_word((dest + i * 4) as usize, value);
+                    }
+                } else {
+                    for i in 0..count {
+                        let value = self.bus.read_word((src + i * 4) as usize);
+                        self.bus.write_word((dest + i * 4) as usize, value);
+                    }
+                }
+
+                self.swi_return(old_cpsr, return_addr);
+                true
+            }
+            _ => {
+                // Not implemented - let BIOS handle it
+                logger::log(format!(
+                    "HLE SWI 0x{swi_num:02X}: Not implemented, using BIOS"
+                ));
+                false
+            }
+        }
+    }
+
+    /// Helper to return from a SWI HLE implementation
+    const fn swi_return(&mut self, old_cpsr: Psr, return_addr: u32) {
+        // Restore old CPU state
+        self.cpsr = old_cpsr;
+
+        // Set PC to return address
+        self.registers.set_program_counter(return_addr);
+
+        // Flush pipeline
+        self.flush_pipeline();
     }
 }
 
