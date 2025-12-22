@@ -220,7 +220,6 @@ impl Arm7tdmi {
             }
             ThumbHighRegisterOperation::BxOrBlx => {
                 let new_state = s_value.get_bit(0);
-                let old_state = self.cpsr.cpu_state();
                 self.cpsr.set_cpu_state(new_state.into());
 
                 // Clear appropriate bits based on target mode
@@ -231,13 +230,6 @@ impl Arm7tdmi {
                         new_pc.set_bit_off(0);
                         new_pc.set_bit_off(1);
                     }
-                }
-
-                // Warn if jumping to internal WRAM (0x03000000-0x03007FFF)
-                if (0x03000000..0x03008000).contains(&new_pc) {
-                    logger::log(format!(
-                        "!!! WARNING: BX jumping to internal WRAM @ 0x{new_pc:08X} - verify this memory contains valid code!"
-                    ));
                 }
 
                 self.registers.set_program_counter(new_pc);
@@ -472,17 +464,6 @@ impl Arm7tdmi {
 
                 if pc_lr {
                     let value = self.read_word(reg_sp.try_into().unwrap());
-                    logger::log(format!(
-                        "POP PC from stack @ 0x{reg_sp:08X}: value = 0x{value:08X}"
-                    ));
-
-                    // Warn if jumping to internal WRAM (0x03000000-0x03007FFF)
-                    if (0x03000000..0x03008000).contains(&value) {
-                        logger::log(format!(
-                            "!!! WARNING: POP PC jumping to internal WRAM @ 0x{value:08X} - verify this memory contains valid code!"
-                        ));
-                    }
-
                     self.registers.set_program_counter(value);
 
                     reg_sp += 4;

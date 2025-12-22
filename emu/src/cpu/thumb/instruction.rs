@@ -55,7 +55,13 @@ pub enum Instruction {
         base_register: u32,
         destination_register: u32,
     },
-    LoadStoreImmOffset,
+    LoadStoreImmOffset {
+        load_store: LoadStoreKind,
+        byte_word: ReadWriteKind,
+        offset: u16,
+        base_register: u16,
+        destination_register: u16,
+    },
     LoadStoreHalfword {
         load_store: LoadStoreKind,
         offset: u16,
@@ -98,6 +104,7 @@ pub enum Instruction {
         h: bool,
         offset: u32,
     },
+    Nop, // For undefined/hint instructions that should be treated as NOP
 }
 
 impl From<u16> for Instruction {
@@ -107,7 +114,7 @@ impl From<u16> for Instruction {
             AddOffsetSP, AddSubtract, AluOp, CondBranch, HiRegisterOpBX, LoadAddress,
             LoadStoreHalfword, LoadStoreImmOffset, LoadStoreRegisterOffset,
             LoadStoreSignExtByteHalfword, LongBranchLink, MoveCompareAddSubtractImm,
-            MoveShiftedRegister, MultipleLoadStore, PCRelativeLoad, PushPopReg,
+            MoveShiftedRegister, MultipleLoadStore, Nop, PCRelativeLoad, PushPopReg,
             SPRelativeLoadStore, Swi, UncondBranch,
         };
 
@@ -132,10 +139,21 @@ impl From<u16> for Instruction {
             let h1 = op_code.get_bit(7);
             let rd_hd = op_code.get_bits(0..=2);
             let destination_register = if h1 { rd_hd | (1 << 3) } else { rd_hd };
+            let source_register = op_code.get_bits(3..=6);
+
+            // Debug: Log when decoding BX with problematic source registers
+            let op_type = op_code.get_bits(8..=9);
+            if op_type == 3 && source_register == 3 {
+                // BX with R3
+                logger::log(format!(
+                    "DECODE: HiRegisterOpBX BX R{} from opcode 0x{:04X}",
+                    source_register, op_code
+                ));
+            }
 
             HiRegisterOpBX {
                 register_operation: op_code.get_bits(8..=9).into(),
-                source_register: op_code.get_bits(3..=6),
+                source_register,
                 destination_register,
             }
         } else if op_code.get_bits(12..=15) == 0b1011 && op_code.get_bits(9..=10) == 0b10 {
@@ -215,7 +233,11 @@ impl From<u16> for Instruction {
                 condition: Condition::from(op_code.get_bits(8..=11) as u8),
                 immediate_offset,
             }
-        } else if op_code.get_bits(12..=15) == 0b1111 {
+        } else if op_code.get_bits(12..=15) == 0b1111 || op_code.get_bits(12..=15) == 0b1110 {
+            // Format 19: Long branch with link (BL/BLX)
+            // 1111 0xxx xxxx xxxx - H=0: Setup high offset in LR
+            // 1111 1xxx xxxx xxxx - H=1: Add low offset and branch to LR
+            // 1110 1xxx xxxx xxxx - BLX variant (ARMv5+, exchanges to ARM mode)
             LongBranchLink {
                 h: op_code.get_bit(11),
                 offset: op_code.get_bits(0..=10) as u32,
@@ -234,10 +256,35 @@ impl From<u16> for Instruction {
                 offset: op_code.get_bits(0..=7).into(),
             }
         } else if op_code.get_bits(13..=15) == 0b011 {
-            LoadStoreImmOffset
+            let byte_word: ReadWriteKind = op_code.get_bit(12).into();
+            let offset = match byte_word {
+                // For word transfers, offset is word-aligned (assembler puts offset >> 2)
+                ReadWriteKind::Word => op_code.get_bits(6..=10) << 2,
+                // For byte transfers, offset is in bytes
+                ReadWriteKind::Byte => op_code.get_bits(6..=10),
+            };
+
+            LoadStoreImmOffset {
+                load_store: op_code.get_bit(11).into(),
+                byte_word,
+                offset,
+                base_register: op_code.get_bits(3..=5),
+                destination_register: op_code.get_bits(0..=2),
+            }
+        } else if op_code.get_bits(12..=15) == 0b1011 {
+            // Other 0xBxxx instructions that don't match specific patterns
+            // These are typically undefined or hint instructions - treat as NOP
+            log(format!(
+                "Treating undefined/hint instruction 0x{op_code:04X} as NOP",
+            ));
+            Nop
         } else {
-            log(format!("not identified instruction {op_code} "));
-            unimplemented!()
+            panic!(
+                "Unimplemented Thumb instruction: 0x{:04X} (bits 15-13: 0b{:03b}, bits 12-11: 0b{:02b})",
+                op_code,
+                op_code.get_bits(13..=15),
+                op_code.get_bits(11..=12)
+            )
         }
     }
 }
@@ -362,7 +409,21 @@ impl Instruction {
 
                 format!("{instr} R{r_destination}, [R{r_base}, R{r_offset}]")
             }
-            Self::LoadStoreImmOffset => "".to_owned(),
+            Self::LoadStoreImmOffset {
+                load_store,
+                byte_word,
+                offset,
+                base_register: rb,
+                destination_register: rd,
+            } => {
+                let instr = match (load_store, byte_word) {
+                    (LoadStoreKind::Load, ReadWriteKind::Byte) => "LDRB",
+                    (LoadStoreKind::Load, ReadWriteKind::Word) => "LDR",
+                    (LoadStoreKind::Store, ReadWriteKind::Byte) => "STRB",
+                    (LoadStoreKind::Store, ReadWriteKind::Word) => "STR",
+                };
+                format!("{instr} R{rd}, [R{rb}, #{offset}]")
+            }
             Self::LoadStoreHalfword {
                 load_store,
                 offset,
@@ -465,6 +526,7 @@ impl Instruction {
                 let h = if *h { "H" } else { "" };
                 format!("BL{h} #{offset}")
             }
+            Self::Nop => "NOP".to_owned(),
         }
     }
 }
@@ -703,5 +765,96 @@ mod test {
             output
         );
         assert_eq!("STRH R1, [R0, #2]", output.disassembler());
+    }
+
+    #[test]
+    fn decode_load_store_imm_offset() {
+        // LDR R2, [R1, #8] - word load with immediate offset
+        // Format: 011 B L offset5 Rb Rd
+        // B=0 (word), L=1 (load), offset=2 (<<2 = 8), Rb=1, Rd=2
+        let output = Instruction::from(0b0110_1_00010_001_010);
+        assert_eq!(
+            Instruction::LoadStoreImmOffset {
+                load_store: LoadStoreKind::Load,
+                byte_word: ReadWriteKind::Word,
+                offset: 8,  // offset is stored as word offset, shifted << 2
+                base_register: 1,
+                destination_register: 2,
+            },
+            output
+        );
+        assert_eq!("LDR R2, [R1, #8]", output.disassembler());
+
+        // STR R3, [R4, #16] - word store with immediate offset
+        // B=0 (word), L=0 (store), offset=4 (<<2 = 16), Rb=4, Rd=3
+        let output = Instruction::from(0b0110_0_00100_100_011);
+        assert_eq!(
+            Instruction::LoadStoreImmOffset {
+                load_store: LoadStoreKind::Store,
+                byte_word: ReadWriteKind::Word,
+                offset: 16,
+                base_register: 4,
+                destination_register: 3,
+            },
+            output
+        );
+        assert_eq!("STR R3, [R4, #16]", output.disassembler());
+
+        // LDRB R5, [R6, #7] - byte load with immediate offset
+        // B=1 (byte), L=1 (load), offset=7, Rb=6, Rd=5
+        let output = Instruction::from(0b0111_1_00111_110_101);
+        assert_eq!(
+            Instruction::LoadStoreImmOffset {
+                load_store: LoadStoreKind::Load,
+                byte_word: ReadWriteKind::Byte,
+                offset: 7,  // byte offset is not shifted
+                base_register: 6,
+                destination_register: 5,
+            },
+            output
+        );
+        assert_eq!("LDRB R5, [R6, #7]", output.disassembler());
+
+        // STRB R0, [R1, #0] - byte store with zero offset
+        // B=1 (byte), L=0 (store), offset=0, Rb=1, Rd=0
+        let output = Instruction::from(0b0111_0_00000_001_000);
+        assert_eq!(
+            Instruction::LoadStoreImmOffset {
+                load_store: LoadStoreKind::Store,
+                byte_word: ReadWriteKind::Byte,
+                offset: 0,
+                base_register: 1,
+                destination_register: 0,
+            },
+            output
+        );
+        assert_eq!("STRB R0, [R1, #0]", output.disassembler());
+    }
+
+    #[test]
+    fn decode_long_branch_link() {
+        // BL instruction consists of two parts:
+        // First: 1111 0xxx xxxx xxxx (H=0, sets up high offset in LR)
+        // Second: 1111 1xxx xxxx xxxx (H=1, completes the call)
+
+        // First half: setup high offset
+        let output = Instruction::from(0b1111_0_000_0000_0001);
+        assert_eq!(
+            Instruction::LongBranchLink {
+                h: false,
+                offset: 1,
+            },
+            output
+        );
+
+        // Second half: complete branch
+        let output = Instruction::from(0b1111_1_000_0000_0010);
+        assert_eq!(
+            Instruction::LongBranchLink {
+                h: true,
+                offset: 2,
+            },
+            output
+        );
     }
 }
