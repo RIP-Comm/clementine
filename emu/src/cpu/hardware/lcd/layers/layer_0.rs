@@ -12,6 +12,7 @@ use serde::Serialize;
 pub struct Layer0;
 
 impl Layer for Layer0 {
+    #[allow(clippy::similar_names)]
     fn render(
         &self,
         x: usize,
