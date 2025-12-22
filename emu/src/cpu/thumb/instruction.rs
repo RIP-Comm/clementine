@@ -141,16 +141,6 @@ impl From<u16> for Instruction {
             let destination_register = if h1 { rd_hd | (1 << 3) } else { rd_hd };
             let source_register = op_code.get_bits(3..=6);
 
-            // Debug: Log when decoding BX with problematic source registers
-            let op_type = op_code.get_bits(8..=9);
-            if op_type == 3 && source_register == 3 {
-                // BX with R3
-                logger::log(format!(
-                    "DECODE: HiRegisterOpBX BX R{} from opcode 0x{:04X}",
-                    source_register, op_code
-                ));
-            }
-
             HiRegisterOpBX {
                 register_operation: op_code.get_bits(8..=9).into(),
                 source_register,
@@ -777,7 +767,7 @@ mod test {
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Load,
                 byte_word: ReadWriteKind::Word,
-                offset: 8,  // offset is stored as word offset, shifted << 2
+                offset: 8, // offset is stored as word offset, shifted << 2
                 base_register: 1,
                 destination_register: 2,
             },
@@ -807,7 +797,7 @@ mod test {
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Load,
                 byte_word: ReadWriteKind::Byte,
-                offset: 7,  // byte offset is not shifted
+                offset: 7, // byte offset is not shifted
                 base_register: 6,
                 destination_register: 5,
             },
@@ -849,12 +839,6 @@ mod test {
 
         // Second half: complete branch
         let output = Instruction::from(0b1111_1_000_0000_0010);
-        assert_eq!(
-            Instruction::LongBranchLink {
-                h: true,
-                offset: 2,
-            },
-            output
-        );
+        assert_eq!(Instruction::LongBranchLink { h: true, offset: 2 }, output);
     }
 }

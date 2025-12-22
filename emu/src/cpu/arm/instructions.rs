@@ -541,39 +541,60 @@ impl From<u32> for ArmModeInstruction {
                 rs_operand_register,
             }
         } else if op_code.get_bits(25..=27) == 0b000 && op_code.get_bit(7) && op_code.get_bit(4) {
-            let indexing: Indexing = op_code.get_bit(24).into();
-            let offsetting: Offsetting = op_code.get_bit(23).into();
-            let write_back = op_code.get_bit(21);
-            let load_store_kind: LoadStoreKind = op_code.get_bit(20).into();
-            let base_register = op_code.get_bits(16..=19);
-            let source_destination_register = op_code.get_bits(12..=15);
-            let transfer_kind: HalfwordTransferKind = (op_code.get_bits(5..=6) as u8).into();
-            let operand_kind: OperandKind = op_code.get_bit(22).into();
+            // Check if this is a SWAP instruction (SH bits = 00) or Halfword transfer (SH bits != 00)
+            let sh_bits = op_code.get_bits(5..=6);
 
-            Self::HalfwordDataTransfer {
-                condition,
-                indexing,
-                offsetting,
-                write_back,
-                load_store_kind,
-                offset_kind: if operand_kind == OperandKind::Register {
-                    HalfwordDataTransferOffsetKind::Register {
-                        register: op_code.get_bits(0..=3),
-                    }
-                } else {
-                    let immediate_offset_high = op_code.get_bits(8..=11);
-                    let immediate_offset_low = op_code.get_bits(0..=3);
+            if sh_bits == 0b00 {
+                // This is a SWP/SWPB instruction
+                let byte = op_code.get_bit(22);
+                let rn = op_code.get_bits(16..=19);
+                let rd = op_code.get_bits(12..=15);
+                let rm = op_code.get_bits(0..=3);
+                Self::SingleDataSwap {
+                    condition,
+                    byte,
+                    rn,
+                    rd,
+                    rm,
+                }
+            } else {
+                let indexing: Indexing = op_code.get_bit(24).into();
+                let offsetting: Offsetting = op_code.get_bit(23).into();
+                let write_back = op_code.get_bit(21);
+                let load_store_kind: LoadStoreKind = op_code.get_bit(20).into();
+                let base_register = op_code.get_bits(16..=19);
+                let source_destination_register = op_code.get_bits(12..=15);
+                let transfer_kind: HalfwordTransferKind = (sh_bits as u8).into();
+                let operand_kind: OperandKind = op_code.get_bit(22).into();
 
-                    HalfwordDataTransferOffsetKind::Immediate {
-                        offset: (immediate_offset_high << 4) | immediate_offset_low,
-                    }
-                },
-                base_register,
-                source_destination_register,
-                transfer_kind,
+                Self::HalfwordDataTransfer {
+                    condition,
+                    indexing,
+                    offsetting,
+                    write_back,
+                    load_store_kind,
+                    offset_kind: if operand_kind == OperandKind::Register {
+                        HalfwordDataTransferOffsetKind::Register {
+                            register: op_code.get_bits(0..=3),
+                        }
+                    } else {
+                        let immediate_offset_high = op_code.get_bits(8..=11);
+                        let immediate_offset_low = op_code.get_bits(0..=3);
+
+                        HalfwordDataTransferOffsetKind::Immediate {
+                            offset: (immediate_offset_high << 4) | immediate_offset_low,
+                        }
+                    },
+                    base_register,
+                    source_destination_register,
+                    transfer_kind,
+                }
             }
         } else if op_code.get_bits(25..=27) == 0b011 && op_code.get_bit(4) {
-            log("undefined instruction decode...");
+            log(format!(
+                "undefined instruction decode: opcode=0x{:08X}, bits[25-27]=0b011, bit[4]=1",
+                op_code
+            ));
             Self::Undefined
         } else if op_code.get_bits(24..=27) == 0b1111 {
             Self::SoftwareInterrupt
@@ -944,5 +965,72 @@ mod tests {
         );
 
         assert_eq!("LDRB R5, 12, LSL #0", output.disassembler());
+    }
+
+    #[test]
+    fn decode_single_data_swap() {
+        // SWP R1, R2, [R3] - swap word
+        // Encoding: cond 0001 0B00 Rn Rd 0000 1001 Rm
+        // B=0 (word), Rn=3, Rd=1, Rm=2
+        let output = ArmModeInstruction::from(0b1110_0001_0000_0011_0001_0000_1001_0010);
+        assert_eq!(
+            output,
+            ArmModeInstruction::SingleDataSwap {
+                condition: Condition::AL,
+                byte: false,
+                rn: 3,
+                rd: 1,
+                rm: 2,
+            }
+        );
+        assert_eq!("swp r1, r2, [r3]", output.disassembler());
+
+        // SWPB R4, R5, [R6] - swap byte
+        // B=1 (byte), Rn=6, Rd=4, Rm=5
+        let output = ArmModeInstruction::from(0b1110_0001_0100_0110_0100_0000_1001_0101);
+        assert_eq!(
+            output,
+            ArmModeInstruction::SingleDataSwap {
+                condition: Condition::AL,
+                byte: true,
+                rn: 6,
+                rd: 4,
+                rm: 5,
+            }
+        );
+        assert_eq!("swpb r4, r5, [r6]", output.disassembler());
+
+        // SWPNE R0, R1, [R2] - conditional swap
+        let output = ArmModeInstruction::from(0b0001_0001_0000_0010_0000_0000_1001_0001);
+        assert_eq!(
+            output,
+            ArmModeInstruction::SingleDataSwap {
+                condition: Condition::NE,
+                byte: false,
+                rn: 2,
+                rd: 0,
+                rm: 1,
+            }
+        );
+        assert_eq!("swpNE r0, r1, [r2]", output.disassembler());
+    }
+
+    #[test]
+    fn decode_swap_vs_halfword_transfer() {
+        // Verify that SWP (SH bits = 00) is correctly distinguished from halfword transfers
+        // SWP has bits 6-5 = 00, halfword transfers have bits 6-5 != 00
+
+        // This is SWP (bits 6-5 = 00)
+        let swp_opcode = 0b1110_0001_0000_0011_0001_0000_1001_0010;
+        let output = ArmModeInstruction::from(swp_opcode);
+        assert!(matches!(output, ArmModeInstruction::SingleDataSwap { .. }));
+
+        // This is STRH (bits 6-5 = 01, unsigned halfword)
+        let strh_opcode = 0b1110_0001_1100_0001_0000_0000_1011_0000;
+        let output = ArmModeInstruction::from(strh_opcode);
+        assert!(matches!(
+            output,
+            ArmModeInstruction::HalfwordDataTransfer { .. }
+        ));
     }
 }
