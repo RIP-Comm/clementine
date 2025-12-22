@@ -1,8 +1,8 @@
+#![allow(clippy::unreadable_literal)]
+
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
-#[cfg(feature = "logger")]
-use logger::log;
 #[cfg(feature = "disassembler")]
 use vecfixed::VecFixed;
 
@@ -150,29 +150,10 @@ impl Arm7tdmi {
         pc.set_bit_off(0);
         pc.set_bit_off(1);
 
-        // NOTE: We do NOT write PC back here. PC should already be aligned from when it was set.
-        // Writing it back here causes bugs because fetch happens before execution in the pipeline.
-
         // Update current PC for BIOS read protection
         self.bus.set_current_pc(pc as usize);
 
         let opcode = self.bus.read_word(pc as usize);
-
-        // Log ARM fetches from BIOS around problematic area
-        if (pc as usize) >= 0x00000BA0 && (pc as usize) <= 0x00000BE0 {
-            logger::log(format!(
-                "ARM FETCH: fetching from 0x{:08X}: opcode=0x{:08X}",
-                pc, opcode
-            ));
-        }
-
-        // Log ARM fetches from IWRAM around problematic area
-        if (pc as usize) >= 0x03003580 && (pc as usize) <= 0x03003700 {
-            logger::log(format!(
-                "ARM FETCH FROM IWRAM: PC=0x{:08X}, opcode=0x{:08X}",
-                pc, opcode
-            ));
-        }
 
         // If fetching from BIOS, save this opcode for read protection
         if (pc as usize) < 0x4000 {
@@ -189,45 +170,10 @@ impl Arm7tdmi {
         let mut pc = pc_raw;
         pc.set_bit_off(0);
 
-        // Log if we're at problematic PCs
-        if pc_raw == 0x081DCA94 || pc == 0x081DCCE8 {
-            logger::log(format!(
-                "FETCH_THUMB: pc_raw=0x{:08X}, aligned pc=0x{:08X}, about to write back",
-                pc_raw, pc
-            ));
-        }
-
-        // NOTE: We do NOT write PC back here. PC should already be aligned from when it was set.
-        // Writing it back here causes bugs because fetch happens before execution in the pipeline,
-        // so if PC was advanced to an odd address, this would incorrectly align it BEFORE the
-        // instruction that set PC executes.
-
         // Update current PC for BIOS read protection
         self.bus.set_current_pc(pc as usize);
 
-        // Log before read
-        if pc_raw == 0x081DCA94 || pc == 0x081DCCE8 {
-            logger::log(format!("FETCH_THUMB: about to read from 0x{:08X}", pc));
-        }
-
         let opcode = self.bus.read_half_word(pc as usize);
-
-        // Log after read
-        if pc_raw == 0x081DCA94 || pc == 0x081DCCE8 {
-            let pc_after_read = self.registers.program_counter() as u32;
-            logger::log(format!(
-                "FETCH_THUMB: after read, PC=0x{:08X}, opcode=0x{:04X}",
-                pc_after_read, opcode
-            ));
-        }
-
-        // Debug: Log when fetching BX R3 instruction
-        if opcode == 0x4718 {
-            logger::log(format!(
-                "FETCH THUMB: opcode 0x4718 (BX R3) from address 0x{:08X} (PC was 0x{:08X} before alignment)",
-                pc, pc_raw
-            ));
-        }
 
         // If fetching from BIOS, save this opcode for read protection (extended to 32-bit)
         if (pc as usize) < 0x4000 {
@@ -249,6 +195,10 @@ impl Arm7tdmi {
         T::try_from(op_code).unwrap()
     }
 
+    /// This function is used to execute the Data Processing instruction.
+    ///
+    /// # Panics
+    /// It can panics if destination register is None.
     #[allow(clippy::too_many_lines)]
     pub fn execute_arm(&mut self, op_code: ArmModeOpcode) {
         // Instruction functions should return whether PC has to be advanced
@@ -605,22 +555,10 @@ impl Arm7tdmi {
             "Thumb"
         };
 
-        logger::log(format!(
-            "EXCEPTION: {:?} at PC=0x{:08X} (mode={}), will return to 0x{:08X}",
-            exception_type,
-            self.registers.program_counter(),
-            old_mode_str,
-            next_ins
-        ));
-
         // IRQ handling: Always use BIOS exception vector (no HLE for now)
         // This is more accurate to real hardware and avoids HLE bugs
         if matches!(exception_type, ExceptionType::Irq) {
-            let handler_addr = self.bus.read_word(0x03007FFC);
-            logger::log(format!(
-                "IRQ: User handler pointer = 0x{:08X}, using BIOS exception vector",
-                handler_addr
-            ));
+            let _handler_addr = self.bus.read_word(0x0300_7FFC);
             // Fall through to normal exception handling
         }
 
@@ -1038,6 +976,11 @@ impl Arm7tdmi {
 
     /// Handle SWI calls with High-Level Emulation
     /// Returns true if handled, false if BIOS should handle it
+    #[allow(
+        clippy::too_many_lines,
+        clippy::cast_possible_wrap,
+        clippy::cast_sign_loss
+    )]
     fn handle_swi_hle(&mut self, swi_num: u32, old_cpsr: Psr, return_addr: u32) -> bool {
         match swi_num {
             // SWI 0x00: SoftReset - Reset the GBA
@@ -1451,22 +1394,24 @@ mod tests {
 
     #[test]
     fn arm_block_data_transfer() {
+        // Use EWRAM base address for tests (0x02000000)
+        const BASE: u32 = 0x0200_1000;
         {
             // LDM with post-increment
             let op_code = 0b1110_100_0_1_0_1_1_1101_0000000010100010;
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(13, 0x1000);
-            cpu.bus.write_byte(0x1000, 1);
-            cpu.bus.write_byte(0x1004, 5);
-            cpu.bus.write_byte(0x1008, 7);
+            cpu.registers.set_register_at(13, BASE);
+            cpu.bus.write_byte(BASE as usize, 1);
+            cpu.bus.write_byte((BASE + 4) as usize, 5);
+            cpu.bus.write_byte((BASE + 8) as usize, 7);
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
             assert_eq!(cpu.registers.register_at(5), 5);
             assert_eq!(cpu.registers.register_at(7), 7);
-            assert_eq!(cpu.registers.register_at(13), 0x100C);
+            assert_eq!(cpu.registers.register_at(13), BASE + 0xC);
         }
         {
             // LDM with pre-increment
@@ -1474,16 +1419,16 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(13, 0x1000);
-            cpu.bus.write_byte(0x1004, 1);
-            cpu.bus.write_byte(0x1008, 5);
-            cpu.bus.write_byte(0x100C, 7);
+            cpu.registers.set_register_at(13, BASE);
+            cpu.bus.write_byte((BASE + 4) as usize, 1);
+            cpu.bus.write_byte((BASE + 8) as usize, 5);
+            cpu.bus.write_byte((BASE + 0xC) as usize, 7);
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
             assert_eq!(cpu.registers.register_at(5), 5);
             assert_eq!(cpu.registers.register_at(7), 7);
-            assert_eq!(cpu.registers.register_at(13), 0x100C);
+            assert_eq!(cpu.registers.register_at(13), BASE + 0xC);
         }
         {
             // LDM with post-decrement
@@ -1491,16 +1436,16 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(13, 0x1000);
-            cpu.bus.write_byte(0x1000, 7);
-            cpu.bus.write_byte(0x0FFC, 5);
-            cpu.bus.write_byte(0x0FF8, 1);
+            cpu.registers.set_register_at(13, BASE);
+            cpu.bus.write_byte(BASE as usize, 7);
+            cpu.bus.write_byte((BASE - 4) as usize, 5);
+            cpu.bus.write_byte((BASE - 8) as usize, 1);
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
             assert_eq!(cpu.registers.register_at(5), 5);
             assert_eq!(cpu.registers.register_at(7), 7);
-            assert_eq!(cpu.registers.register_at(13), 0x0FF4);
+            assert_eq!(cpu.registers.register_at(13), BASE - 0xC);
         }
         {
             // LDM with pre-decrement
@@ -1508,16 +1453,16 @@ mod tests {
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(13, 0x1000);
-            cpu.bus.write_byte(0x0FFC, 7);
-            cpu.bus.write_byte(0x0FF8, 5);
-            cpu.bus.write_byte(0x0FF4, 1);
+            cpu.registers.set_register_at(13, BASE);
+            cpu.bus.write_byte((BASE - 4) as usize, 7);
+            cpu.bus.write_byte((BASE - 8) as usize, 5);
+            cpu.bus.write_byte((BASE - 0xC) as usize, 1);
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 1);
             assert_eq!(cpu.registers.register_at(5), 5);
             assert_eq!(cpu.registers.register_at(7), 7);
-            assert_eq!(cpu.registers.register_at(13), 0x0FF4);
+            assert_eq!(cpu.registers.register_at(13), BASE - 0xC);
         }
         {
             // STM with post-increment
@@ -1529,16 +1474,16 @@ mod tests {
                 cpu.registers.set_register_at(r, r as u32);
             }
 
-            cpu.registers.set_register_at(13, 0x1000);
+            cpu.registers.set_register_at(13, BASE);
 
             cpu.execute_arm(op_code);
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_byte(0x1000), 1);
-            assert_eq!(bus.read_byte(0x1004), 5);
-            assert_eq!(bus.read_byte(0x1008), 7);
-            assert_eq!(cpu.registers.register_at(13), 0x100C);
+            assert_eq!(bus.read_byte(BASE as usize), 1);
+            assert_eq!(bus.read_byte((BASE + 4) as usize), 5);
+            assert_eq!(bus.read_byte((BASE + 8) as usize), 7);
+            assert_eq!(cpu.registers.register_at(13), BASE + 0xC);
         }
         {
             // STM with pre-increment
@@ -1550,17 +1495,17 @@ mod tests {
                 cpu.registers.set_register_at(r, r as u32);
             }
 
-            cpu.registers.set_register_at(13, 0x1000);
+            cpu.registers.set_register_at(13, BASE);
 
             cpu.execute_arm(op_code);
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_byte(0x1000), 0);
-            assert_eq!(bus.read_byte(0x1004), 1);
-            assert_eq!(bus.read_byte(0x1008), 5);
-            assert_eq!(bus.read_byte(0x100C), 7);
-            assert_eq!(cpu.registers.register_at(13), 0x100C);
+            assert_eq!(bus.read_byte(BASE as usize), 0);
+            assert_eq!(bus.read_byte((BASE + 4) as usize), 1);
+            assert_eq!(bus.read_byte((BASE + 8) as usize), 5);
+            assert_eq!(bus.read_byte((BASE + 0xC) as usize), 7);
+            assert_eq!(cpu.registers.register_at(13), BASE + 0xC);
         }
         {
             // STM with post-decrement
@@ -1572,16 +1517,16 @@ mod tests {
                 cpu.registers.set_register_at(r, r as u32);
             }
 
-            cpu.registers.set_register_at(13, 0x1000);
+            cpu.registers.set_register_at(13, BASE);
 
             cpu.execute_arm(op_code);
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_byte(0x1000), 7);
-            assert_eq!(bus.read_byte(0x0FFC), 5);
-            assert_eq!(bus.read_byte(0x0FF8), 1);
-            assert_eq!(cpu.registers.register_at(13), 0x0FF4);
+            assert_eq!(bus.read_byte(BASE as usize), 7);
+            assert_eq!(bus.read_byte((BASE - 4) as usize), 5);
+            assert_eq!(bus.read_byte((BASE - 8) as usize), 1);
+            assert_eq!(cpu.registers.register_at(13), BASE - 0xC);
         }
         {
             // STM with pre-decrement and storing R15
@@ -1594,23 +1539,25 @@ mod tests {
                 cpu.registers.set_register_at(r, r as u32);
             }
 
-            cpu.registers.set_register_at(13, 0x1000);
+            cpu.registers.set_register_at(13, BASE);
 
             cpu.execute_arm(op_code);
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_byte(0x1000), 0);
-            assert_eq!(bus.read_byte(0x0FFC), 15 + 4);
-            assert_eq!(bus.read_byte(0x0FF8), 7);
-            assert_eq!(bus.read_byte(0x0FF4), 5);
-            assert_eq!(bus.read_byte(0x0FF0), 1);
-            assert_eq!(cpu.registers.register_at(13), 0x0FF0);
+            assert_eq!(bus.read_byte(BASE as usize), 0);
+            assert_eq!(bus.read_byte((BASE - 4) as usize), 15 + 4);
+            assert_eq!(bus.read_byte((BASE - 8) as usize), 7);
+            assert_eq!(bus.read_byte((BASE - 0xC) as usize), 5);
+            assert_eq!(bus.read_byte((BASE - 0x10) as usize), 1);
+            assert_eq!(cpu.registers.register_at(13), BASE - 0x10);
         }
     }
 
     #[test]
     fn arm_half_word_data_transfer() {
+        // Use EWRAM base address for tests
+        const EWRAM: u32 = 0x0200_0000;
         {
             // Register offset
             let op_code = 0b1110_0001_1000_0010_0000_0000_1011_0001;
@@ -1632,15 +1579,16 @@ mod tests {
             );
 
             cpu.registers.set_register_at(0, 16843009);
+            cpu.registers.set_register_at(2, EWRAM); // set base register
             cpu.execute_arm(op_code);
 
             let mut bus = cpu.bus;
 
-            assert_eq!(bus.read_byte(0), 1);
-            assert_eq!(bus.read_byte(1), 1);
+            assert_eq!(bus.read_byte(EWRAM as usize), 1);
+            assert_eq!(bus.read_byte((EWRAM + 1) as usize), 1);
             // because we store halfword = 16bit
-            assert_eq!(bus.read_byte(2), 0);
-            assert_eq!(bus.read_byte(3), 0);
+            assert_eq!(bus.read_byte((EWRAM + 2) as usize), 0);
+            assert_eq!(bus.read_byte((EWRAM + 3) as usize), 0);
         }
         {
             // Immediate offset, pre-index, down, no wb, load, unsigned halfword
@@ -1648,13 +1596,14 @@ mod tests {
             let op_code = 0b1110_000_1_0_1_0_1_0000_0001_0001_1_01_1_1100;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_word(100 - 0b11100, 0xFFFF1234);
+            cpu.registers.set_register_at(0, EWRAM + 100);
+            cpu.bus
+                .write_word((EWRAM + 100 - 0b11100) as usize, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 0x1234);
-            assert_eq!(cpu.registers.register_at(0), 100);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100);
         }
         {
             // Immediate offset, pre-index, down, wb, load, unsigned halfword
@@ -1662,13 +1611,14 @@ mod tests {
             let op_code = 0b1110_000_1_0_1_1_1_0000_0001_0001_1_01_1_1100;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_word(100 - 0b11100, 0xFFFF1234);
+            cpu.registers.set_register_at(0, EWRAM + 100);
+            cpu.bus
+                .write_word((EWRAM + 100 - 0b11100) as usize, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 0x1234);
-            assert_eq!(cpu.registers.register_at(0), 100 - 0b11100);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100 - 0b11100);
         }
         {
             // Immediate offset, pre-index, up, wb, load, unsigned halfword
@@ -1676,13 +1626,14 @@ mod tests {
             let op_code = 0b1110_000_1_1_1_1_1_0000_0001_0001_1_01_1_1100;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_word(100 + 0b11100, 0xFFFF1234);
+            cpu.registers.set_register_at(0, EWRAM + 100);
+            cpu.bus
+                .write_word((EWRAM + 100 + 0b11100) as usize, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 0x1234);
-            assert_eq!(cpu.registers.register_at(0), 100 + 0b11100);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100 + 0b11100);
         }
         {
             // Immediate offset, post-index, down, no wb (but implicit), load, unsigned halfword
@@ -1690,13 +1641,13 @@ mod tests {
             let op_code = 0b1110_000_0_0_1_0_1_0000_0001_0001_1_01_1_1111;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_word(100, 0xFFFF1234);
+            cpu.registers.set_register_at(0, EWRAM + 100);
+            cpu.bus.write_word((EWRAM + 100) as usize, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), 0x1234);
-            assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100 - 0b11111);
         }
         {
             // Immediate offset, post-index, down, no wb (but implicit), load, signed byte
@@ -1704,13 +1655,13 @@ mod tests {
             let op_code = 0b1110_000_0_0_1_0_1_0000_0001_0001_1_10_1_1111;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_byte(100, -5_i8 as u8);
+            cpu.registers.set_register_at(0, EWRAM + 100);
+            cpu.bus.write_byte((EWRAM + 100) as usize, -5_i8 as u8);
 
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), -5_i32 as u32);
-            assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100 - 0b11111);
         }
         {
             // Immediate offset, post-index, down, no wb (but implicit), load, signed halfword
@@ -1718,13 +1669,14 @@ mod tests {
             let op_code = 0b1110_000_0_0_1_0_1_0000_0001_0001_1_11_1_1111;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_half_word(100, -300_i16 as u16);
+            cpu.registers.set_register_at(0, EWRAM + 100);
+            cpu.bus
+                .write_half_word((EWRAM + 100) as usize, -300_i16 as u16);
 
             cpu.execute_arm(op_code);
 
             assert_eq!(cpu.registers.register_at(1), -300_i32 as u32);
-            assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100 - 0b11111);
         }
         {
             // Immediate offset, post-index, down, no wb (but implicit), store, unsigned halfword
@@ -1732,13 +1684,13 @@ mod tests {
             let op_code = 0b1110_000_0_0_1_0_0_0000_0001_0001_1_01_1_1111;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(0, EWRAM + 100);
             cpu.registers.set_register_at(1, 0xFFFF1234);
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.bus.read_word(100), 0x1234);
-            assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
+            assert_eq!(cpu.bus.read_word((EWRAM + 100) as usize), 0x1234);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100 - 0b11111);
         }
         {
             // Immediate offset, post-index, down, no wb (but implicit), store PC, unsigned halfword
@@ -1746,13 +1698,13 @@ mod tests {
             let op_code = 0b1110_000_0_0_1_0_0_0000_1111_0001_1_01_1_1111;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(0, EWRAM + 100);
             cpu.registers.set_program_counter(500);
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.bus.read_word(100), 504);
-            assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
+            assert_eq!(cpu.bus.read_word((EWRAM + 100) as usize), 504);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100 - 0b11111);
         }
         {
             // Immediate offset, pre-index, down, no wb, store PC, unsigned halfword, base PC
@@ -1760,12 +1712,17 @@ mod tests {
             let op_code = 0b1110_000_1_0_1_0_0_1111_1111_0001_1_01_1_1100;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_program_counter(500);
+            cpu.registers.set_program_counter(EWRAM + 500);
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.bus.read_word(500 - 0b11100), 504);
-            assert_eq!(cpu.registers.program_counter(), 500);
+            // STRH stores only 16 bits, so only the lower 16 bits of PC+4 are stored
+            // PC + 4 = EWRAM + 504 = 0x020001F8, lower 16 bits = 0x01F8 = 504
+            assert_eq!(
+                cpu.bus.read_half_word((EWRAM + 500 - 0b11100) as usize),
+                ((EWRAM + 504) & 0xFFFF) as u16
+            );
+            assert_eq!(cpu.registers.program_counter(), (EWRAM + 500) as usize);
         }
         {
             // Register offset, post-index, down, no wb (but implicit), store PC, unsigned halfword
@@ -1773,25 +1730,32 @@ mod tests {
             let op_code = 0b1110_000_0_0_0_0_0_0000_1111_0000_1_01_1_0010;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(0, EWRAM + 100);
             cpu.registers.set_program_counter(500);
             cpu.registers.set_register_at(2, 0b11111);
 
             cpu.execute_arm(op_code);
 
-            assert_eq!(cpu.bus.read_word(100), 504);
-            assert_eq!(cpu.registers.register_at(0), 100 - 0b11111);
+            assert_eq!(cpu.bus.read_word((EWRAM + 100) as usize), 504);
+            assert_eq!(cpu.registers.register_at(0), EWRAM + 100 - 0b11111);
         }
     }
 
     #[test]
     fn thumb_pc_relative_load() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
         let mut cpu = Arm7tdmi::default();
         let op_code = 0b0100_1001_0101_1000_u16;
         let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
+        // PC-relative load: address = (PC & ~3) + offset * 4
+        // offset = 0x58 = 88 (352 when shifted), so address = (PC & ~3) + 352
+        // Set PC to EWRAM + 4 to simulate pipeline-adjusted value
+        cpu.registers.set_program_counter(EWRAM + 4);
         cpu.registers.set_register_at(1, 10);
-        cpu.bus.write_byte(352, 1);
+        // Address = (EWRAM + 4 & ~3) + 352 = EWRAM + 4 + 352 = EWRAM + 356
+        cpu.bus.write_word((EWRAM + 356) as usize, 1);
         cpu.execute_thumb(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 1);
@@ -1799,19 +1763,21 @@ mod tests {
 
     #[test]
     fn thumb_load_store_register_offset() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
         // Checks Store Word
         {
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b0101_00_0_000_001_010;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(0, EWRAM + 100);
             cpu.registers.set_register_at(1, 100);
             cpu.registers.set_register_at(2, 0xFEEFAC1F);
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.bus.read_word(200), 0xFEEFAC1F);
+            assert_eq!(cpu.bus.read_word((EWRAM + 200) as usize), 0xFEEFAC1F);
         }
         // Checks Store Byte
         {
@@ -1819,16 +1785,16 @@ mod tests {
             let op_code = 0b0101_01_0_000_001_010;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(0, EWRAM + 100);
             cpu.registers.set_register_at(1, 100);
             cpu.registers.set_register_at(2, 0xFEEFAC1F);
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.bus.read_byte(200), 0x1F);
-            assert_eq!(cpu.bus.read_byte(201), 0);
-            assert_eq!(cpu.bus.read_byte(202), 0);
-            assert_eq!(cpu.bus.read_byte(203), 0);
+            assert_eq!(cpu.bus.read_byte((EWRAM + 200) as usize), 0x1F);
+            assert_eq!(cpu.bus.read_byte((EWRAM + 201) as usize), 0);
+            assert_eq!(cpu.bus.read_byte((EWRAM + 202) as usize), 0);
+            assert_eq!(cpu.bus.read_byte((EWRAM + 203) as usize), 0);
         }
         // Checks Load Word
         {
@@ -1836,9 +1802,9 @@ mod tests {
             let op_code = 0b0101_10_0_000_001_010;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(0, EWRAM + 100);
             cpu.registers.set_register_at(1, 100);
-            cpu.bus.write_word(200, 0xFEEFAC1F);
+            cpu.bus.write_word((EWRAM + 200) as usize, 0xFEEFAC1F);
 
             cpu.execute_thumb(op_code);
 
@@ -1850,9 +1816,9 @@ mod tests {
             let op_code = 0b0101_11_0_000_001_010;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(0, EWRAM + 100);
             cpu.registers.set_register_at(1, 100);
-            cpu.bus.write_word(200, 0xFEEFAC1F);
+            cpu.bus.write_word((EWRAM + 200) as usize, 0xFEEFAC1F);
 
             cpu.execute_thumb(op_code);
 
@@ -1862,42 +1828,53 @@ mod tests {
 
     #[test]
     fn thumb_load_store_immediate_offset() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
         {
             // Store Word
             let op_code = 0b0110_0011_0111_1000;
             let mut cpu = Arm7tdmi::default();
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-            assert_eq!(op_code.instruction, Instruction::LoadStoreImmOffset);
+            assert!(matches!(
+                op_code.instruction,
+                Instruction::LoadStoreImmOffset { .. }
+            ));
 
-            cpu.registers.set_register_at(7, 4);
+            cpu.registers.set_register_at(7, EWRAM + 4);
             cpu.registers.set_register_at(0, 0xFFFF_FFFF);
             cpu.execute_thumb(op_code);
 
             let mut bus = cpu.bus;
-            assert_eq!(bus.read_word(56), 0xFFFF_FFFF);
+            assert_eq!(bus.read_word((EWRAM + 56) as usize), 0xFFFF_FFFF);
         }
         {
             // Store Word misaligned
             let op_code = 0b0110_0011_0111_1000;
             let mut cpu = Arm7tdmi::default();
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-            assert_eq!(op_code.instruction, Instruction::LoadStoreImmOffset);
+            assert!(matches!(
+                op_code.instruction,
+                Instruction::LoadStoreImmOffset { .. }
+            ));
 
-            cpu.registers.set_register_at(7, 2);
+            cpu.registers.set_register_at(7, EWRAM + 2);
             cpu.registers.set_register_at(0, 0xFFFF_FFFF);
             cpu.execute_thumb(op_code);
 
             let mut bus = cpu.bus;
-            assert_eq!(bus.read_word(52), 0xFFFF_FFFF);
+            assert_eq!(bus.read_word((EWRAM + 52) as usize), 0xFFFF_FFFF);
         }
         {
             // Load Word
             let op_code = 0b0110_1011_0000_1111;
             let mut cpu = Arm7tdmi::default();
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-            assert_eq!(op_code.instruction, Instruction::LoadStoreImmOffset);
-            cpu.bus.write_word(1048, 0xFFFF_FFFF);
-            cpu.registers.set_register_at(1, 1000);
+            assert!(matches!(
+                op_code.instruction,
+                Instruction::LoadStoreImmOffset { .. }
+            ));
+            cpu.bus.write_word((EWRAM + 1048) as usize, 0xFFFF_FFFF);
+            cpu.registers.set_register_at(1, EWRAM + 1000);
             cpu.execute_thumb(op_code);
 
             assert_eq!(cpu.registers.register_at(7), 0xFFFF_FFFF);
@@ -1907,14 +1884,17 @@ mod tests {
             let op_code = 0b0111_0010_0011_1000;
             let mut cpu = Arm7tdmi::default();
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
-            assert_eq!(op_code.instruction, Instruction::LoadStoreImmOffset);
+            assert!(matches!(
+                op_code.instruction,
+                Instruction::LoadStoreImmOffset { .. }
+            ));
 
-            cpu.registers.set_register_at(7, 2);
+            cpu.registers.set_register_at(7, EWRAM + 2);
             cpu.registers.set_register_at(0, 0xFFFF_FFFF);
             cpu.execute_thumb(op_code);
 
             let mut bus = cpu.bus;
-            assert_eq!(bus.read_byte(10), 0xFF);
+            assert_eq!(bus.read_byte((EWRAM + 10) as usize), 0xFF);
         }
     }
 
@@ -2190,6 +2170,9 @@ mod tests {
 
     #[test]
     fn thumb_push_pop_register() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
+        const SP_BASE: u32 = EWRAM + 1000;
         {
             // Store + save LR
             let mut cpu = Arm7tdmi::default();
@@ -2198,7 +2181,7 @@ mod tests {
 
             cpu.registers.set_program_counter(1000);
             cpu.registers.set_register_at(REG_LR, 1000);
-            cpu.registers.set_register_at(REG_SP, 1000);
+            cpu.registers.set_register_at(REG_SP, SP_BASE);
 
             for r in 0..8 {
                 cpu.registers.set_register_at(r, r.try_into().unwrap());
@@ -2206,11 +2189,11 @@ mod tests {
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.bus.read_word(1000 - 4), 1000);
-            assert_eq!(cpu.bus.read_word(1000 - 4 - 4), 7);
-            assert_eq!(cpu.bus.read_word(1000 - 4 - 4 - 4), 6);
-            assert_eq!(cpu.bus.read_word(1000 - 4 - 4 - 4 - 4), 5);
-            assert_eq!(cpu.bus.read_word(1000 - 4 - 4 - 4 - 4 - 4), 4);
+            assert_eq!(cpu.bus.read_word((SP_BASE - 4) as usize), 1000);
+            assert_eq!(cpu.bus.read_word((SP_BASE - 4 - 4) as usize), 7);
+            assert_eq!(cpu.bus.read_word((SP_BASE - 4 - 4 - 4) as usize), 6);
+            assert_eq!(cpu.bus.read_word((SP_BASE - 4 - 4 - 4 - 4) as usize), 5);
+            assert_eq!(cpu.bus.read_word((SP_BASE - 4 - 4 - 4 - 4 - 4) as usize), 4);
         }
         {
             // Load + restore PC
@@ -2218,13 +2201,13 @@ mod tests {
             let op_code = 0b1011_1_10_1_1111_0000;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(REG_SP, 1000);
+            cpu.registers.set_register_at(REG_SP, SP_BASE);
 
-            cpu.bus.write_word(1000, 100);
-            cpu.bus.write_word(1004, 200);
-            cpu.bus.write_word(1008, 300);
-            cpu.bus.write_word(1012, 400);
-            cpu.bus.write_word(1016, 500);
+            cpu.bus.write_word(SP_BASE as usize, 100);
+            cpu.bus.write_word((SP_BASE + 4) as usize, 200);
+            cpu.bus.write_word((SP_BASE + 8) as usize, 300);
+            cpu.bus.write_word((SP_BASE + 12) as usize, 400);
+            cpu.bus.write_word((SP_BASE + 16) as usize, 500);
 
             cpu.execute_thumb(op_code);
 
@@ -2237,7 +2220,7 @@ mod tests {
                     .register_at(REG_PROGRAM_COUNTER.try_into().unwrap()),
                 500
             );
-            assert_eq!(cpu.registers.register_at(REG_SP), 1020);
+            assert_eq!(cpu.registers.register_at(REG_SP), SP_BASE + 20);
         }
     }
 
@@ -2269,14 +2252,17 @@ mod tests {
 
     #[test]
     fn thumb_sp_relative_load() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
+        const SP_BASE: u32 = EWRAM + 100;
         {
             // Load
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1001_1_000_00000111;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(REG_SP, 100);
-            cpu.bus.write_word(100 + 0b11100, 999);
+            cpu.registers.set_register_at(REG_SP, SP_BASE);
+            cpu.bus.write_word((SP_BASE + 0b11100) as usize, 999);
 
             cpu.execute_thumb(op_code);
 
@@ -2288,12 +2274,12 @@ mod tests {
             let op_code = 0b1001_0_000_00000111;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(REG_SP, 100);
+            cpu.registers.set_register_at(REG_SP, SP_BASE);
             cpu.registers.set_register_at(0, 999);
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.bus.read_word(100 + 0b11100), 999);
+            assert_eq!(cpu.bus.read_word((SP_BASE + 0b11100) as usize), 999);
         }
     }
 
@@ -2409,14 +2395,17 @@ mod tests {
 
     #[test]
     fn thumb_load_store_halfword() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
+        const BASE: u32 = EWRAM + 100;
         {
             // Load
             let mut cpu = Arm7tdmi::default();
             let op_code = 0b1000_1_00001_000_001;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
-            cpu.bus.write_half_word(102, 0xFF);
+            cpu.registers.set_register_at(0, BASE);
+            cpu.bus.write_half_word((BASE + 2) as usize, 0xFF);
 
             cpu.execute_thumb(op_code);
 
@@ -2428,17 +2417,19 @@ mod tests {
             let op_code = 0b1000_0_00001_000_001;
             let op_code: ThumbModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.registers.set_register_at(0, 100);
+            cpu.registers.set_register_at(0, BASE);
             cpu.registers.set_register_at(1, 0xFF);
 
             cpu.execute_thumb(op_code);
 
-            assert_eq!(cpu.bus.read_half_word(102), 0xFF);
+            assert_eq!(cpu.bus.read_half_word((BASE + 2) as usize), 0xFF);
         }
     }
 
     #[test]
     fn thumb_load_store_sign_extend_byte_halfword() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
         struct Test {
             opcode: u16,
             expected_decode: Instruction,
@@ -2458,11 +2449,11 @@ mod tests {
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
-                    cpu.registers.set_register_at(1, 100);
+                    cpu.registers.set_register_at(1, EWRAM + 100);
                     cpu.registers.set_register_at(2, 0xF000_F0FF);
                 }),
                 check_fn: Box::new(|mut cpu| {
-                    assert_eq!(cpu.bus.read_half_word(110), 0xF0FF);
+                    assert_eq!(cpu.bus.read_half_word((EWRAM + 110) as usize), 0xF0FF);
                 }),
             },
             Test {
@@ -2476,8 +2467,8 @@ mod tests {
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
-                    cpu.registers.set_register_at(1, 100);
-                    cpu.bus.write_half_word(110, 0xF0FF);
+                    cpu.registers.set_register_at(1, EWRAM + 100);
+                    cpu.bus.write_half_word((EWRAM + 110) as usize, 0xF0FF);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(2), 0xF0FF);
@@ -2494,8 +2485,8 @@ mod tests {
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
-                    cpu.registers.set_register_at(1, 100);
-                    cpu.bus.write_byte(110, 0x80);
+                    cpu.registers.set_register_at(1, EWRAM + 100);
+                    cpu.bus.write_byte((EWRAM + 110) as usize, 0x80);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(2), 0xFFFF_FF80);
@@ -2512,8 +2503,8 @@ mod tests {
                 },
                 prepare_fn: Box::new(|cpu| {
                     cpu.registers.set_register_at(0, 10);
-                    cpu.registers.set_register_at(1, 100);
-                    cpu.bus.write_half_word(110, 0x8030);
+                    cpu.registers.set_register_at(1, EWRAM + 100);
+                    cpu.bus.write_half_word((EWRAM + 110) as usize, 0x8030);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(2), 0xFFFF_8030);
@@ -2591,6 +2582,9 @@ mod tests {
 
     #[test]
     fn thumb_multiple_load_store() {
+        // Use EWRAM base address for tests (0x02000000)
+        const EWRAM: u32 = 0x0200_0000;
+        const BASE: u32 = EWRAM + 100;
         struct Test {
             opcode: u16,
             expected_decode: Instruction,
@@ -2607,14 +2601,14 @@ mod tests {
                     register_list: 160,
                 },
                 prepare_fn: Box::new(|cpu| {
-                    cpu.registers.set_register_at(1, 100);
-                    cpu.bus.write_word(100, 0xFF);
-                    cpu.bus.write_word(104, 0xFF);
+                    cpu.registers.set_register_at(1, BASE);
+                    cpu.bus.write_word(BASE as usize, 0xFF);
+                    cpu.bus.write_word((BASE + 4) as usize, 0xFF);
                 }),
                 check_fn: Box::new(|cpu| {
                     assert_eq!(cpu.registers.register_at(5), 0xFF);
                     assert_eq!(cpu.registers.register_at(7), 0xFF);
-                    assert_eq!(cpu.registers.register_at(1), 108);
+                    assert_eq!(cpu.registers.register_at(1), BASE + 8);
                 }),
             },
             Test {
@@ -2625,14 +2619,14 @@ mod tests {
                     register_list: 160,
                 },
                 prepare_fn: Box::new(|cpu| {
-                    cpu.registers.set_register_at(1, 100);
+                    cpu.registers.set_register_at(1, BASE);
                     cpu.registers.set_register_at(5, 10);
                     cpu.registers.set_register_at(7, 20);
                 }),
                 check_fn: Box::new(|mut cpu| {
-                    assert_eq!(cpu.bus.read_word(100), 10);
-                    assert_eq!(cpu.bus.read_word(104), 20);
-                    assert_eq!(cpu.registers.register_at(1), 108);
+                    assert_eq!(cpu.bus.read_word(BASE as usize), 10);
+                    assert_eq!(cpu.bus.read_word((BASE + 4) as usize), 20);
+                    assert_eq!(cpu.registers.register_at(1), BASE + 8);
                 }),
             },
         ];
