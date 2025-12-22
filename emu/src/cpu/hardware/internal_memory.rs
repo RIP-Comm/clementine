@@ -7,6 +7,19 @@ use crate::bitwise::Bits;
 
 use super::get_unmasked_address;
 
+/// Flash memory state for command handling
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FlashState {
+    #[default]
+    Ready,
+    Command1,     // Received 0xAA at 0x5555
+    Command2,     // Received 0x55 at 0x2AAA
+    IdMode,       // ID mode - reads return manufacturer/device ID
+    EraseCommand, // Waiting for erase type after 0x80
+    BankSelect,   // Waiting for bank number (for 128KB flash)
+    WriteCommand, // Ready to write a byte
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 `KBytes`).
@@ -28,9 +41,21 @@ pub struct InternalMemory {
     // 0E010000-0FFFFFFF Not used
     pub rom: Vec<u8>,
 
-    /// From 0x0E000000 to 0x0E00FFFF (64 KBytes).
-    /// Game Pak SRAM used for save data.
+    /// From 0x0E000000 to 0x0E01FFFF (128 `KBytes` for Flash).
+    /// Game Pak SRAM/Flash used for save data.
     sram: Vec<u8>,
+
+    /// Flash memory state machine
+    flash_state: FlashState,
+
+    /// Flash bank selection for 128KB flash (0 or 1)
+    flash_bank: u8,
+
+    /// GPIO registers for RTC/rumble/etc (at ROM offset 0xC4-0xC9)
+    /// Register layout: 0xC4=data, 0xC6=direction, 0xC8=control
+    gpio_data: u16, // Pin state (4-bit)
+    gpio_direction: u16, // Pin direction (4-bit, 1=output, 0=input)
+    gpio_control: u16,   // GPIO enable/control (1-bit)
 
     /// From 0x00004000 to `0x01FF_FFFF`.
     /// From 0x10000000 to `0xFFFF_FFFF`.
@@ -51,12 +76,39 @@ impl InternalMemory {
             working_ram: vec![0; 0x0004_0000],
             working_iram: vec![0; 0x0000_8000],
             rom,
-            sram: vec![0xFF; 0x0001_0000], // 64KB SRAM, initialized to 0xFF (typical for flash)
+            sram: vec![0xFF; 0x0002_0000], // 128KB Flash, initialized to 0xFF (erased state)
+            flash_state: FlashState::Ready,
+            flash_bank: 0,
+            gpio_data: 0,      // All pins low initially
+            gpio_direction: 0, // All pins as inputs initially
+            gpio_control: 1,   // GPIO enabled (allow reads)
             unused_region: HashMap::new(),
         }
     }
 
     fn read_rom(&self, address: usize) -> u8 {
+        // GPIO port region (for RTC in Pokemon Fire Red/Leaf Green)
+        // Located at ROM addresses 0xC4-0xC9 (16-bit aligned)
+        // 0xC4/0xC5 = Data register (pin state)
+        // 0xC6/0xC7 = Direction register
+        // 0xC8/0xC9 = Control register
+        if (0xC4..=0xC9).contains(&address) {
+            let value = match address {
+                0xC4 => self.gpio_data.get_byte(0),
+                0xC5 => self.gpio_data.get_byte(1),
+                0xC6 => self.gpio_direction.get_byte(0),
+                0xC7 => self.gpio_direction.get_byte(1),
+                0xC8 => self.gpio_control.get_byte(0),
+                0xC9 => self.gpio_control.get_byte(1),
+                _ => unreachable!(),
+            };
+            log(format!(
+                "GPIO READ: offset 0x{:04X} = 0x{:02X} (data=0x{:04X}, dir=0x{:04X}, ctrl=0x{:04X})",
+                address, value, self.gpio_data, self.gpio_direction, self.gpio_control
+            ));
+            return value;
+        }
+
         if address < self.rom.len() {
             self.rom[address]
         } else {
@@ -95,15 +147,64 @@ impl InternalMemory {
                     [get_unmasked_address(address, 0x00FF_0000, 0xFF00_FFFF, 16, 4) - 0x0200_0000]
             }
             0x0300_0000..=0x03FF_FFFF => {
-                self.working_iram
-                    [get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8) - 0x0300_0000]
+                let unmasked = get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8);
+                let idx = unmasked - 0x0300_0000;
+                let value = self.working_iram[idx];
+
+                // Debug: Log reads around the problematic address
+                if unmasked >= 0x030036A0 && unmasked <= 0x030036B0 {
+                    log(format!(
+                        "IWRAM READ: addr=0x{:08X}, unmasked=0x{:08X}, idx=0x{:04X}, value=0x{:02X}",
+                        address, unmasked, idx, value
+                    ));
+                }
+
+                // Log reads from IRQ handler pointer area
+                if unmasked >= 0x03007FFC {
+                    log(format!(
+                        "!!! READ FROM IRQ HANDLER POINTER AREA !!!\n  \
+                         Address: 0x{address:08X} (unmask to 0x{unmasked:08X}), Value: 0x{value:02X}"
+                    ));
+                }
+
+                value
             }
             0x0800_0000..=0x09FF_FFFF => self.read_rom(address - 0x0800_0000),
             0x0A00_0000..=0x0BFF_FFFF => self.read_rom(address - 0x0A00_0000),
             0x0C00_0000..=0x0DFF_FFFF => self.read_rom(address - 0x0C00_0000),
-            0x0E00_0000..=0x0E00_FFFF => self.sram[address - 0x0E00_0000],
+            0x0E00_0000..=0x0E01_FFFF => {
+                let offset = address - 0x0E00_0000;
+
+                // In ID mode, return manufacturer/device ID
+                if self.flash_state == FlashState::IdMode {
+                    let id_value = match offset {
+                        // Sanyo LE26FV10N1TS (128KB / 1Mbit) - same as mGBA uses
+                        0x0000 => 0x62, // Manufacturer ID (Sanyo)
+                        0x0001 => 0x13, // Device ID (1Mbit = 128KB)
+                        _ => 0xFF,
+                    };
+                    log(format!(
+                        "Flash ID READ: addr=0x{:08X}, offset=0x{:04X}, value=0x{:02X}",
+                        address, offset, id_value
+                    ));
+                    return id_value;
+                }
+
+                // Normal read: apply bank offset for 128KB flash
+                let real_offset = (self.flash_bank as usize * 0x10000) + (offset & 0xFFFF);
+                let value = if real_offset < self.sram.len() {
+                    self.sram[real_offset]
+                } else {
+                    0xFF
+                };
+                log(format!(
+                    "Flash READ: addr=0x{:08X}, bank={}, offset=0x{:04X}, value=0x{:02X}",
+                    address, self.flash_bank, offset, value
+                ));
+                value
+            }
             0x0000_4000..=0x01FF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
-                log(format!("read on unused memory {address:x}"));
+                log(format!("READ on unused memory 0x{:08X}", address));
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
@@ -112,32 +213,213 @@ impl InternalMemory {
 
     pub fn write_at(&mut self, address: usize, value: u8) {
         match address {
-            0x0000_0000..=0x0000_3FFF => self.bios_system_rom[address] = value,
+            0x0000_0000..=0x0000_3FFF => {
+                // BIOS is read-only, ignore writes
+                // (Some games may try to write here, but it should have no effect)
+            }
             0x0200_0000..=0x0203_FFFF => self.working_ram[address - 0x0200_0000] = value,
             // Mirror
             0x0204_0000..=0x02FF_FFFF => {
                 self.working_ram[get_unmasked_address(address, 0x00FF_0000, 0xFF00_FFFF, 16, 4)
                     - 0x0200_0000] = value;
             }
-            0x0300_0000..=0x0300_7FFF => self.working_iram[address - 0x0300_0000] = value,
+            0x0300_0000..=0x0300_7FFF => {
+                // Log writes to IRQ handler pointer area (last 4 bytes of IWRAM)
+                if address >= 0x03007FFC {
+                    log(format!(
+                        "!!! WRITE TO IRQ HANDLER POINTER AREA !!!\n  \
+                         Address: 0x{address:08X}, Value: 0x{value:02X}",
+                    ));
+                }
+                // Log writes to IRQ handler code area (for debugging)
+                if (0x03003580..0x03003600).contains(&address) {
+                    log(format!(
+                        "!!! WRITE TO IRQ HANDLER CODE AREA !!!\n  \
+                         Address: 0x{address:08X}, Value: 0x{value:02X}",
+                    ));
+                }
+                // Debug: Log writes around the problematic address
+                if address >= 0x030036A0 && address <= 0x030036B0 {
+                    let idx = address - 0x0300_0000;
+                    log(format!(
+                        "IWRAM WRITE: addr=0x{:08X}, idx=0x{:04X}, value=0x{:02X}",
+                        address, idx, value
+                    ));
+                }
+                self.working_iram[address - 0x0300_0000] = value;
+            }
             // Mirror
             0x0300_8000..=0x03FF_FFFF => {
-                self.working_iram[get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8)
-                    - 0x0300_0000] = value;
+                let unmasked = get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8);
+                // Log writes to IRQ handler pointer area (mirrors to last 4 bytes of IWRAM)
+                if unmasked >= 0x03007FFC {
+                    log(format!(
+                        "!!! WRITE TO IRQ HANDLER POINTER AREA (mirrored) !!!\n  \
+                         Address: 0x{address:08X} (unmask to 0x{unmasked:08X}), Value: 0x{value:02X}",
+                    ));
+                }
+                self.working_iram[unmasked - 0x0300_0000] = value;
             }
             0x0800_0000..=0x0DFF_FFFF => {
-                // ROM is read-only, writes are ignored
-                log(format!("Attempted write to ROM at {address:#010x}"));
+                // Check if this is a GPIO write (ROM offset 0xC4-0xC9)
+                let rom_offset = address & 0x01FFFFFF; // Mask to get offset within ROM region
+                if (0xC4..=0xC9).contains(&rom_offset) {
+                    log(format!(
+                        "GPIO WRITE: offset 0x{:04X} = 0x{:02X}",
+                        rom_offset, value
+                    ));
+                    match rom_offset {
+                        0xC4 => self.gpio_data.set_byte(0, value),
+                        0xC5 => self.gpio_data.set_byte(1, value),
+                        0xC6 => self.gpio_direction.set_byte(0, value),
+                        0xC7 => self.gpio_direction.set_byte(1, value),
+                        0xC8 => self.gpio_control.set_byte(0, value),
+                        0xC9 => self.gpio_control.set_byte(1, value),
+                        _ => unreachable!(),
+                    }
+                    log(format!(
+                        "  GPIO state: data=0x{:04X}, dir=0x{:04X}, ctrl=0x{:04X}",
+                        self.gpio_data, self.gpio_direction, self.gpio_control
+                    ));
+                } else {
+                    // ROM is read-only, writes are ignored
+                    log(format!("Attempted write to ROM at {address:#010x}"));
+                }
             }
-            0x0E00_0000..=0x0E00_FFFF => {
-                // SRAM write
-                self.sram[address - 0x0E00_0000] = value;
+            0x0E00_0000..=0x0E01_FFFF => {
+                // Flash command/write handling
+                let offset = (address - 0x0E00_0000) & 0xFFFF; // 64KB offset within current bank
+
+                log(format!(
+                    "Flash WRITE: addr=0x{:08X}, offset=0x{:04X}, value=0x{:02X}, state={:?}",
+                    address, offset, value, self.flash_state
+                ));
+
+                // Handle Flash commands based on state machine
+                match self.flash_state {
+                    FlashState::Ready => {
+                        // First command byte: 0xAA to 0x5555
+                        if offset == 0x5555 && value == 0xAA {
+                            self.flash_state = FlashState::Command1;
+                        }
+                    }
+                    FlashState::Command1 => {
+                        // Second command byte: 0x55 to 0x2AAA
+                        if offset == 0x2AAA && value == 0x55 {
+                            self.flash_state = FlashState::Command2;
+                        } else {
+                            self.flash_state = FlashState::Ready;
+                        }
+                    }
+                    FlashState::Command2 => {
+                        // Third command byte determines operation
+                        if offset == 0x5555 {
+                            match value {
+                                0x90 => {
+                                    // Enter ID mode
+                                    log("Flash: Entering ID mode");
+                                    self.flash_state = FlashState::IdMode;
+                                }
+                                0xF0 => {
+                                    // Exit ID mode / Reset
+                                    log("Flash: Reset/Exit ID mode");
+                                    self.flash_state = FlashState::Ready;
+                                }
+                                0x80 => {
+                                    // Erase command prefix
+                                    log("Flash: Erase command prefix");
+                                    self.flash_state = FlashState::EraseCommand;
+                                }
+                                0xA0 => {
+                                    // Write byte command
+                                    log("Flash: Write command");
+                                    self.flash_state = FlashState::WriteCommand;
+                                }
+                                0xB0 => {
+                                    // Bank switch command (for 128KB flash)
+                                    log("Flash: Bank switch command");
+                                    self.flash_state = FlashState::BankSelect;
+                                }
+                                _ => {
+                                    log(format!("Flash: Unknown command 0x{:02X}", value));
+                                    self.flash_state = FlashState::Ready;
+                                }
+                            }
+                        } else {
+                            self.flash_state = FlashState::Ready;
+                        }
+                    }
+                    FlashState::IdMode => {
+                        // Any write to 0x5555 with 0xF0 exits ID mode
+                        if value == 0xF0 {
+                            log("Flash: Exit ID mode");
+                            self.flash_state = FlashState::Ready;
+                        }
+                        // Also handle standard command sequence in ID mode
+                        else if offset == 0x5555 && value == 0xAA {
+                            self.flash_state = FlashState::Command1;
+                        }
+                    }
+                    FlashState::EraseCommand => {
+                        // After 0x80, expect another 0xAA,0x55 sequence
+                        if offset == 0x5555 && value == 0xAA {
+                            self.flash_state = FlashState::Command1;
+                        } else if value == 0x10 && offset == 0x5555 {
+                            // Chip erase
+                            log("Flash: Chip erase");
+                            self.sram.fill(0xFF);
+                            self.flash_state = FlashState::Ready;
+                        } else if value == 0x30 {
+                            // Sector erase (4KB sector)
+                            let sector_base =
+                                (self.flash_bank as usize * 0x10000) + (offset & 0xF000);
+                            log(format!("Flash: Sector erase at 0x{:05X}", sector_base));
+                            for i in 0..0x1000 {
+                                if sector_base + i < self.sram.len() {
+                                    self.sram[sector_base + i] = 0xFF;
+                                }
+                            }
+                            self.flash_state = FlashState::Ready;
+                        } else {
+                            self.flash_state = FlashState::Ready;
+                        }
+                    }
+                    FlashState::BankSelect => {
+                        // Bank number written to 0x0000
+                        if offset == 0x0000 {
+                            self.flash_bank = value & 0x01; // Only 0 or 1 for 128KB
+                            log(format!("Flash: Bank set to {}", self.flash_bank));
+                        }
+                        self.flash_state = FlashState::Ready;
+                    }
+                    FlashState::WriteCommand => {
+                        // Write single byte to flash
+                        let real_offset = (self.flash_bank as usize * 0x10000) + offset;
+                        if real_offset < self.sram.len() {
+                            // Flash write: can only clear bits (AND operation)
+                            self.sram[real_offset] &= value;
+                            log(format!(
+                                "Flash: Write 0x{:02X} to offset 0x{:05X}",
+                                value, real_offset
+                            ));
+                        }
+                        self.flash_state = FlashState::Ready;
+                    }
+                }
             }
-            0x0E01_0000..=0x0FFF_FFFF => {
-                // Outside SRAM range, ignore
-                log(format!("Attempted write to unused GamePak region at {address:#010x}"));
+            0x0E02_0000..=0x0FFF_FFFF => {
+                // Outside Flash range, ignore
+                log(format!(
+                    "Attempted write to unused GamePak region at {address:#010x}"
+                ));
             }
-            _ => unimplemented!("Unimplemented memory region {address:x}."),
+            _ => {
+                log(format!(
+                    "WRITE to unused memory 0x{:08X} = 0x{:02X}",
+                    address, value
+                ));
+                self.unused_region.insert(address, value);
+            }
         }
     }
 }
