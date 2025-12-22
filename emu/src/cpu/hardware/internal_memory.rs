@@ -1,3 +1,5 @@
+#![allow(clippy::unreadable_literal)]
+
 use std::collections::HashMap;
 
 use logger::log;
@@ -458,10 +460,13 @@ mod tests {
     }
 
     #[test]
-    fn test_read_write_bios_memory() {
+    fn test_bios_is_read_only() {
         let mut im = InternalMemory::default();
+        // BIOS is read-only, writes should be ignored
+        let original = im.read_at(0x000001EC);
         im.write_at(0x000001EC, 10);
-        assert_eq!(im.read_at(0x000001EC), 10);
+        // Value should not have changed
+        assert_eq!(im.read_at(0x000001EC), original);
     }
 
     #[test]
