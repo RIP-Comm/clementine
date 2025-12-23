@@ -106,7 +106,7 @@ impl Arm7tdmi {
             // The CPU will be in an undefined state, but we won't panic.
             let spsr_value: u32 = current_spsr.into();
             if let Ok(spsr_mode) = Mode::try_from(spsr_value & 0b11111) {
-                self.swap_mode(&spsr_mode);
+                self.swap_mode(spsr_mode);
             } else {
                 log(format!(
                     "Warning: SPSR has invalid mode bits (0b{:05b}), skipping mode swap",
@@ -183,7 +183,7 @@ impl Arm7tdmi {
                     if let Ok(new_mode) = Mode::try_from(new_mode_bits)
                         && current_mode != new_mode
                     {
-                        self.swap_mode(&new_mode);
+                        self.swap_mode(new_mode);
                     }
                 }
 
@@ -255,7 +255,7 @@ impl Arm7tdmi {
                     if let Ok(new_mode) = Mode::try_from(new_mode_bits)
                         && current_mode != new_mode
                     {
-                        self.swap_mode(&new_mode);
+                        self.swap_mode(new_mode);
                     }
                 }
 
@@ -2218,7 +2218,7 @@ mod tests {
                     }
                 }
             );
-            cpu.cpsr.set_mode(&Mode::User);
+            cpu.cpsr.set_mode(Mode::User);
 
             cpu.cpsr.set_carry_flag(true);
             cpu.cpsr.set_overflow_flag(true);
@@ -2249,13 +2249,13 @@ mod tests {
             );
 
             cpu.register_bank.spsr_fiq.set_state_bit(true);
-            cpu.register_bank.spsr_fiq.set_mode(&Mode::Fiq);
+            cpu.register_bank.spsr_fiq.set_mode(Mode::Fiq);
             cpu.register_bank.spsr_fiq.set_carry_flag(true);
             cpu.register_bank.spsr_fiq.set_overflow_flag(true);
             cpu.register_bank.spsr_fiq.set_zero_flag(true);
             cpu.register_bank.spsr_fiq.set_sign_flag(true);
 
-            cpu.swap_mode(&Mode::Fiq);
+            cpu.swap_mode(Mode::Fiq);
 
             cpu.execute_arm(op_code);
 
@@ -2277,7 +2277,7 @@ mod tests {
                     kind: PsrOpKind::Msr { source_register: 0 }
                 }
             );
-            cpu.cpsr.set_mode(&Mode::User);
+            cpu.cpsr.set_mode(Mode::User);
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
 
@@ -2299,7 +2299,7 @@ mod tests {
                     kind: PsrOpKind::Msr { source_register: 0 }
                 }
             );
-            cpu.cpsr.set_mode(&Mode::Fiq);
+            cpu.cpsr.set_mode(Mode::Fiq);
 
             cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10001));
 
@@ -2328,7 +2328,7 @@ mod tests {
                     }
                 }
             );
-            cpu.cpsr.set_mode(&Mode::User);
+            cpu.cpsr.set_mode(Mode::User);
 
             cpu.registers.set_register_at(0, 0b1111 << 28);
 
@@ -2357,7 +2357,7 @@ mod tests {
                     }
                 }
             );
-            cpu.cpsr.set_mode(&Mode::Fiq);
+            cpu.cpsr.set_mode(Mode::Fiq);
 
             // Trying to change MODE bits to a User mode
             cpu.registers.set_register_at(0, 0b1111 << 28 | (0b10000));
@@ -2385,7 +2385,7 @@ mod tests {
                 }
             );
 
-            cpu.cpsr.set_mode(&Mode::User);
+            cpu.cpsr.set_mode(Mode::User);
             cpu.cpsr.set_carry_flag(true);
             cpu.cpsr.set_zero_flag(true);
 
@@ -2404,7 +2404,7 @@ mod tests {
             let op_code = 0b1110_00010_1_001111_0010_000000000000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
-            cpu.cpsr.set_mode(&Mode::System);
+            cpu.cpsr.set_mode(Mode::System);
             cpu.cpsr.set_sign_flag(true);
             cpu.cpsr.set_overflow_flag(true);
 
@@ -3163,7 +3163,7 @@ mod tests {
         cpu.registers.set_register_at(8, 32);
 
         // Switch to FIQ mode (swap_mode updates registers, then we update CPSR)
-        cpu.swap_mode(&Mode::Fiq);
+        cpu.swap_mode(Mode::Fiq);
         cpu.cpsr = Psr::from(Mode::Fiq);
 
         // Set r8_fiq = 64 (should be in banked register now)
@@ -3410,7 +3410,7 @@ mod tests {
         cpu.registers.set_register_at(8, 32);
 
         // Switch to FIQ mode
-        cpu.swap_mode(&Mode::Fiq);
+        cpu.swap_mode(Mode::Fiq);
         // Set FIQ mode r8 = 64 (banked register)
         cpu.registers.set_register_at(8, 64);
 
@@ -3433,7 +3433,7 @@ mod tests {
         cpu.execute_arm(op_code);
 
         // Switch back to system mode and check stored values
-        cpu.swap_mode(&Mode::System);
+        cpu.swap_mode(Mode::System);
         let stored_r8 = cpu.bus.read_word(mem - 8);
 
         assert_eq!(
@@ -3453,7 +3453,7 @@ mod tests {
         cpu.bus.write_word(mem - 4, 0xA);
 
         // Switch to FIQ mode and set FIQ r8 and r9 = 0xB
-        cpu.swap_mode(&Mode::Fiq);
+        cpu.swap_mode(Mode::Fiq);
         cpu.registers.set_register_at(8, 0xB);
         cpu.registers.set_register_at(9, 0xB);
 
@@ -3484,7 +3484,7 @@ mod tests {
         );
 
         // Switch to system mode and check user mode r9
-        cpu.swap_mode(&Mode::System);
+        cpu.swap_mode(Mode::System);
         assert_eq!(
             cpu.registers.register_at(9),
             0xA,

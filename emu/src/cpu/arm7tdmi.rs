@@ -583,7 +583,7 @@ impl Arm7tdmi {
         // Every exception is handled in ARM
         self.cpsr.set_cpu_state(CpuState::Arm);
 
-        self.swap_mode(&exception_type.mode());
+        self.swap_mode(exception_type.mode());
 
         // Set LR to return address
         // Note: LR should NOT have bit 0 set for exceptions - the return mode is stored in SPSR
@@ -764,24 +764,24 @@ impl Arm7tdmi {
         let current_mode = self.cpsr.mode();
 
         // Set up IRQ mode stack pointer
-        self.swap_mode(&Mode::Irq);
+        self.swap_mode(Mode::Irq);
         self.registers.set_register_at(REG_SP, 0x0300_7FA0);
 
         // Set up Supervisor mode stack pointer
-        self.swap_mode(&Mode::Supervisor);
+        self.swap_mode(Mode::Supervisor);
         self.registers.set_register_at(REG_SP, 0x0300_7FE0);
 
         // Set up System mode stack pointer
-        self.swap_mode(&Mode::System);
+        self.swap_mode(Mode::System);
         self.registers.set_register_at(REG_SP, 0x0300_7F00);
 
         // Restore original mode (Supervisor)
-        self.swap_mode(&current_mode);
+        self.swap_mode(current_mode);
     }
 
     #[allow(clippy::too_many_lines)]
-    pub fn swap_mode(&mut self, new_mode: &Mode) {
-        if self.cpsr.mode() == *new_mode {
+    pub fn swap_mode(&mut self, new_mode: Mode) {
+        if self.cpsr.mode() == new_mode {
             return;
         }
 
@@ -998,15 +998,15 @@ impl Arm7tdmi {
                 // User/System mode SP = 0x03007F00
 
                 // Switch to Supervisor mode temporarily to set its SP
-                self.cpsr.set_mode(&Mode::Supervisor);
+                self.cpsr.set_mode(Mode::Supervisor);
                 self.registers.set_register_at(13, 0x03007FE0);
 
                 // Switch to IRQ mode to set its SP
-                self.cpsr.set_mode(&Mode::Irq);
+                self.cpsr.set_mode(Mode::Irq);
                 self.registers.set_register_at(13, 0x03007FA0);
 
                 // Switch to System mode for entry
-                self.cpsr.set_mode(&Mode::System);
+                self.cpsr.set_mode(Mode::System);
                 self.registers.set_register_at(13, 0x03007F00);
 
                 // Clear IRQ disable flag
@@ -2114,7 +2114,7 @@ mod tests {
         cpu.spsr.set_carry_flag(true);
 
         // Simulating a mode swap from Supervisor to System
-        cpu.swap_mode(&Mode::System);
+        cpu.swap_mode(Mode::System);
 
         assert_eq!(cpu.registers.register_at(13), 0);
         assert_eq!(cpu.registers.register_at(14), 0);
@@ -2123,21 +2123,21 @@ mod tests {
         cpu.registers.set_register_at(14, 200);
 
         // Simulating a mode swap from System to IRQ
-        cpu.swap_mode(&Mode::Irq);
+        cpu.swap_mode(Mode::Irq);
 
         assert_eq!(cpu.registers.register_at(13), 0);
         assert_eq!(cpu.registers.register_at(14), 0);
         assert!(!cpu.spsr.carry_flag());
 
         // Simulating a mode swap back from IRQ to Supervisor
-        cpu.swap_mode(&Mode::Supervisor);
+        cpu.swap_mode(Mode::Supervisor);
 
         assert_eq!(cpu.registers.register_at(13), 13);
         assert_eq!(cpu.registers.register_at(14), 14);
         assert!(cpu.spsr.carry_flag());
 
         // Simulating a mode swap to FIQ
-        cpu.swap_mode(&Mode::Fiq);
+        cpu.swap_mode(Mode::Fiq);
         assert_eq!(cpu.registers.register_at(8), 0);
         assert_eq!(cpu.registers.register_at(9), 0);
         assert_eq!(cpu.registers.register_at(10), 0);
@@ -2148,7 +2148,7 @@ mod tests {
         assert!(!cpu.spsr.carry_flag());
 
         // Simulating a mode swap to System
-        cpu.swap_mode(&Mode::System);
+        cpu.swap_mode(Mode::System);
         assert_eq!(cpu.registers.register_at(8), 8);
         assert_eq!(cpu.registers.register_at(9), 9);
         assert_eq!(cpu.registers.register_at(10), 10);

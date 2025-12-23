@@ -157,20 +157,12 @@ impl Psr {
     }
 
     /// The Mode Bits M4-M0 contain the current operating mode.
-    pub const fn set_mode(&mut self, m: &Mode) {
+    pub const fn set_mode(&mut self, m: Mode) {
         // Setting mode bits to 0
         self.0 &= 0b1111_1111_1111_1111_1111_1111_1110_0000;
 
         // Setting mode bits according to the chosen mode
-        match m {
-            Mode::User => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0000,
-            Mode::Fiq => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0001,
-            Mode::Irq => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0010,
-            Mode::Supervisor => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0011,
-            Mode::Abort => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_0111,
-            Mode::Undefined => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_1011,
-            Mode::System => self.0 |= 0b0000_0000_0000_0000_0000_0000_0001_1111,
-        }
+        self.0 |= m as u32;
     }
 
     pub fn cpu_state(self) -> CpuState {
@@ -186,7 +178,7 @@ impl From<Mode> for Psr {
     fn from(m: Mode) -> Self {
         let mut s = Self(0);
 
-        s.set_mode(&m);
+        s.set_mode(m);
 
         s
     }
@@ -293,7 +285,7 @@ mod tests {
     fn check_user() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::User;
-        cpsr.set_mode(&mode);
+        cpsr.set_mode(mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10000);
 
         let cpsr = Psr(0b10000);
@@ -306,7 +298,7 @@ mod tests {
     fn check_fiq() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Fiq;
-        cpsr.set_mode(&mode);
+        cpsr.set_mode(mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10001);
 
         let cpsr = Psr(0b10001);
@@ -319,7 +311,7 @@ mod tests {
     fn check_irq() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Irq;
-        cpsr.set_mode(&mode);
+        cpsr.set_mode(mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10010);
 
         let cpsr = Psr(0b10010);
@@ -332,7 +324,7 @@ mod tests {
     fn check_supervisor() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Supervisor;
-        cpsr.set_mode(&mode);
+        cpsr.set_mode(mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10011);
 
         let cpsr = Psr(0b10011);
@@ -345,7 +337,7 @@ mod tests {
     fn check_abort() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Abort;
-        cpsr.set_mode(&mode);
+        cpsr.set_mode(mode);
         assert_eq!(cpsr.0 & 0b11111, 0b10111);
 
         let cpsr = Psr(0b10111);
@@ -358,7 +350,7 @@ mod tests {
     fn check_undefined() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::Undefined;
-        cpsr.set_mode(&mode);
+        cpsr.set_mode(mode);
         assert_eq!(cpsr.0 & 0b11111, 0b11011);
 
         let cpsr = Psr(0b11011);
@@ -371,7 +363,7 @@ mod tests {
     fn check_system() {
         let mut cpsr: Psr = Psr(0);
         let mode = Mode::System;
-        cpsr.set_mode(&mode);
+        cpsr.set_mode(mode);
         assert_eq!(cpsr.0 & 0b11111, 0b11111);
 
         let cpsr = Psr(0b11111);
