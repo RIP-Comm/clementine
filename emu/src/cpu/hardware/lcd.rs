@@ -1,4 +1,3 @@
-use logger::log;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_with::serde_as;
@@ -205,20 +204,6 @@ impl Lcd {
                     self.memory.bg_palette_ram[0],
                     self.memory.bg_palette_ram[1],
                 ]));
-
-                // Debug: Log backdrop color once per frame
-                if pixel_x == 0 && pixel_y == 0 {
-                    let enabled_layers = self.get_enabled_layers();
-                    log(format!(
-                        "DISPCNT=0x{:04X}, mode={}, BG2 enabled={}, {} layers in list, {} rendered pixel, backdrop=0x{:04X}",
-                        self.registers.dispcnt,
-                        self.registers.get_bg_mode(),
-                        self.registers.get_bg2_enabled(),
-                        enabled_layers.len(),
-                        layers_with_pixel.len(),
-                        backdrop_color.0
-                    ));
-                }
 
                 self.buffer[pixel_y as usize][pixel_x as usize] =
                     first_pixel.map_or(backdrop_color, |info| info.color);

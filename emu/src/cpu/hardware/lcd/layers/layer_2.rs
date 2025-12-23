@@ -19,21 +19,6 @@ impl Layer for Layer2 {
     ) -> Option<PixelInfo> {
         let mode = registers.get_bg_mode();
 
-        // Debug: log BG2 state once per frame
-        if x == 0 && y == 0 {
-            logger::log(format!(
-                "BG2 render called: mode={}, pa={}, pb={}, pc={}, pd={}, ref_x=0x{:08X}, ref_y=0x{:08X}, bg2cnt=0x{:04X}",
-                mode,
-                registers.bg2pa as i16,
-                registers.bg2pb as i16,
-                registers.bg2pc as i16,
-                registers.bg2pd as i16,
-                registers.bg2x,
-                registers.bg2y,
-                registers.bg2cnt
-            ));
-        }
-
         // BG2 is available in modes 0, 1, 2
         // In mode 2, it's an affine background
         match mode {
