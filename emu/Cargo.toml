@@ -13,8 +13,8 @@ serde = { version = "1.0.193", features = ["derive"] }
 serde_with = "3.4.0"
 
 [dev-dependencies]
-pretty_assertions = "1.4.0"
-rand = "0.8.5"
+pretty_assertions.workspace = true
+rand.workspace = true
 
 [features]
 logger = []
