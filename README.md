@@ -36,30 +36,90 @@ just test
 cargo run -- ~/Desktop/my_game.gba
 ```
 
-### Run
+## Requirements
 
-All of those command are just a wrapper around `cargo run` and they are just for convenience.
-If you want more control on the execution of the emulator you can use `cargo run` directly.
+Before running the emulator, you need:
 
-Another requirement is to have somewhere a file that represents the bios of the GBA. By default it is looking for `gba_bios.bin` in local folder. It is pretty easy to find online.
+1. **GBA BIOS file**: A file named `gba_bios.bin` (16KB) placed in the directory where you run the emulator. This is the GBA boot ROM and is required for the emulator to function. It can be found online.
+   > Note: The BIOS path is currently hardcoded to `gba_bios.bin` in the current working directory.
+2. **A GBA ROM file**: Any `.gba` ROM file you want to run.
 
+## Running the Emulator
+
+All `just` commands are wrappers around `cargo run` for convenience. You can use `cargo run` directly if you need more control.
+
+### Basic Usage
+
+| Command | Description |
+|---------|-------------|
+| `just run <rom>` | Run ROM in debug mode |
+| `just run-release <rom>` | Run ROM in release mode (better performance for animations) |
+
+**Examples:**
 ```zsh
-# simple run of a rom in debug mode
-just run <rom>
-# simple run of a rom in release mode
-# this is better for looking at animations and stuff like that
-just run-release <rom>
+# Run a game in debug mode
+just run ~/roms/pokemon_emerald.gba
+
+# Run with better performance (recommended for playing)
+just run-release ~/roms/pokemon_emerald.gba
 ```
 
+### Debug Features
+
+Clementine has optional debug features that can be enabled via Cargo features:
+
+| Feature | Description |
+|---------|-------------|
+| `logger` | Enables verbose CPU/memory logging |
+| `disassembler` | Adds a disassembler widget to the UI showing executed instructions |
+
+#### Using Just Commands
+
+| Command | Features Enabled | Description |
+|---------|------------------|-------------|
+| `just run-logger <rom>` | `logger` | Run with verbose logging to stdout |
+| `just run-disassembler <rom>` | `disassembler` | Run with disassembler UI widget |
+| `just run-all-debug <rom>` | `logger` + `disassembler` | Run with all debug features enabled |
+| `just run-release-log-file <rom>` | `logger` | Release mode with logging to file |
+
+**Examples:**
 ```zsh
-# debug mode + verbose log to stdout
-just run-logger <rom>
-# debug mode + disassebler as widget
-just run-disassebler <rom>
-# all debug feature enabled
-just run-all-debug <rom>
+# Debug CPU execution with verbose logs to stdout
+just run-logger ~/roms/my_game.gba
+
+# See disassembled instructions in a UI widget
+just run-disassembler ~/roms/my_game.gba
+
+# Full debugging experience (logs + disassembler)
+just run-all-debug ~/roms/my_game.gba
+
+# Release mode with logs saved to file (good for performance + debugging)
+just run-release-log-file ~/roms/my_game.gba
 ```
 
+#### Using Cargo Directly
+
+For more control, you can use `cargo run` with feature flags:
+
+```zsh
+# Basic run
+cargo run -- ~/roms/my_game.gba
+
+# With logger feature (logs to stdout)
+cargo run --features logger -- ~/roms/my_game.gba
+
+# With logger feature (logs to file instead of stdout)
+cargo run --features logger -- ~/roms/my_game.gba --log-on-file
+
+# With disassembler feature
+cargo run --features disassembler -- ~/roms/my_game.gba
+
+# With multiple features
+cargo run --features logger --features disassembler -- ~/roms/my_game.gba
+
+# Release mode with features
+cargo run --release --features logger -- ~/roms/my_game.gba --log-on-file
+```
 
 ## Tests ROM
 
