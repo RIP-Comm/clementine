@@ -8,8 +8,8 @@ license.workspace = true
 [dependencies]
 logger = { path = "../logger" }
 vecfixed = { path = "../vecfixed" }
-rand = { version = "0.8.5", optional = true}
-serde = { version = "1.0.193", features = ["derive"] }
+rand = { workspace = true, optional = true }
+serde.workspace = true
 serde_with = "3.4.0"
 
 [dev-dependencies]
