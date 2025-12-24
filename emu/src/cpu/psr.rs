@@ -39,13 +39,17 @@ use crate::cpu::{condition::Condition, cpu_modes::Mode};
 ///
 /// # Example
 ///
-/// ```ignore
-/// // Check if we can execute a conditional instruction
-/// let mut cpsr = Psr::default();
-/// cpsr.set_zero_flag(true);
+/// ```
+/// use emu::cpu::psr::Psr;
 ///
-/// assert!(cpsr.can_execute(Condition::EQ));  // Zero flag is set
-/// assert!(!cpsr.can_execute(Condition::NE)); // Not equal requires Z=0
+/// let mut cpsr = Psr::default();
+///
+/// // Set and check condition flags
+/// cpsr.set_zero_flag(true);
+/// assert!(cpsr.zero_flag());
+///
+/// cpsr.set_carry_flag(true);
+/// assert!(cpsr.carry_flag());
 /// ```
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Psr(u32);
