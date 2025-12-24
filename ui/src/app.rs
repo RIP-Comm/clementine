@@ -1,3 +1,52 @@
+//! # Clementine UI Application
+//!
+//! This module contains the main application struct that orchestrates
+//! the emulator UI and ties together all the components.
+//!
+//! ## Initialization Flow
+//!
+//! When [`App::new`] is called:
+//!
+//! ```text
+//! App::new(cartridge_name)
+//!     │
+//!     ├─► read_file(cartridge_name)
+//!     │   └─► Load entire ROM into Vec<u8>
+//!     │
+//!     ├─► Load BIOS from ./gba_bios.bin
+//!     │   └─► Must be exactly 16KB (0x4000 bytes)
+//!     │
+//!     ├─► CartridgeHeader::new(&rom_data)
+//!     │   └─► Parse header, validate checksum
+//!     │
+//!     ├─► Gba::new(header, bios, rom)
+//!     │   ├─► InternalMemory::new(bios, rom)
+//!     │   ├─► Bus::with_memory(memory)
+//!     │   └─► Arm7tdmi::new(bus)
+//!     │
+//!     └─► Create UI tools:
+//!         ├─► About (version info)
+//!         ├─► CpuRegisters (register viewer)
+//!         ├─► CpuHandler (run/pause/step controls)
+//!         ├─► GbaDisplay (LCD output)
+//!         ├─► SaveGame (save/load state)
+//!         └─► Disassembler (if feature enabled)
+//! ```
+//!
+//! ## Shared State
+//!
+//! The [`Gba`] instance is wrapped in `Arc<Mutex<Gba>>` so multiple UI
+//! components can access it safely. Each UI tool receives a clone of
+//! this Arc and locks the mutex when it needs to read or modify state.
+//!
+//! ## UI Tools
+//!
+//! Each UI component implements the [`UiTool`] trait, which provides:
+//! - `name()` - Display name for the tool panel
+//! - `show()` - Render the tool's UI
+//!
+//! Tools can be toggled on/off via the sidebar checkboxes.
+
 #[cfg(feature = "disassembler")]
 use crate::disassembler::Disassembler;
 use emu::{cartridge_header::CartridgeHeader, gba::Gba};
@@ -15,6 +64,24 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+/// The main Clementine application.
+///
+/// Holds the emulator state (via UI tools that reference `Arc<Mutex<Gba>>`)
+/// and manages which tool windows are currently open.
+///
+/// ## Creating the Application
+///
+/// ```ignore
+/// let app = App::new("path/to/game.gba".to_string());
+/// eframe::run_native("Clementine", options, Box::new(|_| Ok(Box::new(app))));
+/// ```
+///
+/// ## How It Works
+///
+/// 1. On creation, loads BIOS + ROM and initializes the GBA
+/// 2. Creates UI tool windows that share access to the GBA via Arc<Mutex>
+/// 3. In the update loop, each tool renders and may step the CPU
+/// 4. The GbaDisplay tool is responsible for actually running the CPU
 pub struct App {
     tools: Vec<Box<dyn UiTool>>,
     open: BTreeSet<String>,

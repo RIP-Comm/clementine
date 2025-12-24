@@ -1,3 +1,70 @@
+//! # ARM Instruction Decoding
+//!
+//! This module handles decoding 32-bit ARM instructions into their component
+//! fields and classifying them by type.
+//!
+//! ## Instruction Categories
+//!
+//! ARM instructions are identified by examining specific bit patterns:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────┐
+//! │                    ARM Instruction Categories                           │
+//! ├─────────────────────────────────────────────────────────────────────────┤
+//! │                                                                         │
+//! │  Bits 27-25 determine the basic category:                              │
+//! │                                                                         │
+//! │  000 + special patterns  →  Multiply, Multiply Long, SWP, BX           │
+//! │  000                     →  Data Processing (register operand)         │
+//! │  001                     →  Data Processing (immediate operand)        │
+//! │  010                     →  Load/Store (immediate offset)              │
+//! │  011                     →  Load/Store (register offset)               │
+//! │  100                     →  Block Data Transfer (LDM/STM)              │
+//! │  101                     →  Branch (B/BL)                              │
+//! │  110                     →  Coprocessor Data Transfer                  │
+//! │  111                     →  Software Interrupt / Coprocessor ops       │
+//! │                                                                         │
+//! └─────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Decoding Priority
+//!
+//! Some instructions have overlapping bit patterns. The decoder checks
+//! instructions in this priority order:
+//!
+//! 1. Branch and Exchange (BX) - very specific pattern
+//! 2. Single Data Swap (SWP/SWPB)
+//! 3. Multiply Long (UMULL, SMULL, UMLAL, SMLAL)
+//! 4. Multiply (MUL, MLA)
+//! 5. Halfword Data Transfer (LDRH, STRH, LDRSB, LDRSH)
+//! 6. Software Interrupt (SWI)
+//! 7. Coprocessor operations
+//! 8. Block Data Transfer (LDM, STM)
+//! 9. Branch (B, BL)
+//! 10. Single Data Transfer (LDR, STR)
+//! 11. Data Processing (AND, ADD, etc.)
+//!
+//! ## Instruction Encoding Example
+//!
+//! ```text
+//! ADD R0, R1, R2, LSL #3
+//!
+//! 31-28  27-26  25  24-21  20  19-16  15-12  11-7   6-5  4  3-0
+//! [1110] [ 00 ] [0] [0100] [0] [0001] [0000] [00011][00] [0][0010]
+//!   ↑       ↑    ↑    ↑     ↑    ↑      ↑      ↑     ↑   ↑   ↑
+//!   │       │    │    │     │    │      │      │     │   │   └─ Rm = R2
+//!   │       │    │    │     │    │      │      │     │   └──── Shift by imm
+//!   │       │    │    │     │    │      │      │     └──────── LSL
+//!   │       │    │    │     │    │      │      └────────────── Shift = 3
+//!   │       │    │    │     │    │      └───────────────────── Rd = R0
+//!   │       │    │    │     │    └──────────────────────────── Rn = R1
+//!   │       │    │    │     └───────────────────────────────── S = 0 (no flags)
+//!   │       │    │    └─────────────────────────────────────── ADD opcode
+//!   │       │    └──────────────────────────────────────────── Register operand
+//!   │       └───────────────────────────────────────────────── Data processing
+//!   └───────────────────────────────────────────────────────── Always execute
+//! ```
+
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::{AluSecondOperandInfo, ArmModeAluInstr, ShiftOperator};
 use crate::cpu::arm7tdmi::HalfwordTransferKind;
@@ -11,14 +78,22 @@ use serde::{Deserialize, Serialize};
 
 use super::alu_instruction::{PsrKind, PsrOpKind};
 
-/// Possible operation on transfer data.
+/// The type of single data transfer operation (LDR/STR).
+///
+/// Determined by the L bit (bit 20):
+/// - L=0: Store (STR)
+/// - L=1: Load (LDR)
+///
+/// PLD (Preload Data) is a cache hint instruction added in ARMv5TE.
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum SingleDataTransferKind {
-    /// Load from memory into a register.
+    /// Load from memory into a register (`LDR`).
     Ldr,
 
-    /// Store from a register into memory.
+    /// Store from a register into memory (`STR`).
     Str,
+
+    /// Preload Data cache hint (ARMv5TE+, not commonly used on GBA).
     Pld,
 }
 
@@ -65,8 +140,31 @@ impl std::fmt::Display for SingleDataTransferOffsetInfo {
         Ok(())
     }
 }
+/// All ARM instruction types after decoding.
+///
+/// This enum represents a fully decoded ARM instruction with all fields
+/// extracted and validated. The [`From<u32>`] implementation performs
+/// the decoding.
+///
+/// ## Instruction Categories
+///
+/// | Variant                | Example Instructions       | Description                    |
+/// |------------------------|---------------------------|--------------------------------|
+/// | `DataProcessing`       | AND, ADD, CMP, MOV        | ALU operations                 |
+/// | `Multiply`             | MUL, MLA                  | 32-bit multiply                |
+/// | `MultiplyLong`         | UMULL, SMULL              | 64-bit multiply                |
+/// | `PSRTransfer`          | MRS, MSR                  | Status register access         |
+/// | `SingleDataSwap`       | SWP, SWPB                 | Atomic memory swap             |
+/// | `BranchAndExchange`    | BX                        | Branch + possible ARM↔Thumb    |
+/// | `HalfwordDataTransfer` | LDRH, STRH, LDRSB         | 16-bit and signed loads        |
+/// | `SingleDataTransfer`   | LDR, STR, LDRB            | 32-bit and byte loads/stores   |
+/// | `BlockDataTransfer`    | LDM, STM                  | Multiple register load/store   |
+/// | `Branch`               | B, BL                     | Branch (and link)              |
+/// | `SoftwareInterrupt`    | SWI                       | BIOS call                      |
+/// | `Undefined`            | -                         | Triggers undefined exception   |
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum ArmModeInstruction {
+    /// Data Processing: ALU operations (AND, ADD, CMP, MOV, etc.)
     DataProcessing {
         condition: Condition,
         alu_instruction: ArmModeAluInstr,

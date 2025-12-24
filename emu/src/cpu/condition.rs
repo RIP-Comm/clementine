@@ -1,60 +1,198 @@
+//! # ARM Conditional Execution
+//!
+//! One of ARM's most distinctive features is **conditional execution**: almost every
+//! instruction can be conditionally executed based on the CPU flags. This is encoded
+//! in the top 4 bits (31-28) of every ARM instruction.
+//!
+//! ## Why Conditional Execution?
+//!
+//! Conditional execution reduces branching, which is expensive on pipelined CPUs:
+//!
+//! ```text
+//! Traditional approach (with branches):     ARM approach (conditional):
+//! ─────────────────────────────────────     ─────────────────────────────
+//!     CMP R0, #0                                CMP R0, #0
+//!     BEQ skip                                  MOVNE R1, #1    ← Only executes if Z=0
+//!     MOV R1, #1                                MOVEQ R1, #0    ← Only executes if Z=1
+//!     B done
+//! skip:
+//!     MOV R1, #0
+//! done:
+//! ```
+//!
+//! The ARM approach:
+//! - Avoids pipeline flushes from branches
+//! - Uses less code space
+//! - Executes faster for simple conditionals
+//!
+//! ## The CPU Flags (CPSR bits 28-31)
+//!
+//! Conditions are based on four flags in the CPSR:
+//!
+//! | Flag | Bit | Name     | Set When                                    |
+//! |------|-----|----------|---------------------------------------------|
+//! | N    | 31  | Negative | Result has bit 31 set (is negative)         |
+//! | Z    | 30  | Zero     | Result is zero                              |
+//! | C    | 29  | Carry    | Addition overflowed, or subtraction didn't  |
+//! | V    | 28  | Overflow | Signed arithmetic overflowed                |
+//!
+//! ## Condition Codes
+//!
+//! The 4-bit condition field encodes 16 conditions (though one is reserved):
+//!
+//! ```text
+//! ┌───────┬────────┬─────────────────────┬─────────────────────────────────┐
+//! │ Code  │ Suffix │     Meaning         │          Flags Tested           │
+//! ├───────┼────────┼─────────────────────┼─────────────────────────────────┤
+//! │ 0000  │   EQ   │ Equal               │ Z=1                             │
+//! │ 0001  │   NE   │ Not equal           │ Z=0                             │
+//! │ 0010  │   CS   │ Carry set / ≥ (uns) │ C=1                             │
+//! │ 0011  │   CC   │ Carry clear / < (u) │ C=0                             │
+//! │ 0100  │   MI   │ Minus / negative    │ N=1                             │
+//! │ 0101  │   PL   │ Plus / non-negative │ N=0                             │
+//! │ 0110  │   VS   │ Overflow set        │ V=1                             │
+//! │ 0111  │   VC   │ Overflow clear      │ V=0                             │
+//! │ 1000  │   HI   │ Higher (unsigned)   │ C=1 AND Z=0                     │
+//! │ 1001  │   LS   │ Lower/same (unsig)  │ C=0 OR Z=1                      │
+//! │ 1010  │   GE   │ ≥ (signed)          │ N=V                             │
+//! │ 1011  │   LT   │ < (signed)          │ N≠V                             │
+//! │ 1100  │   GT   │ > (signed)          │ Z=0 AND N=V                     │
+//! │ 1101  │   LE   │ ≤ (signed)          │ Z=1 OR N≠V                      │
+//! │ 1110  │   AL   │ Always              │ (unconditional)                 │
+//! │ 1111  │   NV   │ Never (reserved)    │ (don't use)                     │
+//! └───────┴────────┴─────────────────────┴─────────────────────────────────┘
+//! ```
+//!
+//! ## Instruction Encoding Example
+//!
+//! ```text
+//! Instruction: MOVEQ R0, #1    (Move 1 to R0 if equal)
+//!
+//! Binary: 0000 00 1 1101 0 0000 0000 000000000001
+//!         ↑         ↑         ↑
+//!         │         │         └─ Immediate value: 1
+//!         │         └─ MOV opcode
+//!         └─ Condition: 0000 = EQ (execute if Z=1)
+//! ```
+//!
+//! ## Thumb Mode Difference
+//!
+//! In Thumb state, only branch instructions have condition codes. Other
+//! instructions always execute (equivalent to AL condition). This is why
+//! Thumb code often uses more branches than ARM code.
+//!
+//! ## Common Patterns
+//!
+//! ```text
+//! ; Check if R0 == R1
+//! CMP R0, R1          ; Sets flags: Z=1 if equal
+//! BEQ equal_case      ; Branch if Z=1
+//!
+//! ; Set R0 = abs(R0) using conditional
+//! CMP R0, #0          ; Compare R0 to 0
+//! RSBLT R0, R0, #0    ; If less than 0: R0 = 0 - R0
+//!
+//! ; Max of R0 and R1, result in R0
+//! CMP R0, R1
+//! MOVLT R0, R1        ; If R0 < R1: R0 = R1
+//! ```
+
 use serde::{Deserialize, Serialize};
 
-/// In ARM state, all instructions are conditionally executed according to the state of the CPSR,
-/// condition codes and the instruction’s condition field.
-/// This field (bits 31:28) determines the circumstances under which an instruction is to be executed.
-/// If the state of the C, N, Z and V flags fulfils the conditions encoded by the field,
-/// the instruction is executed, otherwise it is ignored.
-/// In the absence of a suffix, the condition field of most instructions is set to "Always" (sufix AL).
-/// This means the instruction will always be executed regardless of the CPSR condition codes.
+/// Condition codes for ARM conditional execution.
+///
+/// In ARM state, all instructions are conditionally executed according to
+/// the state of the CPSR condition codes and the instruction's condition field.
+/// If the flags satisfy the condition, the instruction executes; otherwise
+/// it is skipped (acting as a NOP).
+///
+/// See the [module-level documentation](self) for details on how conditions work.
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum Condition {
-    /// Z set (equal).
+    /// Equal (Z=1)
+    ///
+    /// True when the previous comparison found the values equal,
+    /// or when the previous operation resulted in zero.
     EQ = 0x0,
 
-    /// Z clear (not equal).
+    /// Not equal (Z=0)
+    ///
+    /// True when the previous comparison found the values different,
+    /// or when the previous operation resulted in non-zero.
     NE = 0x1,
 
-    /// C set (unsigned higher or same).
+    /// Carry set / unsigned higher or same (C=1)
+    ///
+    /// For comparisons: true when the first operand is >= second (unsigned).
+    /// Also known as HS (Higher or Same).
     CS = 0x2,
 
-    /// C clear (unsigned lower).
+    /// Carry clear / unsigned lower (C=0)
+    ///
+    /// For comparisons: true when the first operand is < second (unsigned).
+    /// Also known as LO (Lower).
     CC = 0x3,
 
-    /// N set (negative).
+    /// Minus / negative (N=1)
+    ///
+    /// True when the result is negative (bit 31 is set).
     MI = 0x4,
 
-    /// N clear (positive or zero).
+    /// Plus / positive or zero (N=0)
+    ///
+    /// True when the result is positive or zero (bit 31 is clear).
     PL = 0x5,
 
-    /// V set (overflow).
+    /// Overflow set (V=1)
+    ///
+    /// True when signed arithmetic caused overflow.
     VS = 0x6,
 
-    /// V clear (no overflow).
+    /// Overflow clear (V=0)
+    ///
+    /// True when signed arithmetic did not overflow.
     VC = 0x7,
 
-    /// C set and Z clear (unsigned higher).
+    /// Unsigned higher (C=1 AND Z=0)
+    ///
+    /// For comparisons: true when the first operand is > second (unsigned).
     HI = 0x8,
 
-    /// C clear or Z set (unsigned lower or same).
+    /// Unsigned lower or same (C=0 OR Z=1)
+    ///
+    /// For comparisons: true when the first operand is <= second (unsigned).
     LS = 0x9,
 
-    /// N equals V (greater or equal).
+    /// Signed greater or equal (N=V)
+    ///
+    /// For comparisons: true when the first operand is >= second (signed).
     GE = 0xA,
 
-    /// N not equal to V (less then).
+    /// Signed less than (N≠V)
+    ///
+    /// For comparisons: true when the first operand is < second (signed).
     LT = 0xB,
 
-    /// Z clear AND (N equals V) (greater then).
+    /// Signed greater than (Z=0 AND N=V)
+    ///
+    /// For comparisons: true when the first operand is > second (signed).
     GT = 0xC,
 
-    /// Z set OR (N not equals V) (less then or equal).
+    /// Signed less than or equal (Z=1 OR N≠V)
+    ///
+    /// For comparisons: true when the first operand is <= second (signed).
     LE = 0xD,
 
-    /// ignored.
+    /// Always (unconditional)
+    ///
+    /// The instruction always executes. This is the default when no
+    /// condition suffix is specified in assembly (e.g., `MOV` = `MOVAL`).
     AL = 0xE,
 
-    /// The sixteenth (1111) is reserved, and must not be used.
+    /// Never (reserved, do not use)
+    ///
+    /// In ARMv1/v2 this meant "never execute". In `ARMv3+` it's reserved
+    /// and should not be used by normal code.
     NV = 0xF,
 }
 

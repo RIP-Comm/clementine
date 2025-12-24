@@ -1,3 +1,68 @@
+//! Memory bus connecting the CPU to all hardware components.
+//!
+//! The [`Bus`] is the central hub through which the ARM7TDMI CPU accesses all memory
+//! and I/O registers. It implements address decoding to route reads and writes to the
+//! appropriate hardware component.
+//!
+//! # Memory Map Overview
+//!
+//! See [`gba`](crate::gba) for the complete GBA memory map. The bus routes addresses:
+//!
+//! | Address Range       | Component                           | Handler               |
+//! |---------------------|-------------------------------------|-----------------------|
+//! | `0x0000_0000-3FFF`  | BIOS (with read protection)         | [`InternalMemory`]    |
+//! | `0x0200_0000-3FFF`  | Work RAM (256KB, mirrored)          | [`InternalMemory`]    |
+//! | `0x0300_0000-7FFF`  | Internal RAM (32KB, mirrored)       | [`InternalMemory`]    |
+//! | `0x0400_0000-005F`  | LCD I/O registers                   | [`Lcd`]               |
+//! | `0x0400_0060-00AF`  | Sound registers                     | [`Sound`]             |
+//! | `0x0400_00B0-00FF`  | DMA registers                       | [`Dma`]               |
+//! | `0x0400_0100-011F`  | Timer registers                     | [`Timers`]            |
+//! | `0x0400_0120-01FF`  | Serial/Keypad registers             | [`Serial`]/[`Keypad`] |
+//! | `0x0400_0200-FFFF`  | Interrupt control                   | [`InterruptControl`]  |
+//! | `0x0500_0000-03FF`  | Palette RAM (1KB, mirrored)         | [`Lcd`] memory        |
+//! | `0x0600_0000-17FFF` | VRAM (96KB, mirrored)               | [`Lcd`] memory        |
+//! | `0x0700_0000-03FF`  | OAM (1KB, mirrored)                 | [`Lcd`] memory        |
+//! | `0x0800_0000+`      | Game Pak ROM/Flash                  | [`InternalMemory`]    |
+//!
+//! # Memory Access Sizes
+//!
+//! The bus supports three access sizes, each with alignment requirements:
+//! - **Byte** (8-bit): Any address
+//! - **Halfword** (16-bit): Must be 2-byte aligned (address & 1 == 0)
+//! - **Word** (32-bit): Must be 4-byte aligned (address & 3 == 0)
+//!
+//! Unaligned accesses are force-aligned with a warning logged.
+//!
+//! # Special Behaviors
+//!
+//! ## BIOS Read Protection
+//! The BIOS can only be read when the program counter is within the BIOS region
+//! (`0x0000-0x3FFF`). Reads from outside return the last fetched BIOS opcode.
+//!
+//! ## Video Memory Write Restrictions
+//! - **OAM**: Byte writes are ignored (must use halfword/word)
+//! - **VRAM**: Byte writes are duplicated to both bytes of a halfword
+//! - **Palette RAM**: Byte writes are duplicated to both bytes of a halfword
+//!
+//! ## Interrupt Acknowledge
+//! Writing `1` to a bit in the Interrupt Request Flags register (`0x0400_0202`)
+//! clears that interrupt flag (acknowledges it).
+//!
+//! # Timing
+//!
+//! The bus tracks cycle counts for memory accesses. Different memory regions have
+//! different wait states, though currently a simplified 1-cycle model is used.
+//! The [`step`](Bus::step) method advances timers and LCD state each CPU cycle.
+//!
+//! [`InternalMemory`]: crate::cpu::hardware::internal_memory::InternalMemory
+//! [`Lcd`]: crate::cpu::hardware::lcd::Lcd
+//! [`Sound`]: crate::cpu::hardware::sound::Sound
+//! [`Dma`]: crate::cpu::hardware::dma::Dma
+//! [`Timers`]: crate::cpu::hardware::timers::Timers
+//! [`Serial`]: crate::cpu::hardware::serial::Serial
+//! [`Keypad`]: crate::cpu::hardware::keypad::Keypad
+//! [`InterruptControl`]: crate::cpu::hardware::interrupt_control::InterruptControl
+
 use std::collections::HashMap;
 
 use logger::log;

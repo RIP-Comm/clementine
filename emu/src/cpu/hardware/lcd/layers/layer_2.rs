@@ -1,3 +1,62 @@
+//! Background Layer 2 (BG2) - Versatile background supporting multiple modes.
+//!
+//! BG2 is the most versatile background layer, available in all video modes with
+//! different capabilities in each:
+//!
+//! # Mode Support
+//!
+//! | Mode | BG2 Type | Description                                       |
+//! |------|----------|---------------------------------------------------|
+//! | 0    | Text     | Regular tiled background (not yet implemented)    |
+//! | 1    | Text     | Regular tiled background (not yet implemented)    |
+//! | 2    | Affine   | Rotation/scaling tiled background                 |
+//! | 3    | Bitmap   | 240x160 direct color (15-bit RGB)                 |
+//! | 4    | Bitmap   | 240x160 paletted (8-bit) with page flipping       |
+//! | 5    | Bitmap   | 160x128 direct color with page flipping           |
+//!
+//! # Affine Backgrounds (Mode 2)
+//!
+//! Affine backgrounds support rotation and scaling via a 2x2 transformation matrix
+//! and reference point:
+//!
+//! ```text
+//! ┌───────────────────────────────────────────────────────────────┐
+//! │  Affine Transformation                                        │
+//! │                                                               │
+//! │  texture_x = PA * screen_x + PB * screen_y + REF_X           │
+//! │  texture_y = PC * screen_x + PD * screen_y + REF_Y           │
+//! │                                                               │
+//! │  PA, PB, PC, PD: 8.8 fixed-point (16-bit signed)             │
+//! │  REF_X, REF_Y:   20.8 fixed-point (28-bit signed)            │
+//! └───────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! Key differences from regular backgrounds:
+//! - Tilemap entries are 8-bit (tile index only, no flip/palette bits)
+//! - Always uses 8bpp color mode (256 colors)
+//! - Supports wraparound or clipping at map edges
+//! - Map sizes: 128x128, 256x256, 512x512, or 1024x1024 pixels
+//!
+//! # Bitmap Modes
+//!
+//! ## Mode 3: Direct Color Bitmap
+//! - 240x160 pixels, full screen
+//! - Each pixel is 16-bit (15-bit RGB + unused bit)
+//! - No page flipping (single frame)
+//! - Uses 75KB of VRAM
+//!
+//! ## Mode 4: Paletted Bitmap
+//! - 240x160 pixels, full screen
+//! - Each pixel is 8-bit palette index
+//! - Two frames for page flipping (DISPCNT bit 4 selects)
+//! - Frame 0: VRAM offset 0x0000, Frame 1: offset 0xA000
+//!
+//! ## Mode 5: Small Direct Color
+//! - 160x128 pixels (smaller than screen)
+//! - Each pixel is 16-bit (15-bit RGB)
+//! - Two frames for page flipping
+//! - Pixels outside 160x128 area are transparent
+
 use super::Layer;
 use crate::bitwise::Bits;
 use crate::cpu::hardware::lcd::memory::Memory;
@@ -6,6 +65,10 @@ use crate::cpu::hardware::lcd::{Color, PixelInfo};
 use serde::Deserialize;
 use serde::Serialize;
 
+/// BG2 - Background Layer 2
+///
+/// The most versatile layer, supporting text mode (modes 0-1), affine mode (mode 2),
+/// and bitmap modes (modes 3-5). See [module documentation](self) for details.
 #[derive(Default, Serialize, Deserialize)]
 pub struct Layer2;
 

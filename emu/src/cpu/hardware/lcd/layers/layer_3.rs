@@ -1,3 +1,23 @@
+//! Background Layer 3 (BG3) - Regular or affine tiled background.
+//!
+//! BG3's capabilities depend on the video mode:
+//!
+//! | Mode | BG3 Type | Status                |
+//! |------|----------|-----------------------|
+//! | 0    | Text     | Not yet implemented   |
+//! | 2    | Affine   | Implemented           |
+//!
+//! BG3 is not available in modes 1, 3, 4, or 5.
+//!
+//! # Affine Mode (Mode 2)
+//!
+//! In mode 2, BG3 functions as an affine background with rotation and scaling.
+//! See [`layer_2`](super::layer_2) for detailed affine transformation documentation.
+//!
+//! BG3 uses its own set of affine registers:
+//! - `BG3PA`, `BG3PB`, `BG3PC`, `BG3PD`: Transformation matrix
+//! - `BG3X`, `BG3Y`: Reference point
+
 use super::Layer;
 use crate::bitwise::Bits;
 use crate::cpu::hardware::lcd::memory::Memory;
@@ -6,6 +26,10 @@ use crate::cpu::hardware::lcd::{Color, PixelInfo};
 use serde::Deserialize;
 use serde::Serialize;
 
+/// BG3 - Background Layer 3
+///
+/// Supports regular tiled mode (mode 0, not implemented) and affine mode (mode 2).
+/// See [module documentation](self) for details.
 #[derive(Default, Serialize, Deserialize)]
 pub struct Layer3;
 

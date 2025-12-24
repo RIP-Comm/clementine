@@ -1,3 +1,48 @@
+//! Internal memory storage: BIOS, RAM, ROM, and Flash.
+//!
+//! This module implements the GBA's main memory regions that store code and data.
+//! The [`InternalMemory`] struct holds the actual byte arrays for each region.
+//!
+//! # Memory Regions
+//!
+//! | Region       | Address Range           | Size   | Description                      |
+//! |--------------|-------------------------|--------|----------------------------------|
+//! | BIOS         | `0x0000_0000-0000_3FFF` | 16 KB  | System ROM (read-only)           |
+//! | WRAM         | `0x0200_0000-0203_FFFF` | 256 KB | Work RAM (mirrored every 256KB)  |
+//! | IWRAM        | `0x0300_0000-0300_7FFF` | 32 KB  | Internal Work RAM (fast, mirrored) |
+//! | ROM          | `0x0800_0000-0DFF_FFFF` | 32 MB  | Game Pak ROM (3 wait states)     |
+//! | SRAM/Flash   | `0x0E00_0000-0E01_FFFF` | 128 KB | Save data storage                |
+//!
+//! # Address Mirroring
+//!
+//! RAM regions mirror throughout their address space:
+//! - **WRAM**: Mirrors every 256KB (`0x0204_0000` = `0x0200_0000`)
+//! - **IWRAM**: Mirrors every 32KB (`0x0300_8000` = `0x0300_0000`)
+//!
+//! # Flash Memory State Machine
+//!
+//! The Flash save memory uses a command-based state machine ([`FlashState`]) to handle:
+//! - **ID Mode**: Returns manufacturer/device ID for detection
+//! - **Erase**: Chip erase or 4KB sector erase
+//! - **Write**: Single byte programming (can only clear bits)
+//! - **Bank Select**: Switch between 64KB banks (for 128KB flash)
+//!
+//! Commands use a specific sequence written to addresses `0x5555` and `0x2AAA`.
+//!
+//! # GPIO (RTC Support)
+//!
+//! The module also handles GPIO registers at ROM offset `0xC4-0xC9` used by some
+//! games (like Pokemon) for Real-Time Clock communication:
+//! - `0xC4`: Data register (pin state)
+//! - `0xC6`: Direction register (1=output, 0=input)  
+//! - `0xC8`: Control register (GPIO enable)
+//!
+//! # Empty ROM Reads
+//!
+//! When reading past the end of the loaded ROM, the GBA returns the lower 16 bits
+//! of the requested address (due to how the Game Pak bus works). This is emulated
+//! in [`read_rom`](InternalMemory::read_rom).
+
 #![allow(clippy::unreadable_literal)]
 
 use std::collections::HashMap;

@@ -1,3 +1,93 @@
+//! Sprite (OBJ) layer rendering.
+//!
+//! The GBA supports 128 hardware sprites (objects) that can be positioned anywhere
+//! on screen with per-pixel transparency, rotation, scaling, and flipping.
+//!
+//! # Object Attribute Memory (OAM)
+//!
+//! Sprites are defined in OAM (`0x0700_0000`, 1KB), with each sprite using 8 bytes
+//! split into three 16-bit attributes:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────┐
+//! │  OAM Entry (8 bytes per sprite, interleaved with rot/scale)    │
+//! ├─────────────────────────────────────────────────────────────────┤
+//! │  Attribute 0 (2 bytes):                                        │
+//! │    Bits 0-7:   Y coordinate (0-255, wraps)                     │
+//! │    Bits 8-9:   Object mode (Normal/Affine/Disabled/AffineDouble)│
+//! │    Bits 10-11: GFX mode (Normal/Alpha/ObjWindow/Prohibited)    │
+//! │    Bit 12:     Mosaic enable                                   │
+//! │    Bit 13:     Color mode (0=4bpp/16 colors, 1=8bpp/256 colors)│
+//! │    Bits 14-15: Shape (Square/Horizontal/Vertical)              │
+//! ├─────────────────────────────────────────────────────────────────┤
+//! │  Attribute 1 (2 bytes):                                        │
+//! │    Bits 0-8:   X coordinate (0-511, wraps at 512)              │
+//! │    Bits 9-13:  Affine parameter index OR H-flip/V-flip         │
+//! │    Bits 14-15: Size (combined with shape for dimensions)       │
+//! ├─────────────────────────────────────────────────────────────────┤
+//! │  Attribute 2 (2 bytes):                                        │
+//! │    Bits 0-9:   Tile number (character name)                    │
+//! │    Bits 10-11: Priority (0=highest, 3=lowest)                  │
+//! │    Bits 12-15: Palette bank (4bpp mode only)                   │
+//! └─────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! # Sprite Sizes
+//!
+//! The combination of shape and size determines sprite dimensions:
+//!
+//! | Shape      | Size 0 | Size 1 | Size 2 | Size 3 |
+//! |------------|--------|--------|--------|--------|
+//! | Square     | 8x8    | 16x16  | 32x32  | 64x64  |
+//! | Horizontal | 16x8   | 32x8   | 32x16  | 64x32  |
+//! | Vertical   | 8x16   | 8x32   | 16x32  | 32x64  |
+//!
+//! # Tile Data Layout
+//!
+//! Sprite tiles are stored in VRAM starting at `0x0601_0000` (OBJ character area).
+//! Two mapping modes control how multi-tile sprites index their tiles:
+//!
+//! ## 1D Mapping (DISPCNT bit 6 = 1)
+//! Tiles are stored consecutively in memory. For a 16x16 sprite (2x2 tiles):
+//! ```text
+//! Tile indices: [base+0] [base+1]
+//!               [base+2] [base+3]
+//! ```
+//!
+//! ## 2D Mapping (DISPCNT bit 6 = 0)
+//! Tiles are arranged in a 32-tile-wide virtual grid:
+//! ```text
+//! Tile indices: [base+0]  [base+1]
+//!               [base+32] [base+33]
+//! ```
+//!
+//! # Affine Sprites
+//!
+//! Sprites can be rotated and scaled using affine transformation parameters.
+//! 32 rotation/scaling parameter sets are stored interleaved in OAM (using the
+//! unused bytes between sprite attributes).
+//!
+//! Each parameter set contains PA, PB, PC, PD (8.8 fixed-point) for the
+//! transformation matrix. See [`layer_2`](super::layer_2) for matrix math.
+//!
+//! **AffineDouble mode** doubles the sprite's screen area to prevent clipping
+//! during rotation (a 32x32 sprite becomes 64x64 on screen, but still uses
+//! 32x32 tile data).
+//!
+//! # Rendering Pipeline
+//!
+//! Unlike backgrounds which render pixel-by-pixel, sprites use scanline rendering:
+//!
+//! 1. At the start of each scanline, [`handle_enter_vdraw`](LayerObj::handle_enter_vdraw)
+//!    parses all 128 OAM entries
+//! 2. For each sprite intersecting the current scanline, pixels are rendered to
+//!    a scanline buffer
+//! 3. During compositing, [`render`](Layer::render) simply returns the pre-computed
+//!    pixel from the buffer
+//!
+//! This approach handles sprite priority correctly (lower OAM index = higher priority
+//! when priorities are equal).
+
 use crate::cpu::hardware::lcd;
 use crate::cpu::hardware::lcd::Color;
 use crate::cpu::hardware::lcd::memory::Memory;

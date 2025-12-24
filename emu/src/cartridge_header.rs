@@ -1,3 +1,72 @@
+//! # GBA Cartridge Header Parser
+//!
+//! Every GBA ROM starts with a 192-byte header containing metadata about
+//! the game and boot information. This module parses and validates that header.
+//!
+//! ## Header Layout (0x000 - 0x0BF)
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                        GBA Cartridge Header                                 │
+//! ├──────────┬────────┬──────────────────────────────────────────────────────────┤
+//! │  Offset  │  Size  │  Description                                            │
+//! ├──────────┼────────┼──────────────────────────────────────────────────────────┤
+//! │  0x000   │   4    │  ROM Entry Point (ARM branch instruction)               │
+//! │  0x004   │  156   │  Nintendo Logo (compressed bitmap, verified by BIOS)    │
+//! │  0x0A0   │   12   │  Game Title (uppercase ASCII)                           │
+//! │  0x0AC   │   4    │  Game Code (e.g., "AXVE" for Pokémon Ruby)              │
+//! │  0x0B0   │   2    │  Maker Code (e.g., "01" for Nintendo)                   │
+//! │  0x0B2   │   1    │  Fixed Value (must be 0x96)                             │
+//! │  0x0B3   │   1    │  Main Unit Code (0x00 for GBA)                          │
+//! │  0x0B4   │   1    │  Device Type                                            │
+//! │  0x0B5   │   7    │  Reserved (zero-filled)                                 │
+//! │  0x0BC   │   1    │  Software Version                                       │
+//! │  0x0BD   │   1    │  Complement Check (header checksum)                     │
+//! │  0x0BE   │   2    │  Reserved (zero-filled)                                 │
+//! └──────────┴────────┴──────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Multiboot Header (0x0C0 - 0x0E3)
+//!
+//! Additional fields used for multiboot (download play) games:
+//!
+//! | Offset | Size | Description                    |
+//! |--------|------|--------------------------------|
+//! | 0x0C0  |  4   | RAM Entry Point                |
+//! | 0x0C4  |  1   | Boot Mode (set by BIOS)        |
+//! | 0x0C5  |  1   | Slave ID Number                |
+//! | 0x0C6  | 26   | Not Used                       |
+//! | 0x0E0  |  4   | Joybus Entry Point             |
+//!
+//! ## Checksum Validation
+//!
+//! The BIOS validates the header checksum on boot:
+//! ```text
+//! checksum = 0
+//! for byte in header[0xA0..0xBD]:
+//!     checksum = checksum - byte
+//! checksum = checksum - 0x19
+//!
+//! // Must equal the byte at 0xBD
+//! ```
+//!
+//! ## Example: Reading Game Info
+//!
+//! ```ignore
+//! let rom_data = std::fs::read("game.gba")?;
+//! let header = CartridgeHeader::new(&rom_data)?;
+//!
+//! println!("Game: {}", header.game_title);    // e.g., "POKEMON RUBY"
+//! println!("Code: {}", header.game_code);     // e.g., "AXVE"
+//! println!("Maker: {}", header.marker_code);  // e.g., "01"
+//! ```
+
+/// Parsed GBA cartridge header.
+///
+/// Contains all metadata from the ROM header, including game title,
+/// codes, and the validated checksum.
+///
+/// Use [`CartridgeHeader::new`] to parse a header from ROM data.
 #[allow(dead_code)] // FIXME: remove this `allow` when all member are used.
 pub struct CartridgeHeader {
     pub rom_entry_point: [u8; 4],

@@ -1,3 +1,91 @@
+//! # GBA Background Layer 0 (BG0)
+//!
+//! This module implements BG0, one of the four background layers available on the
+//! Game Boy Advance. BG0 is a **regular (text) background** layer, as opposed to
+//! affine (rotation/scaling) backgrounds.
+//!
+//! ## Availability
+//!
+//! BG0 is available in the following video modes:
+//! - **Mode 0**: All four BG layers (0-3) are regular tiled backgrounds
+//! - **Mode 1**: BG0 and BG1 are regular, BG2 is affine, BG3 is disabled
+//!
+//! In modes 2-5 (affine and bitmap modes), BG0 is not available.
+//!
+//! ## Tilemap Architecture
+//!
+//! GBA backgrounds use a **tile-based rendering system**:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────┐
+//! │                    VRAM Layout                          │
+//! ├─────────────────────────────────────────────────────────┤
+//! │  Character Base Blocks (Tile Graphics)                  │
+//! │  ├── Block 0: 0x06000000 - 0x06003FFF (16 KB)          │
+//! │  ├── Block 1: 0x06004000 - 0x06007FFF (16 KB)          │
+//! │  ├── Block 2: 0x06008000 - 0x0600BFFF (16 KB)          │
+//! │  └── Block 3: 0x0600C000 - 0x0600FFFF (16 KB)          │
+//! ├─────────────────────────────────────────────────────────┤
+//! │  Screen Base Blocks (Tilemaps)                          │
+//! │  └── 32 blocks × 2 KB each, within the 64 KB VRAM      │
+//! └─────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ### Tiles
+//!
+//! Each tile is an 8×8 pixel graphic stored in VRAM:
+//! - **4bpp mode**: 32 bytes per tile (4 bits per pixel, 16 colors per palette bank)
+//! - **8bpp mode**: 64 bytes per tile (8 bits per pixel, 256 colors)
+//!
+//! ### Tilemap Entries
+//!
+//! The tilemap is a 32×32 grid of 16-bit entries (2 KB total per screen block):
+//!
+//! ```text
+//! 15 14 13 12 | 11 | 10 |  9  8  7  6  5  4  3  2  1  0
+//! ─────────────────────────────────────────────────────
+//!  Palette    | VF | HF |        Tile Number
+//!   Bank      |    |    |        (0-1023)
+//! ```
+//!
+//! - **Bits 0-9**: Tile number (index into character base block)
+//! - **Bit 10**: Horizontal flip
+//! - **Bit 11**: Vertical flip
+//! - **Bits 12-15**: Palette bank (4bpp mode only)
+//!
+//! ## Scrolling
+//!
+//! BG0 supports hardware scrolling via the `BG0HOFS` and `BG0VOFS` registers:
+//! - Horizontal offset: 0-511 pixels (9-bit value)
+//! - Vertical offset: 0-511 pixels (9-bit value)
+//!
+//! The visible 240×160 screen is a "window" into a larger virtual background
+//! that wraps around at the edges.
+//!
+//! ## Color Modes
+//!
+//! ### 4bpp (16 colors)
+//! - Each tile uses one of 16 palette banks (16 colors each)
+//! - Palette bank is specified in the tilemap entry
+//! - More tiles fit in VRAM, but fewer colors per tile
+//!
+//! ### 8bpp (256 colors)
+//! - Each tile can use any of the 256 BG palette colors
+//! - Palette bank bits in tilemap are ignored
+//! - Fewer tiles fit in VRAM, but full color range per tile
+//!
+//! ## Transparency
+//!
+//! Palette index 0 is always transparent, regardless of color mode.
+//! When a pixel has palette index 0, it is not drawn, allowing lower-priority
+//! layers or the backdrop color to show through.
+//!
+//! ## Priority
+//!
+//! BG0's priority (0-3) is set in the `BG0CNT` register. Lower values mean
+//! higher priority (drawn on top). When multiple layers have the same priority,
+//! the layer with the lower number (BG0 < BG1 < BG2 < BG3) is drawn on top.
+
 use crate::bitwise::Bits;
 use crate::cpu::hardware::lcd::Color;
 use crate::cpu::hardware::lcd::PixelInfo;
@@ -8,10 +96,40 @@ use super::Layer;
 use serde::Deserialize;
 use serde::Serialize;
 
+/// BG0 - Background Layer 0
+///
+/// A regular (non-affine) tiled background layer available in video modes 0 and 1.
+/// Supports scrolling, tile flipping, and both 4bpp and 8bpp color modes.
+///
+/// See the [module-level documentation](self) for details on how GBA background
+/// layers work.
 #[derive(Default, Serialize, Deserialize)]
 pub struct Layer0;
 
 impl Layer for Layer0 {
+    /// Renders a single pixel of BG0 at the given screen coordinates.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. **Apply scrolling**: Add `BG0HOFS`/`BG0VOFS` to screen coordinates
+    /// 2. **Find tile**: Divide by 8 to get tile coordinates in the 32×32 tilemap
+    /// 3. **Read tilemap entry**: Get tile number, flip flags, and palette bank
+    /// 4. **Apply flipping**: Mirror pixel coordinates if flip flags are set
+    /// 5. **Read tile data**: Get palette index from character data (4bpp or 8bpp)
+    /// 6. **Check transparency**: Return `None` if palette index is 0
+    /// 7. **Look up color**: Read final color from BG palette RAM
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - Screen X coordinate (0-239)
+    /// * `y` - Screen Y coordinate (0-159)
+    /// * `memory` - Reference to VRAM and palette RAM
+    /// * `registers` - LCD control registers
+    ///
+    /// # Returns
+    ///
+    /// - `Some(PixelInfo)` with the color and priority if the pixel is opaque
+    /// - `None` if the pixel is transparent (palette index 0)
     #[allow(clippy::similar_names)]
     fn render(
         &self,
@@ -20,7 +138,7 @@ impl Layer for Layer0 {
         memory: &Memory,
         registers: &Registers,
     ) -> Option<PixelInfo> {
-        // Apply scrolling offset
+        // Step 1: Apply scrolling offset
         let scroll_x = (x + registers.bg0hofs as usize) % 256;
         let scroll_y = (y + registers.bg0vofs as usize) % 256;
 

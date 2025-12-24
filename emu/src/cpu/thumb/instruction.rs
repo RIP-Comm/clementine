@@ -1,3 +1,53 @@
+//! # Thumb Instruction Decoding
+//!
+//! This module handles decoding 16-bit Thumb instructions.
+//!
+//! ## Thumb Instruction Formats
+//!
+//! Thumb instructions are grouped into 19 formats, identified by their high bits:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────┐
+//! │                    Thumb Instruction Formats                            │
+//! ├─────────────────────────────────────────────────────────────────────────┤
+//! │  Format 1:  000 xx          Move shifted register                      │
+//! │  Format 2:  00011           Add/subtract                               │
+//! │  Format 3:  001 xx          Move/compare/add/subtract immediate        │
+//! │  Format 4:  010000          ALU operations                             │
+//! │  Format 5:  010001          Hi register operations / BX                │
+//! │  Format 6:  01001           PC-relative load                           │
+//! │  Format 7:  0101 xx0        Load/store with register offset            │
+//! │  Format 8:  0101 xx1        Load/store sign-extended byte/halfword     │
+//! │  Format 9:  011 xx          Load/store with immediate offset           │
+//! │  Format 10: 1000 x          Load/store halfword                        │
+//! │  Format 11: 1001 x          SP-relative load/store                     │
+//! │  Format 12: 1010 x          Load address                               │
+//! │  Format 13: 10110000        Add offset to stack pointer                │
+//! │  Format 14: 1011 x10x       Push/pop registers                         │
+//! │  Format 15: 1100 x          Multiple load/store                        │
+//! │  Format 16: 1101 xxxx       Conditional branch                         │
+//! │  Format 17: 11011111        Software interrupt                         │
+//! │  Format 18: 11100           Unconditional branch                       │
+//! │  Format 19: 1111 x          Long branch with link                      │
+//! └─────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Register Restrictions
+//!
+//! Most Thumb instructions can only access R0-R7. To access R8-R15:
+//! - Format 5 (Hi register ops): ADD, CMP, MOV with high registers
+//! - BX: Can branch to any register
+//! - PUSH/POP: Can include LR/PC via special bit
+//!
+//! ## Long Branch (BL)
+//!
+//! The BL instruction spans ±4MB but requires two 16-bit instructions:
+//!
+//! ```text
+//! First:  1111 0xxx xxxx xxxx  ; LR = PC + (offset_hi << 12)
+//! Second: 1111 1xxx xxxx xxxx  ; PC = LR + (offset_lo << 1), LR = old_PC | 1
+//! ```
+
 use crate::bitwise::Bits;
 use crate::cpu::condition::Condition;
 use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, ShiftKind};

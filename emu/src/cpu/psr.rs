@@ -1,3 +1,22 @@
+//! # Program Status Registers (CPSR and SPSR)
+//!
+//! The PSR contains condition flags (N, Z, C, V) and control bits (mode, state, interrupts).
+//!
+//! ```text
+//! 31 30 29 28 27 26      8 7 6 5 4   0
+//! ┌──┬──┬──┬──┬──┬────────┬─┬─┬─┬─────┐
+//! │N │Z │C │V │Q │Reserved│I│F│T│Mode │
+//! └──┴──┴──┴──┴──┴────────┴─┴─┴─┴─────┘
+//! ```
+//!
+//! - **Flags (28-31)**: See [`condition`](super::condition) for how these are tested
+//! - **Mode (0-4)**: See [`cpu_modes`](super::cpu_modes) for operating modes
+//! - **T bit (5)**: ARM (0) or Thumb (1) state
+//! - **I/F bits (6-7)**: IRQ/FIQ disable
+//!
+//! Each exception mode has a **SPSR** to save CPSR on exception entry.
+//! See [`register_bank`](super::register_bank) for SPSR storage.
+
 use serde::{Deserialize, Serialize};
 
 use logger::log;
@@ -6,7 +25,32 @@ use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::ArithmeticOpResult;
 use crate::cpu::{condition::Condition, cpu_modes::Mode};
 
-/// Program Status Register.
+/// Program Status Register (CPSR or SPSR).
+///
+/// This 32-bit register contains:
+/// - **Condition flags** (bits 28-31): N, Z, C, V - updated by arithmetic ops
+/// - **Control bits** (bits 0-7): Mode, state (ARM/Thumb), interrupt masks
+///
+/// The `Psr` struct wraps a raw `u32` and provides type-safe accessors for
+/// each field. It's used for both CPSR (current) and SPSR (saved) registers.
+///
+/// See the [module-level documentation](self) for a complete description
+/// of all fields and their meanings.
+///
+/// # Example
+///
+/// ```ignore
+/// // Check if we can execute a conditional instruction
+/// if cpsr.can_execute(Condition::EQ) {
+///     // Zero flag is set, execute the instruction
+/// }
+///
+/// // Check current CPU state
+/// match cpsr.cpu_state() {
+///     CpuState::Arm => { /* 32-bit instructions */ }
+///     CpuState::Thumb => { /* 16-bit instructions */ }
+/// }
+/// ```
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Psr(u32);
 
@@ -190,14 +234,16 @@ impl From<Psr> for u32 {
     }
 }
 
-/// Represents the CPU state (ARM/THUMB).
+/// The CPU execution state (ARM or Thumb).
+///
+/// Controlled by the T bit (bit 5) in CPSR. Switch via `BX Rn`.
+///
+/// See [`arm`](super::arm) and [`thumb`](super::thumb) for instruction details.
 #[derive(PartialEq, Eq)]
 pub enum CpuState {
-    /// Which operates with 16-bit, halfword-aligned THUMB instructions.
-    /// In this state, the PC uses bit 1 to select between alternate halfwords.
+    /// Thumb: 16-bit instructions. See [`thumb`](super::thumb).
     Thumb,
-
-    /// Which executes 32-bit, word-aligned ARM instructions.
+    /// ARM: 32-bit instructions. See [`arm`](super::arm).
     Arm,
 }
 

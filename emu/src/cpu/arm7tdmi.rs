@@ -1,3 +1,94 @@
+//! # ARM7TDMI Processor Implementation
+//!
+//! This module implements the ARM7TDMI processor core used in the Game Boy Advance.
+//! The ARM7TDMI is a 32-bit RISC processor supporting two instruction sets.
+//!
+//! ## Architecture Overview
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                           ARM7TDMI Block Diagram                            │
+//! ├─────────────────────────────────────────────────────────────────────────────┤
+//! │                                                                             │
+//! │   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐                  │
+//! │   │   FETCH     │ ──▶ │   DECODE    │ ──▶ │   EXECUTE   │                  │
+//! │   │  (PC + 8)   │     │  (PC + 4)   │     │    (PC)     │                  │
+//! │   └─────────────┘     └─────────────┘     └─────────────┘                  │
+//! │          │                                       │                          │
+//! │          ▼                                       ▼                          │
+//! │   ┌─────────────┐                        ┌─────────────┐                   │
+//! │   │    Bus      │◀──────────────────────▶│  Registers  │                   │
+//! │   │  (Memory)   │                        │   (R0-R15)  │                   │
+//! │   └─────────────┘                        └─────────────┘                   │
+//! │          │                                       │                          │
+//! │          ▼                                       ▼                          │
+//! │   ┌─────────────┐                        ┌─────────────┐                   │
+//! │   │  Hardware   │                        │ CPSR/SPSR   │                   │
+//! │   │ (LCD, DMA)  │                        │  (Flags)    │                   │
+//! │   └─────────────┘                        └─────────────┘                   │
+//! │                                                                             │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## The 3-Stage Pipeline
+//!
+//! The ARM7TDMI uses a 3-stage pipeline to increase throughput:
+//!
+//! | Stage   | What Happens                    | PC Offset (ARM) | PC Offset (Thumb) |
+//! |---------|--------------------------------|-----------------|-------------------|
+//! | Fetch   | Read instruction from memory   | PC + 8          | PC + 4            |
+//! | Decode  | Parse instruction fields       | PC + 4          | PC + 2            |
+//! | Execute | Perform the operation          | PC (current)    | PC (current)      |
+//!
+//! **Important**: When an instruction reads PC, it gets the address of the current
+//! instruction **plus 8** (ARM) or **plus 4** (Thumb). This is because PC points
+//! to what's being fetched, not what's being executed.
+//!
+//! ### Pipeline Flushing
+//!
+//! When a branch occurs, the pipeline must be flushed because the prefetched
+//! instructions are from the wrong address. This costs cycles:
+//!
+//! ```text
+//! Before branch:     After branch (BX 0x1000):
+//! ┌────────────┐     ┌────────────┐
+//! │ FETCH 0x108│     │ FETCH 0x1000│  ← New instruction
+//! ├────────────┤     ├────────────┤
+//! │ DECODE 0x104│ ──▶ │  (empty)   │  ← Flushed
+//! ├────────────┤     ├────────────┤
+//! │EXECUTE 0x100│     │  (empty)   │  ← Flushed
+//! └────────────┘     └────────────┘
+//! ```
+//!
+//! ## Exception Handling
+//!
+//! The CPU handles various exceptions (interrupts, errors) by:
+//! 1. Saving CPSR to SPSR of the exception mode
+//! 2. Setting LR to the return address
+//! 3. Switching to the exception's CPU mode
+//! 4. Jumping to the exception vector address
+//!
+//! | Exception   | Vector   | Mode       | Priority |
+//! |-------------|----------|------------|----------|
+//! | Reset       | 0x00     | Supervisor | 1 (high) |
+//! | Undefined   | 0x04     | Undefined  | 6        |
+//! | SWI         | 0x08     | Supervisor | 6        |
+//! | Prefetch    | 0x0C     | Abort      | 5        |
+//! | Data Abort  | 0x10     | Abort      | 2        |
+//! | IRQ         | 0x18     | IRQ        | 4        |
+//! | FIQ         | 0x1C     | FIQ        | 3        |
+//!
+//! ## HLE (High-Level Emulation)
+//!
+//! Some BIOS SWI calls are implemented directly in the emulator for speed:
+//! - `SWI 0x06`: Div (signed division)
+//! - `SWI 0x07`: DivArm (division with swapped args)
+//! - `SWI 0x08`: Sqrt (square root)
+//! - `SWI 0x0B`: CpuSet (memory copy/fill)
+//! - `SWI 0x0C`: CpuFastSet (fast memory copy/fill)
+//!
+//! Other SWIs fall through to the actual BIOS code.
+
 #![allow(clippy::unreadable_literal)]
 
 use serde::{Deserialize, Serialize};
@@ -20,6 +111,35 @@ use crate::cpu::thumb::mode::ThumbModeOpcode;
 use super::registers::{REG_SP, Registers};
 use super::thumb;
 
+/// The ARM7TDMI CPU core.
+///
+/// This struct represents the complete state of the ARM7TDMI processor:
+/// - 16 general-purpose registers (via [`Registers`])
+/// - Banked registers for exception modes (via [`RegisterBank`])
+/// - Current and Saved Program Status Registers ([`Psr`])
+/// - Memory bus connection ([`Bus`])
+/// - Pipeline state (fetched/decoded instructions)
+///
+/// ## Creating a CPU
+///
+/// ```ignore
+/// let bus = Bus::new(bios, cartridge);
+/// let mut cpu = Arm7tdmi::new(bus);
+///
+/// // Run one instruction
+/// cpu.step();
+/// ```
+///
+/// ## The Execution Cycle
+///
+/// Each call to [`step()`](Self::step) performs one pipeline cycle:
+///
+/// 1. **Execute**: Run the decoded instruction (if any)
+/// 2. **Decode**: Parse the fetched instruction
+/// 3. **Fetch**: Read next instruction from memory at PC
+/// 4. **Advance**: Increment PC (unless a branch occurred)
+///
+/// The CPU automatically handles mode switching, interrupts, and pipeline flushing.
 #[derive(Serialize, Deserialize)]
 pub struct Arm7tdmi {
     pub bus: Bus,

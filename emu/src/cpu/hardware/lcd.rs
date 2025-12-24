@@ -1,3 +1,62 @@
+//! LCD controller (PPU) - handles display rendering.
+//!
+//! The GBA LCD is 240x160 pixels, 15-bit color (32,768 colors). The [`Lcd`] struct
+//! implements the Picture Processing Unit that renders backgrounds and sprites to
+//! a framebuffer.
+//!
+//! # Display Timing
+//!
+//! The LCD renders one pixel every 4 CPU cycles. A complete frame consists of:
+//!
+//! ```text
+//!                    240 pixels          68 pixels
+//!                   ◄──────────►       ◄──────────►
+//!               ┌─────────────────────────────────────┐
+//!               │                      │              │
+//!    160 lines  │      Visible         │   HBlank    │ VDraw
+//!               │      (VDraw)         │             │
+//!               ├──────────────────────┼─────────────┤
+//!     68 lines  │                VBlank              │ VBlank
+//!               └─────────────────────────────────────┘
+//!
+//! - VDraw: Lines 0-159, pixels 0-239 are visible
+//! - HBlank: Pixels 240-307 on each line
+//! - VBlank: Lines 160-227
+//! - Total: 228 lines × 308 pixels = 280,896 cycles/frame ≈ 59.73 Hz
+//! ```
+//!
+//! # Background Modes
+//!
+//! The DISPCNT register (bits 0-2) selects the background mode:
+//!
+//! | Mode | BG0    | BG1    | BG2      | BG3      | Description           |
+//! |------|--------|--------|----------|----------|-----------------------|
+//! | 0    | Text   | Text   | Text     | Text     | 4 text backgrounds    |
+//! | 1    | Text   | Text   | Affine   | -        | 2 text + 1 affine     |
+//! | 2    | -      | -      | Affine   | Affine   | 2 affine backgrounds  |
+//! | 3    | -      | -      | Bitmap   | -        | 240x160 15-bit bitmap |
+//! | 4    | -      | -      | Bitmap   | -        | 240x160 8-bit indexed |
+//! | 5    | -      | -      | Bitmap   | -        | 160x128 15-bit bitmap |
+//!
+//! # Layer Priority
+//!
+//! Each background and OBJ layer has a priority (0-3, lower = higher priority).
+//! The [`Lcd::step`] method renders all enabled layers and composites them by priority.
+//!
+//! # Memory Regions
+//!
+//! The LCD controller owns several memory regions (in [`Memory`](memory::Memory)):
+//! - **Palette RAM** (`0x0500_0000`): 512 bytes for BG + 512 bytes for OBJ colors
+//! - **VRAM** (`0x0600_0000`): 96KB for tile data and bitmaps
+//! - **OAM** (`0x0700_0000`): 1KB for 128 sprite attributes
+//!
+//! # Interrupts
+//!
+//! The LCD can generate three types of interrupts (via [`LcdStepOutput`]):
+//! - **VBlank**: When entering VBlank period (line 160)
+//! - **HBlank**: When entering HBlank period (pixel 240 of each visible line)
+//! - **VCount**: When the current line matches the VCount setting
+
 use serde::Deserialize;
 use serde::Serialize;
 use serde_with::serde_as;
