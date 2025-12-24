@@ -95,6 +95,10 @@ impl TextBuffer for UpperHexString {
         // Then drain all characters within this range
         self.drain(byte_start..byte_end);
     }
+
+    fn type_id(&self) -> std::any::TypeId {
+        std::any::TypeId::of::<Self>()
+    }
 }
 
 impl UiTool for CpuHandler {

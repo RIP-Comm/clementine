@@ -36,9 +36,9 @@ impl UiTool for Disassembler {
                     .interactive(false)
                     .font(TextStyle::Monospace)
                     .layouter(&mut |ui, val, _| {
-                        ui.fonts(|fonts| {
+                        ui.ctx().fonts_mut(|fonts| {
                             fonts.layout_no_wrap(
-                                val.to_string(),
+                                val.as_str().to_owned(),
                                 TextStyle::Monospace.resolve(ui.style()),
                                 ui.visuals().widgets.inactive.text_color(),
                             )
