@@ -555,7 +555,7 @@ impl Instruction {
             } => {
                 format!("B{condition} #{immediate_offset}")
             }
-            Self::Swi => panic!("not implemented"),
+            Self::Swi => "SWI".to_owned(),
             Self::UncondBranch { offset } => {
                 format!("B #{offset}")
             }
