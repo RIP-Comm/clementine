@@ -15,7 +15,6 @@ use crate::cpu::flags::{
 };
 use crate::cpu::psr::CpuState;
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
-use logger::log;
 
 use super::alu_instruction::PsrKind;
 
@@ -113,10 +112,10 @@ impl Arm7tdmi {
             if let Ok(spsr_mode) = Mode::try_from(spsr_value & 0b11111) {
                 self.swap_mode(spsr_mode);
             } else {
-                log(format!(
-                    "Warning: SPSR has invalid mode bits (0b{:05b}), skipping mode swap",
+                tracing::warn!(
+                    "SPSR has invalid mode bits (0b{:05b}), skipping mode swap",
                     spsr_value & 0b11111
-                ));
+                );
             }
 
             self.cpsr = current_spsr;
@@ -148,10 +147,10 @@ impl Arm7tdmi {
         let effective_psr_kind = if matches!(self.cpsr.mode(), Mode::System | Mode::User)
             && psr_kind == PsrKind::Spsr
         {
-            logger::log(format!(
-                "Warning: Attempting to access SPSR in User/System mode at PC=0x{:08X}, returning CPSR instead",
+            tracing::warn!(
+                "Attempting to access SPSR in User/System mode at PC=0x{:08X}, returning CPSR instead",
                 self.registers.program_counter().wrapping_sub(8)
-            ));
+            );
             PsrKind::Cpsr
         } else {
             psr_kind
@@ -218,8 +217,8 @@ impl Arm7tdmi {
                         // Should we set it? I guess software are written in order to not switch this bit
                         // but who knows?
                         if psr.state_bit() != rm.get_bit(5) {
-                            log(
-                                "WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.",
+                            tracing::warn!(
+                                "Changing state bit (arm/thumb) in MSR instruction. This should not happen."
                             );
                         }
                         psr.set_state_bit(rm.get_bit(5));
@@ -289,8 +288,8 @@ impl Arm7tdmi {
                     psr.set_fiq_disable(op.get_bit(6));
 
                     if psr.state_bit() != op.get_bit(5) {
-                        log(
-                            "WARNING: Changing state bit (arm/thumb) in MSR instruction. This should not happen.",
+                        tracing::warn!(
+                            "Changing state bit (arm/thumb) in MSR instruction. This should not happen."
                         );
                     }
                     psr.set_state_bit(op.get_bit(5));

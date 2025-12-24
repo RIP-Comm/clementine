@@ -19,8 +19,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use logger::log;
-
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::ArithmeticOpResult;
 use crate::cpu::{condition::Condition, cpu_modes::Mode};
@@ -78,31 +76,37 @@ impl Psr {
     }
 
     /// N => Bit 31, (0=Not Signed, 1=Signed)
+    #[must_use]
     pub fn sign_flag(self) -> bool {
         self.0.get_bit(31)
     }
 
     /// Z => Bit 30, (0=Not Zero, 1=Zero)
+    #[must_use]
     pub fn zero_flag(self) -> bool {
         self.0.get_bit(30)
     }
 
     /// C => Bit 29, (0=Borrow/No Carry, 1=Carry/No Borrow)
+    #[must_use]
     pub fn carry_flag(self) -> bool {
         self.0.get_bit(29)
     }
 
     /// V => Bit 28, (0=No Overflow, 1=Overflow)
+    #[must_use]
     pub fn overflow_flag(self) -> bool {
         self.0.get_bit(28)
     }
 
     /// Q => Bit 27, (1=Sticky Overflow, `ARMv5TE` and up only)
+    #[must_use]
     pub fn sticky_overflow(self) -> bool {
         self.0.get_bit(27)
     }
 
     /// Reserved => Bits 26-8, (For future use)
+    #[must_use]
     pub const fn reserved_bits() -> bool {
         // These bits are reserved for possible future implementations.
         // For best forwards compatibility, the user should never change the state of these bits,
@@ -111,16 +115,19 @@ impl Psr {
     }
 
     /// I => Bit 7, (0=Enable, 1=Disable)
+    #[must_use]
     pub fn irq_disable(self) -> bool {
         self.0.get_bit(7)
     }
 
     /// F => Bit 6, (0=Enable, 1=Disable)
+    #[must_use]
     pub fn fiq_disable(self) -> bool {
         self.0.get_bit(6)
     }
 
     /// T => Bit 5, (0=ARM, 1=THUMB) - Do not change manually!
+    #[must_use]
     pub fn state_bit(self) -> bool {
         self.0.get_bit(5)
     }
@@ -129,13 +136,15 @@ impl Psr {
     ///
     /// NOTE: The BIOS sometimes writes invalid mode values (like 0) to SPSR.
     /// This method returns Supervisor mode as a safe default if the mode bits are invalid.
+    #[must_use]
     pub fn mode(self) -> Mode {
         let mode_bits = self.0 & 0b11111;
         Mode::try_from(mode_bits).unwrap_or_else(|_| {
-            log(format!(
+            tracing::debug!(
                 "Warning: Invalid mode bits 0b{:05b} in PSR=0x{:08X}, defaulting to Supervisor",
-                mode_bits, self.0
-            ));
+                mode_bits,
+                self.0
+            );
             Mode::Supervisor
         })
     }
@@ -209,6 +218,7 @@ impl Psr {
         self.0 |= m as u32;
     }
 
+    #[must_use]
     pub fn cpu_state(self) -> CpuState {
         self.state_bit().into()
     }

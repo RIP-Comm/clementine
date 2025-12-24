@@ -54,7 +54,6 @@ use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, Sh
 #[cfg(feature = "disassembler")]
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
-use logger::log;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
@@ -315,9 +314,7 @@ impl TryFrom<u16> for Instruction {
             })
         } else if op_code.get_bits(12..=15) == 0b1011 {
             // Other 0xBxxx instructions that don't match specific patterns
-            log(format!(
-                "Treating undefined/hint instruction 0x{op_code:04X} as NOP",
-            ));
+            tracing::debug!("Treating undefined/hint instruction 0x{op_code:04X} as NOP",);
             Ok(Nop)
         } else {
             Err(format!(

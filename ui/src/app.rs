@@ -50,7 +50,6 @@
 #[cfg(feature = "disassembler")]
 use crate::disassembler::Disassembler;
 use emu::{cartridge_header::CartridgeHeader, gba::Gba};
-use logger::log;
 use std::io::Read;
 
 use super::cpu_registers::CpuRegisters;
@@ -99,7 +98,7 @@ impl App {
         let data = match read_file(cartridge_name) {
             Ok(d) => d,
             Err(e) => {
-                log(format!("{e}"));
+                tracing::debug!("{e}");
                 std::process::exit(2);
             }
         };

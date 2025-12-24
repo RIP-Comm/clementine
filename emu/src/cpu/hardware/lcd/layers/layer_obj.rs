@@ -299,10 +299,14 @@ impl LayerObj {
             static mut DEBUG_LOGGED: bool = false;
             unsafe {
                 if y == 30 && !DEBUG_LOGGED {
-                    logger::log(format!(
+                    tracing::debug!(
                         "Scanline {}: Checking sprite @ Y={}, size={}, Y_end={}, vcount type check: y={} (type: u16)",
-                        y, sprite_y_start, sprite_screen_size.y, sprite_y_end, y
-                    ));
+                        y,
+                        sprite_y_start,
+                        sprite_screen_size.y,
+                        sprite_y_end,
+                        y
+                    );
                     DEBUG_LOGGED = true;
                 }
             }
@@ -517,9 +521,9 @@ impl LayerObj {
 
         // Debug log for multiple scanlines to catch sprites
         if y == 30 || y == 80 {
-            logger::log(format!(
+            tracing::debug!(
                 "Scanline {y}: {sprites_on_scanline} sprites intersect, {pixels_rendered} pixels rendered (non-transparent)"
-            ));
+            );
         }
     }
 
@@ -552,7 +556,7 @@ impl LayerObj {
 
                             // Log first 3 enabled sprites
                             if enabled_count <= 3 {
-                                logger::log(format!(
+                                tracing::debug!(
                                     "OAM[{}]: pos=({},{}), tile={}, pal={}, size={}x{} (approx)",
                                     i,
                                     obj.attribute1.x_coordinate,
@@ -569,15 +573,15 @@ impl LayerObj {
                                             8 << (obj.attribute1.obj_size as u8),
                                         _ => 8,
                                     }
-                                ));
+                                );
                             }
                         }
                     }
-                    logger::log(format!(
+                    tracing::debug!(
                         "Total: {} enabled sprites, {} unique positions",
                         enabled_count,
                         unique_positions.len()
-                    ));
+                    );
                 }
             }
         }

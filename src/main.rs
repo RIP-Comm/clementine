@@ -10,10 +10,10 @@
 //! ├─────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                             │
 //! │  1. Parse command line arguments                                           │
-//! │     └─► cargo run -- <rom_path> [--log-on-file]                            │
+//! │     └─► cargo run -- <rom_path> [--log-to-file]                            │
 //! │                                                                             │
-//! │  2. Initialize logger (if 'logger' feature enabled)                        │
-//! │     └─► Logs to stdout by default, or file with --log-on-file              │
+//! │  2. Initialize tracing subscriber                                          │
+//! │     └─► No output by default, or file with --log-to-file                   │
 //! │                                                                             │
 //! │  3. Load ROM file from disk                                                │
 //! │     └─► Read entire .gba file into memory                                  │
@@ -65,42 +65,47 @@
 //!                                         └─────────────┘
 //! ```
 
-extern crate logger;
-extern crate ui;
-use logger::log;
-
-#[cfg(feature = "logger")]
-use logger::{LogKind, init_logger};
+use tracing::info;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 /// Entry point for the Clementine GBA emulator.
 ///
-/// Parses command-line arguments, initializes logging (if enabled),
+/// Parses command-line arguments, initializes logging,
 /// loads the ROM, and starts the UI event loop.
 ///
 /// # Arguments (via command line)
 ///
 /// - `<rom_path>` - Path to a .gba ROM file (required)
-/// - `--log-on-file` - Write logs to file instead of stdout (optional)
+/// - `--log-to-file` - Write logs to file in temp directory (optional, no logging by default)
 fn main() {
-    let args = std::env::args().skip(1).collect::<Vec<String>>();
+    let args: Vec<String> = std::env::args().skip(1).collect();
 
-    #[cfg(feature = "logger")]
-    if args.len() > 1 {
-        if args.last().unwrap().as_str() == "--log-on-file" {
-            init_logger(LogKind::FILE);
-        }
-    } else {
-        init_logger(LogKind::STDOUT);
+    let log_to_file = args.iter().any(|arg| arg == "--log-to-file");
+    if log_to_file {
+        let log_path = std::env::temp_dir().join("clementine.log");
+        let file_appender =
+            tracing_appender::rolling::never(std::env::temp_dir(), "clementine.log");
+        tracing_subscriber::fmt()
+            .with_writer(file_appender.with_max_level(tracing::Level::DEBUG))
+            .with_ansi(false)
+            .with_file(true)
+            .with_line_number(true)
+            .with_target(true)
+            .init();
+        println!("Logging to: {}", log_path.display());
     }
 
-    let cartridge_name = args.first().map_or_else(
+    let rom_args: Vec<&String> = args.iter().filter(|arg| *arg != "--log-to-file").collect();
+
+    let cartridge_name = rom_args.first().map_or_else(
         || {
-            log("no cartridge found :(");
+            eprintln!("Usage: clementine <rom_path> [--log-to-file]");
+            eprintln!("Error: no cartridge provided");
             std::process::exit(1)
         },
         |name| {
-            log(format!("loading {name}"));
-            name.clone()
+            info!("Loading ROM: {name}");
+            (*name).clone()
         },
     );
 

@@ -45,7 +45,7 @@ run-release rom:
     @cargo run --release $1
 
 run-release-log-file rom:
-    @cargo run --features logger --release $1 --log-on-file
+    @cargo run --release -- $1 --log-to-file
 
 # run <rom> in debug mode with logger and disassembler features
 run-all-debug rom:

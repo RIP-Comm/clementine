@@ -65,7 +65,6 @@
 
 use std::collections::HashMap;
 
-use logger::log;
 use serde::{Deserialize, Serialize};
 
 use crate::bitwise::Bits;
@@ -157,7 +156,7 @@ impl Bus {
             | 0x400_020A..=0x400_02FF
             | 0x0400_0302..=0x0400_040F
             | 0x0400_0411 => {
-                log(format!("read on unused memory 0x{address:08X}"));
+                tracing::debug!("read on unused memory 0x{address:08X}");
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
             _ => match address & 0b111 {
@@ -166,7 +165,7 @@ impl Bus {
                 0x802 => self.interrupt_control.internal_memory_control.get_byte(2),
                 0x803 => self.interrupt_control.internal_memory_control.get_byte(3),
                 _ => {
-                    log(format!("read on unused memory 0x{address:08X}"));
+                    tracing::debug!("read on unused memory 0x{address:08X}");
                     *self.unused_region.get(&address).unwrap_or(&0)
                 }
             },
@@ -205,7 +204,7 @@ impl Bus {
             | 0x0400_020A..=0x0400_02FF
             | 0x0400_0302..=0x0400_040F
             | 0x0400_0411 => {
-                log("write on unused memory");
+                tracing::debug!("write on unused memory");
                 self.unused_region.insert(address, value);
             }
             _ => match address & 0b111 {
@@ -226,7 +225,7 @@ impl Bus {
                     .internal_memory_control
                     .set_byte(3, value),
                 _ => {
-                    log("write on unused memory");
+                    tracing::debug!("write on unused memory");
                     self.unused_region.insert(address, value);
                 }
             },
@@ -288,7 +287,7 @@ impl Bus {
             | 0x0400_0138..=0x0400_0141
             | 0x0400_0142..=0x0400_014F
             | 0x0400_015A..=0x0400_01FF => {
-                log(format!("read on unused memory {address:x}"));
+                tracing::debug!("read on unused memory {address:x}");
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
             _ => panic!("Serial read address is out of bound: {address:#010x}"),
@@ -341,13 +340,11 @@ impl Bus {
             | 0x0400_0138..=0x0400_0139
             | 0x0400_0142..=0x0400_014F
             | 0x0400_015A..=0x0400_01FF => {
-                log(format!("write on unused memory {address:x}"));
+                tracing::debug!("write on unused memory {address:x}");
                 self.unused_region.insert(address, value);
             }
             _ => {
-                log(format!(
-                    "Serial write to unhandled address: 0x{address:08X}"
-                ));
+                tracing::debug!("Serial write to unhandled address: 0x{address:08X}");
                 self.unused_region.insert(address, value);
             }
         }
@@ -467,7 +464,7 @@ impl Bus {
                 self.timers.set_control(3, control);
             }
             0x0400_0110..=0x0400_011F => {
-                log(format!("write on unused memory {address:x}"));
+                tracing::debug!("write on unused memory {address:x}");
                 self.unused_region.insert(address, value);
             }
             _ => panic!("Timers write address is out of bound"),
@@ -505,7 +502,7 @@ impl Bus {
                 read_dma_bank(&self.dma.channels[3], address - 0x0400_00D4)
             }
             0x0400_00E0..=0x0400_00FF => {
-                log(format!("read on unused memory 0x{address:08X}"));
+                tracing::debug!("read on unused memory 0x{address:08X}");
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => panic!("DMA read address is out of bound"),
@@ -543,7 +540,7 @@ impl Bus {
                 write_dma_bank(&mut self.dma.channels[3], address - 0x0400_00D4, value);
             }
             0x0400_00E0..=0x0400_00FF => {
-                log("write on unused memory");
+                tracing::debug!("write on unused memory");
                 self.unused_region.insert(address, value);
             }
             _ => panic!("Not implemented write memory address: {address:x}"),
@@ -630,7 +627,7 @@ impl Bus {
             | 0x0400_0086..=0x0400_0087
             | 0x0400_008A..=0x0400_008F
             | 0x0400_00A8..=0x0400_00AF => {
-                log(format!("read on unused memory {address:x}"));
+                tracing::debug!("read on unused memory {address:x}");
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => panic!("Sound read address is out of bound"),
@@ -687,7 +684,7 @@ impl Bus {
             | 0x0400_0086..=0x0400_0087
             | 0x0400_008A..=0x0400_008F
             | 0x0400_00A8..=0x0400_00AF => {
-                log(format!("write on unused memory, {address:x}"));
+                tracing::debug!("write on unused memory, {address:x}");
                 self.unused_region.insert(address, value);
             }
             _ => panic!("Sound write address is out of bound"),
@@ -781,7 +778,7 @@ impl Bus {
             0x0400_0054 => self.lcd.registers.bldy.get_byte(0),
             0x0400_0055 => self.lcd.registers.bldy.get_byte(1),
             0x0400_004E..=0x0400_004F | 0x0400_0056..=0x0400_005F => {
-                log(format!("read on unused memory 0x{address:08X}"));
+                tracing::debug!("read on unused memory 0x{address:08X}");
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => panic!("LCD read address is out of bound"),
@@ -880,7 +877,7 @@ impl Bus {
             0x0400_0054 => self.lcd.registers.bldy.set_byte(0, value),
             0x0400_0055 => self.lcd.registers.bldy.set_byte(1, value),
             0x0400_004E..=0x0400_004F | 0x0400_0056..=0x0400_005F => {
-                log("write on unused memory");
+                tracing::debug!("write on unused memory");
                 self.unused_region.insert(address, value);
             }
             _ => panic!("LCD write address is out of bound"),
@@ -953,7 +950,7 @@ impl Bus {
                 self.lcd.memory.obj_attributes[unmasked_address - 0x0700_0000]
             }
             0x000_4000..=0x1FF_FFFF | 0xE01_0000..=0xFFF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
-                log(format!("read on unused memory {address:x}"));
+                tracing::debug!("read on unused memory {address:x}");
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
             _ => unimplemented!(),
@@ -1017,7 +1014,7 @@ impl Bus {
                 self.lcd.memory.obj_attributes[unmasked_address - 0x0700_0000] = value;
             }
             0x000_4000..=0x1FF_FFFF | 0xE01_0000..=0xFFF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
-                log(format!("write on unused memory {address:x}"));
+                tracing::debug!("write on unused memory {address:x}");
                 self.unused_region.insert(address, value);
             }
             _ => {
@@ -1045,7 +1042,7 @@ impl Bus {
         match address {
             // in OAM (object attributes map) byte writes are ignored
             0x0700_0000..=0x07FF_FFFF => {
-                log("OAM byte write ignored");
+                tracing::debug!("OAM byte write ignored");
                 return;
             }
             // VRAM byte writes: In bitmap modes, byte writes are duplicated to halfwords
@@ -1063,9 +1060,9 @@ impl Bus {
                     self.write_raw(aligned_address, value);
                     self.write_raw(aligned_address + 1, value);
                 } else {
-                    log(format!(
+                    tracing::debug!(
                         "VRAM byte write ignored (unmasked address 0x{unmasked_address:08X} >= 0x0601_8000)"
-                    ));
+                    );
                 }
                 return;
             }
@@ -1164,7 +1161,6 @@ impl Bus {
         self.last_used_address = address;
 
         if address & 3 != 0 {
-            log("warning, read_word has address not word aligned");
             address &= !3;
         }
 
@@ -1182,14 +1178,11 @@ impl Bus {
     ///
     /// Panics if the value cannot be split into bytes (should not happen).
     pub fn write_word(&mut self, mut address: usize, value: u32) {
-        // TODO: Look at read_word
-        // TODO: Implement proper cycle-based timing
         self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
         if address & 3 != 0 {
-            log("warning, write_word has address not word aligned");
             address &= !3;
         }
 
@@ -1205,14 +1198,11 @@ impl Bus {
     }
 
     pub fn read_half_word(&mut self, mut address: usize) -> u16 {
-        // TODO: Implement proper cycle-based timing instead of recursive step() calls
-        // For now, just track cycles without stepping to avoid recursion bugs
         self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
         if address & 1 != 0 {
-            log("warning, read_half_word has address not half-word aligned");
             address &= !1;
         }
 
@@ -1228,14 +1218,11 @@ impl Bus {
     ///
     /// Panics if the value cannot be split into bytes (should not happen).
     pub fn write_half_word(&mut self, mut address: usize, value: u16) {
-        // TODO: Look at read_word
-        // TODO: Implement proper cycle-based timing
         self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
         if address & 1 != 0 {
-            log("warning, write_half_word has address not half-word aligned");
             address &= !1;
         }
 

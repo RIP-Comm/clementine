@@ -47,7 +47,6 @@
 
 use std::collections::HashMap;
 
-use logger::log;
 use serde::{Deserialize, Serialize};
 
 use crate::bitwise::Bits;
@@ -149,10 +148,14 @@ impl InternalMemory {
                 0xC9 => self.gpio_control.get_byte(1),
                 _ => unreachable!(),
             };
-            log(format!(
+            tracing::debug!(
                 "GPIO READ: offset 0x{:04X} = 0x{:02X} (data=0x{:04X}, dir=0x{:04X}, ctrl=0x{:04X})",
-                address, value, self.gpio_data, self.gpio_direction, self.gpio_control
-            ));
+                address,
+                value,
+                self.gpio_data,
+                self.gpio_direction,
+                self.gpio_control
+            );
             return value;
         }
 
@@ -200,17 +203,17 @@ impl InternalMemory {
 
                 // Debug: Log reads around the problematic address
                 if (0x0300_36A0..=0x0300_36B0).contains(&unmasked) {
-                    log(format!(
+                    tracing::debug!(
                         "IWRAM READ: addr=0x{address:08X}, unmasked=0x{unmasked:08X}, idx=0x{idx:04X}, value=0x{value:02X}"
-                    ));
+                    );
                 }
 
                 // Log reads from IRQ handler pointer area
                 if unmasked >= 0x03007FFC {
-                    log(format!(
+                    tracing::debug!(
                         "!!! READ FROM IRQ HANDLER POINTER AREA !!!\n  \
                          Address: 0x{address:08X} (unmask to 0x{unmasked:08X}), Value: 0x{value:02X}"
-                    ));
+                    );
                 }
 
                 value
@@ -229,9 +232,9 @@ impl InternalMemory {
                         0x0001 => 0x13, // Device ID (1Mbit = 128KB)
                         _ => 0xFF,
                     };
-                    log(format!(
+                    tracing::debug!(
                         "Flash ID READ: addr=0x{address:08X}, offset=0x{offset:04X}, value=0x{id_value:02X}"
-                    ));
+                    );
                     return id_value;
                 }
 
@@ -242,14 +245,17 @@ impl InternalMemory {
                 } else {
                     0xFF
                 };
-                log(format!(
+                tracing::debug!(
                     "Flash READ: addr=0x{:08X}, bank={}, offset=0x{:04X}, value=0x{:02X}",
-                    address, self.flash_bank, offset, value
-                ));
+                    address,
+                    self.flash_bank,
+                    offset,
+                    value
+                );
                 value
             }
             0x0000_4000..=0x01FF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
-                log(format!("READ on unused memory 0x{address:08X}"));
+                tracing::debug!("READ on unused memory 0x{address:08X}");
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
             _ => unimplemented!("Unimplemented memory region. {address:x}"),
@@ -272,24 +278,24 @@ impl InternalMemory {
             0x0300_0000..=0x0300_7FFF => {
                 // Log writes to IRQ handler pointer area (last 4 bytes of IWRAM)
                 if address >= 0x03007FFC {
-                    log(format!(
+                    tracing::debug!(
                         "!!! WRITE TO IRQ HANDLER POINTER AREA !!!\n  \
                          Address: 0x{address:08X}, Value: 0x{value:02X}",
-                    ));
+                    );
                 }
                 // Log writes to IRQ handler code area (for debugging)
                 if (0x03003580..0x03003600).contains(&address) {
-                    log(format!(
+                    tracing::debug!(
                         "!!! WRITE TO IRQ HANDLER CODE AREA !!!\n  \
                          Address: 0x{address:08X}, Value: 0x{value:02X}",
-                    ));
+                    );
                 }
                 // Debug: Log writes around the problematic address
                 if (0x0300_36A0..=0x0300_36B0).contains(&address) {
                     let idx = address - 0x0300_0000;
-                    log(format!(
+                    tracing::debug!(
                         "IWRAM WRITE: addr=0x{address:08X}, idx=0x{idx:04X}, value=0x{value:02X}"
-                    ));
+                    );
                 }
                 self.working_iram[address - 0x0300_0000] = value;
             }
@@ -298,10 +304,10 @@ impl InternalMemory {
                 let unmasked = get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8);
                 // Log writes to IRQ handler pointer area (mirrors to last 4 bytes of IWRAM)
                 if unmasked >= 0x03007FFC {
-                    log(format!(
+                    tracing::debug!(
                         "!!! WRITE TO IRQ HANDLER POINTER AREA (mirrored) !!!\n  \
                          Address: 0x{address:08X} (unmask to 0x{unmasked:08X}), Value: 0x{value:02X}",
-                    ));
+                    );
                 }
                 self.working_iram[unmasked - 0x0300_0000] = value;
             }
@@ -309,9 +315,7 @@ impl InternalMemory {
                 // Check if this is a GPIO write (ROM offset 0xC4-0xC9)
                 let rom_offset = address & 0x01FFFFFF; // Mask to get offset within ROM region
                 if (0xC4..=0xC9).contains(&rom_offset) {
-                    log(format!(
-                        "GPIO WRITE: offset 0x{rom_offset:04X} = 0x{value:02X}"
-                    ));
+                    tracing::debug!("GPIO WRITE: offset 0x{rom_offset:04X} = 0x{value:02X}");
                     match rom_offset {
                         0xC4 => self.gpio_data.set_byte(0, value),
                         0xC5 => self.gpio_data.set_byte(1, value),
@@ -321,23 +325,28 @@ impl InternalMemory {
                         0xC9 => self.gpio_control.set_byte(1, value),
                         _ => unreachable!(),
                     }
-                    log(format!(
+                    tracing::debug!(
                         "  GPIO state: data=0x{:04X}, dir=0x{:04X}, ctrl=0x{:04X}",
-                        self.gpio_data, self.gpio_direction, self.gpio_control
-                    ));
+                        self.gpio_data,
+                        self.gpio_direction,
+                        self.gpio_control
+                    );
                 } else {
                     // ROM is read-only, writes are ignored
-                    log(format!("Attempted write to ROM at {address:#010x}"));
+                    tracing::debug!("Attempted write to ROM at {address:#010x}");
                 }
             }
             0x0E00_0000..=0x0E01_FFFF => {
                 // Flash command/write handling
                 let offset = (address - 0x0E00_0000) & 0xFFFF; // 64KB offset within current bank
 
-                log(format!(
+                tracing::debug!(
                     "Flash WRITE: addr=0x{:08X}, offset=0x{:04X}, value=0x{:02X}, state={:?}",
-                    address, offset, value, self.flash_state
-                ));
+                    address,
+                    offset,
+                    value,
+                    self.flash_state
+                );
 
                 // Handle Flash commands based on state machine
                 match self.flash_state {
@@ -361,31 +370,31 @@ impl InternalMemory {
                             match value {
                                 0x90 => {
                                     // Enter ID mode
-                                    log("Flash: Entering ID mode");
+                                    tracing::debug!("Flash: Entering ID mode");
                                     self.flash_state = FlashState::IdMode;
                                 }
                                 0xF0 => {
                                     // Exit ID mode / Reset
-                                    log("Flash: Reset/Exit ID mode");
+                                    tracing::debug!("Flash: Reset/Exit ID mode");
                                     self.flash_state = FlashState::Ready;
                                 }
                                 0x80 => {
                                     // Erase command prefix
-                                    log("Flash: Erase command prefix");
+                                    tracing::debug!("Flash: Erase command prefix");
                                     self.flash_state = FlashState::EraseCommand;
                                 }
                                 0xA0 => {
                                     // Write byte command
-                                    log("Flash: Write command");
+                                    tracing::debug!("Flash: Write command");
                                     self.flash_state = FlashState::WriteCommand;
                                 }
                                 0xB0 => {
                                     // Bank switch command (for 128KB flash)
-                                    log("Flash: Bank switch command");
+                                    tracing::debug!("Flash: Bank switch command");
                                     self.flash_state = FlashState::BankSelect;
                                 }
                                 _ => {
-                                    log(format!("Flash: Unknown command 0x{value:02X}"));
+                                    tracing::debug!("Flash: Unknown command 0x{value:02X}");
                                     self.flash_state = FlashState::Ready;
                                 }
                             }
@@ -396,7 +405,7 @@ impl InternalMemory {
                     FlashState::IdMode => {
                         // Any write to 0x5555 with 0xF0 exits ID mode
                         if value == 0xF0 {
-                            log("Flash: Exit ID mode");
+                            tracing::debug!("Flash: Exit ID mode");
                             self.flash_state = FlashState::Ready;
                         }
                         // Also handle standard command sequence in ID mode
@@ -410,14 +419,14 @@ impl InternalMemory {
                             self.flash_state = FlashState::Command1;
                         } else if value == 0x10 && offset == 0x5555 {
                             // Chip erase
-                            log("Flash: Chip erase");
+                            tracing::debug!("Flash: Chip erase");
                             self.sram.fill(0xFF);
                             self.flash_state = FlashState::Ready;
                         } else if value == 0x30 {
                             // Sector erase (4KB sector)
                             let sector_base =
                                 (self.flash_bank as usize * 0x10000) + (offset & 0xF000);
-                            log(format!("Flash: Sector erase at 0x{sector_base:05X}"));
+                            tracing::debug!("Flash: Sector erase at 0x{sector_base:05X}");
                             for i in 0..0x1000 {
                                 if sector_base + i < self.sram.len() {
                                     self.sram[sector_base + i] = 0xFF;
@@ -432,7 +441,7 @@ impl InternalMemory {
                         // Bank number written to 0x0000
                         if offset == 0x0000 {
                             self.flash_bank = value & 0x01; // Only 0 or 1 for 128KB
-                            log(format!("Flash: Bank set to {}", self.flash_bank));
+                            tracing::debug!("Flash: Bank set to {}", self.flash_bank);
                         }
                         self.flash_state = FlashState::Ready;
                     }
@@ -442,9 +451,9 @@ impl InternalMemory {
                         if real_offset < self.sram.len() {
                             // Flash write: can only clear bits (AND operation)
                             self.sram[real_offset] &= value;
-                            log(format!(
+                            tracing::debug!(
                                 "Flash: Write 0x{value:02X} to offset 0x{real_offset:05X}"
-                            ));
+                            );
                         }
                         self.flash_state = FlashState::Ready;
                     }
@@ -452,14 +461,10 @@ impl InternalMemory {
             }
             0x0E02_0000..=0x0FFF_FFFF => {
                 // Outside Flash range, ignore
-                log(format!(
-                    "Attempted write to unused GamePak region at {address:#010x}"
-                ));
+                tracing::debug!("Attempted write to unused GamePak region at {address:#010x}");
             }
             _ => {
-                log(format!(
-                    "WRITE to unused memory 0x{address:08X} = 0x{value:02X}"
-                ));
+                tracing::debug!("WRITE to unused memory 0x{address:08X} = 0x{value:02X}");
                 self.unused_region.insert(address, value);
             }
         }

@@ -73,7 +73,6 @@ use crate::cpu::flags::{
     HalfwordDataTransferOffsetKind, Indexing, LoadStoreKind, Offsetting, OperandKind,
     ReadWriteKind, ShiftKind,
 };
-use logger::log;
 use serde::{Deserialize, Serialize};
 
 use super::alu_instruction::{PsrKind, PsrOpKind};
@@ -689,9 +688,9 @@ impl From<u32> for ArmModeInstruction {
                 }
             }
         } else if op_code.get_bits(25..=27) == 0b011 && op_code.get_bit(4) {
-            log(format!(
+            tracing::debug!(
                 "undefined instruction decode: opcode=0x{op_code:08X}, bits[25-27]=0b011, bit[4]=1"
-            ));
+            );
             Self::Undefined
         } else if op_code.get_bits(24..=27) == 0b1111 {
             Self::SoftwareInterrupt
@@ -831,7 +830,7 @@ impl From<u32> for ArmModeInstruction {
                 }
                 // TST/TEQ/CMP/CMN with S=0 but doesn't match PSR patterns
                 // This is likely an undefined instruction, but let's log details
-                log(format!(
+                tracing::debug!(
                     "Potential undefined: opcode=0x{:08X}, alu_op={:?}, I={}, Rn={}, Rd={}, bits[0-11]=0x{:03X}",
                     op_code,
                     alu_instruction,
@@ -839,12 +838,12 @@ impl From<u32> for ArmModeInstruction {
                     rn,
                     rd,
                     op_code.get_bits(0..=11)
-                ));
+                );
 
                 // Actually, some emulators treat these as NOP or execute them anyway
                 // For now, let's just skip the instruction instead of triggering exception
                 // This is more forgiving for ROM test codes
-                log("Treating as NOP");
+                tracing::debug!("Treating as NOP");
                 // Return a NOP-like instruction (MOV R0, R0)
                 return Self::DataProcessing {
                     condition,
@@ -897,7 +896,7 @@ impl From<u32> for ArmModeInstruction {
                 op2,
             }
         } else {
-            log("not identified instruction");
+            tracing::debug!("not identified instruction");
             unimplemented!()
         }
     }

@@ -320,16 +320,7 @@ impl Arm7tdmi {
         // after instruction executed.
         let can_execute = self.cpsr.can_execute(op_code.condition);
 
-        // Log when important instructions are skipped
         if !can_execute {
-            if let ArmModeInstruction::BranchAndExchange { register, .. } = op_code.instruction {
-                logger::log(format!(
-                    "!!! SKIPPING BX R{} @ PC=0x{:08X} due to condition {:?}",
-                    register,
-                    self.registers.program_counter(),
-                    op_code.condition
-                ));
-            }
             return;
         }
 
@@ -466,7 +457,7 @@ impl Arm7tdmi {
                 // Undefined instruction exception
                 let pc = self.registers.program_counter();
                 let pcode = op_code.raw;
-                logger::log(format!(
+                tracing::warn!(
                     "!!! UNDEFINED INSTRUCTION EXCEPTION !!!\n  \
                      PC=0x{pc:08X}, opcode=0x{:08X}, mode=ARM\n  \
                      Binary: {:032b}\n  \
@@ -482,7 +473,7 @@ impl Arm7tdmi {
                     self.registers.register_at(5),
                     self.registers.register_at(6),
                     self.registers.register_at(7),
-                ));
+                );
                 self.handle_exception(ExceptionType::UndefinedInstruction);
             }
             ArmModeInstruction::BlockDataTransfer {
@@ -503,24 +494,24 @@ impl Arm7tdmi {
                 offset,
             } => self.branch(link, offset),
             ArmModeInstruction::CoprocessorDataTransfer { .. } => {
-                logger::log(format!(
+                tracing::warn!(
                     "!!! UNIMPLEMENTED: CoprocessorDataTransfer at PC=0x{:08X}",
                     self.registers.program_counter() - 8
-                ));
+                );
                 // Coprocessor instructions are typically ignored on GBA (no coprocessor)
             }
             ArmModeInstruction::CoprocessorDataOperation => {
-                logger::log(format!(
+                tracing::warn!(
                     "!!! UNIMPLEMENTED: CoprocessorDataOperation at PC=0x{:08X}",
                     self.registers.program_counter() - 8
-                ));
+                );
                 // Coprocessor instructions are typically ignored on GBA (no coprocessor)
             }
             ArmModeInstruction::CoprocessorRegisterTransfer => {
-                logger::log(format!(
+                tracing::warn!(
                     "!!! UNIMPLEMENTED: CoprocessorRegisterTransfer at PC=0x{:08X}",
                     self.registers.program_counter() - 8
-                ));
+                );
                 // Coprocessor instructions are typically ignored on GBA (no coprocessor)
             }
             ArmModeInstruction::SoftwareInterrupt => {
@@ -713,12 +704,12 @@ impl Arm7tdmi {
         }
 
         let new_pc = exception_type.address() as u32;
-        logger::log(format!(
+        tracing::debug!(
             "  Exception vector: {:?} -> address 0x{:08X}, mode {:?}",
             exception_type,
             new_pc,
             exception_type.mode()
-        ));
+        );
         self.registers.set_program_counter(new_pc);
 
         // Flush pipeline - let the next step() refill it naturally
@@ -751,10 +742,10 @@ impl Arm7tdmi {
                     // If execution changed CPU mode, clear the ENTIRE pipeline
                     // since we're switching between ARM/Thumb modes
                     if self.cpsr.cpu_state() != initial_mode {
-                        logger::log(format!(
+                        tracing::debug!(
                             "MODE CHANGE DETECTED (Thumb): Clearing pipeline (PC=0x{:08X})",
                             self.registers.program_counter()
-                        ));
+                        );
                         self.flush_pipeline();
                     }
 
@@ -777,16 +768,14 @@ impl Arm7tdmi {
 
                     // Log PC advancement for debugging the loop
                     if old_pc == 0x081DCA90 || old_pc == 0x081DCA92 || old_pc == 0x081DCCE8 {
-                        logger::log(format!(
-                            "ADVANCING PC (Thumb): 0x{old_pc:08X} -> 0x{new_pc:08X}"
-                        ));
+                        tracing::debug!("ADVANCING PC (Thumb): 0x{old_pc:08X} -> 0x{new_pc:08X}");
                     }
 
                     // Detect PC going to invalid address (not ROM 0x08000000+, not RAM 0x02000000+ or 0x03000000+, not BIOS 0x0-0x4000)
                     if new_pc > 0x00010000 && new_pc < 0x02000000 {
-                        logger::log(format!(
+                        tracing::warn!(
                             "!!! SUSPICIOUS PC JUMP (Thumb) !!!\n  PC advancing to 0x{new_pc:08X} (invalid address range!)"
-                        ));
+                        );
                     }
 
                     self.registers.set_program_counter(new_pc);
@@ -813,10 +802,10 @@ impl Arm7tdmi {
                     // If execution changed CPU mode, clear the ENTIRE pipeline
                     // since we're switching between ARM/Thumb modes
                     if self.cpsr.cpu_state() != initial_mode {
-                        logger::log(format!(
+                        tracing::debug!(
                             "MODE CHANGE DETECTED (ARM): Clearing pipeline (PC=0x{:08X})",
                             self.registers.program_counter()
-                        ));
+                        );
                         self.flush_pipeline();
                     }
 
@@ -844,9 +833,9 @@ impl Arm7tdmi {
 
                     // Detect PC going to invalid address
                     if new_pc > 0x00010000 && new_pc < 0x02000000 {
-                        logger::log(format!(
-                            "!!! SUSPICIOUS PC JUMP (ARM) !!!\n  PC advancing to 0x{new_pc:08X} (invalid address range!)",
-                        ));
+                        tracing::warn!(
+                            "!!! SUSPICIOUS PC JUMP (ARM) !!!\n  PC advancing to 0x{new_pc:08X} (invalid address range!)"
+                        );
                     }
 
                     self.registers.set_program_counter(new_pc);
@@ -1136,9 +1125,7 @@ impl Arm7tdmi {
                 // Flush pipeline
                 self.flush_pipeline();
 
-                logger::log(format!(
-                    "SoftReset: Jumping to 0x{entry_point:08X} (flag was {flag})"
-                ));
+                tracing::debug!("SoftReset: Jumping to 0x{entry_point:08X} (flag was {flag})");
 
                 true
             }
@@ -1159,8 +1146,8 @@ impl Arm7tdmi {
                 // TODO: Investigate proper BIOS behavior
                 if flags & 0x02 != 0 {
                     // Don't clear IWRAM for now - needs more investigation
-                    logger::log(
-                        "RegisterRamReset: Skipping IWRAM clear (would break IRQ handlers)",
+                    tracing::debug!(
+                        "RegisterRamReset: Skipping IWRAM clear (would break IRQ handlers)"
                     );
                 }
 
@@ -1195,31 +1182,31 @@ impl Arm7tdmi {
             }
             // SWI 0x02: Halt - Low power mode until interrupt
             0x02 => {
-                logger::log("HLE SWI 0x02: Halt");
+                tracing::debug!("HLE SWI 0x02: Halt");
                 // Just return - the main loop will handle waiting for interrupts
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
             // SWI 0x03: Stop - Very low power mode
             0x03 => {
-                logger::log("HLE SWI 0x03: Stop");
+                tracing::debug!("HLE SWI 0x03: Stop");
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
             // SWI 0x04: IntrWait - Wait for interrupt
             0x04 => {
-                logger::log(format!(
+                tracing::debug!(
                     "HLE SWI 0x04: IntrWait - discard={}, flags=0x{:08X}",
                     self.registers.register_at(0),
                     self.registers.register_at(1)
-                ));
+                );
                 // Just return for now - proper implementation would wait for specific interrupts
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
             // SWI 0x05: VBlankIntrWait - Wait for VBlank interrupt
             0x05 => {
-                logger::log("HLE SWI 0x05: VBlankIntrWait");
+                tracing::debug!("HLE SWI 0x05: VBlankIntrWait");
                 // Just return for now
                 self.swi_return(old_cpsr, return_addr);
                 true
@@ -1231,7 +1218,7 @@ impl Arm7tdmi {
                 let numerator = self.registers.register_at(0) as i32;
                 let denominator = self.registers.register_at(1) as i32;
                 if denominator == 0 {
-                    logger::log("HLE SWI 0x06: Div by zero!");
+                    tracing::warn!("HLE SWI 0x06: Div by zero!");
                     // On real hardware, division by zero causes weird behavior
                     self.registers.set_register_at(0, 0);
                     self.registers.set_register_at(1, 0);
@@ -1253,7 +1240,7 @@ impl Arm7tdmi {
                 let denominator = self.registers.register_at(0) as i32;
                 let numerator = self.registers.register_at(1) as i32;
                 if denominator == 0 {
-                    logger::log("HLE SWI 0x07: DivArm by zero!");
+                    tracing::warn!("HLE SWI 0x07: DivArm by zero!");
                     self.registers.set_register_at(0, 0);
                     self.registers.set_register_at(1, 0);
                     self.registers.set_register_at(3, 0);
@@ -1391,9 +1378,7 @@ impl Arm7tdmi {
             }
             _ => {
                 // Not implemented - let BIOS handle it
-                logger::log(format!(
-                    "HLE SWI 0x{swi_num:02X}: Not implemented, using BIOS"
-                ));
+                // TODO: Add tracing log
                 false
             }
         }
