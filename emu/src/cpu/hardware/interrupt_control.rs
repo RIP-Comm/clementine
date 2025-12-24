@@ -15,16 +15,16 @@
 //!
 //! Each bit in IE/IF corresponds to an interrupt source:
 //!
-//! | Bit | Source  | Description                    |
-//! |-----|---------|--------------------------------|
-//! | 0   | VBlank  | Vertical blank period started  |
-//! | 1   | HBlank  | Horizontal blank period        |
-//! | 2   | VCount  | Scanline counter match         |
-//! | 3-6 | Timer   | Timer 0-3 overflow             |
-//! | 7   | Serial  | Serial communication           |
-//! | 8-11| DMA     | DMA 0-3 complete               |
-//! | 12  | Keypad  | Button combination pressed     |
-//! | 13  | GamePak | External cartridge interrupt   |
+//! | Bit | Source    | Description                    |
+//! |-----|-----------|--------------------------------|
+//! | 0   | V-Blank   | Vertical blank period started  |
+//! | 1   | H-Blank   | Horizontal blank period        |
+//! | 2   | V-Count   | Scanline counter match         |
+//! | 3-6 | Timer     | Timer 0-3 overflow             |
+//! | 7   | Serial    | Serial communication           |
+//! | 8-11| DMA       | DMA 0-3 complete               |
+//! | 12  | Keypad    | Button combination pressed     |
+//! | 13  | Game Pak  | External cartridge interrupt   |
 //!
 //! # Interrupt Flow
 //!
@@ -34,7 +34,6 @@
 //! 4. Handler writes `1` to IF bits to acknowledge/clear them
 //!
 //! See [`Bus::is_irq_pending`](crate::bus::Bus::is_irq_pending) for the pending check.
-
 use serde::{Deserialize, Serialize};
 
 /// Interrupt control registers for the GBA.

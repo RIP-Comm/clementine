@@ -249,6 +249,11 @@ impl Arm7tdmi {
         self.registers.set_register_at(dest, value);
     }
 
+    /// Executes a load/store with register offset.
+    ///
+    /// # Panics
+    ///
+    /// Panics if address conversion fails.
     pub fn load_store_register_offset(
         &mut self,
         load_store: LoadStoreKind,
@@ -282,6 +287,11 @@ impl Arm7tdmi {
         }
     }
 
+    /// Executes a load/store with sign extension for byte/halfword.
+    ///
+    /// # Panics
+    ///
+    /// Panics if register index or address conversion fails.
     pub fn load_store_sign_extend_byte_halfword(
         &mut self,
         h_flag: bool,
@@ -321,6 +331,11 @@ impl Arm7tdmi {
         }
     }
 
+    /// Executes a load/store with immediate offset.
+    ///
+    /// # Panics
+    ///
+    /// Panics if address conversion fails.
     pub fn load_store_immediate_offset(
         &mut self,
         load_store: LoadStoreKind,
@@ -356,6 +371,11 @@ impl Arm7tdmi {
         }
     }
 
+    /// Executes a halfword load/store instruction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if address conversion fails.
     pub fn load_store_halfword(
         &mut self,
         load_store: LoadStoreKind,
@@ -384,6 +404,11 @@ impl Arm7tdmi {
         }
     }
 
+    /// Executes an SP-relative load/store instruction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if address conversion fails.
     pub fn sp_relative_load_store(
         &mut self,
         load_store: LoadStoreKind,
@@ -427,6 +452,11 @@ impl Arm7tdmi {
         self.registers.set_register_at(REG_SP, new_sp as u32);
     }
 
+    /// Executes a push/pop register instruction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if address conversion fails.
     pub fn push_pop_register(
         &mut self,
         load_store: LoadStoreKind,

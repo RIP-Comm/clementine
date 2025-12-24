@@ -45,7 +45,7 @@
 //!
 //! # Memory Regions
 //!
-//! The LCD controller owns several memory regions (in [`Memory`](memory::Memory)):
+//! The LCD controller owns several memory regions (in [`Memory`]):
 //! - **Palette RAM** (`0x0500_0000`): 512 bytes for BG + 512 bytes for OBJ colors
 //! - **VRAM** (`0x0600_0000`): 96KB for tile data and bitmaps
 //! - **OAM** (`0x0700_0000`): 1KB for 128 sprite attributes
@@ -53,10 +53,9 @@
 //! # Interrupts
 //!
 //! The LCD can generate three types of interrupts (via [`LcdStepOutput`]):
-//! - **VBlank**: When entering VBlank period (line 160)
-//! - **HBlank**: When entering HBlank period (pixel 240 of each visible line)
-//! - **VCount**: When the current line matches the VCount setting
-
+//! - **V-Blank**: When entering vertical blank period (line 160)
+//! - **H-Blank**: When entering horizontal blank period (pixel 240 of each visible line)
+//! - **V-Count**: When the current line matches the V-Count setting in DISPSTAT
 use serde::Deserialize;
 use serde::Serialize;
 use serde_with::serde_as;

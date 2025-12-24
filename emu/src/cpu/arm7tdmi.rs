@@ -82,13 +82,12 @@
 //!
 //! Some BIOS SWI calls are implemented directly in the emulator for speed:
 //! - `SWI 0x06`: Div (signed division)
-//! - `SWI 0x07`: DivArm (division with swapped args)
+//! - `SWI 0x07`: `DivArm` (division with swapped args)
 //! - `SWI 0x08`: Sqrt (square root)
-//! - `SWI 0x0B`: CpuSet (memory copy/fill)
-//! - `SWI 0x0C`: CpuFastSet (fast memory copy/fill)
+//! - `SWI 0x0B`: `CpuSet` (memory copy/fill)
+//! - `SWI 0x0C`: `CpuFastSet` (fast memory copy/fill)
 //!
 //! Other SWIs fall through to the actual BIOS code.
-
 #![allow(clippy::unreadable_literal)]
 
 use serde::{Deserialize, Serialize};

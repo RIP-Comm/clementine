@@ -79,9 +79,9 @@ use std::{
 /// ## How It Works
 ///
 /// 1. On creation, loads BIOS + ROM and initializes the GBA
-/// 2. Creates UI tool windows that share access to the GBA via Arc<Mutex>
+/// 2. Creates UI tool windows that share access to the GBA via `Arc<Mutex<Gba>>`
 /// 3. In the update loop, each tool renders and may step the CPU
-/// 4. The GbaDisplay tool is responsible for actually running the CPU
+/// 4. The `GbaDisplay` tool is responsible for actually running the CPU
 pub struct App {
     tools: Vec<Box<dyn UiTool>>,
     open: BTreeSet<String>,

@@ -30,7 +30,7 @@
 //!
 //! The ARM barrel shifter can perform these shifts at no extra cost:
 //!
-//! | ShiftKind | Operation           | Example          | Result           |
+//! | `ShiftKind` | Operation           | Example          | Result           |
 //! |-----------|---------------------|------------------|------------------|
 //! | LSL       | Logical Shift Left  | 0x0F LSL #4      | 0xF0             |
 //! | LSR       | Logical Shift Right | 0xF0 LSR #4      | 0x0F             |
@@ -46,7 +46,6 @@
 //! ADD R0, R1, R2       ; Register:  OperandKind::Register
 //! ADD R0, R1, R2, LSL #3  ; Register with shift
 //! ```
-
 use serde::{Deserialize, Serialize};
 
 use crate::bitwise::Bits;

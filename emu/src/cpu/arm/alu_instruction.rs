@@ -409,7 +409,7 @@ pub fn shift(kind: ShiftKind, shift_amount: u32, rm: u32, carry: bool) -> Arithm
 /// - **MSR**: Write a register to all PSR fields
 /// - **MSR (flag bits only)**: Write to specific PSR fields using a mask
 ///
-/// ## Field Mask (for MsrFlg)
+/// ## Field Mask (for `MsrFlg`)
 ///
 /// The field mask selects which parts of the PSR to modify:
 ///

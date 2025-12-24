@@ -70,7 +70,7 @@
 //! Each parameter set contains PA, PB, PC, PD (8.8 fixed-point) for the
 //! transformation matrix. See [`layer_2`](super::layer_2) for matrix math.
 //!
-//! **AffineDouble mode** doubles the sprite's screen area to prevent clipping
+//! `AffineDouble` mode doubles the sprite's screen area to prevent clipping
 //! during rotation (a 32x32 sprite becomes 64x64 on screen, but still uses
 //! 32x32 tile data).
 //!
@@ -87,7 +87,6 @@
 //!
 //! This approach handles sprite priority correctly (lower OAM index = higher priority
 //! when priorities are equal).
-
 use crate::cpu::hardware::lcd;
 use crate::cpu::hardware::lcd::Color;
 use crate::cpu::hardware::lcd::memory::Memory;

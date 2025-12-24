@@ -22,6 +22,11 @@ use super::alu_instruction::PsrKind;
 pub const SIZE_OF_INSTRUCTION: u32 = 4;
 
 impl Arm7tdmi {
+    /// Executes a data processing (ALU) instruction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if register index conversion fails.
     pub fn data_processing(
         &mut self,
         op_code: ArmModeOpcode, // FIXME: This parameter will be remove after change `psr_transfer`.
@@ -131,6 +136,11 @@ impl Arm7tdmi {
         }
     }
 
+    /// Executes a PSR transfer instruction (MRS/MSR).
+    ///
+    /// # Panics
+    ///
+    /// Panics if R15 is used as source/destination register.
     #[allow(clippy::manual_assert, clippy::too_many_lines)]
     pub fn psr_transfer(&mut self, op_kind: PsrOpKind, psr_kind: PsrKind) {
         // Accessing SPSR in User/System mode has unpredictable behavior on real hardware
@@ -317,6 +327,11 @@ impl Arm7tdmi {
         result.result
     }
 
+    /// Gets the second operand for an ALU instruction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if register index conversion fails.
     pub fn get_operand(
         &mut self,
         alu_instruction: ArmModeAluInstr,
@@ -655,6 +670,11 @@ impl Arm7tdmi {
         self.flush_pipeline();
     }
 
+    /// Executes a halfword/signed data transfer instruction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if register index conversion fails.
     #[allow(clippy::too_many_arguments)]
     pub fn half_word_data_transfer(
         &mut self,
@@ -1042,6 +1062,11 @@ impl Arm7tdmi {
         }
     }
 
+    /// Executes a branch instruction (B/BL).
+    ///
+    /// # Panics
+    ///
+    /// Panics if PC conversion fails.
     pub fn branch(&mut self, is_link: bool, offset: u32) {
         let offset = offset.sign_extended(26) as i32;
         let old_pc: u32 = self.registers.program_counter().try_into().unwrap();

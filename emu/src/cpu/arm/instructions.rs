@@ -84,7 +84,7 @@ use super::alu_instruction::{PsrKind, PsrOpKind};
 /// - L=0: Store (STR)
 /// - L=1: Load (LDR)
 ///
-/// PLD (Preload Data) is a cache hint instruction added in ARMv5TE.
+/// PLD (Preload Data) is a cache hint instruction added in `ARMv5TE`.
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum SingleDataTransferKind {
     /// Load from memory into a register (`LDR`).
@@ -93,7 +93,7 @@ pub enum SingleDataTransferKind {
     /// Store from a register into memory (`STR`).
     Str,
 
-    /// Preload Data cache hint (ARMv5TE+, not commonly used on GBA).
+    /// Preload Data cache hint (`ARMv5TE`+, not commonly used on GBA).
     Pld,
 }
 

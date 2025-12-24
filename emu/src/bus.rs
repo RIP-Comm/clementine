@@ -179,11 +179,11 @@ impl Bus {
             0x0400_0201 => self.interrupt_control.interrupt_enable.set_byte(1, value),
             0x0400_0202 => {
                 // Writing 1 to a bit clears it (acknowledges the interrupt)
-                self.interrupt_control.interrupt_request &= !(value as u16);
+                self.interrupt_control.interrupt_request &= !u16::from(value);
             }
             0x0400_0203 => {
                 // Writing 1 to a bit clears it (acknowledges the interrupt)
-                self.interrupt_control.interrupt_request &= !((value as u16) << 8);
+                self.interrupt_control.interrupt_request &= !(u16::from(value) << 8);
             }
             0x0400_0204 => self.interrupt_control.wait_state_control.set_byte(0, value),
             0x0400_0205 => self.interrupt_control.wait_state_control.set_byte(1, value),
@@ -887,6 +887,11 @@ impl Bus {
         }
     }
 
+    /// Reads a single byte from the given address.
+    ///
+    /// # Panics
+    ///
+    /// Panics if address conversion fails (should not happen for valid GBA addresses).
     #[must_use]
     pub fn read_raw(&self, address: usize) -> u8 {
         // Mask address to 32-bit to handle potential overflow issues
@@ -955,6 +960,11 @@ impl Bus {
         }
     }
 
+    /// Writes a single byte to the given address.
+    ///
+    /// # Panics
+    ///
+    /// Panics if writing to an unimplemented memory region.
     pub fn write_raw(&mut self, address: usize, value: u8) {
         // Mask address to 32-bit to handle potential overflow issues
         let address = address & 0xFFFF_FFFF;
@@ -1166,6 +1176,11 @@ impl Bus {
         part_3 << 24_u32 | part_2 << 16_u32 | part_1 << 8_u32 | part_0
     }
 
+    /// Writes a 32-bit word to the given address.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the value cannot be split into bytes (should not happen).
     pub fn write_word(&mut self, mut address: usize, value: u32) {
         // TODO: Look at read_word
         // TODO: Implement proper cycle-based timing
@@ -1207,6 +1222,11 @@ impl Bus {
         part_1 << 8 | part_0
     }
 
+    /// Writes a 16-bit halfword to the given address.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the value cannot be split into bytes (should not happen).
     pub fn write_half_word(&mut self, mut address: usize, value: u16) {
         // TODO: Look at read_word
         // TODO: Implement proper cycle-based timing
