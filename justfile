@@ -44,12 +44,16 @@ run-disassembler rom:
 run-release rom:
     @cargo run --release $1
 
+# run <rom> in release mode with disassembler feature
+run-release-disassembler rom:
+    @cargo run --release --features disassembler $1
+
 run-release-log-file rom:
     @cargo run --release -- $1 --log-to-file
 
 # run <rom> in debug mode with logger and disassembler features
 run-all-debug rom:
-    @cargo run --features logger --features disassembler $1
+    @cargo run --features disassembler $1 --log-to-file
 
 # generate and open documentation in browser (no dependencies, includes private items)
 doc:
