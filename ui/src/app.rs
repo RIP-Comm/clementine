@@ -71,9 +71,11 @@ use std::{
 ///
 /// ## Creating the Application
 ///
-/// ```ignore
+/// ```no_run
+/// use ui::app::App;
+///
 /// let app = App::new("path/to/game.gba".to_string());
-/// eframe::run_native("Clementine", options, Box::new(|_| Ok(Box::new(app))));
+/// // Then pass to eframe::run_native()
 /// ```
 ///
 /// ## How It Works

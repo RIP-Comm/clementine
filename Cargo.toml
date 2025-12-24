@@ -18,13 +18,13 @@ pretty_assertions = "1.4.1"
 rand = "0.9.2"
 
 # Shared production dependencies
-serde = { version = "1.0.193", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
 eframe = { version = "0.30.0", default-features = false, features = ["glow"] }
 egui = { version = "0.30.0", default-features = false }
 
 [dependencies]
 eframe.workspace = true
-egui.workspace = true
+egui = { workspace = true, default-features = true }
 egui_glium = "0.29.0"
 
 emu = { path = "./emu" }

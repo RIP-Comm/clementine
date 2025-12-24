@@ -41,15 +41,11 @@ use crate::cpu::{condition::Condition, cpu_modes::Mode};
 ///
 /// ```ignore
 /// // Check if we can execute a conditional instruction
-/// if cpsr.can_execute(Condition::EQ) {
-///     // Zero flag is set, execute the instruction
-/// }
+/// let mut cpsr = Psr::default();
+/// cpsr.set_zero_flag(true);
 ///
-/// // Check current CPU state
-/// match cpsr.cpu_state() {
-///     CpuState::Arm => { /* 32-bit instructions */ }
-///     CpuState::Thumb => { /* 16-bit instructions */ }
-/// }
+/// assert!(cpsr.can_execute(Condition::EQ));  // Zero flag is set
+/// assert!(!cpsr.can_execute(Condition::NE)); // Not equal requires Z=0
 /// ```
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Psr(u32);

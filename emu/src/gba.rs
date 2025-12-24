@@ -80,9 +80,14 @@ use crate::{
 ///
 /// ## Usage
 ///
-/// ```ignore
+/// ```no_run
+/// use emu::{gba::Gba, cartridge_header::CartridgeHeader};
+///
 /// // Create a new GBA with BIOS and ROM
-/// let gba = Gba::new(cartridge_header, bios_data, rom_data);
+/// let rom = std::fs::read("game.gba").unwrap();
+/// let bios: [u8; 0x4000] = std::fs::read("gba_bios.bin").unwrap().try_into().unwrap();
+/// let header = CartridgeHeader::new(&rom).unwrap();
+/// let mut gba = Gba::new(header, bios, rom);
 ///
 /// // Run the emulator
 /// loop {

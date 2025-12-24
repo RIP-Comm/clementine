@@ -121,13 +121,9 @@ use super::thumb;
 ///
 /// ## Creating a CPU
 ///
-/// ```ignore
-/// let bus = Bus::new(bios, cartridge);
-/// let mut cpu = Arm7tdmi::new(bus);
-///
-/// // Run one instruction
-/// cpu.step();
-/// ```
+/// The CPU is typically created via [`Gba::new`](crate::gba::Gba::new) which
+/// sets up the bus and all hardware components. See that documentation
+/// for a complete usage example.
 ///
 /// ## The Execution Cycle
 ///

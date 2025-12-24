@@ -52,9 +52,11 @@
 //!
 //! ## Example: Reading Game Info
 //!
-//! ```ignore
-//! let rom_data = std::fs::read("game.gba")?;
-//! let header = CartridgeHeader::new(&rom_data)?;
+//! ```no_run
+//! use emu::cartridge_header::CartridgeHeader;
+//!
+//! let rom_data = std::fs::read("game.gba").unwrap();
+//! let header = CartridgeHeader::new(&rom_data).unwrap();
 //!
 //! println!("Game: {}", header.game_title);    // e.g., "POKEMON RUBY"
 //! println!("Code: {}", header.game_code);     // e.g., "AXVE"
