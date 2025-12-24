@@ -50,3 +50,8 @@ run-release-log-file rom:
 # run <rom> in debug mode with logger and disassembler features
 run-all-debug rom:
     @cargo run --features logger --features disassembler $1
+
+# generate and open documentation in browser (no dependencies, includes private items)
+doc:
+    @rm -rf target/doc
+    @cargo doc --workspace --no-deps --document-private-items --open

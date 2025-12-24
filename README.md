@@ -121,6 +121,15 @@ cargo run --features logger --features disassembler -- ~/roms/my_game.gba
 cargo run --release --features logger -- ~/roms/my_game.gba --log-on-file
 ```
 
+## Documentation
+
+The codebase is documented with Rust doc comments explaining how each component works. This is useful for understanding the GBA hardware and for contributors.
+
+```zsh
+# Generate and open documentation in your browser
+just doc
+```
+
 ## Tests ROM
 
 All tests + implementation are based on [jsmolka/gba-tests.git](https://github.com/jsmolka/gba-tests.git) + documentation in Wiki and online resources.
