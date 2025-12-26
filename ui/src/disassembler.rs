@@ -8,7 +8,7 @@ pub struct Disassembler {
 }
 
 impl Disassembler {
-    pub(crate) fn new(arc_gba: Arc<Mutex<Gba>>) -> Self {
+    pub(crate) const fn new(arc_gba: Arc<Mutex<Gba>>) -> Self {
         Self { gba: arc_gba }
     }
 }
@@ -22,6 +22,7 @@ impl UiTool for Disassembler {
         egui::Window::new(self.name())
             .resizable(true)
             .open(open)
+            .default_pos(egui::pos2(900.0, 150.0))
             .show(ctx, |ui| {
                 self.ui(ui);
             });

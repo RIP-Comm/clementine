@@ -33,6 +33,7 @@ impl UiTool for CpuRegisters {
         egui::Window::new(self.name())
             .default_width(320.0)
             .open(open)
+            .default_pos(egui::pos2(10.0, 10.0))
             .show(ctx, |ui| {
                 self.ui(ui);
             });
