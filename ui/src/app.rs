@@ -59,7 +59,7 @@ use crate::{
 
 use std::{
     collections::BTreeSet,
-    env, error,
+    error,
     sync::{Arc, Mutex},
 };
 
@@ -94,7 +94,7 @@ impl App {
     /// # Panics
     /// It panics if the cartridge can't be opened.
     #[must_use]
-    pub fn new(cartridge_name: String) -> Self {
+    pub fn new(bios_data: &[u8], cartridge_name: String) -> Self {
         let data = match read_file(cartridge_name) {
             Ok(d) => d,
             Err(e) => {
@@ -103,20 +103,11 @@ impl App {
             }
         };
 
-        let bios_file = env::current_dir().unwrap().join("gba_bios.bin");
-        let bios = match std::fs::read(bios_file) {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("can't open bios file: {e}");
-                std::process::exit(3);
-            }
-        };
-
         let cartridge_header =
             CartridgeHeader::new(data.as_slice()).expect("Cartridge must be opened");
         let arc_gba = Arc::new(Mutex::new(Gba::new(
             cartridge_header,
-            bios[0..0x0000_4000].try_into().unwrap(),
+            bios_data[0..0x0000_4000].try_into().unwrap(),
             data,
         )));
 

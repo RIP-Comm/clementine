@@ -116,10 +116,27 @@ fn main() {
         ..Default::default()
     };
 
+    let bios_data = match std::env::current_dir() {
+        Ok(path) => {
+            let bios_path = path.join("gba_bios.bin");
+            match std::fs::read(&bios_path) {
+                Ok(data) => data,
+                Err(e) => {
+                    eprintln!("Error reading BIOS file at {}: {e}", bios_path.display());
+                    std::process::exit(5);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Error getting current directory: {e}");
+            std::process::exit(4);
+        }
+    };
+
     eframe::run_native(
         "Clementine - A GBA Emulator",
         options,
-        Box::new(|_cc| Ok(Box::new(ui::app::App::new(cartridge_name)))),
+        Box::new(|_cc| Ok(Box::new(ui::app::App::new(&bios_data, cartridge_name)))),
     )
     .ok();
 }
