@@ -73,13 +73,14 @@ use std::{
 /// ```no_run
 /// use ui::app::App;
 ///
-/// let app = App::new("path/to/game.gba".to_string());
+/// let bios_data: Vec<u8> = std::fs::read("gba_bios.bin").unwrap();
+/// let app = App::new(&bios_data, "path/to/game.gba".to_string());
 /// // Then pass to eframe::run_native()
 /// ```
 ///
 /// ## How It Works
 ///
-/// 1. On creation, loads BIOS + ROM and initializes the GBA
+/// 1. On creation, receives BIOS data and loads ROM to initialize the GBA
 /// 2. Creates UI tool windows that share access to the GBA via `Arc<Mutex<Gba>>`
 /// 3. In the update loop, each tool renders and may step the CPU
 /// 4. The `GbaDisplay` tool is responsible for actually running the CPU
