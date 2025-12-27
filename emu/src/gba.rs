@@ -67,7 +67,10 @@ use std::sync::{Arc, Mutex};
 use crate::{
     bus::Bus,
     cartridge_header::CartridgeHeader,
-    cpu::{DisasmEntry, DISASM_BUFFER_CAPACITY, arm7tdmi::Arm7tdmi, hardware::internal_memory::InternalMemory},
+    cpu::{
+        DISASM_BUFFER_CAPACITY, DisasmEntry, arm7tdmi::Arm7tdmi,
+        hardware::internal_memory::InternalMemory,
+    },
     render::gba_lcd::GbaLcd,
 };
 
@@ -157,9 +160,12 @@ impl Gba {
     /// 2. Hardware components (LCD, timers, DMA) are updated
     /// 3. Interrupts are checked and handled if pending
     ///
+    /// Returns `true` if `VBlank` just started (a new frame is ready to display).
+    /// This happens once per frame (~59.73 Hz on real hardware).
+    ///
     /// Call this in a loop to run the emulator. For real-time emulation,
     /// you'd call this ~16.78 million times per second (GBA clock speed).
-    pub fn step(&mut self) {
-        self.cpu.step();
+    pub fn step(&mut self) -> bool {
+        self.cpu.step()
     }
 }

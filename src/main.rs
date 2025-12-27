@@ -9,16 +9,16 @@
 //! │                        Clementine Startup Flow                              │
 //! ├─────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                             │
-//! │  1. Parse command line arguments                                           │
+//! │  1. Parse command line arguments                                            │
 //! │     └─► cargo run -- <rom_path> [--log-to-file]                            │
 //! │                                                                             │
-//! │  2. Initialize tracing subscriber                                          │
+//! │  2. Initialize tracing subscriber                                           │
 //! │     └─► No output by default, or file with --log-to-file                   │
 //! │                                                                             │
-//! │  3. Load ROM file from disk                                                │
+//! │  3. Load ROM file from disk                                                 │
 //! │     └─► Read entire .gba file into memory                                  │
 //! │                                                                             │
-//! │  4. Create UI Application (see ui::app::App)                               │
+//! │  4. Create UI Application (see ui::app::App)                                │
 //! │     │                                                                       │
 //! │     ├─► Load BIOS from ./gba_bios.bin (16KB required)                      │
 //! │     │                                                                       │
@@ -32,8 +32,8 @@
 //! │     │                                                                       │
 //! │     └─► Create UI tools (display, registers, controls, etc.)               │
 //! │                                                                             │
-//! │  5. Run eframe event loop                                                  │
-//! │     └─► UI updates trigger CPU steps → LCD renders → Display updates       │
+//! │  5. Run eframe event loop                                                   │
+//! │     └─► UI updates trigger CPU steps → LCD renders → Display updates     │
 //! │                                                                             │
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
@@ -41,28 +41,29 @@
 //! ## Architecture Overview
 //!
 //! ```text
-//! ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+//! ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
 //! │   main.rs   │────▶│   ui crate  │────▶│  emu crate  │
-//! │  (binary)   │     │   (GUI)     │     │ (emulation) │
-//! └─────────────┘     └─────────────┘     └─────────────┘
+//! │  (binary)   │      │   (GUI)     │      │ (emulation) │
+//! └─────────────┘      └─────────────┘      └─────────────┘
 //!                            │                   │
 //!                            │                   ▼
-//!                            │            ┌─────────────┐
-//!                            │            │    Gba      │
-//!                            │            │  ┌───────┐  │
-//!                            │            │  │ARM7TDMI  │
-//!                            │            │  └───┬───┘  │
-//!                            │            │      │      │
-//!                            │            │  ┌───▼───┐  │
-//!                            └───────────▶│  │  Bus  │  │
-//!                              (display)  │  └───┬───┘  │
-//!                                         │      │      │
-//!                                         │  ┌───▼───┐  │
-//!                                         │  │Memory │  │
-//!                                         │  │ LCD   │  │
-//!                                         │  │Timers │  │
-//!                                         │  └───────┘  │
-//!                                         └─────────────┘
+//!                            │             ┌─────────────┐
+//!                            │             │    Gba      │
+//!                            │             │  ┌───────┐  │
+//!                            │             │  │ARM7TDMI  │
+//!                            │             │  └───┬───┘  │
+//!                            │             │      │      │
+//!                            │             │  ┌───▼───┐ │
+//!                            └───────────▶│  │  Bus   │ │
+//!                              (display)   │  └───┬───-┘ │
+//!                                          │      │      │
+//!                                          │  ┌───▼───┐ │
+//!                                          │  │Memory  │ │
+//!                                          │  │ LCD    │ │
+//!                                          │  │ Timers │ │
+//!                                          │  │ Serial │ │
+//!                                          │  └─────── ┘ │
+//!                                          └─────────────┘
 //! ```
 
 use tracing::info;
@@ -111,8 +112,9 @@ fn main() {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1200.0, 800.0])
+            .with_inner_size([1800.0, 1200.0])
             .with_drag_and_drop(true),
+        persistence_path: None, // Disable persistence so default_width always applies
         ..Default::default()
     };
 

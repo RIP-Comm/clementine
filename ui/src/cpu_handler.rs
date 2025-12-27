@@ -1,50 +1,28 @@
-use std::collections::BTreeSet;
 use std::ops::{Deref, DerefMut, Range};
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use egui::text_selection::text_cursor_state::byte_index_from_char_index;
 use egui::{TextBuffer, TextEdit};
 
-use emu::gba::Gba;
-
+use crate::emu_thread::{BreakpointKind, EmuCommand, EmuHandle};
 use crate::ui_traits::UiTool;
 
 pub struct CpuHandler {
-    gba: Arc<Mutex<Gba>>,
-    play: Arc<AtomicBool>,
-    thread_handle: Option<thread::JoinHandle<()>>,
-    breakpoints: Arc<Mutex<BTreeSet<Breakpoint>>>,
+    emu_handle: Arc<Mutex<EmuHandle>>,
     b_address: UpperHexString,
-    breakpoint_combo: BreakpointType,
-    cycle_to_skip_custom_value: u64,
+    breakpoint_combo: BreakpointKind,
+    cycle_to_skip_custom_value: u32,
 }
 
 impl CpuHandler {
-    pub fn new(gba: Arc<Mutex<Gba>>) -> Self {
+    pub fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
         Self {
-            gba,
-            play: Arc::new(AtomicBool::new(false)),
-            thread_handle: None,
-            breakpoints: Arc::new(Mutex::new(BTreeSet::new())),
+            emu_handle,
             b_address: UpperHexString::default(),
-            breakpoint_combo: BreakpointType::Equal,
+            breakpoint_combo: BreakpointKind::Equal,
             cycle_to_skip_custom_value: 5000,
         }
     }
-}
-
-#[derive(Clone, Copy, Eq, Hash, PartialEq, Ord, PartialOrd)]
-struct Breakpoint {
-    address: u32,
-    kind: BreakpointType,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
-enum BreakpointType {
-    Equal,
-    Greater,
 }
 
 #[derive(Default)]
@@ -108,9 +86,9 @@ impl UiTool for CpuHandler {
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
         egui::Window::new(self.name())
-            .default_width(320.0)
+            .default_width(150.0)
             .open(open)
-            .default_pos(egui::pos2(350.0, 10.0))
+            .default_pos(egui::pos2(10.0, 100.0))
             .show(ctx, |ui| {
                 self.ui(ui);
             });
@@ -118,155 +96,99 @@ impl UiTool for CpuHandler {
 
     #[allow(clippy::too_many_lines)]
     fn ui(&mut self, ui: &mut egui::Ui) {
+        let (cartridge_name, is_running, current_cycle, breakpoints) =
+            self.emu_handle.lock().map_or_else(
+                |_| (String::new(), false, 0, Vec::new()),
+                |handle| {
+                    (
+                        handle.state.cartridge_title.clone(),
+                        handle.state.is_running,
+                        handle.state.cycle,
+                        handle.breakpoints.clone(),
+                    )
+                },
+            );
+
+        let mut name = cartridge_name;
+        ui.add(TextEdit::singleline(&mut name).desired_width(140.0));
+
         ui.horizontal(|ui| {
-            ui.label("Cartridge name:");
-            let mut cartridge_name = String::default();
-            if let Ok(gba) = self.gba.lock() {
-                cartridge_name.clone_from(&gba.cartridge_header.game_title);
-            }
-            ui.text_edit_singleline(&mut cartridge_name);
-
             if ui
-                .add_enabled(
-                    !self.play.load(std::sync::atomic::Ordering::Relaxed),
-                    egui::Button::new("▶"),
-                )
+                .add_enabled(!is_running, egui::Button::new("▶ Run"))
                 .clicked()
+                && let Ok(mut handle) = self.emu_handle.lock()
             {
-                if self.play.load(std::sync::atomic::Ordering::Relaxed) {
-                    return;
-                }
-
-                let gba_clone = Arc::clone(&self.gba);
-                let play_clone = Arc::clone(&self.play);
-                let breakpoints_clone = Arc::clone(&self.breakpoints);
-
-                self.play.swap(true, std::sync::atomic::Ordering::Relaxed);
-
-                self.thread_handle = Some(thread::spawn(move || {
-                    while play_clone.load(std::sync::atomic::Ordering::Relaxed) {
-                        breakpoints_clone.lock().unwrap().iter().for_each(|&b| {
-                            let pc = u32::try_from(
-                                gba_clone.lock().unwrap().cpu.registers.program_counter(),
-                            )
-                            .expect("Failed to convert u16 to u32");
-                            match b.kind {
-                                BreakpointType::Equal => {
-                                    if pc == b.address {
-                                        play_clone
-                                            .swap(false, std::sync::atomic::Ordering::Relaxed);
-                                    }
-                                }
-                                BreakpointType::Greater => {
-                                    if pc > b.address {
-                                        play_clone
-                                            .swap(false, std::sync::atomic::Ordering::Relaxed);
-                                    }
-                                }
-                            }
-                        });
-
-                        gba_clone.lock().unwrap().step();
-                    }
-                }));
+                handle.send(EmuCommand::Run);
             }
 
             if ui
-                .add_enabled(
-                    self.play.load(std::sync::atomic::Ordering::Relaxed),
-                    egui::Button::new("⏸ "),
-                )
+                .add_enabled(is_running, egui::Button::new("⏸ Pause"))
                 .clicked()
+                && let Ok(mut handle) = self.emu_handle.lock()
             {
-                self.play.swap(false, std::sync::atomic::Ordering::Relaxed);
-                self.thread_handle = None;
+                handle.send(EmuCommand::Pause);
             }
         });
 
-        ui.collapsing("CPU Advanced controls", |ui| {
-            ui.label(format!(
-                "Current CPU cycle: {}",
-                &mut self.gba.lock().unwrap().cpu.current_cycle
-            ));
+        ui.collapsing("CPU controls", |ui| {
+            ui.label(format!("Cycle: {current_cycle}"));
 
+            ui.label("Step cycles:");
             ui.horizontal(|ui| {
-                ui.label("Step CPU cycles:");
-
-                if ui.button("⏭x1").clicked()
-                    && let Ok(mut gba) = self.gba.lock()
-                {
-                    gba.step();
+                for steps in [1, 10, 100] {
+                    if ui.button(format!("x{steps}")).clicked()
+                        && let Ok(mut handle) = self.emu_handle.lock()
+                    {
+                        handle.send(EmuCommand::Step(steps));
+                    }
                 }
-
-                if ui.button("⏭x10").clicked()
-                    && let Ok(mut gba) = self.gba.lock()
-                {
-                    (0..10).for_each(|_| gba.step());
-                }
-
-                if ui.button("⏭x100").clicked()
-                    && let Ok(mut gba) = self.gba.lock()
-                {
-                    (0..100).for_each(|_| gba.step());
-                }
-
-                if ui.button("⏭x500").clicked()
-                    && let Ok(mut gba) = self.gba.lock()
-                {
-                    (0..500).for_each(|_| gba.step());
-                }
-
-                if ui.button("⏭x1000").clicked()
-                    && let Ok(mut gba) = self.gba.lock()
-                {
-                    (0..1000).for_each(|_| gba.step());
+            });
+            ui.horizontal(|ui| {
+                for steps in [500, 1000] {
+                    if ui.button(format!("x{steps}")).clicked()
+                        && let Ok(mut handle) = self.emu_handle.lock()
+                    {
+                        handle.send(EmuCommand::Step(steps));
+                    }
                 }
             });
 
             ui.horizontal(|ui| {
-                ui.label("Step (custom) CPU cycles:");
                 ui.add(egui::DragValue::new(&mut self.cycle_to_skip_custom_value).speed(100));
-
                 if ui.button("Step").clicked()
-                    && let Ok(mut gba) = self.gba.lock()
+                    && let Ok(mut handle) = self.emu_handle.lock()
                 {
-                    (0..self.cycle_to_skip_custom_value).for_each(|_| gba.step());
+                    handle.send(EmuCommand::Step(self.cycle_to_skip_custom_value));
                 }
-            })
+            });
         });
 
         ui.collapsing("Breakpoints", |ui| {
+            egui::ComboBox::from_id_salt("breakpoint-type")
+                .width(100.0)
+                .selected_text(if self.breakpoint_combo == BreakpointKind::Equal {
+                    "Equal"
+                } else {
+                    "Greater"
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.breakpoint_combo, BreakpointKind::Equal, "Equal");
+                    ui.selectable_value(
+                        &mut self.breakpoint_combo,
+                        BreakpointKind::GreaterThan,
+                        "Greater",
+                    );
+                });
+
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("breakpoint-type")
-                    .selected_text(if self.breakpoint_combo == BreakpointType::Equal {
-                        "Equal to"
-                    } else {
-                        "Greater than"
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.set_width(40.0);
-                        ui.set_max_width(100.0);
-                        ui.selectable_value(
-                            &mut self.breakpoint_combo,
-                            BreakpointType::Equal,
-                            "Equal to",
-                        );
-                        ui.selectable_value(
-                            &mut self.breakpoint_combo,
-                            BreakpointType::Greater,
-                            "Greater than",
-                        );
-                    });
-
-                ui.label("address (HEX):");
-
                 ui.add(
                     TextEdit::singleline(&mut self.b_address)
-                        .desired_width(150.0)
-                        .char_limit(16),
+                        .desired_width(80.0)
+                        .char_limit(8)
+                        .hint_text("HEX"),
                 );
 
-                if ui.button("Set").clicked() {
+                if ui.button("Add").clicked() {
                     if self.b_address.is_empty() {
                         return;
                     }
@@ -277,31 +199,36 @@ impl UiTool for CpuHandler {
                         self.b_address.clone()
                     };
 
-                    let address = u32::from_str_radix(&a, 16).unwrap();
-                    let b = Breakpoint {
-                        address,
-                        kind: self.breakpoint_combo,
-                    };
-
-                    self.breakpoints.lock().unwrap().insert(b);
+                    if let Ok(address) = u32::from_str_radix(&a, 16)
+                        && let Ok(mut handle) = self.emu_handle.lock()
+                    {
+                        handle.send(EmuCommand::AddBreakpoint {
+                            address,
+                            kind: self.breakpoint_combo,
+                        });
+                    }
 
                     self.b_address.clear();
                 }
             });
 
-            egui::containers::ScrollArea::new([false, true]).show(ui, |ui| {
-                ui.label("Active breakpoints:");
-                let breakpoints = self.breakpoints.lock().unwrap().clone();
-
-                for b in &breakpoints {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("0x{:08X}", b.address));
-                        if ui.button("X").clicked() {
-                            self.breakpoints.lock().unwrap().remove(b);
+            if !breakpoints.is_empty() {
+                ui.separator();
+                egui::containers::ScrollArea::vertical()
+                    .max_height(100.0)
+                    .show(ui, |ui| {
+                        for (address, _kind) in &breakpoints {
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{address:08X}"));
+                                if ui.small_button("X").clicked()
+                                    && let Ok(mut handle) = self.emu_handle.lock()
+                                {
+                                    handle.send(EmuCommand::RemoveBreakpoint(*address));
+                                }
+                            });
                         }
                     });
-                }
-            });
+            }
         });
     }
 }

@@ -244,8 +244,8 @@ impl RotationScaling {
     /// P = [ pa  pb ]
     ///     [ pc  pd ]
     /// and
-    /// T = [ x ]
-    ///     [ y ]
+    /// T = \[ x \]
+    ///     \[ y \]
     /// pa, pb, pc, pd are first converted to floating number from the fixed point representation
     #[allow(clippy::many_single_char_names)]
     pub fn apply(self, x: f64, y: f64) -> (f64, f64) {

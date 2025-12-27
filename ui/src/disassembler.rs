@@ -19,7 +19,7 @@
 //! │                 │         │       ▼         │
 //! │  (no format!)   │         │  display_text   │
 //! └─────────────────┘         └─────────────────┘
-//!      CPU hot path              UI thread
+//!      CPU thread                 UI thread
 //! ```
 //!
 //! ## Frame Update Flow
@@ -32,10 +32,11 @@
 //! 3. Old lines are removed when exceeding `MAX_DISPLAY_LINES`
 //! 4. The text is rendered in a scrollable view
 
+use std::sync::{Arc, Mutex};
+
+use crate::emu_thread::EmuHandle;
 use crate::ui_traits::UiTool;
-use egui::{ScrollArea, TextEdit, TextStyle, Vec2};
-use emu::cpu::DisasmEntry;
-use rtrb::Consumer;
+use egui::{ScrollArea, TextEdit, TextStyle};
 
 /// Maximum number of disassembled lines to keep in the display buffer.
 const MAX_DISPLAY_LINES: usize = 5000;
@@ -43,12 +44,9 @@ const MAX_DISPLAY_LINES: usize = 5000;
 /// Maximum number of entries to process per frame to avoid UI lag.
 const MAX_ENTRIES_PER_FRAME: usize = 10000;
 
-/// Fixed width for the disassembler window.
-const WINDOW_WIDTH: f32 = 450.0;
-
 pub struct Disassembler {
-    /// Consumer for the lock-free disassembler channel.
-    rx: Consumer<DisasmEntry>,
+    /// Handle to the emulator (contains the disasm channel consumer).
+    emu_handle: Arc<Mutex<EmuHandle>>,
     /// Pre-built display text (avoids rebuilding every frame).
     display_text: String,
     /// Number of lines currently in `display_text`.
@@ -56,9 +54,9 @@ pub struct Disassembler {
 }
 
 impl Disassembler {
-    pub fn new(rx: Consumer<DisasmEntry>) -> Self {
+    pub fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
         Self {
-            rx,
+            emu_handle,
             display_text: String::with_capacity(MAX_DISPLAY_LINES * 50),
             line_count: 0,
         }
@@ -69,25 +67,28 @@ impl Disassembler {
     fn drain_entries(&mut self) {
         let mut processed = 0;
 
-        while processed < MAX_ENTRIES_PER_FRAME {
-            match self.rx.pop() {
-                Ok(entry) => {
-                    // If we're at max lines, remove the first line
-                    if self.line_count >= MAX_DISPLAY_LINES
-                        && let Some(newline_pos) = self.display_text.find('\n')
-                    {
-                        self.display_text.drain(..=newline_pos);
-                        self.line_count -= 1;
-                    }
+        // Get access to the disasm channel through the emu handle
+        if let Ok(mut handle) = self.emu_handle.lock() {
+            while processed < MAX_ENTRIES_PER_FRAME {
+                match handle.disasm_rx().pop() {
+                    Ok(entry) => {
+                        // If we're at max lines, remove the first line
+                        if self.line_count >= MAX_DISPLAY_LINES
+                            && let Some(newline_pos) = self.display_text.find('\n')
+                        {
+                            self.display_text.drain(..=newline_pos);
+                            self.line_count -= 1;
+                        }
 
-                    if !self.display_text.is_empty() {
-                        self.display_text.push('\n');
+                        if !self.display_text.is_empty() {
+                            self.display_text.push('\n');
+                        }
+                        self.display_text.push_str(&entry.format());
+                        self.line_count += 1;
+                        processed += 1;
                     }
-                    self.display_text.push_str(&entry.format());
-                    self.line_count += 1;
-                    processed += 1;
+                    Err(_) => break, // channel empty
                 }
-                Err(_) => break, // channel empty
             }
         }
     }
@@ -102,9 +103,9 @@ impl UiTool for Disassembler {
         egui::Window::new(self.name())
             .resizable(true)
             .open(open)
-            .default_pos(egui::pos2(900.0, 150.0))
-            .min_width(WINDOW_WIDTH)
-            .default_width(WINDOW_WIDTH)
+            .default_pos(egui::pos2(750.0, 50.0))
+            .default_width(400.0)
+            .default_height(500.0)
             .show(ctx, |ui| {
                 self.ui(ui);
             });
@@ -115,21 +116,12 @@ impl UiTool for Disassembler {
 
         let mut text = self.display_text.as_str();
 
-        ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
-            ui.add_sized(
-                Vec2::new(WINDOW_WIDTH - 20.0, ui.available_height()),
+        ScrollArea::both().stick_to_bottom(true).show(ui, |ui| {
+            ui.add(
                 TextEdit::multiline(&mut text)
                     .interactive(false)
                     .font(TextStyle::Monospace)
-                    .layouter(&mut |ui, val, _| {
-                        ui.ctx().fonts_mut(|fonts| {
-                            fonts.layout_no_wrap(
-                                val.as_str().to_owned(),
-                                TextStyle::Monospace.resolve(ui.style()),
-                                ui.visuals().widgets.inactive.text_color(),
-                            )
-                        })
-                    }),
+                    .desired_width(f32::INFINITY),
             );
         });
     }

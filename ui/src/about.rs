@@ -10,7 +10,8 @@ impl UiTool for About {
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
         egui::Window::new(self.name())
-            .default_width(320.0)
+            .default_width(300.0)
+            .default_pos(egui::pos2(450.0, 10.0))
             .open(open)
             .show(ctx, |ui| {
                 self.ui(ui);

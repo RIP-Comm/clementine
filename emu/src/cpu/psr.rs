@@ -10,12 +10,12 @@
 //! ```
 //!
 //! - **Flags (28-31)**: See [`condition`](super::condition) for how these are tested
-//! - **Mode (0-4)**: See [`cpu_modes`](super::cpu_modes) for operating modes
+//! - **Mode (0-4)**: See `cpu_modes` for operating modes
 //! - **T bit (5)**: ARM (0) or Thumb (1) state
 //! - **I/F bits (6-7)**: IRQ/FIQ disable
 //!
 //! Each exception mode has a **SPSR** to save CPSR on exception entry.
-//! See [`register_bank`](super::register_bank) for SPSR storage.
+//! See `register_bank` for SPSR storage.
 
 use serde::{Deserialize, Serialize};
 
@@ -248,12 +248,12 @@ impl From<Psr> for u32 {
 ///
 /// Controlled by the T bit (bit 5) in CPSR. Switch via `BX Rn`.
 ///
-/// See [`arm`](super::arm) and [`thumb`](super::thumb) for instruction details.
+/// See `arm` and `thumb` modules for instruction details.
 #[derive(PartialEq, Eq)]
 pub enum CpuState {
-    /// Thumb: 16-bit instructions. See [`thumb`](super::thumb).
+    /// Thumb: 16-bit instructions. See `thumb` module.
     Thumb,
-    /// ARM: 32-bit instructions. See [`arm`](super::arm).
+    /// ARM: 32-bit instructions. See `arm` module.
     Arm,
 }
 

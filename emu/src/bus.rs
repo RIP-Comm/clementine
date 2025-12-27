@@ -52,7 +52,7 @@
 //!
 //! The bus tracks cycle counts for memory accesses. Different memory regions have
 //! different wait states, though currently a simplified 1-cycle model is used.
-//! The [`step`](Bus::step) method advances timers and LCD state each CPU cycle.
+//! The `step` method advances timers and LCD state each CPU cycle.
 //!
 //! [`InternalMemory`]: crate::cpu::hardware::internal_memory::InternalMemory
 //! [`Lcd`]: crate::cpu::hardware::lcd::Lcd
@@ -1080,8 +1080,12 @@ impl Bus {
         self.write_raw(address, value);
     }
 
-    pub(crate) fn step(&mut self) {
+    /// Step all peripherals (timers, LCD, etc.) for one CPU cycle.
+    ///
+    /// Returns `true` if `VBlank` just started (a new frame is ready).
+    pub(crate) fn step(&mut self) -> bool {
         self.cycles_count += 1;
+        let mut vblank_started = false;
 
         // Step timers every CPU cycle
         let timer_result = self.timers.step();
@@ -1108,12 +1112,15 @@ impl Bus {
 
             if lcd_output.request_vblank_irq {
                 self.request_interrupt(IrqType::VBlank);
+                vblank_started = true;
             }
 
             if lcd_output.request_vcount_irq {
                 self.request_interrupt(IrqType::VCount);
             }
         }
+
+        vblank_started
     }
 
     pub(crate) fn request_interrupt(&mut self, irq_type: IrqType) {

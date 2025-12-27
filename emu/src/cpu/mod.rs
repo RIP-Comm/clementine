@@ -95,13 +95,13 @@
 //! ## Module Structure
 //!
 //! - [`arm7tdmi`] - Main CPU struct with fetch/decode/execute cycle
-//! - [`cpu_modes`] - Operating modes (User, IRQ, Supervisor, etc.)
+//! - `cpu_modes` - Operating modes (User, IRQ, Supervisor, etc.)
 //! - [`psr`] - Program Status Register (flags, mode bits, state bit)
 //! - [`condition`] - Condition codes for conditional execution
-//! - [`registers`] - Register file implementation
-//! - [`register_bank`] - Banked registers for different modes
-//! - [`arm`] - ARM instruction set implementation
-//! - [`thumb`] - Thumb instruction set implementation
+//! - `registers` - Register file implementation
+//! - `register_bank` - Banked registers for different modes
+//! - `arm` - ARM instruction set implementation
+//! - `thumb` - Thumb instruction set implementation
 //! - [`hardware`] - Memory-mapped hardware (LCD, DMA, timers, etc.)
 
 mod arm;

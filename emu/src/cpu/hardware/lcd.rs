@@ -45,7 +45,7 @@
 //!
 //! # Memory Regions
 //!
-//! The LCD controller owns several memory regions (in [`Memory`]):
+//! The LCD controller owns several memory regions (in `Memory`):
 //! - **Palette RAM** (`0x0500_0000`): 512 bytes for BG + 512 bytes for OBJ colors
 //! - **VRAM** (`0x0600_0000`): 96KB for tile data and bitmaps
 //! - **OAM** (`0x0700_0000`): 1KB for 128 sprite attributes

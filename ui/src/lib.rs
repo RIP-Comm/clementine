@@ -3,6 +3,7 @@ pub mod app;
 mod cpu_handler;
 mod cpu_registers;
 mod disassembler;
+pub mod emu_thread;
 mod gba_color;
 mod gba_display;
 mod savegame;

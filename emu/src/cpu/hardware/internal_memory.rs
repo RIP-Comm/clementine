@@ -41,7 +41,7 @@
 //!
 //! When reading past the end of the loaded ROM, the GBA returns the lower 16 bits
 //! of the requested address (due to how the Game Pak bus works). This is emulated
-//! in [`read_rom`](InternalMemory::read_rom).
+//! in `read_rom`.
 
 #![allow(clippy::unreadable_literal)]
 

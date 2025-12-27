@@ -93,6 +93,7 @@
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
+use super::DisasmEntry;
 use crate::bitwise::Bits;
 use crate::bus::Bus;
 use crate::cpu::arm;
@@ -103,7 +104,6 @@ use crate::cpu::psr::{CpuState, Psr};
 use crate::cpu::register_bank::RegisterBank;
 use crate::cpu::thumb::instruction::Instruction;
 use crate::cpu::thumb::mode::ThumbModeOpcode;
-use super::DisasmEntry;
 
 use super::registers::{REG_SP, Registers};
 use super::thumb;
@@ -111,8 +111,8 @@ use super::thumb;
 /// The ARM7TDMI CPU core.
 ///
 /// This struct represents the complete state of the ARM7TDMI processor:
-/// - 16 general-purpose registers (via [`Registers`])
-/// - Banked registers for exception modes (via [`RegisterBank`])
+/// - 16 general-purpose registers (via `Registers`)
+/// - Banked registers for exception modes (via `RegisterBank`)
 /// - Current and Saved Program Status Registers ([`Psr`])
 /// - Memory bus connection ([`Bus`])
 /// - Pipeline state (fetched/decoded instructions)
@@ -711,7 +711,10 @@ impl Arm7tdmi {
         self.flush_pipeline();
     }
 
-    pub fn step(&mut self) {
+    /// Execute one CPU cycle.
+    ///
+    /// Returns `true` if `VBlank` just started (a new frame is ready to display).
+    pub fn step(&mut self) -> bool {
         self.current_cycle += 1;
         let initial_mode = self.cpsr.cpu_state();
 
@@ -729,7 +732,8 @@ impl Arm7tdmi {
                     if !self.cpsr.irq_disable() && self.bus.is_irq_pending() {
                         self.handle_exception(ExceptionType::Irq);
 
-                        return;
+                        // Still need to step peripherals even on IRQ
+                        return self.bus.step();
                     }
 
                     self.execute_thumb(decoded);
@@ -789,7 +793,8 @@ impl Arm7tdmi {
                     if !self.cpsr.irq_disable() && self.bus.is_irq_pending() {
                         self.handle_exception(ExceptionType::Irq);
 
-                        return;
+                        // Still need to step peripherals even on IRQ
+                        return self.bus.step();
                     }
 
                     self.execute_arm(decoded);
@@ -840,7 +845,7 @@ impl Arm7tdmi {
 
         // Step the bus (LCD, timers, DMA, etc.) after CPU instruction completes
         // This ensures peripherals advance in sync with CPU cycles
-        self.bus.step();
+        self.bus.step()
     }
 
     #[must_use]
