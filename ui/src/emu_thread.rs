@@ -113,6 +113,9 @@ pub struct EmuState {
     pub is_running: bool,
     /// Cartridge game title.
     pub cartridge_title: String,
+    /// Keypad input register (KEYINPUT). Bits 0-9 represent buttons.
+    /// Bit = 0 means pressed, bit = 1 means released (active-low).
+    pub key_input: u16,
 }
 
 /// Reason why the emulator paused.
@@ -296,6 +299,7 @@ impl EmuThread {
             cycle: self.gba.cpu.current_cycle,
             is_running: self.running,
             cartridge_title: self.gba.cartridge_header.game_title.clone(),
+            key_input: self.gba.cpu.bus.keypad.key_input,
         };
         self.send_event(EmuEvent::State(state));
     }
@@ -429,6 +433,7 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         cycle: gba.cpu.current_cycle,
         is_running: false,
         cartridge_title: gba.cartridge_header.game_title.clone(),
+        key_input: gba.cpu.bus.keypad.key_input,
     };
 
     // Spawn the emulator thread

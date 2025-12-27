@@ -15,10 +15,17 @@ pub enum GbaButton {
     L = 1 << 9,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Keypad {
     pub key_input: u16,
     pub key_interrupt_control: u16,
+}
+
+impl Default for Keypad {
+    /// Default keypad state: all buttons released (all bits set to 1).
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Keypad {

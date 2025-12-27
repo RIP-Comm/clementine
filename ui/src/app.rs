@@ -105,6 +105,7 @@
 
 use crate::disassembler::Disassembler;
 use crate::emu_thread::{self, EmuCommand, EmuHandle, GbaButton};
+use crate::keypad_debug::KeypadDebug;
 use emu::cartridge_header::CartridgeHeader;
 use emu::gba::Gba;
 
@@ -172,6 +173,7 @@ impl App {
             Box::new(GbaDisplay::new(Arc::clone(&emu_handle))),
             Box::new(CpuRegisters::new(Arc::clone(&emu_handle))),
             Box::new(Disassembler::new(Arc::clone(&emu_handle))),
+            Box::new(KeypadDebug::new(Arc::clone(&emu_handle))),
             Box::<about::About>::default(),
         ];
 
