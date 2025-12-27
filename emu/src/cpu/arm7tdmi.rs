@@ -93,9 +93,6 @@
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
-#[cfg(feature = "disassembler")]
-use vecfixed::VecFixed;
-
 use crate::bitwise::Bits;
 use crate::bus::Bus;
 use crate::cpu::arm;
@@ -106,6 +103,7 @@ use crate::cpu::psr::{CpuState, Psr};
 use crate::cpu::register_bank::RegisterBank;
 use crate::cpu::thumb::instruction::Instruction;
 use crate::cpu::thumb::mode::ThumbModeOpcode;
+use super::DisasmEntry;
 
 use super::registers::{REG_SP, Registers};
 use super::thumb;
@@ -145,8 +143,9 @@ pub struct Arm7tdmi {
 
     pub register_bank: RegisterBank,
 
-    #[cfg(feature = "disassembler")]
-    pub disassembler_buffer: VecFixed<1000, String>,
+    /// Producer for the lock-free disassembler channel.
+    #[serde(skip)]
+    pub disasm_tx: Option<rtrb::Producer<DisasmEntry>>,
 
     fetched_arm: Option<u32>,
     decoded_arm: Option<ArmModeOpcode>,
@@ -232,8 +231,7 @@ impl Default for Arm7tdmi {
             spsr: Psr::from(Mode::Supervisor), // initialize SPSR to valid mode
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
-            #[cfg(feature = "disassembler")]
-            disassembler_buffer: VecFixed::new(),
+            disasm_tx: None,
             fetched_arm: None,
             decoded_arm: None,
             fetched_thumb: None,
@@ -324,15 +322,13 @@ impl Arm7tdmi {
             return;
         }
 
-        #[cfg(feature = "disassembler")]
-        {
-            let decimal_value = self.registers.program_counter();
-            let padded_hex_value = format!("{decimal_value:#04X}");
-            self.disassembler_buffer.push(format!(
-                "{}: {}",
-                padded_hex_value,
-                op_code.instruction.disassembler()
-            ));
+        // push dis-ASM to the channel
+        if let Some(tx) = &mut self.disasm_tx {
+            let pc = self.registers.program_counter() as u32;
+            let _ = tx.push(DisasmEntry::Arm {
+                pc,
+                instruction: op_code.instruction,
+            });
         }
 
         match op_code.instruction {
@@ -526,14 +522,13 @@ impl Arm7tdmi {
     /// It can panics if destination register is None.
     #[allow(clippy::too_many_lines)]
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
-        #[cfg(feature = "disassembler")]
-        {
-            let decimal_value = self.registers.program_counter();
-            let padded_hex_value = format!("{decimal_value:#04X}");
-            self.disassembler_buffer.push(format!(
-                "{padded_hex_value}: {}",
-                op_code.instruction.disassembler()
-            ));
+        // push dis-ASM to the channel
+        if let Some(tx) = &mut self.disasm_tx {
+            let pc = self.registers.program_counter() as u32;
+            let _ = tx.push(DisasmEntry::Thumb {
+                pc,
+                instruction: op_code.instruction,
+            });
         }
 
         match op_code.instruction {

@@ -51,7 +51,6 @@
 use crate::bitwise::Bits;
 use crate::cpu::condition::Condition;
 use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, ShiftKind};
-#[cfg(feature = "disassembler")]
 use crate::cpu::registers::REG_PROGRAM_COUNTER;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
 use serde::{Deserialize, Serialize};
@@ -333,9 +332,10 @@ impl std::fmt::Display for Instruction {
     }
 }
 
-#[cfg(feature = "disassembler")]
 impl Instruction {
-    pub(crate) fn disassembler(&self) -> String {
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
+    pub fn disassembler(&self) -> String {
         match self {
             Self::MoveShiftedRegister {
                 shift_operation: op,
@@ -352,10 +352,7 @@ impl Instruction {
                 source_register: rs,
                 destination_register: rd,
             } => {
-                let o = match *op {
-                    true => "SUB",
-                    false => "ADD",
-                };
+                let o = if *op { "SUB" } else { "ADD" };
 
                 let rr = match operation_kind {
                     OperandKind::Immediate => format!("#{rn_offset3}"),
@@ -569,7 +566,6 @@ impl Instruction {
     }
 }
 
-#[cfg(feature = "disassembler")]
 #[cfg(test)]
 mod test {
     use super::*;

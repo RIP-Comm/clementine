@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = ["emu", "ui", "vecfixed"]
+members = ["emu", "ui"]
 
 [workspace.package]
 readme = "./README.md"
@@ -42,7 +42,6 @@ pretty_assertions.workspace = true
 rand.workspace = true
 
 [features]
-disassembler = ["emu/disassembler", "ui/disassembler"]
 
 [lints.clippy]
 complexity = "warn"

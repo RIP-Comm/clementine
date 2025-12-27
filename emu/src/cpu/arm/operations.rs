@@ -1339,7 +1339,6 @@ mod tests {
                 }
             );
 
-            #[cfg(feature = "disassembler")]
             {
                 let asm = op_code.instruction.disassembler();
                 assert_eq!(asm, "TEQ R12, #1");
@@ -1372,7 +1371,7 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
-            #[cfg(feature = "disassembler")]
+
             {
                 let asm = op_code.instruction.disassembler();
                 assert_eq!(asm, "MSREQ CPSR, R12");
@@ -1426,7 +1425,6 @@ mod tests {
             }
         );
 
-        #[cfg(feature = "disassembler")]
         {
             let asm = op_code.instruction.disassembler();
             assert_eq!(asm, "CMP R14, #0");
@@ -1465,7 +1463,7 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
-            #[cfg(feature = "disassembler")]
+
             {
                 let asm = op_code.instruction.disassembler();
                 assert_eq!(asm, "ORREQ R12, R12, #192");
@@ -1493,7 +1491,7 @@ mod tests {
             );
 
             assert!(!cpu.cpsr.can_execute(op_code.condition));
-            #[cfg(feature = "disassembler")]
+
             {
                 let asm = op_code.instruction.disassembler();
                 assert_eq!(asm, "MOVEQ R14, #4");
@@ -1519,7 +1517,6 @@ mod tests {
                 }
             );
 
-            #[cfg(feature = "disassembler")]
             {
                 let asm = op_code.instruction.disassembler();
                 assert_eq!(asm, "MOV R0, #223");
@@ -1554,7 +1551,6 @@ mod tests {
                 }
             );
 
-            #[cfg(feature = "disassembler")]
             {
                 let asm = op_code.instruction.disassembler();
                 assert_eq!(asm, "MOV R12, #67108864");
@@ -1593,7 +1589,6 @@ mod tests {
                 }
             );
 
-            #[cfg(feature = "disassembler")]
             {
                 let asm = op_code.instruction.disassembler();
                 assert_eq!(asm, "ADD R0, R15, #1");
@@ -2460,7 +2455,7 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            #[cfg(feature = "disassembler")]
+
             {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "LDRB R12, #768");
@@ -2483,7 +2478,7 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            #[cfg(feature = "disassembler")]
+
             {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "LDR R13, #208");
@@ -2506,7 +2501,7 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            #[cfg(feature = "disassembler")]
+
             {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "LDR R13, #184");
@@ -2529,7 +2524,7 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            #[cfg(feature = "disassembler")]
+
             {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "LDR R13, #208");
@@ -2553,7 +2548,7 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            #[cfg(feature = "disassembler")]
+
             {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "LDRB R13, #24");
@@ -2591,7 +2586,7 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            #[cfg(feature = "disassembler")]
+
             {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "STRB R4, #520");
@@ -2615,7 +2610,7 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            #[cfg(feature = "disassembler")]
+
             {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "STR R1, #0");
@@ -2654,7 +2649,7 @@ mod tests {
                     offsetting: Offsetting::Up,
                 }
             );
-            #[cfg(feature = "disassembler")]
+
             {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "STRB R13, #24");

@@ -311,9 +311,11 @@ impl From<u32> for ArmModeMultiplyLongVariant {
     }
 }
 
-#[cfg(feature = "disassembler")]
 impl ArmModeInstruction {
-    pub(crate) fn disassembler(&self) -> String {
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn disassembler(&self) -> String {
         match self {
             Self::DataProcessing {
                 condition,
@@ -408,7 +410,7 @@ impl ArmModeInstruction {
                 rm,
             } => {
                 let mnemonic = if *byte { "swpb" } else { "swp" };
-                format!("{}{} r{}, r{}, [r{}]", mnemonic, condition, rd, rm, rn)
+                format!("{mnemonic}{condition} r{rd}, r{rm}, [r{rn}]")
             }
             Self::BranchAndExchange {
                 condition,
@@ -909,7 +911,6 @@ impl std::fmt::Display for ArmModeInstruction {
 }
 
 #[cfg(test)]
-#[cfg(feature = "disassembler")]
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;

@@ -3,34 +3,64 @@
 //! This module contains the main application struct that orchestrates
 //! the emulator UI and ties together all the components.
 //!
+//! ## Architecture Overview
+//!
+//! **Everything runs on a single thread.** There's no separate emulation thread.
+//! The UI framework (egui/eframe) calls [`App::update()`] approximately 60 times
+//! per second (each frame), and within that call the CPU is stepped and UI is drawn.
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────┐
+//! │                          Main Thread (UI)                               │
+//! │                                                                         │
+//! │   eframe::run_native()                                                  │
+//! │         │                                                               │
+//! │         ▼                                                               │
+//! │   ┌─────────────────────────────────────────────────────────────────┐  │
+//! │   │  App::update() called ~60 times/sec (each frame)                │  │
+//! │   │       │                                                         │  │
+//! │   │       ▼                                                         │  │
+//! │   │  for each tool in tools:                                        │  │
+//! │   │       tool.show(ctx, open)  ──► calls tool.ui(ui)               │  │
+//! │   │                                                                 │  │
+//! │   │  GbaDisplay::ui() does:                                         │  │
+//! │   │       1. gba.lock()         ◄── acquires mutex                  │  │
+//! │   │       2. gba.step() x N     ◄── runs CPU cycles                 │  │
+//! │   │       3. unlock             ◄── releases mutex                  │  │
+//! │   │       4. draw LCD frame                                         │  │
+//! │   │                                                                 │  │
+//! │   │  Disassembler::ui() does:                                       │  │
+//! │   │       1. drain_entries()    ◄── reads from SPSC channel         │  │
+//! │   │       2. draw text                                              │  │
+//! │   └─────────────────────────────────────────────────────────────────┘  │
+//! └─────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
 //! ## Initialization Flow
 //!
 //! When [`App::new`] is called:
 //!
 //! ```text
-//! App::new(cartridge_name)
+//! App::new(bios_data, cartridge_data)
 //!     │
-//!     ├─► read_file(cartridge_name)
-//!     │   └─► Load entire ROM into Vec<u8>
-//!     │
-//!     ├─► Load BIOS from ./gba_bios.bin
-//!     │   └─► Must be exactly 16KB (0x4000 bytes)
-//!     │
-//!     ├─► CartridgeHeader::new(&rom_data)
+//!     ├─► CartridgeHeader::new(&cartridge_data)
 //!     │   └─► Parse header, validate checksum
 //!     │
 //!     ├─► Gba::new(header, bios, rom)
 //!     │   ├─► InternalMemory::new(bios, rom)
 //!     │   ├─► Bus::with_memory(memory)
-//!     │   └─► Arm7tdmi::new(bus)
+//!     │   ├─► Arm7tdmi::new(bus)
+//!     │   └─► Create SPSC channel for disassembler
+//!     │
+//!     ├─► Take disasm_rx from Gba (before wrapping in Arc<Mutex<>>)
 //!     │
 //!     └─► Create UI tools:
 //!         ├─► About (version info)
 //!         ├─► CpuRegisters (register viewer)
 //!         ├─► CpuHandler (run/pause/step controls)
-//!         ├─► GbaDisplay (LCD output)
+//!         ├─► GbaDisplay (LCD output + CPU execution)
 //!         ├─► SaveGame (save/load state)
-//!         └─► Disassembler (if feature enabled)
+//!         └─► Disassembler (owns the SPSC consumer)
 //! ```
 //!
 //! ## Shared State
@@ -39,18 +69,25 @@
 //! components can access it safely. Each UI tool receives a clone of
 //! this Arc and locks the mutex when it needs to read or modify state.
 //!
+//! **Exception:** The [`Disassembler`] does not hold an `Arc<Mutex<Gba>>`.
+//! Instead, it owns the consumer end of a lock-free SPSC channel. The CPU
+//! pushes [`DisasmEntry`] items during execution, and the disassembler
+//! drains them each frame without needing to lock the GBA.
+//!
 //! ## UI Tools
 //!
 //! Each UI component implements the [`UiTool`] trait, which provides:
 //! - `name()` - Display name for the tool panel
-//! - `show()` - Render the tool's UI
+//! - `show()` - Render the tool's UI (calls `ui()` internally)
 //!
 //! Tools can be toggled on/off via the sidebar checkboxes.
+//!
+//! [`App::update()`]: eframe::App::update
+//! [`Disassembler`]: crate::disassembler::Disassembler
+//! [`DisasmEntry`]: emu::cpu::DisasmEntry
 
-#[cfg(feature = "disassembler")]
 use crate::disassembler::Disassembler;
 use emu::{cartridge_header::CartridgeHeader, gba::Gba};
-use std::io::Read;
 
 use super::cpu_registers::CpuRegisters;
 use crate::{
@@ -59,7 +96,6 @@ use crate::{
 
 use std::{
     collections::BTreeSet,
-    error,
     sync::{Arc, Mutex},
 };
 
@@ -73,14 +109,15 @@ use std::{
 /// ```no_run
 /// use ui::app::App;
 ///
-/// let bios_data: Vec<u8> = std::fs::read("gba_bios.bin").unwrap();
-/// let app = App::new(&bios_data, "path/to/game.gba".to_string());
+/// let bios_data = std::fs::read("gba_bios.bin").unwrap();
+/// let cartridge_data = std::fs::read("path/to/game.gba").unwrap();
+/// let app = App::new(&bios_data, &cartridge_data);
 /// // Then pass to eframe::run_native()
 /// ```
 ///
 /// ## How It Works
 ///
-/// 1. On creation, receives BIOS data and loads ROM to initialize the GBA
+/// 1. On creation, receives BIOS and cartridge data to initialize the GBA
 /// 2. Creates UI tool windows that share access to the GBA via `Arc<Mutex<Gba>>`
 /// 3. In the update loop, each tool renders and may step the CPU
 /// 4. The `GbaDisplay` tool is responsible for actually running the CPU
@@ -96,14 +133,18 @@ impl App {
     /// It panics if the cartridge can't be opened.
     #[must_use]
     pub fn new(bios_data: &[u8], cartridge_data: &[u8]) -> Self {
-        let cartridge_header = CartridgeHeader::new(cartridge_data).unwrap();
+        let cartridge_header = CartridgeHeader::new(cartridge_data);
+        let mut gba = Gba::new(
             cartridge_header,
             bios_data[0..0x0000_4000].try_into().unwrap(),
-            data,
-        )));
+            cartridge_data.to_vec(),
+        );
 
-        #[cfg(feature = "disassembler")]
-        let disassembler = Disassembler::new(Arc::clone(&arc_gba));
+        // take consumer for dis-ASM channel
+        let disasm_rx = gba.disasm_rx.take().expect("disasm_rx should be present");
+        let disassembler = Disassembler::new(disasm_rx);
+
+        let arc_gba = Arc::new(Mutex::new(gba));
 
         let tools: Vec<Box<dyn UiTool>> = vec![
             Box::<about::About>::default(),
@@ -111,12 +152,8 @@ impl App {
             Box::new(CpuHandler::new(Arc::clone(&arc_gba))),
             Box::new(GbaDisplay::new(Arc::clone(&arc_gba))),
             Box::new(SaveGame::new(Arc::clone(&arc_gba))),
+            Box::new(disassembler),
         ];
-
-        #[cfg(feature = "disassembler")]
-        let mut tools = tools;
-        #[cfg(feature = "disassembler")]
-        tools.push(Box::new(disassembler));
 
         Self::from_tools(tools)
     }
@@ -128,7 +165,6 @@ impl App {
         open.insert(tools[2].name().to_owned());
         open.insert(tools[3].name().to_owned());
         open.insert(tools[4].name().to_owned());
-        #[cfg(feature = "disassembler")]
         open.insert(tools[5].name().to_owned());
 
         Self { tools, open }
@@ -179,14 +215,6 @@ impl eframe::App for App {
 
         self.windows(ctx);
     }
-}
-
-fn read_file(filepath: String) -> Result<Vec<u8>, Box<dyn error::Error>> {
-    let mut f = std::fs::File::open(filepath)?;
-    let mut buf = vec![];
-    f.read_to_end(&mut buf)?;
-
-    Ok(buf)
 }
 
 fn set_open(open: &mut BTreeSet<String>, key: &'static str, is_open: bool) {

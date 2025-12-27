@@ -19,7 +19,7 @@
 //!
 //! let rom = std::fs::read("game.gba").unwrap();
 //! let bios = std::fs::read("gba_bios.bin").unwrap();
-//! let header = CartridgeHeader::new(&rom).unwrap();
+//! let header = CartridgeHeader::new(&rom);
 //!
 //! let mut gba = Gba::new(header, bios.try_into().unwrap(), rom);
 //! loop { gba.step(); }
@@ -42,3 +42,4 @@ pub mod cartridge_header;
 pub mod cpu;
 pub mod gba;
 pub mod render;
+pub mod ring_buffer;

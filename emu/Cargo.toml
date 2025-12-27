@@ -6,8 +6,8 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-vecfixed = { path = "../vecfixed" }
 rand = { workspace = true, optional = true }
+rtrb = "0.3"
 serde.workspace = true
 serde_with = "3.4.0"
 tracing.workspace = true
@@ -17,7 +17,6 @@ pretty_assertions.workspace = true
 rand.workspace = true
 
 [features]
-disassembler = []
 
 [lints.clippy]
 complexity = "warn"

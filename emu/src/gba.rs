@@ -67,7 +67,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     bus::Bus,
     cartridge_header::CartridgeHeader,
-    cpu::{arm7tdmi::Arm7tdmi, hardware::internal_memory::InternalMemory},
+    cpu::{DisasmEntry, DISASM_BUFFER_CAPACITY, arm7tdmi::Arm7tdmi, hardware::internal_memory::InternalMemory},
     render::gba_lcd::GbaLcd,
 };
 
@@ -104,6 +104,10 @@ pub struct Gba {
 
     pub cartridge_header: CartridgeHeader,
     pub lcd: Arc<Mutex<Box<GbaLcd>>>,
+
+    /// Consumer for the lock-free disassembler channel.
+    /// The CPU sends `DisasmEntry` items through this channel.
+    pub disasm_rx: Option<rtrb::Consumer<DisasmEntry>>,
 }
 
 impl Gba {
@@ -132,12 +136,17 @@ impl Gba {
         let lcd = Arc::new(Mutex::new(Box::default()));
         let memory = InternalMemory::new(bios, cartridge);
         let bus = Bus::with_memory(memory);
-        let arm = Arm7tdmi::new(bus);
+        let mut arm = Arm7tdmi::new(bus);
+
+        // avoid to block execution for disassembler
+        let (tx, rx) = rtrb::RingBuffer::new(DISASM_BUFFER_CAPACITY);
+        arm.disasm_tx = Some(tx);
 
         Self {
             cpu: arm,
             cartridge_header,
             lcd,
+            disasm_rx: Some(rx),
         }
     }
 

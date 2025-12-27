@@ -30,30 +30,19 @@ set positional-arguments
 
 # run <rom> in debug mode
 run rom:
-    @cargo run $1
+    @cargo run -- $1
 
-# run <rom> in debug mode with logger feature
-run-logger rom:
-    @cargo run --features logger $1
+# run <rom> in debug mode with logging to file
+run-log rom:
+    @cargo run -- $1 --log-to-file
 
-# run <rom> in debug mode with disassembler feature
-run-disassembler rom:
-    @cargo run --features disassembler $1
-
-# run <rom> in release mode, better for performance and animations
+# run <rom> in release mode, better for performance
 run-release rom:
-    @cargo run --release $1
+    @cargo run --release -- $1
 
-# run <rom> in release mode with disassembler feature
-run-release-disassembler rom:
-    @cargo run --release --features disassembler $1
-
-run-release-log-file rom:
+# run <rom> in release mode with logging to file
+run-release-log rom:
     @cargo run --release -- $1 --log-to-file
-
-# run <rom> in debug mode with logger and disassembler features
-run-all-debug rom:
-    @cargo run --features disassembler $1 --log-to-file
 
 # generate and open documentation in browser (no dependencies, includes private items)
 doc:

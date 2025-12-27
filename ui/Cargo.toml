@@ -13,10 +13,10 @@ emu = { path = "../emu" }
 image = { version = "0.24.7", features = ["png"], optional = true }
 native-dialog = "0.7.0"
 bincode = "1.3.3"
+rtrb = "0.3"
 tracing.workspace = true
 
 [features]
-disassembler = []
 
 [lints.clippy]
 complexity = "warn"
