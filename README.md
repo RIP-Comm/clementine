@@ -32,28 +32,28 @@ We love collaborating with others, so feel free to interact with us however you 
 just build
 just test
 
-# run a .gba file
-cargo run -- ~/Desktop/my_game.gba
+# run a .gba file (debug build)
+just run ~/Desktop/my_game.gba
 ```
 
 ## Requirements
 
 Before running the emulator, you need:
 
-1. **GBA BIOS file**: A file named `gba_bios.bin` (16KB) placed in the directory where you run the emulator. This is the GBA boot ROM and is required for the emulator to function. It can be found online.
+1. **GBA BIOS file**: A file named `gba_bios.bin` (16KB) placed in the directory where you run the emulator. This is the GBA boot ROM and is required for the emulator to function.
    > Note: The BIOS path is currently hardcoded to `gba_bios.bin` in the current working directory.
 2. **A GBA ROM file**: Any `.gba` ROM file you want to run.
 
 ## Running the Emulator
 
-All `just` commands are wrappers around `cargo run` for convenience. You can use `cargo run` directly if you need more control.
-
-### Basic Usage
+### Using Just Commands
 
 | Command | Description |
 |---------|-------------|
 | `just run <rom>` | Run ROM in debug mode |
-| `just run-release <rom>` | Run ROM in release mode (better performance for animations) |
+| `just run-release <rom>` | Run ROM in release mode (better performance) |
+| `just run-log <rom>` | Run in debug mode with logging to file |
+| `just run-release-log <rom>` | Run in release mode with logging to file |
 
 **Examples:**
 ```zsh
@@ -62,66 +62,38 @@ just run ~/roms/pokemon_emerald.gba
 
 # Run with better performance (recommended for playing)
 just run-release ~/roms/pokemon_emerald.gba
+
+# Run with logging enabled (logs saved to temp directory)
+just run-log ~/roms/pokemon_emerald.gba
 ```
 
-### Debug Features
+### Logging
 
-Clementine has optional debug features that can be enabled via Cargo features:
+When `--log-to-file` is passed, logs are written to `clementine.log` in your system's temp directory. The path is printed at startup.
 
-| Feature | Description |
+## UI Tools
+
+The emulator includes several debug tools accessible via the sidebar:
+
+- **Gba Display** - Main game display (3x scale)
+- **Cpu Handler** - Run/Pause/Step controls and breakpoints
+- **Cpu Registers** - View ARM7TDMI register values
+- **Disassembler** - Real-time disassembly of executed instructions
+- **Save Game** - Save/Load state
+
+## Development
+
+| Command | Description |
 |---------|-------------|
-| `logger` | Enables verbose CPU/memory logging |
-| `disassembler` | Adds a disassembler widget to the UI showing executed instructions |
+| `just build` | Build the entire project |
+| `just test` | Run all tests across the workspace |
+| `just lint` | Run clippy with strict configuration |
+| `just fmt` | Format all code |
+| `just check-fmt` | Check formatting without modifying |
+| `just clean` | Clean build directory |
+| `just doc` | Generate and open documentation |
 
-#### Using Just Commands
-
-| Command | Features Enabled | Description |
-|---------|------------------|-------------|
-| `just run-logger <rom>` | `logger` | Run with verbose logging to stdout |
-| `just run-disassembler <rom>` | `disassembler` | Run with disassembler UI widget |
-| `just run-all-debug <rom>` | `logger` + `disassembler` | Run with all debug features enabled |
-| `just run-release-log-file <rom>` | `logger` | Release mode with logging to file |
-
-**Examples:**
-```zsh
-# Debug CPU execution with verbose logs to stdout
-just run-logger ~/roms/my_game.gba
-
-# See disassembled instructions in a UI widget
-just run-disassembler ~/roms/my_game.gba
-
-# Full debugging experience (logs + disassembler)
-just run-all-debug ~/roms/my_game.gba
-
-# Release mode with logs saved to file (good for performance + debugging)
-just run-release-log-file ~/roms/my_game.gba
-```
-
-#### Using Cargo Directly
-
-For more control, you can use `cargo run` with feature flags:
-
-```zsh
-# Basic run
-cargo run -- ~/roms/my_game.gba
-
-# With logger feature (logs to stdout)
-cargo run --features logger -- ~/roms/my_game.gba
-
-# With logger feature (logs to file instead of stdout)
-cargo run --features logger -- ~/roms/my_game.gba --log-on-file
-
-# With disassembler feature
-cargo run --features disassembler -- ~/roms/my_game.gba
-
-# With multiple features
-cargo run --features logger --features disassembler -- ~/roms/my_game.gba
-
-# Release mode with features
-cargo run --release --features logger -- ~/roms/my_game.gba --log-on-file
-```
-
-## Documentation
+### Documentation
 
 The codebase is documented with Rust doc comments explaining how each component works. This is useful for understanding the GBA hardware and for contributors.
 
@@ -129,6 +101,15 @@ The codebase is documented with Rust doc comments explaining how each component 
 # Generate and open documentation in your browser
 just doc
 ```
+
+## Architecture
+
+The emulator uses a multi-threaded architecture:
+
+- **UI Thread**: Runs the egui/eframe GUI at ~60fps
+- **CPU Thread**: Runs the GBA emulation independently
+
+Communication between threads uses lock-free SPSC (single-producer, single-consumer) channels for commands (UI -> CPU) and events (CPU -> UI).
 
 ## Tests ROM
 
