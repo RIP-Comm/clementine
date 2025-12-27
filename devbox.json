@@ -1,12 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
   "packages": {
-    "libiconv":    "latest",
-    "rustup":      "latest",
-    "pkg-config":  "latest",
-    "openssl_3_3": "3.3.2",
-    "cargo":       "1.89.0",
-    "just":        "latest"
+    "libiconv":      "latest",
+    "rustup":        "latest",
+    "pkg-config":    "latest",
+    "openssl_3_3":   "3.3.2",
+    "cargo":         "1.90.0",
+    "just":          "latest"
   },
   "shell": {
     "init_hook": [
