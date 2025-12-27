@@ -31,6 +31,7 @@ impl UiTool for CpuRegisters {
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
         egui::Window::new(self.name())
             .open(open)
+            .default_width(200.0)
             .default_pos(egui::pos2(1800.0 - 100.0, 10.0))
             .show(ctx, |ui| {
                 self.ui(ui);

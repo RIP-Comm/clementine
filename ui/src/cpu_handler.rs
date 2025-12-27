@@ -88,7 +88,7 @@ impl UiTool for CpuHandler {
         egui::Window::new(self.name())
             .default_width(150.0)
             .open(open)
-            .default_pos(egui::pos2(10.0, 100.0))
+            .default_pos(egui::pos2(200.0, 10.0))
             .show(ctx, |ui| {
                 self.ui(ui);
             });

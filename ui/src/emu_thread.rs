@@ -211,17 +211,33 @@ impl EmuThread {
                 EmuCommand::RequestState => {
                     self.send_state();
                 }
-                EmuCommand::LoadState(_data) => {
-                    // TODO: Implement save state loading
-                    // Gba doesn't implement Serialize/Deserialize yet
-                    tracing::warn!("LoadState not yet implemented");
+                EmuCommand::LoadState(data) => {
+                    // save channel of dis-ASM before replacing CPU state
+                    let disasm_tx = self.gba.cpu.disasm_tx.take();
+
+                    match bincode::deserialize(&data) {
+                        Ok(cpu) => {
+                            self.gba.cpu = cpu;
+                            self.gba.cpu.disasm_tx = disasm_tx;
+                            tracing::info!("Save state loaded successfully");
+                        }
+                        Err(e) => {
+                            self.gba.cpu.disasm_tx = disasm_tx;
+                            tracing::error!("Failed to load save state: {e}");
+                        }
+                    }
                     self.send_state();
+                    self.send_frame();
                 }
-                EmuCommand::RequestSaveState => {
-                    // TODO: Implement save state saving
-                    // Gba doesn't implement Serialize/Deserialize yet
-                    tracing::warn!("RequestSaveState not yet implemented");
-                }
+                EmuCommand::RequestSaveState => match bincode::serialize(&self.gba.cpu) {
+                    Ok(data) => {
+                        tracing::info!("Save state created: {} bytes", data.len());
+                        self.send_event(EmuEvent::SaveStateData(data));
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to create save state: {e}");
+                    }
+                },
                 EmuCommand::SetKey { button, pressed } => {
                     self.gba.cpu.bus.keypad.set_button(button, pressed);
                 }
@@ -350,6 +366,8 @@ pub struct EmuHandle {
     pub frame: Option<Box<FrameBuffer>>,
     /// List of active breakpoints (mirrored from emu thread).
     pub breakpoints: Vec<(u32, BreakpointKind)>,
+    /// Pending save state data (set when save is requested, cleared when taken).
+    pub pending_save_state: Option<Vec<u8>>,
 }
 
 impl EmuHandle {
@@ -382,8 +400,8 @@ impl EmuHandle {
                     self.state.is_running = false;
                 }
                 EmuEvent::SaveStateData(data) => {
-                    // TODO: Handle save state data (write to file, etc.)
                     tracing::info!("Received save state data: {} bytes", data.len());
+                    self.pending_save_state = Some(data);
                 }
             }
         }
@@ -450,5 +468,6 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         state: initial_state,
         frame: None,
         breakpoints: Vec::new(),
+        pending_save_state: None,
     }
 }
