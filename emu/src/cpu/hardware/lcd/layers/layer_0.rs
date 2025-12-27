@@ -225,6 +225,7 @@ impl Layer for Layer0 {
         Some(PixelInfo {
             color,
             priority: registers.get_bg0_priority(),
+            layer: 0,
         })
     }
 }

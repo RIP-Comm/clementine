@@ -244,7 +244,9 @@ impl Bus {
 
     fn write_keypad_raw(&mut self, address: usize, value: u8) {
         match address {
-            // 0x0400_0130 and 0x0400_0131 Should be read-only but CPU bios writes it.
+            // KEYINPUT (0x0400_0130-0131) is normally read-only on real hardware,
+            // but the BIOS writes here to initialize/check the keypad state.
+            // We allow writes so the BIOS can function correctly (e.g., skip intro).
             0x0400_0130 => self.keypad.key_input.set_byte(0, value),
             0x0400_0131 => self.keypad.key_input.set_byte(1, value),
             0x0400_0132 => self.keypad.key_interrupt_control.set_byte(0, value),

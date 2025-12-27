@@ -159,4 +159,58 @@ impl Registers {
         // false = 4bpp (16 colors), true = 8bpp (256 colors)
         self.bg0cnt.get_bit(7)
     }
+
+    // BG1 Control Register helpers
+    pub(super) fn get_bg1_priority(&self) -> u8 {
+        self.bg1cnt.get_bits(0..=1) as u8
+    }
+
+    pub(super) fn get_bg1_character_base_block(&self) -> u8 {
+        self.bg1cnt.get_bits(2..=3) as u8
+    }
+
+    pub(super) fn get_bg1_screen_base_block(&self) -> u8 {
+        self.bg1cnt.get_bits(8..=12) as u8
+    }
+
+    pub(super) fn get_bg1_color_mode(&self) -> bool {
+        // false = 4bpp (16 colors), true = 8bpp (256 colors)
+        self.bg1cnt.get_bit(7)
+    }
+
+    // BG2 Control Register helpers (for text mode in modes 0-1)
+    pub(super) fn get_bg2_priority(&self) -> u8 {
+        self.bg2cnt.get_bits(0..=1) as u8
+    }
+
+    pub(super) fn get_bg2_character_base_block(&self) -> u8 {
+        self.bg2cnt.get_bits(2..=3) as u8
+    }
+
+    pub(super) fn get_bg2_screen_base_block(&self) -> u8 {
+        self.bg2cnt.get_bits(8..=12) as u8
+    }
+
+    pub(super) fn get_bg2_color_mode(&self) -> bool {
+        // false = 4bpp (16 colors), true = 8bpp (256 colors)
+        self.bg2cnt.get_bit(7)
+    }
+
+    // BG3 Control Register helpers (for text mode in mode 0)
+    pub(super) fn get_bg3_priority(&self) -> u8 {
+        self.bg3cnt.get_bits(0..=1) as u8
+    }
+
+    pub(super) fn get_bg3_character_base_block(&self) -> u8 {
+        self.bg3cnt.get_bits(2..=3) as u8
+    }
+
+    pub(super) fn get_bg3_screen_base_block(&self) -> u8 {
+        self.bg3cnt.get_bits(8..=12) as u8
+    }
+
+    pub(super) fn get_bg3_color_mode(&self) -> bool {
+        // false = 4bpp (16 colors), true = 8bpp (256 colors)
+        self.bg3cnt.get_bit(7)
+    }
 }

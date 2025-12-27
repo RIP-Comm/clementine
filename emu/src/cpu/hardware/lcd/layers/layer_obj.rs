@@ -502,6 +502,7 @@ impl LayerObj {
                         memory.obj_palette_ram.as_slice(),
                     ),
                     priority: obj.attribute2.priority,
+                    layer: 4,
                 };
 
                 self.sprite_pixels_scanline[x_screen as usize] =

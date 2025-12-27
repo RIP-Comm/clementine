@@ -141,6 +141,10 @@ impl From<bool> for ObjMappingKind {
 struct PixelInfo {
     color: Color,
     priority: u8,
+    /// Layer index for tie-breaking: 0-3 for BG0-BG3, 4 for OBJ.
+    /// Lower values are drawn on top when priorities are equal.
+    /// OBJ (4) is treated specially, it wins ties with BGs of same priority.
+    layer: u8,
 }
 
 #[serde_as]
@@ -253,7 +257,16 @@ impl Lcd {
                     })
                     .collect::<Vec<PixelInfo>>();
 
-                layers_with_pixel.sort_unstable_by_key(|pixel| pixel.priority);
+                // Sort by: (1) priority ascending, (2) OBJ before BGs at same priority,
+                // (3) lower BG number first for BGs with equal priority.
+                // OBJ layer is 4, BG layers are 0-3. For tie-breaking at same priority:
+                // - OBJ (layer 4) should appear BEFORE backgrounds
+                // - Lower BG numbers should appear before higher BG numbers
+                // We achieve this by mapping: OBJ(4)->0, BG0(0)->1, BG1(1)->2, etc.
+                layers_with_pixel.sort_unstable_by_key(|pixel| {
+                    let layer_order = if pixel.layer == 4 { 0 } else { pixel.layer + 1 };
+                    (pixel.priority, layer_order)
+                });
 
                 let first_pixel = layers_with_pixel.first();
 
