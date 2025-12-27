@@ -86,7 +86,7 @@ pub struct Bus {
     dma: Dma,
     timers: Timers,
     serial: Serial,
-    keypad: Keypad,
+    pub keypad: Keypad,
     interrupt_control: InterruptControl,
     cycles_count: u128,
     last_used_address: usize,

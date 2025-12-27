@@ -104,7 +104,7 @@
 //! [`EmuHandle`]: crate::emu_thread::EmuHandle
 
 use crate::disassembler::Disassembler;
-use crate::emu_thread::{self, EmuHandle};
+use crate::emu_thread::{self, EmuCommand, EmuHandle, GbaButton};
 use emu::cartridge_header::CartridgeHeader;
 use emu::gba::Gba;
 
@@ -113,6 +113,7 @@ use crate::{
     about, cpu_handler::CpuHandler, gba_display::GbaDisplay, savegame::SaveGame, ui_traits::UiTool,
 };
 
+use egui::Key;
 use std::{
     collections::BTreeSet,
     sync::{Arc, Mutex},
@@ -212,6 +213,8 @@ impl eframe::App for App {
             handle.poll();
         }
 
+        self.handle_input(ctx);
+
         egui::SidePanel::right("Clementine Tools")
             .resizable(false)
             .default_width(200.0)
@@ -233,6 +236,45 @@ impl eframe::App for App {
             });
 
         self.windows(ctx);
+    }
+}
+
+impl App {
+    /// Handle keyboard input and send button commands to the emulator.
+    fn handle_input(&self, ctx: &egui::Context) {
+        const KEY_MAPPINGS: &[(Key, GbaButton)] = &[
+            (Key::Z, GbaButton::A),
+            (Key::X, GbaButton::B),
+            (Key::Enter, GbaButton::Start),
+            (Key::Backspace, GbaButton::Select),
+            (Key::ArrowUp, GbaButton::Up),
+            (Key::ArrowDown, GbaButton::Down),
+            (Key::ArrowLeft, GbaButton::Left),
+            (Key::ArrowRight, GbaButton::Right),
+            (Key::A, GbaButton::L),
+            (Key::S, GbaButton::R),
+        ];
+
+        ctx.input(|input| {
+            for &(key, button) in KEY_MAPPINGS {
+                if input.key_pressed(key)
+                    && let Ok(mut handle) = self.emu_handle.lock()
+                {
+                    handle.send(EmuCommand::SetKey {
+                        button,
+                        pressed: true,
+                    });
+                }
+                if input.key_released(key)
+                    && let Ok(mut handle) = self.emu_handle.lock()
+                {
+                    handle.send(EmuCommand::SetKey {
+                        button,
+                        pressed: false,
+                    });
+                }
+            }
+        });
     }
 }
 

@@ -35,6 +35,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use emu::cpu::DisasmEntry;
+pub use emu::cpu::hardware::keypad::GbaButton;
 use emu::gba::Gba;
 
 /// GBA LCD dimensions
@@ -69,6 +70,8 @@ pub enum EmuCommand {
     LoadState(Vec<u8>),
     /// Request save state data.
     RequestSaveState,
+    /// Set button state (pressed or released).
+    SetKey { button: GbaButton, pressed: bool },
     /// Shutdown the emulator thread.
     Shutdown,
 }
@@ -215,6 +218,9 @@ impl EmuThread {
                     // TODO: Implement save state saving
                     // Gba doesn't implement Serialize/Deserialize yet
                     tracing::warn!("RequestSaveState not yet implemented");
+                }
+                EmuCommand::SetKey { button, pressed } => {
+                    self.gba.cpu.bus.keypad.set_button(button, pressed);
                 }
                 EmuCommand::Shutdown => {
                     return true;
