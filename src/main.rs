@@ -133,10 +133,18 @@ fn main() {
         }
     };
 
+    let cartridge_data = match std::fs::read(&cartridge_name) {
+        Ok(data) => data,
+        Err(e) => {
+            eprintln!("Error reading ROM file at {cartridge_name}: {e}");
+            std::process::exit(2);
+        }
+    };
+
     eframe::run_native(
         "Clementine - A GBA Emulator",
         options,
-        Box::new(|_cc| Ok(Box::new(ui::app::App::new(&bios_data, cartridge_name)))),
+        Box::new(|_cc| Ok(Box::new(ui::app::App::new(&bios_data, &cartridge_data)))),
     )
     .ok();
 }

@@ -95,18 +95,8 @@ impl App {
     /// # Panics
     /// It panics if the cartridge can't be opened.
     #[must_use]
-    pub fn new(bios_data: &[u8], cartridge_name: String) -> Self {
-        let data = match read_file(cartridge_name) {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::debug!("{e}");
-                std::process::exit(2);
-            }
-        };
-
-        let cartridge_header =
-            CartridgeHeader::new(data.as_slice()).expect("Cartridge must be opened");
-        let arc_gba = Arc::new(Mutex::new(Gba::new(
+    pub fn new(bios_data: &[u8], cartridge_data: &[u8]) -> Self {
+        let cartridge_header = CartridgeHeader::new(cartridge_data).unwrap();
             cartridge_header,
             bios_data[0..0x0000_4000].try_into().unwrap(),
             data,

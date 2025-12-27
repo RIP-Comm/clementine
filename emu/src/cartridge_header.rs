@@ -56,7 +56,7 @@
 //! use emu::cartridge_header::CartridgeHeader;
 //!
 //! let rom_data = std::fs::read("game.gba").unwrap();
-//! let header = CartridgeHeader::new(&rom_data).unwrap();
+//! let header = CartridgeHeader::new(&rom_data);
 //!
 //! println!("Game: {}", header.game_title);    // e.g., "POKEMON RUBY"
 //! println!("Code: {}", header.game_code);     // e.g., "AXVE"
@@ -93,45 +93,29 @@ pub struct CartridgeHeader {
 impl CartridgeHeader {
     /// Create a new `CartridgeHeader` from a slice of bytes.
     ///
-    /// # Errors
-    pub fn new(data: &[u8]) -> Result<Self, String> {
-        let rom_entry_point = Self::extract_rom_entry_point(data);
-        let nintendo_logo = Self::extract_nintendo_logo(data);
-        let game_title = Self::extract_game_title(data);
-        let game_code = Self::extract_game_code(data);
-        let marker_code = Self::extract_marker_code(data);
-        let fixed_value = Self::extract_fixed_value(data);
-        let main_unit_code = Self::extract_main_unit_code(data);
-        let device_type = Self::extract_device_type(data);
-        let reserved_area_1 = Self::extract_reserved_area_1(data);
-        let software_version = Self::extract_software_version(data);
-        let complement_check = Self::extract_complement_check(data)?;
-        let reserved_area_2 = Self::extract_reserved_area_2(data);
-        let ram_entry_point = Self::extract_ram_entry_point(data);
-        let boot_mode = Self::extract_boot_mode(data);
-        let slave_id_number = Self::extract_slave_id_number(data);
-        let not_used = Self::extract_not_used(data);
-        let joybus_mode_entry_point = Self::extract_joybus_mode_entry_point(data);
-
-        Ok(Self {
-            rom_entry_point,
-            nintendo_logo,
-            game_title,
-            game_code,
-            marker_code,
-            fixed_value,
-            main_unit_code,
-            device_type,
-            reserved_area_1,
-            software_version,
-            complement_check,
-            reserved_area_2,
-            ram_entry_point,
-            boot_mode,
-            slave_id_number,
-            not_used,
-            joybus_mode_entry_point,
-        })
+    /// # Panics
+    /// Panics if the data slice is too short to contain a valid header.
+    #[must_use]
+    pub fn new(data: &[u8]) -> Self {
+        Self {
+            rom_entry_point: Self::extract_rom_entry_point(data),
+            nintendo_logo: Self::extract_nintendo_logo(data),
+            game_title: Self::extract_game_title(data),
+            game_code: Self::extract_game_code(data),
+            marker_code: Self::extract_marker_code(data),
+            fixed_value: Self::extract_fixed_value(data),
+            main_unit_code: Self::extract_main_unit_code(data),
+            device_type: Self::extract_device_type(data),
+            reserved_area_1: Self::extract_reserved_area_1(data),
+            software_version: Self::extract_software_version(data),
+            complement_check: Self::extract_complement_check(data),
+            reserved_area_2: Self::extract_reserved_area_2(data),
+            ram_entry_point: Self::extract_ram_entry_point(data),
+            boot_mode: Self::extract_boot_mode(data),
+            slave_id_number: Self::extract_slave_id_number(data),
+            not_used: Self::extract_not_used(data),
+            joybus_mode_entry_point: Self::extract_joybus_mode_entry_point(data),
+        }
     }
 
     /// 32bit ARM branch opcode, eg. "B `rom_start`"
@@ -210,8 +194,8 @@ impl CartridgeHeader {
             .expect("extracting software version")
     }
 
-    /// Header checksum, required
-    fn extract_complement_check(data: &[u8]) -> Result<u8, String> {
+    /// Header checksum
+    fn extract_complement_check(data: &[u8]) -> u8 {
         let checksum_expected = data[0xBD];
         let checksum = data[0xA0..0xBD]
             .iter()
@@ -219,10 +203,12 @@ impl CartridgeHeader {
             .wrapping_sub(0x19);
 
         if checksum != checksum_expected {
-            return Err(format!("Expected {checksum_expected} but got {checksum}"));
+            tracing::warn!(
+                "Header checksum mismatch: expected {checksum_expected:#04X}, got {checksum:#04X}"
+            );
         }
 
-        Ok(checksum)
+        checksum_expected
     }
 
     /// Should be zero filled

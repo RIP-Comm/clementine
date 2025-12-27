@@ -86,7 +86,7 @@ use crate::{
 /// // Create a new GBA with BIOS and ROM
 /// let rom = std::fs::read("game.gba").unwrap();
 /// let bios: [u8; 0x4000] = std::fs::read("gba_bios.bin").unwrap().try_into().unwrap();
-/// let header = CartridgeHeader::new(&rom).unwrap();
+/// let header = CartridgeHeader::new(&rom);
 /// let mut gba = Gba::new(header, bios, rom);
 ///
 /// // Run the emulator
