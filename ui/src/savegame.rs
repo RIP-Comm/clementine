@@ -27,13 +27,10 @@ impl SaveGame {
     }
 
     fn get_save_path(&self) -> PathBuf {
-        let game_title = self
-            .emu_handle
-            .lock()
-            .map_or_else(
-                |_| "savestate".to_string(),
-                |h| h.state.cartridge_title.trim().replace(' ', "_"),
-            );
+        let game_title = self.emu_handle.lock().map_or_else(
+            |_| "savestate".to_string(),
+            |h| h.state.cartridge_title.trim().replace(' ', "_"),
+        );
 
         let filename = if game_title.is_empty() {
             "savestate.sav".to_string()
