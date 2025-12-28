@@ -58,12 +58,14 @@ use super::get_unmasked_address;
 pub enum FlashState {
     #[default]
     Ready,
-    Command1,     // Received 0xAA at 0x5555
-    Command2,     // Received 0x55 at 0x2AAA
-    IdMode,       // ID mode - reads return manufacturer/device ID
-    EraseCommand, // Waiting for erase type after 0x80
-    BankSelect,   // Waiting for bank number (for 128KB flash)
-    WriteCommand, // Ready to write a byte
+    Command1,      // Received 0xAA at 0x5555
+    Command2,      // Received 0x55 at 0x2AAA
+    IdMode,        // ID mode - reads return manufacturer/device ID
+    EraseCommand,  // Received 0x80 - waiting for erase sequence
+    EraseCommand1, // Erase: received 0xAA at 0x5555
+    EraseCommand2, // Erase: received 0x55 at 0x2AAA, waiting for erase type
+    BankSelect,    // Waiting for bank number (for 128KB flash)
+    WriteCommand,  // Ready to write a byte
 }
 
 #[derive(Serialize, Deserialize)]
@@ -414,10 +416,23 @@ impl InternalMemory {
                         }
                     }
                     FlashState::EraseCommand => {
-                        // After 0x80, expect another 0xAA,0x55 sequence
+                        // After 0x80, expect another 0xAA,0x55,command sequence
+                        // The state machine needs to cycle through Command1->Command2->actual erase
                         if offset == 0x5555 && value == 0xAA {
-                            self.flash_state = FlashState::Command1;
-                        } else if value == 0x10 && offset == 0x5555 {
+                            self.flash_state = FlashState::EraseCommand1;
+                        } else {
+                            self.flash_state = FlashState::Ready;
+                        }
+                    }
+                    FlashState::EraseCommand1 => {
+                        if offset == 0x2AAA && value == 0x55 {
+                            self.flash_state = FlashState::EraseCommand2;
+                        } else {
+                            self.flash_state = FlashState::Ready;
+                        }
+                    }
+                    FlashState::EraseCommand2 => {
+                        if value == 0x10 && offset == 0x5555 {
                             // Chip erase
                             tracing::debug!("Flash: Chip erase");
                             self.sram.fill(0xFF);
@@ -432,10 +447,8 @@ impl InternalMemory {
                                     self.sram[sector_base + i] = 0xFF;
                                 }
                             }
-                            self.flash_state = FlashState::Ready;
-                        } else {
-                            self.flash_state = FlashState::Ready;
                         }
+                        self.flash_state = FlashState::Ready;
                     }
                     FlashState::BankSelect => {
                         // Bank number written to 0x0000
