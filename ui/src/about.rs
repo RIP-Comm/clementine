@@ -20,8 +20,16 @@ impl UiTool for About {
 
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("🍊Clementine");
+        ui.add_space(4.0);
         ui.label(
-            "Clementine is an emulator in early developing phase.\nThe community is working hard to realize this emulator for a pure educational scope.\nFeel free to contribute.".to_string()
+            "A GBA emulator in early development.\n\
+             The community is working hard to realize this emulator\n\
+             for a pure educational scope. Feel free to contribute.",
+        );
+        ui.add_space(8.0);
+        ui.hyperlink_to(
+            "GitHub Repository",
+            "https://github.com/RIP-Comm/clementine",
         );
     }
 }
