@@ -1,23 +1,77 @@
 //! # Banked Registers for Exception Modes
 //!
-//! Storage for registers that are swapped when changing CPU modes.
-//! See [`cpu_modes`](super::cpu_modes) for the banking table and mode details.
+//! When the CPU switches modes (e.g., from User to IRQ because a timer fired),
+//! specific registers are **physically swapped out** for different ones. This is
+//! called "register banking" and is crucial for exception handling.
 //!
-//! Each exception mode has its own R13 (SP), R14 (LR), and SPSR.
-//! FIQ additionally banks R8-R12 for faster interrupt handling.
+//! ## Why Banking Exists
+//!
+//! Imagine VBlank fires while a game is in the middle of a function:
+//! - The game's return address is in R14 (LR)
+//! - The game's stack is at the address in R13 (SP)
+//!
+//! If the IRQ handler used the same R13/R14, it would destroy the game's state!
+//! Banking solves this by giving IRQ mode its **own private R13 and R14**.
+//!
+//! ## What Gets Banked
+//!
+//! ```text
+//! ┌───────────┬───────────────────────────────────────────────────────────────┐
+//! │ Registers │ Banking Behavior                                              │
+//! ├───────────┼───────────────────────────────────────────────────────────────┤
+//! │ R0 - R7   │ NEVER banked. Same physical registers in ALL modes.           │
+//! │           │ Exception handlers must save these if they use them.          │
+//! ├───────────┼───────────────────────────────────────────────────────────────┤
+//! │ R8 - R12  │ Banked ONLY in FIQ mode. This is why FIQ is "fast" - the      │
+//! │           │ handler gets 5 free scratch registers without saving.         │
+//! ├───────────┼───────────────────────────────────────────────────────────────┤
+//! │ R13 (SP)  │ Banked in EVERY exception mode. Each mode has its own stack.  │
+//! │           │ User_SP, IRQ_SP, FIQ_SP, SVC_SP, ABT_SP, UND_SP all exist.    │
+//! ├───────────┼───────────────────────────────────────────────────────────────┤
+//! │ R14 (LR)  │ Banked in EVERY exception mode. Holds return address.         │
+//! │           │ When IRQ fires, User_LR is preserved, IRQ_LR gets return addr.│
+//! ├───────────┼───────────────────────────────────────────────────────────────┤
+//! │ R15 (PC)  │ NEVER banked. There's only one program counter.               │
+//! ├───────────┼───────────────────────────────────────────────────────────────┤
+//! │ SPSR      │ One per exception mode. Saves CPSR when exception occurs.     │
+//! │           │ User/System modes have NO SPSR (nothing to restore to).       │
+//! └───────────┴───────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Physical Register Count
+//!
+//! The ARM7TDMI has **37 total registers** (not 16!):
+//!
+//! - 16 visible at any time (R0-R15)
+//! - 1 CPSR (always visible)
+//! - 5 SPSRs (one per exception mode: FIQ, IRQ, SVC, ABT, UND)
+//! - 10 banked for FIQ (R8_fiq..R14_fiq + SPSR_fiq = 7 already counted)
+//! - 2 banked for IRQ (R13_irq, R14_irq)
+//! - 2 banked for SVC (R13_svc, R14_svc)
+//! - 2 banked for ABT (R13_abt, R14_abt)
+//! - 2 banked for UND (R13_und, R14_und)
+//!
+//! ## Mode Switch Example
+//!
+//! When switching from User to IRQ mode:
+//!
+//! 1. Current CPSR → SPSR_irq (save flags so we can restore them later)
+//! 2. Current R14 stays in User's R14 (preserved)
+//! 3. R14_irq becomes visible as R14 (holds return address)
+//! 4. R13_irq becomes visible as R13 (IRQ has its own stack)
+//! 5. R0-R12 stay the same (handler must save any it uses)
+//!
+//! When returning (via `MOVS PC, LR` or similar):
+//!
+//! 1. SPSR_irq → CPSR (restore flags and mode bits)
+//! 2. Mode changes back to User
+//! 3. User's R13/R14 become visible again (never corrupted!)
 
 use serde::{Deserialize, Serialize};
 
 use crate::cpu::psr::Psr;
 
 /// Storage for banked registers across all CPU modes.
-///
-/// When the CPU switches modes, certain registers are "banked" - the current
-/// values are saved here and mode-specific values are loaded into the main
-/// register file. This happens automatically on mode switches.
-///
-/// See the [module-level documentation](self) for details on which registers
-/// are banked in each mode.
 #[derive(Default, Serialize, Deserialize)]
 pub struct RegisterBank {
     // User/System mode R8-R14 saved here when in FIQ mode

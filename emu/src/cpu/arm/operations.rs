@@ -14,7 +14,7 @@ use crate::cpu::flags::{
     ReadWriteKind, ShiftKind,
 };
 use crate::cpu::psr::CpuState;
-use crate::cpu::registers::REG_PROGRAM_COUNTER;
+use crate::cpu::registers::REG_PC;
 
 use super::alu_instruction::PsrKind;
 
@@ -38,7 +38,7 @@ impl Arm7tdmi {
         let offset = match rn {
             // if Rn is R15(PC) we need to offset its value because of
             // instruction pipelining
-            REG_PROGRAM_COUNTER => Self::get_pc_offset_alu(op_kind, op_code.get_bit(4)),
+            REG_PC => Self::get_pc_offset_alu(op_kind, op_code.get_bit(4)),
             _ => 0,
         };
         let op1 = self.registers.register_at(rn.try_into().unwrap()) + offset;
@@ -93,7 +93,7 @@ impl Arm7tdmi {
             }
         }
 
-        if set_conditions && destination == REG_PROGRAM_COUNTER {
+        if set_conditions && destination == REG_PC {
             // We move current SPSR into the CPSR.
 
             assert!(
@@ -129,7 +129,7 @@ impl Arm7tdmi {
                 | ArmModeAluInstr::Cmn
                 | ArmModeAluInstr::Cmp
                 | ArmModeAluInstr::Tst
-        ) && destination == REG_PROGRAM_COUNTER
+        ) && destination == REG_PC
         {
             self.flush_pipeline();
         }
@@ -160,7 +160,7 @@ impl Arm7tdmi {
                 destination_register,
             } => {
                 assert!(
-                    destination_register != REG_PROGRAM_COUNTER,
+                    destination_register != REG_PC,
                     "PSR transfer should not use R15 as source/destination"
                 );
 
@@ -174,7 +174,7 @@ impl Arm7tdmi {
             }
             PsrOpKind::Msr { source_register } => {
                 assert!(
-                    source_register != REG_PROGRAM_COUNTER,
+                    source_register != REG_PC,
                     "PSR transfer should not use R15 as source/destination"
                 );
 
@@ -347,7 +347,7 @@ impl Arm7tdmi {
                 let offset = match rm {
                     // if Rm is R15(PC) we need to offset its value because of
                     // instruction pipelining
-                    REG_PROGRAM_COUNTER => Self::get_pc_offset_alu(i, r),
+                    REG_PC => Self::get_pc_offset_alu(i, r),
                     _ => 0,
                 };
                 let rm = self.registers.register_at(rm.try_into().unwrap()) + offset;
@@ -695,7 +695,7 @@ impl Arm7tdmi {
             .registers
             .register_at(base_register.try_into().unwrap());
 
-        if base_register == REG_PROGRAM_COUNTER {
+        if base_register == REG_PC {
             assert!(
                 !write_back,
                 "WriteBack should not be specified when using R15 as base register."
@@ -712,7 +712,7 @@ impl Arm7tdmi {
 
         // For STORE with writeback when Rd == Rn, save the value before writeback
         let store_value_before_writeback = if load_store_kind == LoadStoreKind::Store {
-            if source_destination_register == REG_PROGRAM_COUNTER {
+            if source_destination_register == REG_PC {
                 let pc: u32 = self.registers.program_counter().try_into().unwrap();
                 Some(pc + 4)
             } else {
@@ -777,9 +777,7 @@ impl Arm7tdmi {
             },
         }
 
-        if load_store_kind == LoadStoreKind::Load
-            && source_destination_register == REG_PROGRAM_COUNTER
-        {
+        if load_store_kind == LoadStoreKind::Load && source_destination_register == REG_PC {
             self.flush_pipeline();
         }
     }
@@ -822,7 +820,7 @@ impl Arm7tdmi {
         let str_value_before_writeback = if kind == SingleDataTransferKind::Str {
             let mut v = self.registers.register_at(rd.try_into().unwrap());
             // If R15 we get the value of the current instruction + 4 (it is +8 already)
-            if rd == REG_PROGRAM_COUNTER {
+            if rd == REG_PC {
                 v += 4;
             }
             Some(v)
@@ -875,7 +873,7 @@ impl Arm7tdmi {
         }
 
         // If LDR and Rd == R15 we flush the pipeline
-        if kind == SingleDataTransferKind::Ldr && rd == REG_PROGRAM_COUNTER {
+        if kind == SingleDataTransferKind::Ldr && rd == REG_PC {
             self.flush_pipeline();
         }
     }
@@ -904,7 +902,7 @@ impl Arm7tdmi {
                     let mut value = arm.registers.register_at(reg_source);
 
                     // If R15 we get the value of the current instruction + 4 (it is +8 already)
-                    if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
+                    if reg_source == REG_PC.try_into().unwrap() {
                         value += 4;
                     }
 
@@ -917,7 +915,7 @@ impl Arm7tdmi {
                     let mut value = arm.read_user_register(reg_source);
 
                     // If R15 we get the value of the current instruction + 4 (it is +8 already)
-                    if reg_source == REG_PROGRAM_COUNTER.try_into().unwrap() {
+                    if reg_source == REG_PC.try_into().unwrap() {
                         value += 4;
                     }
 

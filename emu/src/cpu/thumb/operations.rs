@@ -4,7 +4,7 @@ use crate::cpu::arm7tdmi::Arm7tdmi;
 use crate::cpu::condition::Condition;
 use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, ShiftKind};
 use crate::cpu::psr::CpuState;
-use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
+use crate::cpu::registers::{REG_LR, REG_PC, REG_SP};
 use crate::cpu::thumb;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
 use std::ops::Mul;
@@ -201,7 +201,7 @@ impl Arm7tdmi {
                 let r = d_value.wrapping_add(s_value);
                 self.registers.set_register_at(reg_destination as usize, r);
 
-                if reg_destination == REG_PROGRAM_COUNTER as u16 {
+                if reg_destination == REG_PC as u16 {
                     self.flush_pipeline();
                 }
             }
@@ -214,7 +214,7 @@ impl Arm7tdmi {
                 self.registers
                     .set_register_at(reg_destination as usize, s_value);
 
-                if reg_destination == REG_PROGRAM_COUNTER as u16 {
+                if reg_destination == REG_PC as u16 {
                     self.flush_pipeline();
                 }
             }

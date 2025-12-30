@@ -1398,7 +1398,7 @@ mod tests {
 
     use crate::cpu::condition::Condition;
     use crate::cpu::flags::{HalfwordDataTransferOffsetKind, Indexing, LoadStoreKind, Offsetting};
-    use crate::cpu::registers::{REG_LR, REG_PROGRAM_COUNTER, REG_SP};
+    use crate::cpu::registers::{REG_LR, REG_PC, REG_SP};
     use crate::cpu::thumb::instruction::Instruction;
 
     use super::*;
@@ -2272,11 +2272,7 @@ mod tests {
             assert_eq!(cpu.registers.register_at(5), 200);
             assert_eq!(cpu.registers.register_at(6), 300);
             assert_eq!(cpu.registers.register_at(7), 400);
-            assert_eq!(
-                cpu.registers
-                    .register_at(REG_PROGRAM_COUNTER.try_into().unwrap()),
-                500
-            );
+            assert_eq!(cpu.registers.register_at(REG_PC.try_into().unwrap()), 500);
             assert_eq!(cpu.registers.register_at(REG_SP), SP_BASE + 20);
         }
     }

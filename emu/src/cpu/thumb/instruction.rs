@@ -51,7 +51,7 @@
 use crate::bitwise::Bits;
 use crate::cpu::condition::Condition;
 use crate::cpu::flags::{LoadStoreKind, OperandKind, Operation, ReadWriteKind, ShiftKind};
-use crate::cpu::registers::REG_PROGRAM_COUNTER;
+use crate::cpu::registers::REG_PC;
 use crate::cpu::thumb::alu_instructions::{ThumbHighRegisterOperation, ThumbModeAluInstruction};
 use serde::{Deserialize, Serialize};
 
@@ -403,7 +403,7 @@ impl Instruction {
                 destination_register: r_destination,
                 immediate_value,
             } => {
-                let r = if *r_destination as u32 == REG_PROGRAM_COUNTER {
+                let r = if *r_destination as u32 == REG_PC {
                     "PC".to_owned()
                 } else {
                     format!("R{r_destination}")
