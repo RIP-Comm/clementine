@@ -313,8 +313,6 @@ impl From<u32> for ArmModeMultiplyLongVariant {
 
 impl ArmModeInstruction {
     #[must_use]
-    #[allow(clippy::too_many_lines)]
-    #[allow(clippy::missing_panics_doc)]
     pub fn disassembler(&self) -> String {
         match self {
             Self::DataProcessing {
@@ -573,7 +571,6 @@ impl ArmModeInstruction {
 }
 
 impl From<u32> for ArmModeInstruction {
-    #[allow(clippy::too_many_lines)]
     fn from(op_code: u32) -> Self {
         let condition = Condition::from(op_code.get_bits(28..=31) as u8);
         // NOTE: The order is based on how many bits are already know at decoding time.

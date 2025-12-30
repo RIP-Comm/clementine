@@ -97,7 +97,6 @@ pub struct Bus {
     current_pc: usize,
 }
 
-#[allow(dead_code)]
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub(crate) enum IrqType {
     VBlank,
@@ -107,13 +106,6 @@ pub(crate) enum IrqType {
     Timer1,
     Timer2,
     Timer3,
-    Serial,
-    Dma0,
-    Dma1,
-    Dma2,
-    Dma3,
-    Keypad,
-    Gamepak,
 }
 
 impl IrqType {
@@ -127,13 +119,6 @@ impl IrqType {
             Self::Timer1 => 4,
             Self::Timer2 => 5,
             Self::Timer3 => 6,
-            Self::Serial => 7,
-            Self::Dma0 => 8,
-            Self::Dma1 => 9,
-            Self::Dma2 => 10,
-            Self::Dma3 => 11,
-            Self::Keypad => 12,
-            Self::Gamepak => 13,
         }
     }
 }

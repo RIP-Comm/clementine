@@ -167,7 +167,6 @@ pub struct Lcd {
 }
 
 impl Default for Lcd {
-    #[allow(clippy::large_stack_arrays)]
     fn default() -> Self {
         Self {
             registers: Registers::default(),
@@ -184,7 +183,6 @@ impl Default for Lcd {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
 #[derive(Default)]
 pub struct LcdStepOutput {
     pub request_vblank_irq: bool,

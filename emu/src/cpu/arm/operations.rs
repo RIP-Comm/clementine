@@ -140,7 +140,6 @@ impl Arm7tdmi {
     /// # Panics
     ///
     /// Panics if R15 is used as source/destination register.
-    #[allow(clippy::manual_assert, clippy::too_many_lines)]
     pub fn psr_transfer(&mut self, op_kind: PsrOpKind, psr_kind: PsrKind) {
         // Accessing SPSR in User/System mode has unpredictable behavior on real hardware
         // Most implementations return CPSR instead
@@ -674,7 +673,6 @@ impl Arm7tdmi {
     /// # Panics
     ///
     /// Panics if register index conversion fails.
-    #[allow(clippy::too_many_arguments)]
     pub fn half_word_data_transfer(
         &mut self,
         indexing: Indexing,
@@ -786,7 +784,6 @@ impl Arm7tdmi {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn single_data_transfer(
         &mut self,
         kind: SingleDataTransferKind,
@@ -883,7 +880,6 @@ impl Arm7tdmi {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn block_data_transfer(
         &mut self,
         indexing: Indexing,

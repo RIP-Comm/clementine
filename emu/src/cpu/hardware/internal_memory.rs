@@ -34,7 +34,7 @@
 //! The module also handles GPIO registers at ROM offset `0xC4-0xC9` used by some
 //! games (like Pokemon) for Real-Time Clock communication:
 //! - `0xC4`: Data register (pin state)
-//! - `0xC6`: Direction register (1=output, 0=input)  
+//! - `0xC6`: Direction register (1=output, 0=input)
 //! - `0xC8`: Control register (GPIO enable)
 //!
 //! # Empty ROM Reads
@@ -264,7 +264,6 @@ impl InternalMemory {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     pub fn write_at(&mut self, address: usize, value: u8) {
         match address {
             0x0000_0000..=0x0000_3FFF => {

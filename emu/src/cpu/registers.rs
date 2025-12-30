@@ -6,9 +6,6 @@
 //! - **R13 (SP)**: Stack pointer (by convention)
 //! - **R14 (LR)**: Link register (return address)
 //! - **R15 (PC)**: Program counter (+8 ARM, +4 Thumb due to pipeline)
-//!
-//! For register banking by mode, see [`cpu_modes`](super::cpu_modes).
-//! For Thumb register restrictions, see [`thumb`](super::thumb).
 
 use serde::{Deserialize, Serialize};
 

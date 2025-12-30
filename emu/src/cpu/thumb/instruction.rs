@@ -158,7 +158,6 @@ pub enum Instruction {
 impl TryFrom<u16> for Instruction {
     type Error = String;
 
-    #[allow(clippy::too_many_lines)]
     fn try_from(op_code: u16) -> Result<Self, Self::Error> {
         use Instruction::{
             AddOffsetSP, AddSubtract, AluOp, CondBranch, HiRegisterOpBX, LoadAddress,
@@ -334,7 +333,6 @@ impl std::fmt::Display for Instruction {
 
 impl Instruction {
     #[must_use]
-    #[allow(clippy::too_many_lines)]
     pub fn disassembler(&self) -> String {
         match self {
             Self::MoveShiftedRegister {

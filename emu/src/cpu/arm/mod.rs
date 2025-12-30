@@ -34,22 +34,10 @@
 //! - [`alu_instruction`] - ALU ops and barrel shifter
 //! - [`mode`] - Addressing modes
 
-#[allow(clippy::cast_possible_truncation)]
-#[allow(clippy::cast_sign_loss)]
-#[allow(clippy::cast_possible_wrap)]
-#[allow(clippy::cast_lossless)]
 pub mod alu_instruction;
 
-#[allow(clippy::cast_possible_truncation)]
-#[allow(clippy::similar_names)]
 pub mod instructions;
 
-#[allow(clippy::cast_possible_truncation)]
 pub mod mode;
 
-#[allow(clippy::cast_possible_truncation)]
-#[allow(clippy::cast_sign_loss)]
-#[allow(clippy::cast_possible_wrap)]
-#[allow(clippy::cast_lossless)]
-#[allow(clippy::similar_names)]
 pub mod operations;

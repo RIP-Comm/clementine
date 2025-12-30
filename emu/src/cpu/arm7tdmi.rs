@@ -2,12 +2,14 @@
 //!
 //! This module implements the ARM7TDMI processor core used in the Game Boy Advance.
 //! The ARM7TDMI is a 32-bit RISC processor supporting two instruction sets.
+//! The processor is running at 16.78 MHz.
+//! It can run in either ARM mode or Thumb mode.
 //!
 //! ## Architecture Overview
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────────────┐
-//! │                           ARM7TDMI Block Diagram                            │
+//! │                           ARM7TDMI Pipeline                               │
 //! ├─────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                             │
 //! │   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐                  │
@@ -88,7 +90,6 @@
 //! - `SWI 0x0C`: `CpuFastSet` (fast memory copy/fill)
 //!
 //! Other SWIs fall through to the actual BIOS code.
-#![allow(clippy::unreadable_literal)]
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
@@ -156,37 +157,26 @@ pub struct Arm7tdmi {
 }
 
 #[derive(Copy, Clone, Debug)]
-#[allow(dead_code)]
 enum ExceptionType {
-    Reset,
     UndefinedInstruction,
     SoftwareInterrupt,
-    PrefetchAbort,
-    DataAbort,
     Irq,
-    Fiq,
 }
 
 impl ExceptionType {
     pub const fn address(self) -> usize {
         match self {
-            Self::Reset => 0x0,
             Self::UndefinedInstruction => 0x4,
             Self::SoftwareInterrupt => 0x8,
-            Self::PrefetchAbort => 0xC,
-            Self::DataAbort => 0x10,
             Self::Irq => 0x18,
-            Self::Fiq => 0x1C,
         }
     }
 
     pub const fn mode(self) -> Mode {
         match self {
-            Self::SoftwareInterrupt | Self::Reset => Mode::Supervisor,
+            Self::SoftwareInterrupt => Mode::Supervisor,
             Self::UndefinedInstruction => Mode::Undefined,
-            Self::PrefetchAbort | Self::DataAbort => Mode::Abort,
             Self::Irq => Mode::Irq,
-            Self::Fiq => Mode::Fiq,
         }
     }
 
@@ -204,21 +194,10 @@ impl ExceptionType {
             (CpuState::Thumb, Self::SoftwareInterrupt | Self::UndefinedInstruction) => {
                 Box::new(move || current_executing_ins + 2)
             }
-            (
-                CpuState::Arm,
-                Self::SoftwareInterrupt
-                | Self::UndefinedInstruction
-                | Self::Fiq
-                | Self::Irq
-                | Self::PrefetchAbort,
-            ) => Box::new(move || current_executing_ins + 4),
-            (CpuState::Thumb, Self::Fiq | Self::Irq | Self::PrefetchAbort) => {
+            (CpuState::Arm, Self::SoftwareInterrupt | Self::UndefinedInstruction | Self::Irq) => {
                 Box::new(move || current_executing_ins + 4)
             }
-            (CpuState::Arm | CpuState::Thumb, Self::DataAbort) => {
-                Box::new(move || current_executing_ins + 8)
-            }
-            _ => unimplemented!(),
+            (CpuState::Thumb, Self::Irq) => Box::new(move || current_executing_ins + 4),
         }
     }
 }
@@ -312,7 +291,6 @@ impl Arm7tdmi {
     ///
     /// # Panics
     /// It can panics if destination register is None.
-    #[allow(clippy::too_many_lines)]
     pub fn execute_arm(&mut self, op_code: ArmModeOpcode) {
         // Instruction functions should return whether PC has to be advanced
         // after instruction executed.
@@ -520,7 +498,6 @@ impl Arm7tdmi {
     ///
     /// # Panics
     /// It can panics if destination register is None.
-    #[allow(clippy::too_many_lines)]
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
         // push dis-ASM to the channel
         if let Some(tx) = &mut self.disasm_tx {
@@ -694,10 +671,6 @@ impl Arm7tdmi {
 
         self.cpsr.set_irq_disable(true);
 
-        if matches!(exception_type, ExceptionType::Fiq | ExceptionType::Reset) {
-            self.cpsr.set_fiq_disable(true);
-        }
-
         let new_pc = exception_type.address() as u32;
         tracing::debug!(
             "  Exception vector: {:?} -> address 0x{:08X}, mode {:?}",
@@ -707,7 +680,7 @@ impl Arm7tdmi {
         );
         self.registers.set_program_counter(new_pc);
 
-        // Flush pipeline - let the next step() refill it naturally
+        // flush pipeline, the next step() will refill it naturally
         self.flush_pipeline();
     }
 
@@ -883,7 +856,6 @@ impl Arm7tdmi {
         self.swap_mode(current_mode);
     }
 
-    #[allow(clippy::too_many_lines)]
     pub fn swap_mode(&mut self, new_mode: Mode) {
         if self.cpsr.mode() == new_mode {
             return;
@@ -1073,11 +1045,6 @@ impl Arm7tdmi {
 
     /// Handle SWI calls with High-Level Emulation
     /// Returns true if handled, false if BIOS should handle it
-    #[allow(
-        clippy::too_many_lines,
-        clippy::cast_possible_wrap,
-        clippy::cast_sign_loss
-    )]
     fn handle_swi_hle(&mut self, swi_num: u32, old_cpsr: Psr, return_addr: u32) -> bool {
         match swi_num {
             // SWI 0x00: SoftReset - Reset the GBA

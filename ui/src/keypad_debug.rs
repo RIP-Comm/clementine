@@ -14,7 +14,6 @@ pub struct KeypadDebug {
 }
 
 impl KeypadDebug {
-    #[allow(clippy::missing_const_for_fn)]
     pub fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
         Self { emu_handle }
     }

@@ -239,7 +239,6 @@ impl From<u32> for ArmModeAluInstr {
 /// - **overflow**: Signed overflow (result doesn't fit in signed 32-bit).
 /// - **sign**: Bit 31 of the result (negative in signed interpretation).
 /// - **zero**: Result is exactly zero.
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default)]
 pub struct ArithmeticOpResult {
     /// The computed result value.
