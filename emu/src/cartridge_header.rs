@@ -213,7 +213,10 @@ impl CartridgeHeader {
                 offset as i32
             };
             // PC + 8 + (offset * 4), where PC = 0x08000000
-            (0x0800_0008_i64 + i64::from(signed_offset) * 4) as u32
+            // Result is always a valid GBA ROM address (32-bit)
+            #[allow(clippy::cast_possible_truncation)]
+            let addr = (0x0800_0008_i64 + i64::from(signed_offset) * 4) as u32;
+            addr
         } else {
             // Not a branch, return ROM start
             0x0800_0000

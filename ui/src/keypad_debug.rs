@@ -14,7 +14,7 @@ pub struct KeypadDebug {
 }
 
 impl KeypadDebug {
-    pub fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
+    pub const fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
         Self { emu_handle }
     }
 

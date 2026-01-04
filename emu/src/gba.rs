@@ -83,8 +83,8 @@ impl Gba {
     /// Create a new GBA system with the given BIOS and cartridge ROM.
     /// After creation, the CPU is ready to execute the BIOS boot sequence.
     #[must_use]
-    pub fn new(bios: [u8; 0x0000_4000], cartridge: Vec<u8>) -> Self {
-        let cartridge_header = CartridgeHeader::new(&cartridge);
+    pub fn new(bios: [u8; 0x0000_4000], cartridge: &[u8]) -> Self {
+        let cartridge_header = CartridgeHeader::new(cartridge);
 
         let lcd = Arc::new(Mutex::new(Box::default()));
         let memory = InternalMemory::new(bios, cartridge);

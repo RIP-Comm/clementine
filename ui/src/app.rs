@@ -106,7 +106,6 @@
 use crate::disassembler::Disassembler;
 use crate::emu_thread::{self, EmuCommand, EmuHandle, GbaButton};
 use crate::keypad_debug::KeypadDebug;
-use emu::cartridge_header::CartridgeHeader;
 use emu::gba::Gba;
 
 use super::cpu_registers::CpuRegisters;
@@ -154,11 +153,8 @@ impl App {
     /// It panics if the cartridge can't be opened.
     #[must_use]
     pub fn new(bios_data: &[u8], cartridge_data: &[u8]) -> Self {
-        let cartridge_header = CartridgeHeader::new(cartridge_data);
         let mut gba = Gba::new(
-            cartridge_header,
             bios_data[0..0x0000_4000].try_into().unwrap(),
-            cartridge_data.to_vec(),
         );
 
         // Take consumer for disassembler channel before spawning thread
