@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_possible_wrap)]
 
 //! # Thumb Instruction Decoding
 //!

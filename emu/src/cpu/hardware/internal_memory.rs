@@ -110,20 +110,14 @@ pub struct InternalMemory {
     unused_region: HashMap<usize, u8>,
 }
 
-impl Default for InternalMemory {
-    fn default() -> Self {
-        Self::new([0_u8; 0x0000_4000], vec![])
-    }
-}
-
 impl InternalMemory {
     #[must_use]
-    pub fn new(bios: [u8; 0x0000_4000], rom: Vec<u8>) -> Self {
+    pub fn new(bios: [u8; 0x0000_4000], rom: &[u8]) -> Self {
         Self {
             bios_system_rom: bios.to_vec(),
             working_ram: vec![0; 0x0004_0000],
             working_iram: vec![0; 0x0000_8000],
-            rom,
+            rom: rom.to_vec(),
             sram: vec![0xFF; 0x0002_0000], // 128KB Flash, initialized to 0xFF (erased state)
             flash_state: FlashState::Ready,
             flash_bank: 0,
@@ -133,7 +127,31 @@ impl InternalMemory {
             unused_region: HashMap::new(),
         }
     }
+}
 
+impl Default for InternalMemory {
+    /// Creates an `InternalMemory` with properly-sized memory regions.
+    ///
+    /// This is primarily used for testing. For actual emulation, use
+    /// [`InternalMemory::new`] with real BIOS and ROM data.
+    fn default() -> Self {
+        Self {
+            bios_system_rom: vec![0; 0x0000_4000], // 16 KB BIOS
+            working_ram: vec![0; 0x0004_0000],     // 256 KB EWRAM
+            working_iram: vec![0; 0x0000_8000],    // 32 KB IWRAM
+            rom: vec![0; 0x0200_0000],             // 32 MB ROM (max size)
+            sram: vec![0xFF; 0x0002_0000],         // 128 KB Flash
+            flash_state: FlashState::Ready,
+            flash_bank: 0,
+            gpio_data: 0,
+            gpio_direction: 0,
+            gpio_control: 1,
+            unused_region: HashMap::new(),
+        }
+    }
+}
+
+impl InternalMemory {
     fn read_rom(&self, address: usize) -> u8 {
         // GPIO port region (for RTC in Pokemon Fire Red/Leaf Green)
         // Located at ROM addresses 0xC4-0xC9 (16-bit aligned)
@@ -184,7 +202,10 @@ impl InternalMemory {
             // Here we get the 24bits address (halfword addressing) by shifting right by 1
             // and we take only the 16 lower bits. We use this as if it was the value read from the ROM
             // and we get the 0 or 1 byte depending on the LSB in the address.
-            (((address >> 1) & 0xFFFF) as u16).get_byte((address & 0b1) as u8)
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                (((address >> 1) & 0xFFFF) as u16).get_byte((address & 0b1) as u8)
+            }
         }
     }
 }
@@ -264,6 +285,7 @@ impl InternalMemory {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn write_at(&mut self, address: usize, value: u8) {
         match address {
             0x0000_0000..=0x0000_3FFF => {

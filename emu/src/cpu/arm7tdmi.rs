@@ -1,3 +1,8 @@
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::too_many_lines)]
+
 //! # ARM7TDMI Processor Implementation
 //!
 //! This module implements the ARM7TDMI processor core used in the Game Boy Advance.
@@ -134,6 +139,7 @@ use super::thumb;
 /// 4. **Advance**: Increment PC (unless a branch occurred)
 ///
 /// The CPU automatically handles mode switching, interrupts, and pipeline flushing.
+#[allow(clippy::large_stack_frames)] // because of Bus
 #[derive(Serialize, Deserialize)]
 pub struct Arm7tdmi {
     pub bus: Bus,
@@ -373,7 +379,7 @@ impl Arm7tdmi {
 
                 if byte {
                     // byte swap (SWPB)
-                    let old_value = self.bus.read_byte(address) as u32;
+                    let old_value = u32::from(self.bus.read_byte(address));
                     self.bus.write_byte(address, rm_value as u8);
                     self.registers.set_register_at(rd as usize, old_value);
                 } else {
@@ -643,7 +649,7 @@ impl Arm7tdmi {
             let swi_num = if matches!(old_cpsr.cpu_state(), CpuState::Thumb) {
                 // Thumb SWI: read the byte before the return address
                 let swi_pc = (next_ins as u32).wrapping_sub(2);
-                self.bus.read_byte(swi_pc as usize) as u32
+                u32::from(self.bus.read_byte(swi_pc as usize))
             } else {
                 // ARM SWI: read the word at PC-8 and extract bits 0-23
                 let swi_pc = (next_ins as u32).wrapping_sub(4);
@@ -1019,7 +1025,7 @@ impl Arm7tdmi {
         // in the address is 1.
 
         let rotation = ((address & 0b1) * 8) as u32;
-        let mut value = (self.bus.read_half_word(address) as u32).rotate_right(rotation);
+        let mut value = u32::from(self.bus.read_half_word(address)).rotate_right(rotation);
 
         if sign_extended {
             let is_halfword_aligned: bool = address & 0b1 == 0;
@@ -1147,46 +1153,34 @@ impl Arm7tdmi {
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x02: Halt - Low power mode until interrupt
+            // SWI 0x02: Halt, low power mode until interrupt
             0x02 => {
-                tracing::debug!("HLE SWI 0x02: Halt");
-                // Just return - the main loop will handle waiting for interrupts
-                self.swi_return(old_cpsr, return_addr);
+                self.swi_return(old_cpsr, return_addr); // just return because the main loop will handle waiting for interrupts
                 true
             }
-            // SWI 0x03: Stop - Very low power mode
+            // SWI 0x03: Stop, very low power mode
             0x03 => {
-                tracing::debug!("HLE SWI 0x03: Stop");
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x04: IntrWait - Wait for interrupt
+            // SWI 0x04: IntrWait, wait for interrupt
             0x04 => {
-                tracing::debug!(
-                    "HLE SWI 0x04: IntrWait - discard={}, flags=0x{:08X}",
-                    self.registers.register_at(0),
-                    self.registers.register_at(1)
-                );
-                // Just return for now - proper implementation would wait for specific interrupts
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x05: VBlankIntrWait - Wait for VBlank interrupt
+            // SWI 0x05: VBlankIntrWait, wait for VBlank interrupt
             0x05 => {
-                tracing::debug!("HLE SWI 0x05: VBlankIntrWait");
-                // Just return for now
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x06: Div - Signed division
+            // SWI 0x06: Div, with remainder
             // R0 = numerator, R1 = denominator
             // Returns: R0 = result, R1 = remainder, R3 = abs(result)
+            #[allow(clippy::cast_possible_wrap)] // intentional reinterpretation as signed
             0x06 => {
                 let numerator = self.registers.register_at(0) as i32;
                 let denominator = self.registers.register_at(1) as i32;
                 if denominator == 0 {
-                    tracing::warn!("HLE SWI 0x06: Div by zero!");
-                    // On real hardware, division by zero causes weird behavior
                     self.registers.set_register_at(0, 0);
                     self.registers.set_register_at(1, 0);
                     self.registers.set_register_at(3, 0);
@@ -1200,9 +1194,10 @@ impl Arm7tdmi {
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x07: DivArm - Same as Div but with swapped arguments
+            // SWI 0x07: DivArm, with swapped arguments
             // R0 = denominator, R1 = numerator (swapped from SWI 0x06)
             // Returns: R0 = result, R1 = remainder, R3 = abs(result)
+            #[allow(clippy::cast_possible_wrap)] // integer reinterpretation as signed
             0x07 => {
                 let denominator = self.registers.register_at(0) as i32;
                 let numerator = self.registers.register_at(1) as i32;
@@ -1221,12 +1216,11 @@ impl Arm7tdmi {
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x08: Sqrt - Square root
+            // SWI 0x08: Sqrt
             // R0 = input (32-bit unsigned)
             // Returns: R0 = sqrt(input)
             0x08 => {
                 let input = self.registers.register_at(0);
-                // Integer square root using Newton's method
                 let result = if input == 0 {
                     0
                 } else {
@@ -1242,25 +1236,24 @@ impl Arm7tdmi {
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x09: ArcTan - Arc tangent
+            // SWI 0x09: ArcTan
             // R0 = tan (16-bit, range -1.0 to 1.0 scaled to -0x4000 to 0x4000)
             // Returns: R0 = angle (-pi/4 to pi/4 scaled to -0x2000 to 0x2000)
             0x09 => {
-                // Simplified implementation - just return a reasonable approximation
-                let tan = self.registers.register_at(0) as i16 as i32;
-                // Simple linear approximation for small angles: arctan(x) ≈ x
-                // Scale from tan range to angle range (divide by 2)
+                #[allow(clippy::cast_possible_truncation)] // intentional truncation to i16
+                let tan = i32::from(self.registers.register_at(0) as i16);
                 let result = (tan / 2) as u32;
                 self.registers.set_register_at(0, result);
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x0A: ArcTan2 - Arc tangent of y/x
+            // SWI 0x0A: ArcTan2, arc tangent of y/x
             // R0 = x, R1 = y
             // Returns: R0 = angle (0 to 2*pi scaled to 0x0000 to 0xFFFF)
+            #[allow(clippy::cast_possible_truncation)]
             0x0A => {
-                let x = self.registers.register_at(0) as i16 as f64;
-                let y = self.registers.register_at(1) as i16 as f64;
+                let x = f64::from(self.registers.register_at(0) as i16);
+                let y = f64::from(self.registers.register_at(1) as i16);
                 let angle = y.atan2(x);
                 // Convert from radians (-pi to pi) to GBA format (0 to 0xFFFF)
                 let result = ((angle + std::f64::consts::PI) / (2.0 * std::f64::consts::PI)
@@ -1270,7 +1263,7 @@ impl Arm7tdmi {
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x0B: CpuSet - Memory copy
+            // SWI 0x0B: CpuSet, memory copy
             0x0B => {
                 let src = self.registers.register_at(0);
                 let dest = self.registers.register_at(1);
@@ -1285,16 +1278,16 @@ impl Arm7tdmi {
                     let value = if is_32bit {
                         self.bus.read_word(src as usize)
                     } else {
-                        self.bus.read_half_word(src as usize) as u32
+                        u32::from(self.bus.read_half_word(src as usize))
                     };
 
                     for i in 0..count {
                         let offset = if is_32bit { i * 4 } else { i * 2 };
+                        let addr = (dest + offset) as usize;
                         if is_32bit {
-                            self.bus.write_word((dest + offset) as usize, value);
+                            self.bus.write_word(addr, value);
                         } else {
-                            self.bus
-                                .write_half_word((dest + offset) as usize, value as u16);
+                            self.bus.write_half_word(addr, value as u16);
                         }
                     }
                 } else {
@@ -1304,7 +1297,7 @@ impl Arm7tdmi {
                         let value = if is_32bit {
                             self.bus.read_word((src + offset) as usize)
                         } else {
-                            self.bus.read_half_word((src + offset) as usize) as u32
+                            u32::from(self.bus.read_half_word((src + offset) as usize))
                         };
 
                         if is_32bit {
@@ -1319,7 +1312,7 @@ impl Arm7tdmi {
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            // SWI 0x0C: CpuFastSet - Fast memory copy (32-bit only)
+            // SWI 0x0C: CpuFastSet, fast memory copy (32-bit only)
             0x0C => {
                 let src = self.registers.register_at(0);
                 let dest = self.registers.register_at(1);
@@ -1343,11 +1336,7 @@ impl Arm7tdmi {
                 self.swi_return(old_cpsr, return_addr);
                 true
             }
-            _ => {
-                // Not implemented - let BIOS handle it
-                // TODO: Add tracing log
-                false
-            }
+            _ => false,
         }
     }
 
