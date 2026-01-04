@@ -106,6 +106,7 @@
 use crate::disassembler::Disassembler;
 use crate::emu_thread::{self, EmuCommand, EmuHandle, GbaButton};
 use crate::keypad_debug::KeypadDebug;
+use crate::rom_info::RomInfo;
 use emu::gba::Gba;
 
 use super::cpu_registers::CpuRegisters;
@@ -155,6 +156,7 @@ impl App {
     pub fn new(bios_data: &[u8], cartridge_data: &[u8]) -> Self {
         let mut gba = Gba::new(
             bios_data[0..0x0000_4000].try_into().unwrap(),
+            cartridge_data,
         );
 
         // Take consumer for disassembler channel before spawning thread
@@ -164,6 +166,7 @@ impl App {
         let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx)));
 
         let tools: Vec<Box<dyn UiTool>> = vec![
+            Box::new(RomInfo::new(Arc::clone(&emu_handle))),
             Box::new(SaveGame::new(Arc::clone(&emu_handle))),
             Box::new(CpuHandler::new(Arc::clone(&emu_handle))),
             Box::new(GbaDisplay::new(Arc::clone(&emu_handle))),

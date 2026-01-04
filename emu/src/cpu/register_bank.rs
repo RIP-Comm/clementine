@@ -6,7 +6,7 @@
 //!
 //! ## Why Banking Exists
 //!
-//! Imagine VBlank fires while a game is in the middle of a function:
+//! Imagine `VBlank` fires while a game is in the middle of a function:
 //! - The game's return address is in R14 (LR)
 //! - The game's stack is at the address in R13 (SP)
 //!
@@ -45,25 +45,25 @@
 //! - 16 visible at any time (R0-R15)
 //! - 1 CPSR (always visible)
 //! - 5 SPSRs (one per exception mode: FIQ, IRQ, SVC, ABT, UND)
-//! - 10 banked for FIQ (R8_fiq..R14_fiq + SPSR_fiq = 7 already counted)
-//! - 2 banked for IRQ (R13_irq, R14_irq)
-//! - 2 banked for SVC (R13_svc, R14_svc)
-//! - 2 banked for ABT (R13_abt, R14_abt)
-//! - 2 banked for UND (R13_und, R14_und)
+//! - 10 banked for FIQ (`R8_fiq`..`R14_fiq` + `SPSR_fiq` = 7 already counted)
+//! - 2 banked for IRQ (`R13_irq`, `R14_irq`)
+//! - 2 banked for SVC (`R13_svc`, `R14_svc`)
+//! - 2 banked for ABT (`R13_abt`, `R14_abt`)
+//! - 2 banked for UND (`R13_und`, `R14_und`)
 //!
 //! ## Mode Switch Example
 //!
 //! When switching from User to IRQ mode:
 //!
-//! 1. Current CPSR → SPSR_irq (save flags so we can restore them later)
+//! 1. Current CPSR → `SPSR_irq` (save flags so we can restore them later)
 //! 2. Current R14 stays in User's R14 (preserved)
-//! 3. R14_irq becomes visible as R14 (holds return address)
-//! 4. R13_irq becomes visible as R13 (IRQ has its own stack)
+//! 3. `R14_irq` becomes visible as R14 (holds return address)
+//! 4. `R13_irq` becomes visible as R13 (IRQ has its own stack)
 //! 5. R0-R12 stay the same (handler must save any it uses)
 //!
 //! When returning (via `MOVS PC, LR` or similar):
 //!
-//! 1. SPSR_irq → CPSR (restore flags and mode bits)
+//! 1. `SPSR_irq` → CPSR (restore flags and mode bits)
 //! 2. Mode changes back to User
 //! 3. User's R13/R14 become visible again (never corrupted!)
 

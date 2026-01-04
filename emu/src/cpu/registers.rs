@@ -20,7 +20,7 @@
 //!
 //! ## Why Banking Matters
 //!
-//! When an interrupt fires (e.g., VBlank), the CPU switches to IRQ mode. If R13/R14
+//! When an interrupt fires (e.g., `VBlank`), the CPU switches to IRQ mode. If R13/R14
 //! weren't banked, the interrupt handler would corrupt the game's stack pointer and
 //! return address. Banking gives each mode its own SP/LR, so interrupts are transparent.
 //!

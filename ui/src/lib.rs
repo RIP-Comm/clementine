@@ -7,5 +7,6 @@ pub mod emu_thread;
 mod gba_color;
 mod gba_display;
 pub mod keypad_debug;
+mod rom_info;
 mod savegame;
 mod ui_traits;

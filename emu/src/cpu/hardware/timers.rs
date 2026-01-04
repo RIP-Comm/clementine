@@ -4,6 +4,7 @@ use crate::bitwise::Bits;
 
 /// Timer overflow result indicating which IRQs to request
 #[derive(Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct TimerOverflowResult {
     pub timer0_overflow: bool,
     pub timer1_overflow: bool,
