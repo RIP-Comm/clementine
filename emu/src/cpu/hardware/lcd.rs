@@ -1,7 +1,9 @@
+#![allow(clippy::cast_possible_truncation)]
+
 //! LCD controller (PPU) - handles display rendering.
 //!
 //! The GBA LCD is 240x160 pixels, 15-bit color (32,768 colors). The [`Lcd`] struct
-//! implements the Picture Processing Unit that renders backgrounds and sprites to
+//! implements the Picture Processing Unit (PPU) that renders backgrounds and sprites to
 //! a framebuffer.
 //!
 //! # Display Timing
@@ -83,8 +85,6 @@ const LCD_WIDTH: usize = 240;
 /// GBA display height
 const LCD_HEIGHT: usize = 160;
 
-// Sprites are positioned inside a 512x256 size (x position is 9 bits and y position is 8 bits)
-/// World height
 const WORLD_HEIGHT: u16 = 256;
 
 #[derive(Default, Clone, Copy, Serialize, Deserialize)]
@@ -148,6 +148,7 @@ struct PixelInfo {
 }
 
 #[serde_as]
+#[allow(clippy::large_stack_frames)]
 #[derive(Serialize, Deserialize)]
 pub struct Lcd {
     pub(crate) registers: Registers,
@@ -167,6 +168,7 @@ pub struct Lcd {
 }
 
 impl Default for Lcd {
+    #[allow(clippy::large_stack_arrays)]
     fn default() -> Self {
         Self {
             registers: Registers::default(),
@@ -192,7 +194,6 @@ pub struct LcdStepOutput {
 
 impl Lcd {
     pub fn step(&mut self) -> LcdStepOutput {
-        // This will be much more complex obviously
         let mut output = LcdStepOutput::default();
 
         if self.registers.vcount < 160 {
@@ -240,12 +241,29 @@ impl Lcd {
             if self.registers.dispcnt.get_bit(7) {
                 self.buffer[pixel_y as usize][pixel_x as usize] = Color::from_rgb(31, 31, 31);
             } else {
+                // Determine which layers are enabled for this pixel based on window state
+                let window_enables = self.get_window_layer_enables(pixel_x as u8, pixel_y as u8);
+
                 // We get the enabled layers (depending on BG mode and registers), we call render on them
                 // we filter out the `None` and we sort by priority.
                 let mut layers_with_pixel = self
                     .get_enabled_layers()
                     .into_iter()
                     .filter_map(|layer| {
+                        // Check if this layer is enabled by window
+                        let is_visible = match layer.layer_id() {
+                            0 => window_enables.0, // BG0
+                            1 => window_enables.1, // BG1
+                            2 => window_enables.2, // BG2
+                            3 => window_enables.3, // BG3
+                            4 => window_enables.4, // OBJ
+                            _ => true,
+                        };
+
+                        if !is_visible {
+                            return None;
+                        }
+
                         layer.render(
                             pixel_x as usize,
                             pixel_y as usize,
@@ -278,20 +296,6 @@ impl Lcd {
                     first_pixel.map_or(backdrop_color, |info| info.color);
             }
         }
-
-        // Disabled verbose per-pixel logging
-        // log(format!(
-        //     "mode: {:?}, BG0: {:?}, BG1: {:?}, BG2: {:?}, BG3: {:?}, OBJ: {:?}, WIN0: {:?}, WIN1: {:?}, WINOJB: {:?}",
-        //     self.registers.get_bg_mode(),
-        //     self.registers.get_bg0_enabled(),
-        //     self.registers.get_bg1_enabled(),
-        //     self.registers.get_bg2_enabled(),
-        //     self.registers.get_bg3_enabled(),
-        //     self.registers.get_obj_enabled(),
-        //     self.registers.get_win0_enabled(),
-        //     self.registers.get_win1_enabled(),
-        //     self.registers.get_winobj_enabled(),
-        // ));
 
         self.pixel_index += 1;
 
@@ -346,5 +350,32 @@ impl Lcd {
         }
 
         result
+    }
+
+    /// Determine which layers are enabled at this pixel based on window settings.
+    /// Returns (bg0, bg1, bg2, bg3, obj, effects) enable flags.
+    fn get_window_layer_enables(&self, x: u8, y: u8) -> (bool, bool, bool, bool, bool, bool) {
+        let win0_enabled = self.registers.get_win0_enabled();
+        let win1_enabled = self.registers.get_win1_enabled();
+        let winobj_enabled = self.registers.get_winobj_enabled();
+
+        // If no windows are enabled, all layers are visible everywhere
+        if !win0_enabled && !win1_enabled && !winobj_enabled {
+            return (true, true, true, true, true, true);
+        }
+
+        // Check which window the pixel is in (priority: WIN0 > WIN1 > WINOBJ > WINOUT)
+        if win0_enabled && self.registers.is_in_win0(x, y) {
+            return self.registers.get_win0_enables();
+        }
+
+        if win1_enabled && self.registers.is_in_win1(x, y) {
+            return self.registers.get_win1_enables();
+        }
+
+        // TODO: Check WINOBJ (requires checking if pixel is covered by a window-type sprite)
+        // For now, skip WINOBJ check
+
+        self.registers.get_winout_enables()
     }
 }

@@ -1158,18 +1158,10 @@ impl Arm7tdmi {
                 self.swi_return(old_cpsr, return_addr); // just return because the main loop will handle waiting for interrupts
                 true
             }
-            // SWI 0x03: Stop, very low power mode
-            0x03 => {
-                self.swi_return(old_cpsr, return_addr);
-                true
-            }
-            // SWI 0x04: IntrWait, wait for interrupt
-            0x04 => {
-                self.swi_return(old_cpsr, return_addr);
-                true
-            }
-            // SWI 0x05: VBlankIntrWait, wait for VBlank interrupt
-            0x05 => {
+            // SWI 0x03: Stop (very low power mode)
+            // SWI 0x04: IntrWait (wait for specific interrupt)
+            // SWI 0x05: VBlankIntrWait (wait for VBlank interrupt)
+            0x03..=0x05 => {
                 self.swi_return(old_cpsr, return_addr);
                 true
             }

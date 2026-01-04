@@ -86,14 +86,14 @@
 //! higher priority (drawn on top). When multiple layers have the same priority,
 //! the layer with the lower number (BG0 < BG1 < BG2 < BG3) is drawn on top.
 
+use crate::cpu::hardware::lcd::PixelInfo;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
-use crate::cpu::hardware::lcd::PixelInfo;
 
-use super::{render_text_bg, Layer, TextBgConfig};
+use super::{Layer, TextBgConfig, render_text_bg};
 use serde::{Deserialize, Serialize};
 
-/// BG0 - Background Layer 0
+/// BG0
 ///
 /// A regular (non-affine) tiled background layer available in video modes 0 and 1.
 /// Supports scrolling, tile flipping, and both 4bpp and 8bpp color modes.

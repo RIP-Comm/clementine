@@ -1,4 +1,4 @@
-//! Background Layer 2 (BG2) - Versatile background supporting multiple modes.
+//! Background Layer 2 (BG2)
 //!
 //! BG2 is the most versatile background layer, available in all video modes with
 //! different capabilities in each:
@@ -7,8 +7,8 @@
 //!
 //! | Mode | BG2 Type | Description                                       |
 //! |------|----------|---------------------------------------------------|
-//! | 0    | Text     | Regular tiled background (not yet implemented)    |
-//! | 1    | Text     | Regular tiled background (not yet implemented)    |
+//! | 0    | Text     | Regular tiled background                          |
+//! | 1    | Text     | Regular tiled background                          |
 //! | 2    | Affine   | Rotation/scaling tiled background                 |
 //! | 3    | Bitmap   | 240x160 direct color (15-bit RGB)                 |
 //! | 4    | Bitmap   | 240x160 paletted (8-bit) with page flipping       |
@@ -16,63 +16,117 @@
 //!
 //! # Affine Backgrounds (Mode 2)
 //!
-//! Affine backgrounds support rotation and scaling via a 2x2 transformation matrix
+//! Affine backgrounds support rotation and scaling via a 2×2 transformation matrix
 //! and reference point:
 //!
 //! ```text
-//! ┌───────────────────────────────────────────────────────────────┐
-//! │  Affine Transformation                                        │
-//! │                                                               │
-//! │  texture_x = PA * screen_x + PB * screen_y + REF_X           │
-//! │  texture_y = PC * screen_x + PD * screen_y + REF_Y           │
-//! │                                                               │
-//! │  PA, PB, PC, PD: 8.8 fixed-point (16-bit signed)             │
-//! │  REF_X, REF_Y:   20.8 fixed-point (28-bit signed)            │
-//! └───────────────────────────────────────────────────────────────┘
+//! texture_x = PA × screen_x + PB × screen_y + REF_X
+//! texture_y = PC × screen_x + PD × screen_y + REF_Y
 //! ```
 //!
-//! Key differences from regular backgrounds:
+//! Key differences from text backgrounds:
 //! - Tilemap entries are 8-bit (tile index only, no flip/palette bits)
 //! - Always uses 8bpp color mode (256 colors)
 //! - Supports wraparound or clipping at map edges
-//! - Map sizes: 128x128, 256x256, 512x512, or 1024x1024 pixels
+//! - Map sizes: 128×128, 256×256, 512×512, or 1024×1024 pixels
 //!
 //! # Bitmap Modes
 //!
 //! ## Mode 3: Direct Color Bitmap
-//! - 240x160 pixels, full screen
+//! - 240×160 pixels, full screen
 //! - Each pixel is 16-bit (15-bit RGB + unused bit)
 //! - No page flipping (single frame)
 //! - Uses 75KB of VRAM
 //!
 //! ## Mode 4: Paletted Bitmap
-//! - 240x160 pixels, full screen
+//! - 240×160 pixels, full screen
 //! - Each pixel is 8-bit palette index
 //! - Two frames for page flipping (DISPCNT bit 4 selects)
 //! - Frame 0: VRAM offset 0x0000, Frame 1: offset 0xA000
 //!
 //! ## Mode 5: Small Direct Color
-//! - 160x128 pixels (smaller than screen)
+//! - 160×128 pixels (smaller than screen)
 //! - Each pixel is 16-bit (15-bit RGB)
 //! - Two frames for page flipping
-//! - Pixels outside 160x128 area are transparent
+//! - Pixels outside 160×128 area are transparent
 
-use super::Layer;
 use crate::bitwise::Bits;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
 use crate::cpu::hardware::lcd::{Color, PixelInfo};
-use serde::Deserialize;
-use serde::Serialize;
 
-/// BG2 - Background Layer 2
+use super::{AffineBgConfig, Layer, TextBgConfig, render_affine_bg, render_text_bg};
+use serde::{Deserialize, Serialize};
+
+/// BG2
 ///
 /// The most versatile layer, supporting text mode (modes 0-1), affine mode (mode 2),
 /// and bitmap modes (modes 3-5). See [module documentation](self) for details.
 #[derive(Default, Serialize, Deserialize)]
 pub struct Layer2;
 
+// Text mode configuration (modes 0-1)
+impl TextBgConfig for Layer2 {
+    fn layer_id(&self) -> u8 {
+        2
+    }
+
+    fn get_scroll(&self, reg: &Registers) -> (u16, u16) {
+        (reg.bg2hofs, reg.bg2vofs)
+    }
+
+    fn get_screen_size(&self, reg: &Registers) -> (usize, usize) {
+        reg.get_bg2_screen_size()
+    }
+
+    fn get_screen_base_block(&self, reg: &Registers) -> u8 {
+        reg.get_bg2_screen_base_block()
+    }
+
+    fn get_char_base_block(&self, reg: &Registers) -> u8 {
+        reg.get_bg2_character_base_block()
+    }
+
+    fn get_color_mode(&self, reg: &Registers) -> bool {
+        reg.get_bg2_color_mode()
+    }
+
+    fn get_priority(&self, reg: &Registers) -> u8 {
+        reg.get_bg2_priority()
+    }
+}
+
+// Affine mode configuration (mode 2)
+impl AffineBgConfig for Layer2 {
+    fn layer_id(&self) -> u8 {
+        2
+    }
+
+    #[allow(clippy::cast_possible_wrap)]
+    fn get_affine_params(&self, reg: &Registers) -> (i16, i16, i16, i16) {
+        (
+            reg.bg2pa as i16,
+            reg.bg2pb as i16,
+            reg.bg2pc as i16,
+            reg.bg2pd as i16,
+        )
+    }
+
+    #[allow(clippy::cast_possible_wrap)]
+    fn get_reference_point(&self, reg: &Registers) -> (i32, i32) {
+        (reg.bg2x as i32, reg.bg2y as i32)
+    }
+
+    fn get_bg_control(&self, reg: &Registers) -> u16 {
+        reg.bg2cnt
+    }
+}
+
 impl Layer for Layer2 {
+    fn layer_id(&self) -> u8 {
+        2
+    }
+
     fn render(
         &self,
         x: usize,
@@ -80,13 +134,9 @@ impl Layer for Layer2 {
         memory: &Memory,
         registers: &Registers,
     ) -> Option<PixelInfo> {
-        let mode = registers.get_bg_mode();
-
-        // BG2 is available in modes 0, 1, 2
-        // In mode 2, it's an affine background
-        match mode {
-            0 | 1 => Self::render_text(x, y, memory, registers),
-            2 => Self::render_affine(x, y, memory, registers),
+        match registers.get_bg_mode() {
+            0 | 1 => render_text_bg(self, x, y, memory, registers),
+            2 => render_affine_bg(self, x, y, memory, registers),
             3 => Self::render_mode3(x, y, memory),
             4 => Self::render_mode4(x, y, memory, registers),
             5 => Self::render_mode5(x, y, memory),
@@ -96,233 +146,16 @@ impl Layer for Layer2 {
 }
 
 impl Layer2 {
-    /// Render BG2 as a regular tiled (text) background in Modes 0 and 1.
-    #[allow(clippy::similar_names)]
-    fn render_text(
-        x: usize,
-        y: usize,
-        memory: &Memory,
-        registers: &Registers,
-    ) -> Option<PixelInfo> {
-        // Step 1: Apply scrolling offset
-        let scroll_x = (x + registers.bg2hofs as usize) % 256;
-        let scroll_y = (y + registers.bg2vofs as usize) % 256;
-
-        // Calculate which tile this pixel belongs to (tiles are 8x8)
-        let tile_x = scroll_x / 8;
-        let tile_y = scroll_y / 8;
-
-        // Calculate pixel position within the tile
-        let pixel_x_in_tile = scroll_x % 8;
-        let pixel_y_in_tile = scroll_y % 8;
-
-        // Get screen base block address (each block is 2KB = 0x800)
-        let screen_base = registers.get_bg2_screen_base_block() as usize * 0x800;
-
-        // Each tilemap entry is 2 bytes, arranged in 32x32 grid
-        let tilemap_index = tile_y * 32 + tile_x;
-        let tilemap_entry_addr = screen_base + tilemap_index * 2;
-
-        // Read tilemap entry (16-bit value)
-        let tilemap_entry = u16::from_le_bytes([
-            memory.video_ram[tilemap_entry_addr],
-            memory.video_ram[tilemap_entry_addr + 1],
-        ]);
-
-        // Extract tile number and flags from tilemap entry
-        let tile_number = tilemap_entry.get_bits(0..=9) as usize;
-        let horizontal_flip = tilemap_entry.get_bit(10);
-        let vertical_flip = tilemap_entry.get_bit(11);
-        let palette_bank = tilemap_entry.get_bits(12..=15) as usize;
-
-        // Apply flipping to pixel coordinates
-        let final_pixel_x = if horizontal_flip {
-            7 - pixel_x_in_tile
-        } else {
-            pixel_x_in_tile
-        };
-        let final_pixel_y = if vertical_flip {
-            7 - pixel_y_in_tile
-        } else {
-            pixel_y_in_tile
-        };
-
-        // Get character base block address (each block is 16KB = 0x4000)
-        let char_base = registers.get_bg2_character_base_block() as usize * 0x4000;
-
-        // Get palette index based on color mode
-        let palette_index = if registers.get_bg2_color_mode() {
-            // 8bpp mode: each pixel is 1 byte
-            let tile_data_offset = char_base + tile_number * 64 + final_pixel_y * 8 + final_pixel_x;
-            memory.video_ram[tile_data_offset] as usize
-        } else {
-            // 4bpp mode: each pixel is 4 bits (2 pixels per byte)
-            let tile_data_offset =
-                char_base + tile_number * 32 + final_pixel_y * 4 + final_pixel_x / 2;
-            let byte = memory.video_ram[tile_data_offset];
-
-            if final_pixel_x % 2 == 0 {
-                byte.get_bits(0..=3) as usize
-            } else {
-                byte.get_bits(4..=7) as usize
-            }
-        };
-
-        // Palette index 0 is transparent
-        if palette_index == 0 {
-            return None;
-        }
-
-        // Calculate final palette address
-        let final_palette_index = if registers.get_bg2_color_mode() {
-            // 8bpp: use full 256-color palette
-            palette_index
-        } else {
-            // 4bpp: use 16-color palette bank
-            palette_bank * 16 + palette_index
-        };
-
-        // Read color from BG palette (each color is 2 bytes)
-        let color = Color::from_palette_color(u16::from_le_bytes([
-            memory.bg_palette_ram[final_palette_index * 2],
-            memory.bg_palette_ram[final_palette_index * 2 + 1],
-        ]));
-
-        Some(PixelInfo {
-            color,
-            priority: registers.get_bg2_priority(),
-            layer: 2,
-        })
-    }
-
-    /// Render BG2 as an affine (rotation/scaling) background in Mode 2
-    fn render_affine(
-        screen_x: usize,
-        screen_y: usize,
-        memory: &Memory,
-        registers: &Registers,
-    ) -> Option<PixelInfo> {
-        // Read affine parameters (8.8 fixed point)
-        let pa = registers.bg2pa as i16; // dx
-        let pb = registers.bg2pb as i16; // dmx
-        let pc = registers.bg2pc as i16; // dy
-        let pd = registers.bg2pd as i16; // dmy
-
-        // Read reference point (24.8 fixed point)
-        let ref_x = registers.bg2x as i32;
-        let ref_y = registers.bg2y as i32;
-
-        // Apply affine transformation: texture = matrix * screen + displacement
-        // texture_x = pa * screen_x + pb * screen_y + ref_x
-        // texture_y = pc * screen_x + pd * screen_y + ref_y
-        let texture_x = (pa as i32 * screen_x as i32) + (pb as i32 * screen_y as i32) + ref_x;
-        let texture_y = (pc as i32 * screen_x as i32) + (pd as i32 * screen_y as i32) + ref_y;
-
-        // Convert from 8.8 fixed point to integer (shift right by 8)
-        let tex_x = texture_x >> 8;
-        let tex_y = texture_y >> 8;
-
-        // Read BG2 control register
-        let bg2cnt = registers.bg2cnt;
-        let screen_size = bg2cnt.get_bits(14..=15); // Screen size
-        let char_base = bg2cnt.get_bits(2..=3) as usize; // Character base block
-        let screen_base = bg2cnt.get_bits(8..=12) as usize; // Screen base block
-        let wraparound = bg2cnt.get_bit(13); // Display area overflow
-
-        // Get tilemap dimensions based on screen size
-        let (map_width, map_height) = match screen_size {
-            0 => (128, 128),   // 16x16 tiles
-            1 => (256, 256),   // 32x32 tiles
-            2 => (512, 512),   // 64x64 tiles
-            3 => (1024, 1024), // 128x128 tiles
-            _ => unreachable!(),
-        };
-
-        // Handle wraparound/clipping
-        let final_x = if wraparound {
-            tex_x.rem_euclid(map_width)
-        } else if tex_x < 0 || tex_x >= map_width {
-            return None; // Out of bounds, transparent
-        } else {
-            tex_x
-        };
-
-        let final_y = if wraparound {
-            tex_y.rem_euclid(map_height)
-        } else if tex_y < 0 || tex_y >= map_height {
-            return None; // Out of bounds, transparent
-        } else {
-            tex_y
-        };
-
-        // Calculate tile coordinates and pixel offset within tile
-        let tile_x = (final_x / 8) as usize;
-        let tile_y = (final_y / 8) as usize;
-        let pixel_x = (final_x % 8) as usize;
-        let pixel_y = (final_y % 8) as usize;
-
-        // Get tilemap width in tiles
-        let tiles_per_row = (map_width / 8) as usize;
-
-        // Affine tilemap: flat linear layout, 1 byte per entry (tile index only)
-        let tilemap_offset = screen_base * 2048; // Each screen block is 2KB
-        let tile_index_offset = tilemap_offset + tile_y * tiles_per_row + tile_x;
-
-        if tile_index_offset >= memory.video_ram.len() {
-            return None;
-        }
-
-        let tile_index = memory.video_ram[tile_index_offset] as usize;
-
-        // Affine backgrounds use 256-color tiles (8bpp), 64 bytes per tile
-        let char_base_offset = char_base * 0x4000; // 16KB per character base block
-        let tile_data_offset = char_base_offset + tile_index * 64;
-
-        // Get pixel within tile (8bpp: 1 byte per pixel)
-        let pixel_offset = tile_data_offset + pixel_y * 8 + pixel_x;
-
-        if pixel_offset >= memory.video_ram.len() {
-            return None;
-        }
-
-        let palette_index = memory.video_ram[pixel_offset] as usize;
-
-        // Palette index 0 is transparent
-        if palette_index == 0 {
-            return None;
-        }
-
-        // Read color from BG palette
-        if palette_index * 2 + 1 >= memory.bg_palette_ram.len() {
-            return None;
-        }
-
-        let low_byte = memory.bg_palette_ram[palette_index * 2] as u16;
-        let high_byte = memory.bg_palette_ram[palette_index * 2 + 1] as u16;
-
-        // Get priority from BG2CNT
-        let priority = bg2cnt.get_bits(0..=1) as u8;
-
-        Some(PixelInfo {
-            color: Color::from_palette_color((high_byte << 8) | low_byte),
-            priority,
-            layer: 2,
-        })
-    }
-
-    /// Render BG2 in Mode 3 (240x160, 15-bit direct color bitmap)
+    /// Render BG2 in Mode 3 (240×160, 15-bit direct color bitmap).
     fn render_mode3(x: usize, y: usize, memory: &Memory) -> Option<PixelInfo> {
-        // Mode 3: 240x160 pixels, 16-bit color (15-bit RGB + unused bit)
-        // VRAM layout: linear bitmap starting at 0x06000000
+        // Mode 3: linear bitmap, 2 bytes per pixel
         let offset = (y * 240 + x) * 2;
 
         if offset + 1 >= memory.video_ram.len() {
             return None;
         }
 
-        let low_byte = memory.video_ram[offset] as u16;
-        let high_byte = memory.video_ram[offset + 1] as u16;
-        let color = (high_byte << 8) | low_byte;
+        let color = u16::from_le_bytes([memory.video_ram[offset], memory.video_ram[offset + 1]]);
 
         Some(PixelInfo {
             color: Color::from_palette_color(color),
@@ -331,19 +164,20 @@ impl Layer2 {
         })
     }
 
-    /// Render BG2 in Mode 4 (240x160, 8-bit paletted bitmap with page flipping)
+    /// Render BG2 in Mode 4 (240×160, 8-bit paletted bitmap with page flipping).
     fn render_mode4(
         x: usize,
         y: usize,
         memory: &Memory,
         registers: &Registers,
     ) -> Option<PixelInfo> {
-        // Mode 4: 240x160 pixels, 8-bit palette indices
-        // Two frames: frame 0 at 0x06000000, frame 1 at 0x0600A000
-        let frame_select = registers.dispcnt.get_bit(4);
-        let base_offset = if frame_select { 0xA000 } else { 0 };
-
-        let offset = base_offset + y * 240 + x;
+        // Frame select: bit 4 of DISPCNT
+        let frame_offset = if registers.dispcnt.get_bit(4) {
+            0xA000
+        } else {
+            0
+        };
+        let offset = frame_offset + y * 240 + x;
 
         if offset >= memory.video_ram.len() {
             return None;
@@ -356,24 +190,21 @@ impl Layer2 {
             return None;
         }
 
-        if palette_index * 2 + 1 >= memory.bg_palette_ram.len() {
-            return None;
-        }
-
-        let low_byte = memory.bg_palette_ram[palette_index * 2] as u16;
-        let high_byte = memory.bg_palette_ram[palette_index * 2 + 1] as u16;
+        let color = u16::from_le_bytes([
+            memory.bg_palette_ram[palette_index * 2],
+            memory.bg_palette_ram[palette_index * 2 + 1],
+        ]);
 
         Some(PixelInfo {
-            color: Color::from_palette_color((high_byte << 8) | low_byte),
+            color: Color::from_palette_color(color),
             priority: 0,
             layer: 2,
         })
     }
 
-    /// Render BG2 in Mode 5 (160x128, 15-bit direct color bitmap with page flipping)
+    /// Render BG2 in Mode 5 (160×128, 15-bit direct color bitmap with page flipping).
     fn render_mode5(x: usize, y: usize, memory: &Memory) -> Option<PixelInfo> {
-        // Mode 5: 160x128 pixels, 16-bit color
-        // Smaller resolution than screen, centered or scaled
+        // Mode 5: smaller resolution, transparent outside
         if x >= 160 || y >= 128 {
             return None;
         }
@@ -384,9 +215,7 @@ impl Layer2 {
             return None;
         }
 
-        let low_byte = memory.video_ram[offset] as u16;
-        let high_byte = memory.video_ram[offset + 1] as u16;
-        let color = (high_byte << 8) | low_byte;
+        let color = u16::from_le_bytes([memory.video_ram[offset], memory.video_ram[offset + 1]]);
 
         Some(PixelInfo {
             color: Color::from_palette_color(color),

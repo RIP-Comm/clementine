@@ -1,3 +1,5 @@
+#![allow(clippy::cast_possible_truncation)]
+
 //! Sprite (OBJ) layer rendering.
 //!
 //! The GBA supports 128 hardware sprites (objects) that can be positioned anywhere
@@ -102,7 +104,6 @@ use serde_with::serde_as;
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
-#[allow(clippy::unsafe_derive_deserialize)]
 pub struct LayerObj {
     #[serde_as(as = "[_; 128]")]
     obj_attributes_arr: [object_attributes::ObjAttributes; 128],
@@ -125,13 +126,16 @@ impl Default for LayerObj {
 }
 
 impl Layer for LayerObj {
-    #[allow(unused_variables)]
+    fn layer_id(&self) -> u8 {
+        4
+    }
+
     fn render(
         &self,
         x: usize,
-        y: usize,
-        memory: &Memory,
-        registers: &Registers,
+        _y: usize,
+        _memory: &Memory,
+        _registers: &Registers,
     ) -> Option<PixelInfo> {
         self.sprite_pixels_scanline[x]
     }
@@ -164,13 +168,13 @@ impl LayerObj {
 
             // RotScale matrix
             let rotscale_params = self.rotation_scaling_params[rotation_scaling_parameter as usize];
-            let sprite_size = sprite_size.map(|el| el as f64);
+            let sprite_size = sprite_size.map(f64::from);
 
             // This is the pixel coordinate in the screen space using the sprite center as origin of the reference system
             // This is needed because the rotscale is applied taking the center of the sprite as the origin of the rotation
             // If the sprite is in AffineDouble mode then it has double dimensions and the center is at +sprite_width/+sprite_height insted of
             // just half ot that.
-            let pixel_screen_sprite_center = pixel_screen_sprite_origin.map(|el| el as f64)
+            let pixel_screen_sprite_center = pixel_screen_sprite_origin.map(f64::from)
                 - match obj_mode {
                     object_attributes::ObjMode::Affine => sprite_size / 2.0,
                     object_attributes::ObjMode::AffineDouble => sprite_size,
@@ -189,21 +193,21 @@ impl LayerObj {
         } = transformation_kind
         {
             // Handle horizontal and vertical flipping
-            let mut pixel_x = pixel_screen_sprite_origin.x as f64;
-            let mut pixel_y = pixel_screen_sprite_origin.y as f64;
+            let mut pixel_x = f64::from(pixel_screen_sprite_origin.x);
+            let mut pixel_y = f64::from(pixel_screen_sprite_origin.y);
 
             if horizontal_flip {
-                pixel_x = sprite_size.x as f64 - 1.0 - pixel_x;
+                pixel_x = f64::from(sprite_size.x) - 1.0 - pixel_x;
             }
 
             if vertical_flip {
-                pixel_y = sprite_size.y as f64 - 1.0 - pixel_y;
+                pixel_y = f64::from(sprite_size.y) - 1.0 - pixel_y;
             }
 
             Point::new(pixel_x, pixel_y)
         } else {
             // No transformation
-            pixel_screen_sprite_origin.map(|el| el as f64)
+            pixel_screen_sprite_origin.map(f64::from)
         }
     }
 
@@ -211,9 +215,6 @@ impl LayerObj {
     fn process_sprites_scanline(&mut self, registers: &Registers, memory: &Memory) {
         self.sprite_pixels_scanline = [None; LCD_WIDTH];
         let y = registers.vcount;
-
-        let mut sprites_on_scanline = 0;
-        let mut pixels_rendered = 0;
 
         for obj in self.obj_attributes_arr {
             if matches!(
@@ -271,14 +272,14 @@ impl LayerObj {
                 };
 
             // We can represent the size of the sprite using a point.
-            let sprite_size = Point::new(sprite_width as u16, sprite_height as u16);
+            let sprite_size = Point::new(u16::from(sprite_width), u16::from(sprite_height));
 
             // Sprite size using tiles as dimensions
             let sprite_size_tile = sprite_size / 8;
 
             let sprite_position = Point::new(
                 obj.attribute1.x_coordinate,
-                obj.attribute0.y_coordinate as u16,
+                u16::from(obj.attribute0.y_coordinate),
             );
 
             let is_affine_double = matches!(
@@ -294,23 +295,6 @@ impl LayerObj {
             let sprite_y_start = sprite_position.y;
             let sprite_y_end = (sprite_y_start + sprite_screen_size.y) % WORLD_HEIGHT;
 
-            // Debug: Log first sprite check on scanline 30
-            #[allow(clippy::items_after_statements)]
-            static mut DEBUG_LOGGED: bool = false;
-            unsafe {
-                if y == 30 && !DEBUG_LOGGED {
-                    tracing::debug!(
-                        "Scanline {}: Checking sprite @ Y={}, size={}, Y_end={}, vcount type check: y={} (type: u16)",
-                        y,
-                        sprite_y_start,
-                        sprite_screen_size.y,
-                        sprite_y_end,
-                        y
-                    );
-                    DEBUG_LOGGED = true;
-                }
-            }
-
             // Check if scanline y is within sprite's Y range (handling wrapping)
             let scanline_in_sprite = if sprite_y_end > sprite_y_start {
                 // Normal case: no wrapping
@@ -323,27 +307,6 @@ impl LayerObj {
             if !scanline_in_sprite {
                 continue;
             }
-
-            sprites_on_scanline += 1;
-
-            // Disabled verbose sprite logging
-            // if y < 10 {
-            //     let color_mode_str = match obj.attribute0.color_mode {
-            //         object_attributes::ColorMode::Palette4bpp => "4bpp",
-            //         object_attributes::ColorMode::Palette8bpp => "8bpp",
-            //     };
-            //     logger::log(format!(
-            //         "Sprite @ scanline {}: pos=({},{}), size={}x{}, tile={}, palette={}, mode={}",
-            //         y,
-            //         sprite_position.x,
-            //         sprite_position.y,
-            //         sprite_width,
-            //         sprite_height,
-            //         obj.attribute2.tile_number,
-            //         obj.attribute2.palette_number,
-            //         color_mode_str
-            //     ));
-            // }
 
             for idx in 0..sprite_screen_size.x {
                 // This is the pixel coordinate in the screen space using the sprite origin (top-left corner) as origin of the reference system
@@ -370,12 +333,14 @@ impl LayerObj {
                 // We check that the pixel is inside the sprite
                 if pixel_texture_sprite_origin.x < 0.0
                     || pixel_texture_sprite_origin.y < 0.0
-                    || pixel_texture_sprite_origin.x >= sprite_size.x as f64
-                    || pixel_texture_sprite_origin.y >= sprite_size.y as f64
+                    || pixel_texture_sprite_origin.x >= f64::from(sprite_size.x)
+                    || pixel_texture_sprite_origin.y >= f64::from(sprite_size.y)
                 {
                     continue;
                 }
 
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                // Bounds checked above
                 let pixel_texture_sprite_origin = pixel_texture_sprite_origin.map(|el| el as u16);
 
                 // Pixel in texture space using tiles as dimensions
@@ -387,8 +352,10 @@ impl LayerObj {
 
                 let obj_character_vram_mapping = registers.get_obj_character_vram_mapping();
 
-                // Calculate x_screen early for logging purposes
-                let x_screen = sprite_position.x + idx;
+                // Calculate x_screen - add sprite position to pixel index within sprite
+                // Sprites use a 512-pixel wide virtual coordinate space (9-bit X)
+                // Wrapping occurs at 512, so sprites near the right edge can wrap to appear on left
+                let x_screen = (sprite_position.x.wrapping_add(idx)) % 512;
 
                 let color_offset = match obj.attribute0.color_mode {
                     object_attributes::ColorMode::Palette8bpp => {
@@ -418,44 +385,23 @@ impl LayerObj {
                         // and we need to account for the full 64-byte tile size
                         let tile_data_offset = (tile_number << 5) + (y_tile_idx << 3) + x_tile_idx;
 
-                        // Disabled detailed 8bpp tile logging
-                        // if y >= 105 && y <= 110 && x_screen >= 55 && x_screen <= 70 {
-                        //     logger::log(format!(
-                        //         "8bpp tile @ ({},{}) base_tile={} tile_offset={} final_tile={} offset={} pixel_tex=({},{}) tile_idx=({},{}) mapping={:?}",
-                        //         x_screen, y, base_tile, tile_offset, tile_number, tile_data_offset,
-                        //         pixel_texture_sprite_origin.x, pixel_texture_sprite_origin.y,
-                        //         x_tile_idx, y_tile_idx, obj_character_vram_mapping
-                        //     ));
-                        // }
-
-                        // TODO: Move 0x10000 to a variable. It is the offset where OBJ VRAM starts in vram
-                        // let color_idx = memory.video_ram[0x10000 + tile_data_offset as usize];
-
-                        // Disabled detailed color logging
-                        // if y >= 105 && y <= 110 && x_screen >= 55 && x_screen <= 70 {
-                        //     logger::log(format!(
-                        //         "8bpp color @ ({},{}) vram_addr=0x{:X} color_idx={}",
-                        //         x_screen, y, 0x10000 + tile_data_offset as usize, color_idx
-                        //     ));
-                        // }
-
                         // color_idx
                         memory.video_ram[0x10000 + tile_data_offset as usize]
                     }
                     object_attributes::ColorMode::Palette4bpp => {
-                        let tile_number = obj.attribute2.tile_number
-                            + match obj_character_vram_mapping {
-                                lcd::ObjMappingKind::OneDimensional => {
-                                    // In this case memory is seen as a single array.
-                                    // tile_number is the offset of the first tile in memory.
-                                    // then we access [y][x] by doing y*number_cols + x, as if we were to access an array as a matrix
-                                    pixel_texture_tile.y * sprite_size_tile.x + pixel_texture_tile.x
-                                }
-                                lcd::ObjMappingKind::TwoDimensional => {
-                                    // A charblock is 32x32 tiles
-                                    pixel_texture_tile.y * 32 + pixel_texture_tile.x
-                                }
-                            };
+                        let tile_offset = match obj_character_vram_mapping {
+                            lcd::ObjMappingKind::OneDimensional => {
+                                // In this case memory is seen as a single array.
+                                // tile_number is the offset of the first tile in memory.
+                                // then we access [y][x] by doing y*number_cols + x, as if we were to access an array as a matrix
+                                pixel_texture_tile.y * sprite_size_tile.x + pixel_texture_tile.x
+                            }
+                            lcd::ObjMappingKind::TwoDimensional => {
+                                // A charblock is 32x32 tiles
+                                pixel_texture_tile.y * 32 + pixel_texture_tile.x
+                            }
+                        };
+                        let tile_number = obj.attribute2.tile_number + tile_offset;
 
                         // A tile is 32bytes long in 4bpp.
                         // Each byte contains 2 pixels (4 bits each)
@@ -474,6 +420,12 @@ impl LayerObj {
                             pixel_byte & 0x0F // Low nibble for even x
                         };
 
+                        // For 4bpp sprites, palette index 0 within the bank is transparent
+                        // Check this BEFORE combining with palette bank
+                        if palette_offset_low == 0 {
+                            continue;
+                        }
+
                         // Combine with palette bank number to get final palette index
                         (obj.attribute2.palette_number << 4) | palette_offset_low
                     }
@@ -483,18 +435,15 @@ impl LayerObj {
                     continue;
                 }
 
-                // Palette index 0 is transparent for sprites
-                if color_offset == 0 {
+                // Palette index 0 is transparent for 8bpp sprites
+                // (4bpp transparency is handled above before combining with palette bank)
+                if matches!(
+                    obj.attribute0.color_mode,
+                    object_attributes::ColorMode::Palette8bpp
+                ) && color_offset == 0
+                {
                     continue;
                 }
-
-                // Disabled pixel-level logging
-                // if y >= 105 && y <= 110 && x_screen >= 55 && x_screen <= 70 {
-                //     logger::log(format!(
-                //         "8bpp pixel @ ({},{}) color_offset={} sprite_pos=({},{})",
-                //         x_screen, y, color_offset, sprite_position.x, sprite_position.y
-                //     ));
-                // }
 
                 let get_pixel_info_closure = || PixelInfo {
                     color: Self::read_color_from_obj_palette(
@@ -509,83 +458,23 @@ impl LayerObj {
                     Some(self.sprite_pixels_scanline[x_screen as usize].map_or_else(
                         get_pixel_info_closure,
                         |current_pixel_info| {
-                            if current_pixel_info.priority >= obj.attribute2.priority {
+                            // For OBJ priority: lower priority number = higher priority (drawn on top)
+                            // For equal priority, lower OAM index wins (processed first, should NOT be replaced)
+                            // So only replace if new sprite has STRICTLY lower priority number
+                            if current_pixel_info.priority > obj.attribute2.priority {
                                 get_pixel_info_closure()
                             } else {
                                 current_pixel_info
                             }
                         },
                     ));
-                pixels_rendered += 1;
             }
-        }
-
-        // Debug log for multiple scanlines to catch sprites
-        if y == 30 || y == 80 {
-            tracing::debug!(
-                "Scanline {y}: {sprites_on_scanline} sprites intersect, {pixels_rendered} pixels rendered (non-transparent)"
-            );
         }
     }
 
     pub fn handle_enter_vdraw(&mut self, memory: &Memory, registers: &Registers) {
         (self.obj_attributes_arr, self.rotation_scaling_params) =
             object_attributes::get_attributes(memory.obj_attributes.as_slice());
-
-        // OAM debug logging, check sprites once per second (at vcount 0)
-        if registers.vcount == 0 {
-            static mut LOG_COUNTER: u32 = 0;
-
-            unsafe {
-                // Only log once per second (approximately 60 frames)
-                LOG_COUNTER += 1;
-                if LOG_COUNTER >= 60 {
-                    LOG_COUNTER = 0;
-
-                    let mut enabled_count = 0;
-                    let mut unique_positions = std::collections::HashSet::new();
-
-                    for i in 0..128 {
-                        let obj = self.obj_attributes_arr[i];
-                        if !matches!(
-                            obj.attribute0.obj_mode,
-                            object_attributes::ObjMode::Disabled
-                        ) {
-                            enabled_count += 1;
-                            unique_positions
-                                .insert((obj.attribute1.x_coordinate, obj.attribute0.y_coordinate));
-
-                            // Log first 3 enabled sprites
-                            if enabled_count <= 3 {
-                                tracing::debug!(
-                                    "OAM[{}]: pos=({},{}), tile={}, pal={}, size={}x{} (approx)",
-                                    i,
-                                    obj.attribute1.x_coordinate,
-                                    obj.attribute0.y_coordinate,
-                                    obj.attribute2.tile_number,
-                                    obj.attribute2.palette_number,
-                                    match obj.attribute0.obj_shape {
-                                        object_attributes::ObjShape::Square =>
-                                            8 << (obj.attribute1.obj_size as u8),
-                                        _ => 8,
-                                    },
-                                    match obj.attribute0.obj_shape {
-                                        object_attributes::ObjShape::Square =>
-                                            8 << (obj.attribute1.obj_size as u8),
-                                        _ => 8,
-                                    }
-                                );
-                            }
-                        }
-                    }
-                    tracing::debug!(
-                        "Total: {} enabled sprites, {} unique positions",
-                        enabled_count,
-                        unique_positions.len()
-                    );
-                }
-            }
-        }
 
         self.process_sprites_scanline(registers, memory);
     }
