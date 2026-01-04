@@ -107,6 +107,7 @@ use crate::disassembler::Disassembler;
 use crate::emu_thread::{self, EmuCommand, EmuHandle, GbaButton};
 use crate::keypad_debug::KeypadDebug;
 use crate::memory_inspector::MemoryInspector;
+use crate::pokemon_debugger::PokemonDebugger;
 use crate::rom_info::RomInfo;
 use emu::gba::Gba;
 
@@ -175,6 +176,7 @@ impl App {
             Box::new(Disassembler::new(Arc::clone(&emu_handle))),
             Box::new(KeypadDebug::new(Arc::clone(&emu_handle))),
             Box::new(MemoryInspector::new(Arc::clone(&emu_handle))),
+            Box::new(PokemonDebugger::new(Arc::clone(&emu_handle))),
             Box::<about::About>::default(),
         ];
 

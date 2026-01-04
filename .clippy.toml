@@ -1,0 +1,4 @@
+# GBA emulation requires large memory arrays (VRAM, RAM, etc.)
+# Default is 512000 bytes (500KB), increase to 800KB to accommodate
+# deserialization of structs containing large memory arrays.
+stack-size-threshold = 800000
