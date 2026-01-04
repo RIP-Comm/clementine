@@ -1,3 +1,7 @@
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::shift; // TODO: Move this to a more appropriate location, extract common code in "alu" module for example
 use crate::cpu::arm7tdmi::Arm7tdmi;

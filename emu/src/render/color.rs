@@ -1,3 +1,6 @@
+// Color component extraction is always 5 bits (0-31) which fits in u8
+#![allow(clippy::cast_possible_truncation)]
+
 use crate::bitwise::Bits;
 
 #[derive(PartialEq, Eq, Clone)]

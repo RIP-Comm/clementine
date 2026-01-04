@@ -15,9 +15,12 @@ impl TryFrom<u32> for ArmModeOpcode {
     type Error = String;
 
     fn try_from(op_code: u32) -> Result<Self, Self::Error> {
+        // Bits 28-31 (4 bits) always fit in u8
+        #[allow(clippy::cast_possible_truncation)]
+        let condition = Condition::from(op_code.get_bits(28..=31) as u8);
         Ok(Self {
             instruction: ArmModeInstruction::from(op_code),
-            condition: Condition::from(op_code.get_bits(28..=31) as u8),
+            condition,
             raw: op_code,
         })
     }

@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::cast_lossless)]
+
 //! # Thumb Instruction Decoding
 //!
 //! This module handles decoding 16-bit Thumb instructions.
@@ -267,9 +270,12 @@ impl TryFrom<u16> for Instruction {
             // 9 bits signed offset (assembler puts `label` >> 1 in this field so we should <<1)
             let offset = (op_code.get_bits(0..=7) << 1) as u32;
             let immediate_offset = offset.sign_extended(9) as i32;
+            // Bits 8-11 (4 bits) always fit in u8
+            #[allow(clippy::cast_possible_truncation)]
+            let condition = Condition::from(op_code.get_bits(8..=11) as u8);
 
             Ok(CondBranch {
-                condition: Condition::from(op_code.get_bits(8..=11) as u8),
+                condition,
                 immediate_offset,
             })
         } else if op_code.get_bits(12..=15) == 0b1111 || op_code.get_bits(12..=15) == 0b1110 {

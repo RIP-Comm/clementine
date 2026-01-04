@@ -53,15 +53,6 @@
 //! The bus tracks cycle counts for memory accesses. Different memory regions have
 //! different wait states, though currently a simplified 1-cycle model is used.
 //! The `step` method advances timers and LCD state each CPU cycle.
-//!
-//! [`InternalMemory`]: crate::cpu::hardware::internal_memory::InternalMemory
-//! [`Lcd`]: crate::cpu::hardware::lcd::Lcd
-//! [`Sound`]: crate::cpu::hardware::sound::Sound
-//! [`Dma`]: crate::cpu::hardware::dma::Dma
-//! [`Timers`]: crate::cpu::hardware::timers::Timers
-//! [`Serial`]: crate::cpu::hardware::serial::Serial
-//! [`Keypad`]: crate::cpu::hardware::keypad::Keypad
-//! [`InterruptControl`]: crate::cpu::hardware::interrupt_control::InterruptControl
 
 use std::collections::HashMap;
 
@@ -78,6 +69,7 @@ use crate::cpu::hardware::serial::Serial;
 use crate::cpu::hardware::sound::Sound;
 use crate::cpu::hardware::timers::Timers;
 
+#[allow(clippy::large_stack_frames)] // to avoid stack overflow due to large arrays
 #[derive(Default, Serialize, Deserialize)]
 pub struct Bus {
     pub internal_memory: InternalMemory,
@@ -109,7 +101,6 @@ pub(crate) enum IrqType {
 }
 
 impl IrqType {
-    /// Returns the index of the corresponding `IrqType` inside the Interrupt Request Flag register
     const fn get_idx_in_if(self) -> u8 {
         match self {
             Self::VBlank => 0,

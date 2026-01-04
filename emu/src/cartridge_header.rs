@@ -103,7 +103,7 @@ pub struct CartridgeHeader {
     pub software_version: u8,
     /// Header checksum stored in ROM.
     pub complement_check: u8,
-    /// Calculated header checksum (should match complement_check).
+    /// Calculated header checksum (should match `complement_check`).
     pub calculated_checksum: u8,
     /// Reserved area (should be zero).
     pub reserved_area_2: [u8; 2],
@@ -206,28 +206,28 @@ impl CartridgeHeader {
         if (opcode >> 24) == 0xEA {
             // B instruction
             let offset = opcode & 0x00FF_FFFF;
-            // Sign-extend 24-bit to 32-bit
+            // sign-extend 24-bit to 32-bit and calculate entry address
+            #[allow(clippy::cast_possible_wrap)] // intentional reinterpretation as signed
             let signed_offset = if offset & 0x0080_0000 != 0 {
                 (offset | 0xFF00_0000) as i32
             } else {
                 offset as i32
             };
             // PC + 8 + (offset * 4), where PC = 0x08000000
-            // Result is always a valid GBA ROM address (32-bit)
-            #[allow(clippy::cast_possible_truncation)]
+            // result is always a valid GBA ROM address (32-bit)
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let addr = (0x0800_0008_i64 + i64::from(signed_offset) * 4) as u32;
             addr
         } else {
-            // Not a branch, return ROM start
-            0x0800_0000
+            0x0800_0000 // not a branch, return ROM start
         }
     }
 
     /// Check if the entry point looks like a valid ARM branch instruction.
     #[must_use]
-    pub fn has_valid_entry_point(&self) -> bool {
-        // Check if it's a B (branch) instruction: 0xEA______
-        (self.rom_entry_point[3] == 0xEA) || (self.rom_entry_point[3] == 0xEB) // BL instruction also valid
+    pub const fn has_valid_entry_point(&self) -> bool {
+        // check if it's a B (branch) instruction: 0xEA______
+        (self.rom_entry_point[3] == 0xEA) || (self.rom_entry_point[3] == 0xEB)
     }
 
     /// Extract ROM entry point (4 bytes at 0x000).

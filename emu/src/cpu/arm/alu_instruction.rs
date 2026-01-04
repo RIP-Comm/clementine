@@ -1,3 +1,10 @@
+// Emulation code frequently casts between integer types for bit manipulation
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::struct_excessive_bools)]
+
 //! # ARM ALU Instructions and Barrel Shifter
 //!
 //! This module implements the ARM data processing instructions (ALU operations)

@@ -4,28 +4,32 @@ use std::ops::RangeInclusive;
 
 /// Contains some helper methods to manipulate bits,
 /// the index (`bit_idk`) is supposed to be from lsb to msb (right to left)
+#[allow(clippy::cast_possible_truncation)] // size_of::<Self>() * 8 is at most 128, fits in u8
 pub trait Bits
 where
     Self: Clone + Sized + Into<u128> + TryFrom<u128> + From<bool> + TryInto<u8> + From<u8>,
     <Self as TryFrom<u128>>::Error: Debug,
     <Self as TryInto<u8>>::Error: Debug,
 {
+    /// Safe to cast to u8, max is 128 bits for u128.
+    const BIT_WIDTH: u8 = (size_of::<Self>() * 8) as u8;
+
     fn is_bit_on(&self, bit_idx: u8) -> bool {
-        debug_assert!(bit_idx < (size_of::<Self>() * 8) as u8);
+        debug_assert!(bit_idx < Self::BIT_WIDTH);
         let bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         let mask: u128 = 0b1 << bit_idx;
         (bitwise & mask) != 0
     }
 
     fn is_bit_off(&self, bit_idx: u8) -> bool {
-        debug_assert!(bit_idx < (size_of::<Self>() * 8) as u8);
+        debug_assert!(bit_idx < Self::BIT_WIDTH);
         let bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         let mask = 0b1 << bit_idx;
         (bitwise & mask) == 0
     }
 
     fn set_bit_on(&mut self, bit_idx: u8) {
-        debug_assert!(bit_idx < (size_of::<Self>() * 8) as u8);
+        debug_assert!(bit_idx < Self::BIT_WIDTH);
         let mut bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         let mask = 0b1 << bit_idx;
         bitwise |= mask;
@@ -53,6 +57,7 @@ where
 
     fn get_bits(&self, bits_range: RangeInclusive<u8>) -> Self {
         let start = bits_range.start();
+        // safe to cast to u32
         let length = bits_range.len() as u32;
 
         // Gets a value with `length` number of ones.
@@ -83,8 +88,11 @@ where
         true
     }
 
+    /// Byte width of this type. Safe to cast max is 16 bytes for u128.
+    const BYTE_WIDTH: u8 = size_of::<Self>() as u8;
+
     fn get_byte(&self, byte_nth: u8) -> u8 {
-        debug_assert!(byte_nth < size_of::<Self>() as u8);
+        debug_assert!(byte_nth < Self::BYTE_WIDTH);
 
         // We access the byte_nth octet:
         // from the byte_nth*8 bit to the byte_nth*8+7 bit (inclusive)
@@ -95,7 +103,7 @@ where
     }
 
     fn set_byte(&mut self, byte_nth: u8, value: u8) {
-        debug_assert!(byte_nth < size_of::<Self>() as u8);
+        debug_assert!(byte_nth < Self::BYTE_WIDTH);
 
         let mut bitwise: u128 = <Self as Into<u128>>::into(self.clone());
         // This mask is used to select the byte_nth octet and set it to 0.
@@ -134,6 +142,8 @@ where
         // `7 = 0b0111`, `0b0111 ^ 0b1000 = 0b1111`, `0b1111 - 0b1000 = 0b0111`, returning `7` unchanged.
         // This works since the XOR operation "added" a `1` bit in the "sign-bit" position which is later
         // "removed" by the subtraction.
+        // Cast to signed for sign extension, then back to unsigned - intentional reinterpretation
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
         let value = ((value as i128 ^ mask) - mask) as u128;
 
         // We need to remove all the excessive leading ones otherwise the `try_from` would fail when

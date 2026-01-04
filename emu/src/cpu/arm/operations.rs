@@ -1,3 +1,10 @@
+#![allow(clippy::similar_names)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::too_many_lines)]
+
 use crate::bitwise::Bits;
 use crate::cpu::arm::alu_instruction::{
     AIKind, ArithmeticOpResult, ArmModeAluInstr, Kind, PsrOpKind, shift,
@@ -673,6 +680,7 @@ impl Arm7tdmi {
     /// # Panics
     ///
     /// Panics if register index conversion fails.
+    #[allow(clippy::too_many_arguments)]
     pub fn half_word_data_transfer(
         &mut self,
         indexing: Indexing,
@@ -782,6 +790,7 @@ impl Arm7tdmi {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn single_data_transfer(
         &mut self,
         kind: SingleDataTransferKind,
@@ -878,6 +887,7 @@ impl Arm7tdmi {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn block_data_transfer(
         &mut self,
         indexing: Indexing,
