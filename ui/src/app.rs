@@ -207,7 +207,8 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint();
+        // instead of spinning, request repaint at ~60 FPS to match GBA frame rate
+        ctx.request_repaint_after(std::time::Duration::from_millis(16));
 
         // Poll the emulator for new events (frames, state updates, etc.)
         if let Ok(mut handle) = self.emu_handle.lock() {
