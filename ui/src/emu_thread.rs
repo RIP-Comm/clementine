@@ -32,7 +32,7 @@
 
 use std::collections::BTreeSet;
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use emu::cpu::DisasmEntry;
 pub use emu::cpu::hardware::keypad::GbaButton;
@@ -46,6 +46,10 @@ pub const LCD_HEIGHT: usize = 160;
 /// This only affects responsiveness to pause/step commands.
 /// Frame sending is triggered by `VBlank` (~every 280,896 cycles).
 const CYCLES_PER_BATCH: u32 = 2000;
+
+/// Target frame duration for ~59.73 FPS
+/// 1 / 59.7275 ≈ 16.74ms
+const FRAME_DURATION: Duration = Duration::from_micros(16_742);
 
 /// Channel buffer sizes
 const COMMAND_BUFFER_SIZE: usize = 64;
@@ -100,6 +104,7 @@ pub enum EmuEvent {
 
 /// Snapshot of emulator state for UI display.
 #[derive(Debug, Clone, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct EmuState {
     /// General purpose registers R0-R15.
     pub registers: [u32; 16],
@@ -149,10 +154,13 @@ struct EmuThread {
     running: bool,
     steps_remaining: u32,
     breakpoints: BTreeSet<Breakpoint>,
+
+    /// Timestamp when the last frame started (for frame rate limiting).
+    frame_start: Instant,
 }
 
 impl EmuThread {
-    const fn new(
+    fn new(
         gba: Gba,
         cmd_rx: rtrb::Consumer<EmuCommand>,
         event_tx: rtrb::Producer<EmuEvent>,
@@ -164,6 +172,7 @@ impl EmuThread {
             running: false,
             steps_remaining: 0,
             breakpoints: BTreeSet::new(),
+            frame_start: Instant::now(),
         }
     }
 
@@ -254,31 +263,44 @@ impl EmuThread {
     /// Runs up to `CYCLES_PER_BATCH` cycles, then returns to check for commands.
     /// Frames and state are sent automatically when `VBlank` starts (natural frame boundary).
     fn execute_batch(&mut self) {
+        let has_breakpoints = !self.breakpoints.is_empty();
+        let is_stepping = self.steps_remaining > 0;
+
         for _ in 0..CYCLES_PER_BATCH {
-            // Check breakpoints before executing
-            #[allow(clippy::cast_possible_truncation)] // GBA is 32-bit
-            let pc = self.gba.cpu.registers.program_counter() as u32;
-            if let Some(bp) = self.check_breakpoint(pc) {
-                self.running = false;
-                self.steps_remaining = 0;
-                self.send_event(EmuEvent::Paused {
-                    reason: PauseReason::Breakpoint(bp.address),
-                });
-                self.send_state();
-                return;
+            // Check breakpoints before executing (only if any are set)
+            if has_breakpoints {
+                // GBA has 32-bit address space
+                #[allow(clippy::cast_possible_truncation)]
+                let pc = self.gba.cpu.registers.program_counter() as u32;
+                if let Some(bp) = self.check_breakpoint(pc) {
+                    self.running = false;
+                    self.steps_remaining = 0;
+                    self.send_event(EmuEvent::Paused {
+                        reason: PauseReason::Breakpoint(bp.address),
+                    });
+                    self.send_state();
+                    return;
+                }
             }
 
             // Execute 1 cycle - returns true when VBlank starts
             let vblank_started = self.gba.step();
 
-            // On VBlank: send frame and state update (for registers widget)
+            // On VBlank: send frame, state update, and sleep to maintain ~60 FPS
             if vblank_started {
                 self.send_frame();
                 self.send_state();
+
+                // Frame rate limiting, sleep if we finished the frame early
+                let elapsed = self.frame_start.elapsed();
+                if elapsed < FRAME_DURATION {
+                    thread::sleep(FRAME_DURATION - elapsed);
+                }
+                self.frame_start = Instant::now();
             }
 
-            // Handle stepping mode
-            if self.steps_remaining > 0 {
+            // Handle stepping mode (only if stepping)
+            if is_stepping {
                 self.steps_remaining -= 1;
                 if self.steps_remaining == 0 {
                     self.running = false;
@@ -331,7 +353,7 @@ impl EmuThread {
 
     /// Send current LCD frame to UI.
     fn send_frame(&mut self) {
-        #[allow(clippy::large_stack_arrays)] // Boxed immediately
+        #[allow(clippy::large_stack_arrays)]
         let mut frame = Box::new([0u8; LCD_WIDTH * LCD_HEIGHT * 3]);
 
         for (y, row) in self.gba.cpu.bus.lcd.buffer.iter().enumerate() {
