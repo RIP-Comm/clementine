@@ -34,8 +34,8 @@ use std::collections::BTreeSet;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use emu::cpu::DisasmEntry;
 pub use emu::cpu::hardware::keypad::GbaButton;
+use emu::cpu::DisasmEntry;
 use emu::gba::Gba;
 
 /// GBA LCD dimensions
@@ -76,6 +76,12 @@ pub enum EmuCommand {
     RequestSaveState,
     /// Set button state (pressed or released).
     SetKey { button: GbaButton, pressed: bool },
+    /// Read memory at address for given length.
+    ReadMemory { address: u32, length: usize },
+    /// Write a byte to memory.
+    WriteByte { address: u32, value: u8 },
+    /// Enable or disable disassembly output.
+    SetDisasmEnabled(bool),
     /// Shutdown the emulator thread.
     Shutdown,
 }
@@ -100,6 +106,8 @@ pub enum EmuEvent {
     Paused { reason: PauseReason },
     /// Save state data.
     SaveStateData(Vec<u8>),
+    /// Memory data response.
+    MemoryData { address: u32, data: Vec<u8> },
 }
 
 /// Snapshot of emulator state for UI display.
@@ -116,11 +124,28 @@ pub struct EmuState {
     pub cycle: u128,
     /// Whether the emulator is currently running.
     pub is_running: bool,
-    /// Cartridge game title.
+    /// Cartridge game title (12 chars max).
     pub cartridge_title: String,
+    /// Cartridge game code (4 chars, e.g., "BPEE" for Pokemon Emerald).
+    pub game_code: String,
+    /// Maker/publisher code (2 chars, e.g., "01" for Nintendo).
+    pub maker_code: String,
+    /// Software version.
+    pub software_version: u8,
     /// Keypad input register (KEYINPUT). Bits 0-9 represent buttons.
     /// Bit = 0 means pressed, bit = 1 means released (active-low).
     pub key_input: u16,
+
+    /// Whether the Nintendo logo in the header is valid.
+    pub logo_valid: bool,
+    /// Whether the header checksum is valid.
+    pub checksum_valid: bool,
+    /// Whether the fixed value (0x96) is valid.
+    pub fixed_value_valid: bool,
+    /// Decoded entry point address from ARM branch instruction.
+    pub entry_point: u32,
+    /// Whether the entry point looks like a valid branch instruction.
+    pub entry_point_valid: bool,
 }
 
 /// Reason why the emulator paused.
@@ -250,6 +275,28 @@ impl EmuThread {
                 EmuCommand::SetKey { button, pressed } => {
                     self.gba.cpu.bus.keypad.set_button(button, pressed);
                 }
+                EmuCommand::ReadMemory { address, length } => {
+                    let mut data = Vec::with_capacity(length);
+                    for i in 0..length {
+                        // Loop index is small (memory inspector fetches max 256 bytes)
+                        #[allow(clippy::cast_possible_truncation)]
+                        let addr = address.wrapping_add(i as u32);
+                        data.push(self.gba.cpu.bus.read_byte(addr as usize));
+                    }
+                    self.send_event(EmuEvent::MemoryData { address, data });
+                }
+                EmuCommand::WriteByte { address, value } => {
+                    self.gba.cpu.bus.write_byte(address as usize, value);
+                }
+                EmuCommand::SetDisasmEnabled(enabled) => {
+                    if enabled {
+                        // Disasm is always enabled if the channel exists
+                        // (we can't easily re-create it here)
+                    } else {
+                        // Disable by dropping the transmitter
+                        self.gba.cpu.disasm_tx = None;
+                    }
+                }
                 EmuCommand::Shutdown => {
                     return true;
                 }
@@ -330,14 +377,23 @@ impl EmuThread {
 
     /// Send current state to UI.
     fn send_state(&mut self) {
+        let header = &self.gba.cartridge_header;
         let state = EmuState {
             registers: self.get_registers(),
             cpsr: u32::from(self.gba.cpu.cpsr),
             spsr: u32::from(self.gba.cpu.spsr),
             cycle: self.gba.cpu.current_cycle,
             is_running: self.running,
-            cartridge_title: self.gba.cartridge_header.game_title.clone(),
+            cartridge_title: header.game_title.clone(),
+            game_code: header.game_code.clone(),
+            maker_code: header.marker_code.clone(),
+            software_version: header.software_version,
             key_input: self.gba.cpu.bus.keypad.key_input,
+            logo_valid: header.logo_valid,
+            checksum_valid: header.checksum_valid,
+            fixed_value_valid: header.fixed_value_valid,
+            entry_point: header.entry_point_address(),
+            entry_point_valid: header.has_valid_entry_point(),
         };
         self.send_event(EmuEvent::State(state));
     }
@@ -390,6 +446,8 @@ pub struct EmuHandle {
     pub breakpoints: Vec<(u32, BreakpointKind)>,
     /// Pending save state data (set when save is requested, cleared when taken).
     pub pending_save_state: Option<Vec<u8>>,
+    /// Pending memory data (address and bytes read).
+    pub pending_memory_data: Option<(u32, Vec<u8>)>,
 }
 
 impl EmuHandle {
@@ -424,6 +482,9 @@ impl EmuHandle {
                 EmuEvent::SaveStateData(data) => {
                     tracing::info!("Received save state data: {} bytes", data.len());
                     self.pending_save_state = Some(data);
+                }
+                EmuEvent::MemoryData { address, data } => {
+                    self.pending_memory_data = Some((address, data));
                 }
             }
         }
@@ -460,6 +521,7 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
     let (event_tx, event_rx) = rtrb::RingBuffer::new(EVENT_BUFFER_SIZE);
 
     // Get initial state before moving gba
+    let header = &gba.cartridge_header;
     let initial_state = EmuState {
         registers: {
             let mut regs = [0u32; 16];
@@ -472,8 +534,16 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         spsr: u32::from(gba.cpu.spsr),
         cycle: gba.cpu.current_cycle,
         is_running: false,
-        cartridge_title: gba.cartridge_header.game_title.clone(),
+        cartridge_title: header.game_title.clone(),
+        game_code: header.game_code.clone(),
+        maker_code: header.marker_code.clone(),
+        software_version: header.software_version,
         key_input: gba.cpu.bus.keypad.key_input,
+        logo_valid: header.logo_valid,
+        checksum_valid: header.checksum_valid,
+        fixed_value_valid: header.fixed_value_valid,
+        entry_point: header.entry_point_address(),
+        entry_point_valid: header.has_valid_entry_point(),
     };
 
     // Spawn the emulator thread
@@ -491,5 +561,6 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         frame: None,
         breakpoints: Vec::new(),
         pending_save_state: None,
+        pending_memory_data: None,
     }
 }
