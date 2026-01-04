@@ -1,4 +1,4 @@
-use egui::{self, ColorImage, ImageSource, Ui};
+use egui::{self, ColorImage, ImageSource, TextureHandle, Ui};
 
 use eframe::epaint::textures::TextureOptions;
 use egui::load::SizedTexture;
@@ -9,36 +9,16 @@ use crate::ui_traits::UiTool;
 
 pub struct GbaDisplay {
     emu_handle: Arc<Mutex<EmuHandle>>,
+    /// Cached texture, reused across frames to avoid recreation overhead.
+    texture: Option<TextureHandle>,
 }
 
 impl GbaDisplay {
     pub const fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
-        Self { emu_handle }
-    }
-
-    #[allow(clippy::needless_pass_by_ref_mut)]
-    fn ui(&mut self, ui: &mut Ui) {
-        // Get the latest frame from the cached state
-        let rgb_data = self.emu_handle.lock().map_or_else(
-            |_| vec![0u8; LCD_WIDTH * LCD_HEIGHT * 3],
-            |handle| {
-                handle
-                    .frame
-                    .as_ref()
-                    .map_or_else(|| vec![0u8; LCD_WIDTH * LCD_HEIGHT * 3], |f| f.to_vec())
-            },
-        );
-
-        let image = ColorImage::from_rgb([LCD_WIDTH, LCD_HEIGHT], &rgb_data);
-
-        let texture = ui
-            .ctx()
-            .load_texture("gba_display", image, TextureOptions::NEAREST);
-
-        ui.image(ImageSource::Texture(SizedTexture {
-            id: texture.id(),
-            size: ui.available_size(),
-        }));
+        Self {
+            emu_handle,
+            texture: None,
+        }
     }
 }
 
@@ -57,12 +37,39 @@ impl UiTool for GbaDisplay {
             .default_height(LCD_HEIGHT as f32 * scale)
             .resizable(true)
             .collapsible(false)
-            .show(ctx, |ui| {
-                self.ui(ui);
-            });
+            .show(ctx, |ui| self.ui(ui));
     }
 
-    fn ui(&mut self, _ui: &mut Ui) {
-        todo!()
+    fn ui(&mut self, ui: &mut Ui) {
+        // Get the latest frame from the cached state
+        let rgb_data = self.emu_handle.lock().map_or_else(
+            |_| vec![0u8; LCD_WIDTH * LCD_HEIGHT * 3],
+            |handle| {
+                handle
+                    .frame
+                    .as_ref()
+                    .map_or_else(|| vec![0u8; LCD_WIDTH * LCD_HEIGHT * 3], |f| f.to_vec())
+            },
+        );
+
+        let image = ColorImage::from_rgb([LCD_WIDTH, LCD_HEIGHT], &rgb_data);
+
+        match &mut self.texture {
+            Some(tex) => tex.set(image, TextureOptions::NEAREST),
+            None => {
+                self.texture = Some(ui.ctx().load_texture(
+                    "gba_display",
+                    image,
+                    TextureOptions::NEAREST,
+                ));
+            }
+        }
+
+        if let Some(tex) = &self.texture {
+            ui.image(ImageSource::Texture(SizedTexture {
+                id: tex.id(),
+                size: ui.available_size(),
+            }));
+        }
     }
 }
