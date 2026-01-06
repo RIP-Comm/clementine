@@ -8,7 +8,7 @@
 //! | Mode | BG2 Type | Description                                       |
 //! |------|----------|---------------------------------------------------|
 //! | 0    | Text     | Regular tiled background                          |
-//! | 1    | Text     | Regular tiled background                          |
+//! | 1    | Affine   | Rotation/scaling tiled background                 |
 //! | 2    | Affine   | Rotation/scaling tiled background                 |
 //! | 3    | Bitmap   | 240x160 direct color (15-bit RGB)                 |
 //! | 4    | Bitmap   | 240x160 paletted (8-bit) with page flipping       |
@@ -60,12 +60,12 @@ use serde::{Deserialize, Serialize};
 
 /// BG2
 ///
-/// The most versatile layer, supporting text mode (modes 0-1), affine mode (mode 2),
+/// The most versatile layer, supporting text mode (mode 0), affine mode (modes 1-2),
 /// and bitmap modes (modes 3-5). See [module documentation](self) for details.
 #[derive(Default, Serialize, Deserialize)]
 pub struct Layer2;
 
-// Text mode configuration (modes 0-1)
+// Text mode configuration (mode 0 only)
 impl TextBgConfig for Layer2 {
     fn layer_id(&self) -> u8 {
         2
@@ -96,7 +96,7 @@ impl TextBgConfig for Layer2 {
     }
 }
 
-// Affine mode configuration (mode 2)
+// Affine mode configuration (modes 1-2)
 impl AffineBgConfig for Layer2 {
     fn layer_id(&self) -> u8 {
         2
@@ -135,8 +135,8 @@ impl Layer for Layer2 {
         registers: &Registers,
     ) -> Option<PixelInfo> {
         match registers.get_bg_mode() {
-            0 | 1 => render_text_bg(self, x, y, memory, registers),
-            2 => render_affine_bg(self, x, y, memory, registers),
+            0 => render_text_bg(self, x, y, memory, registers),
+            1 | 2 => render_affine_bg(self, x, y, memory, registers),
             3 => Self::render_mode3(x, y, memory),
             4 => Self::render_mode4(x, y, memory, registers),
             5 => Self::render_mode5(x, y, memory),
