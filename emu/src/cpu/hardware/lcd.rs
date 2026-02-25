@@ -284,16 +284,31 @@ impl Lcd {
                     (pixel.priority, layer_order)
                 });
 
-                let first_pixel = layers_with_pixel.first();
-
                 // If no layer renders a pixel, use the backdrop color (palette index 0 of BG palette)
                 let backdrop_color = Color::from_palette_color(u16::from_le_bytes([
                     self.memory.bg_palette_ram[0],
                     self.memory.bg_palette_ram[1],
                 ]));
 
-                self.buffer[pixel_y as usize][pixel_x as usize] =
-                    first_pixel.map_or(backdrop_color, |info| info.color);
+                // Get the top pixel (or backdrop if none)
+                let (top_color, top_layer) = layers_with_pixel
+                    .first()
+                    .map_or((backdrop_color, 5_u8), |info| (info.color, info.layer)); // 5 = backdrop
+
+                // Apply blending effects if enabled for this window region
+                let effects_enabled = window_enables.5;
+                let final_color = if effects_enabled {
+                    self.apply_blend_effect(
+                        top_color,
+                        top_layer,
+                        &layers_with_pixel,
+                        backdrop_color,
+                    )
+                } else {
+                    top_color
+                };
+
+                self.buffer[pixel_y as usize][pixel_x as usize] = final_color;
             }
         }
 
@@ -350,6 +365,122 @@ impl Lcd {
         }
 
         result
+    }
+
+    /// Apply color blending effects based on BLDCNT settings.
+    fn apply_blend_effect(
+        &self,
+        top_color: Color,
+        top_layer: u8,
+        layers: &[PixelInfo],
+        backdrop_color: Color,
+    ) -> Color {
+        let blend_mode = self.registers.get_blend_mode();
+
+        // Mode 0 = no blending
+        if blend_mode == 0 {
+            return top_color;
+        }
+
+        let target1 = self.registers.get_blend_target1();
+
+        // Check if top layer is a first target
+        let is_target1 = match top_layer {
+            0 => target1.0, // BG0
+            1 => target1.1, // BG1
+            2 => target1.2, // BG2
+            3 => target1.3, // BG3
+            4 => target1.4, // OBJ
+            5 => target1.5, // Backdrop
+            _ => false,
+        };
+
+        if !is_target1 {
+            return top_color;
+        }
+
+        match blend_mode {
+            1 => {
+                // Alpha blending - blend top with second target below it
+                let target2 = self.registers.get_blend_target2();
+
+                // Find the second layer that is a target2
+                let second_layer = layers.iter().skip(1).find(|p| match p.layer {
+                    0 => target2.0,
+                    1 => target2.1,
+                    2 => target2.2,
+                    3 => target2.3,
+                    4 => target2.4,
+                    _ => false,
+                });
+
+                let second_color = if let Some(layer) = second_layer {
+                    layer.color
+                } else if target2.5 {
+                    // Backdrop is target2
+                    backdrop_color
+                } else {
+                    // No valid second target found
+                    return top_color;
+                };
+
+                let (eva, evb) = self.registers.get_blend_alpha();
+                Self::alpha_blend(top_color, second_color, eva, evb)
+            }
+            2 => {
+                // Brightness increase (fade to white)
+                let evy = self.registers.get_blend_brightness();
+                Self::brightness_increase(top_color, evy)
+            }
+            3 => {
+                // Brightness decrease (fade to black)
+                let evy = self.registers.get_blend_brightness();
+                Self::brightness_decrease(top_color, evy)
+            }
+            _ => top_color,
+        }
+    }
+
+    /// Alpha blend two colors: result = (color1 * eva + color2 * evb) / 16
+    fn alpha_blend(color1: Color, color2: Color, eva: u8, evb: u8) -> Color {
+        let blend_component = |c1: u8, c2: u8| -> u8 {
+            let result = (u16::from(c1) * u16::from(eva) + u16::from(c2) * u16::from(evb)) / 16;
+            result.min(31) as u8
+        };
+
+        Color::from_rgb(
+            blend_component(color1.red(), color2.red()),
+            blend_component(color1.green(), color2.green()),
+            blend_component(color1.blue(), color2.blue()),
+        )
+    }
+
+    /// Brightness increase (fade to white): result = color + (31 - color) * evy / 16
+    fn brightness_increase(color: Color, evy: u8) -> Color {
+        let brighten = |c: u8| -> u8 {
+            let result = u16::from(c) + (u16::from(31 - c) * u16::from(evy)) / 16;
+            result.min(31) as u8
+        };
+
+        Color::from_rgb(
+            brighten(color.red()),
+            brighten(color.green()),
+            brighten(color.blue()),
+        )
+    }
+
+    /// Brightness decrease (fade to black): result = color - color * evy / 16
+    fn brightness_decrease(color: Color, evy: u8) -> Color {
+        let darken = |c: u8| -> u8 {
+            let result = u16::from(c) - (u16::from(c) * u16::from(evy)) / 16;
+            result as u8
+        };
+
+        Color::from_rgb(
+            darken(color.red()),
+            darken(color.green()),
+            darken(color.blue()),
+        )
     }
 
     /// Determine which layers are enabled at this pixel based on window settings.

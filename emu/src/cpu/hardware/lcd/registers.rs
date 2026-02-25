@@ -464,6 +464,52 @@ impl Registers {
 
         in_horizontal_range(left, right, x) && in_vertical_range(top, bottom, y)
     }
+
+    /// Get the blend mode from BLDCNT.
+    /// 0 = Off, 1 = Alpha blend, 2 = Brightness increase (white), 3 = Brightness decrease (black)
+    pub(super) fn get_blend_mode(&self) -> u8 {
+        self.bldcnt.get_bits(6..=7) as u8
+    }
+
+    /// Get first target layers for blending (BLDCNT bits 0-5).
+    /// Returns (BG0, BG1, BG2, BG3, OBJ, Backdrop) as targets.
+    pub(super) fn get_blend_target1(&self) -> (bool, bool, bool, bool, bool, bool) {
+        (
+            self.bldcnt.get_bit(0), // BG0
+            self.bldcnt.get_bit(1), // BG1
+            self.bldcnt.get_bit(2), // BG2
+            self.bldcnt.get_bit(3), // BG3
+            self.bldcnt.get_bit(4), // OBJ
+            self.bldcnt.get_bit(5), // Backdrop
+        )
+    }
+
+    /// Get second target layers for alpha blending (BLDCNT bits 8-13).
+    /// Returns (BG0, BG1, BG2, BG3, OBJ, Backdrop) as targets.
+    pub(super) fn get_blend_target2(&self) -> (bool, bool, bool, bool, bool, bool) {
+        (
+            self.bldcnt.get_bit(8),  // BG0
+            self.bldcnt.get_bit(9),  // BG1
+            self.bldcnt.get_bit(10), // BG2
+            self.bldcnt.get_bit(11), // BG3
+            self.bldcnt.get_bit(12), // OBJ
+            self.bldcnt.get_bit(13), // Backdrop
+        )
+    }
+
+    /// Get alpha blending coefficients (EVA, EVB) from BLDALPHA.
+    /// Both are 0-16, representing 0/16 to 16/16 blend factors.
+    pub(super) fn get_blend_alpha(&self) -> (u8, u8) {
+        let eva = (self.bldalpha.get_bits(0..=4) as u8).min(16);
+        let evb = (self.bldalpha.get_bits(8..=12) as u8).min(16);
+        (eva, evb)
+    }
+
+    /// Get brightness coefficient (EVY) from BLDY.
+    /// Range 0-16, representing fade amount (0 = none, 16 = full white/black).
+    pub(super) fn get_blend_brightness(&self) -> u8 {
+        (self.bldy.get_bits(0..=4) as u8).min(16)
+    }
 }
 
 /// Check if x is within horizontal window bounds [left, right).
