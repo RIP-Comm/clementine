@@ -109,6 +109,8 @@ pub enum EmuEvent {
     Paused { reason: PauseReason },
     /// Save state data.
     SaveStateData(Vec<u8>),
+    /// Load state failed with error message.
+    LoadStateFailed(String),
     /// Memory data response.
     MemoryData { address: u32, data: Vec<u8> },
 }
@@ -265,14 +267,17 @@ impl EmuThread {
                             self.gba.cpu = cpu;
                             self.gba.cpu.disasm_tx = disasm_tx;
                             tracing::info!("Save state loaded successfully");
+                            self.send_state();
+                            self.send_frame();
                         }
                         Err(e) => {
                             self.gba.cpu.disasm_tx = disasm_tx;
                             tracing::error!("Failed to load save state: {e}");
+                            self.send_event(EmuEvent::LoadStateFailed(
+                                "Incompatible save file. Delete the .sav file and create a new save.".to_string()
+                            ));
                         }
                     }
-                    self.send_state();
-                    self.send_frame();
                 }
                 EmuCommand::RequestSaveState => match bincode::serialize(&self.gba.cpu) {
                     Ok(data) => {
@@ -495,6 +500,8 @@ pub struct EmuHandle {
     pub pending_save_state: Option<Vec<u8>>,
     /// Pending memory data (address and bytes read).
     pub pending_memory_data: Option<(u32, Vec<u8>)>,
+    /// Error message from failed load state (set when load fails, cleared when taken).
+    pub load_state_error: Option<String>,
     /// Current speed multiplier.
     pub speed: f32,
 }
@@ -534,6 +541,9 @@ impl EmuHandle {
                 EmuEvent::SaveStateData(data) => {
                     tracing::info!("Received save state data: {} bytes", data.len());
                     self.pending_save_state = Some(data);
+                }
+                EmuEvent::LoadStateFailed(error) => {
+                    self.load_state_error = Some(error);
                 }
                 EmuEvent::MemoryData { address, data } => {
                     self.pending_memory_data = Some((address, data));
@@ -614,6 +624,7 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         breakpoints: Vec::new(),
         pending_save_state: None,
         pending_memory_data: None,
+        load_state_error: None,
         speed: 1.0,
     }
 }

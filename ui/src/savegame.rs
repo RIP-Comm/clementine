@@ -92,12 +92,24 @@ impl SaveGame {
                 let size_kb = data.len() / 1024;
                 if let Ok(mut handle) = self.emu_handle.lock() {
                     handle.send(EmuCommand::LoadState(data));
-                    self.status = Some(format!("Loaded {} ({size_kb} KB)", path.display()));
+                    self.status = Some(format!("Loading {} ({size_kb} KB)...", path.display()));
                 }
             }
             Err(e) => {
                 self.status = Some(format!("Error: {e}"));
             }
+        }
+    }
+
+    fn check_load_error(&mut self) {
+        let error = if let Ok(mut handle) = self.emu_handle.lock() {
+            handle.load_state_error.take()
+        } else {
+            return;
+        };
+
+        if let Some(error_msg) = error {
+            self.status = Some(format!("Error: {error_msg}"));
         }
     }
 }
@@ -109,6 +121,7 @@ impl UiTool for SaveGame {
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
         self.check_pending_save();
+        self.check_load_error();
 
         egui::Window::new(self.name())
             .default_width(150.0)
