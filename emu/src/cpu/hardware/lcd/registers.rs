@@ -439,6 +439,21 @@ impl Registers {
         )
     }
 
+    /// Get layer enable flags for pixels inside Object Window.
+    ///
+    /// Returns tuple of (BG0, BG1, BG2, BG3, OBJ, color effects) enable flags.
+    /// WINOBJ applies to pixels covered by sprites with `GfxMode::ObjectWindow`.
+    pub(super) fn get_winobj_enables(&self) -> (bool, bool, bool, bool, bool, bool) {
+        (
+            self.winout.get_bit(8),
+            self.winout.get_bit(9),
+            self.winout.get_bit(10),
+            self.winout.get_bit(11),
+            self.winout.get_bit(12),
+            self.winout.get_bit(13),
+        )
+    }
+
     /// Check if a screen coordinate is inside Window 0's bounds.
     ///
     /// Window coordinates handle wrap-around: if right < left, the window

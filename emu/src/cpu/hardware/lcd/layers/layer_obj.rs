@@ -90,12 +90,12 @@
 //! This approach handles sprite priority correctly (lower OAM index = higher priority
 //! when priorities are equal).
 use crate::cpu::hardware::lcd;
-use crate::cpu::hardware::lcd::Color;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::object_attributes;
 use crate::cpu::hardware::lcd::point::Point;
 use crate::cpu::hardware::lcd::registers::Registers;
-use crate::cpu::hardware::lcd::{LCD_WIDTH, PixelInfo, WORLD_HEIGHT};
+use crate::cpu::hardware::lcd::Color;
+use crate::cpu::hardware::lcd::{PixelInfo, LCD_WIDTH, WORLD_HEIGHT};
 
 use super::Layer;
 use serde::Deserialize;
@@ -113,6 +113,17 @@ pub struct LayerObj {
 
     #[serde_as(as = "[_; 240]")]
     sprite_pixels_scanline: [Option<PixelInfo>; LCD_WIDTH],
+
+    /// Mask for WINOBJ (Object Window), true if pixel is covered by a window-type sprite.
+    /// Used for the flashlight effect in Pokemon caves for example.
+    /// Skipped in serialization - recalculated every scanline anyway.
+    #[serde(skip, default = "default_winobj_mask")]
+    winobj_mask: [bool; LCD_WIDTH],
+}
+
+/// Default value for `winobj_mask` when deserializing.
+const fn default_winobj_mask() -> [bool; LCD_WIDTH] {
+    [false; LCD_WIDTH]
 }
 
 impl Default for LayerObj {
@@ -121,6 +132,7 @@ impl Default for LayerObj {
             obj_attributes_arr: [object_attributes::ObjAttributes::default(); 128],
             rotation_scaling_params: [object_attributes::RotationScaling::default(); 32],
             sprite_pixels_scanline: [None; LCD_WIDTH],
+            winobj_mask: [false; LCD_WIDTH],
         }
     }
 }
@@ -214,6 +226,7 @@ impl LayerObj {
     #[allow(clippy::too_many_lines)]
     fn process_sprites_scanline(&mut self, registers: &Registers, memory: &Memory) {
         self.sprite_pixels_scanline = [None; LCD_WIDTH];
+        self.winobj_mask = [false; LCD_WIDTH];
         let y = registers.vcount;
 
         for obj in self.obj_attributes_arr {
@@ -472,10 +485,191 @@ impl LayerObj {
         }
     }
 
+    /// Process sprites with `GfxMode::ObjectWindow` to build the WINOBJ mask.
+    ///
+    /// Sprites with this mode don't render visually but instead define the Object Window region.
+    /// Non-transparent pixels of these sprites mark areas where WINOBJ layer enables apply.
+    /// This is used for effects like the flashlight in Pokemon Emerald caves.
+    #[allow(clippy::too_many_lines)]
+    fn process_winobj_sprites_scanline(&mut self, registers: &Registers, memory: &Memory) {
+        let y = registers.vcount;
+
+        for obj in &self.obj_attributes_arr {
+            // Only process ObjectWindow sprites that are not disabled
+            if matches!(
+                obj.attribute0.obj_mode,
+                object_attributes::ObjMode::Disabled
+            ) || !matches!(
+                obj.attribute0.gfx_mode,
+                object_attributes::GfxMode::ObjectWindow
+            ) {
+                continue;
+            }
+
+            let (sprite_width, sprite_height) =
+                match (obj.attribute0.obj_shape, obj.attribute1.obj_size) {
+                    (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size0) => {
+                        (8_u8, 8_u8)
+                    }
+                    (
+                        object_attributes::ObjShape::Horizontal,
+                        object_attributes::ObjSize::Size0,
+                    ) => (16, 8),
+                    (object_attributes::ObjShape::Vertical, object_attributes::ObjSize::Size0) => {
+                        (8, 16)
+                    }
+                    (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size1) => {
+                        (16, 16)
+                    }
+                    (
+                        object_attributes::ObjShape::Horizontal,
+                        object_attributes::ObjSize::Size1,
+                    ) => (32, 8),
+                    (object_attributes::ObjShape::Vertical, object_attributes::ObjSize::Size1) => {
+                        (8, 32)
+                    }
+                    (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size2) => {
+                        (32, 32)
+                    }
+                    (
+                        object_attributes::ObjShape::Horizontal,
+                        object_attributes::ObjSize::Size2,
+                    ) => (32, 16),
+                    (object_attributes::ObjShape::Vertical, object_attributes::ObjSize::Size2) => {
+                        (16, 32)
+                    }
+                    (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size3) => {
+                        (64, 64)
+                    }
+                    (
+                        object_attributes::ObjShape::Horizontal,
+                        object_attributes::ObjSize::Size3,
+                    ) => (64, 32),
+                    (object_attributes::ObjShape::Vertical, object_attributes::ObjSize::Size3) => {
+                        (32, 64)
+                    }
+                };
+
+            let sprite_size = Point::new(u16::from(sprite_width), u16::from(sprite_height));
+            let sprite_size_tile = sprite_size / 8;
+
+            let sprite_position = Point::new(
+                obj.attribute1.x_coordinate,
+                u16::from(obj.attribute0.y_coordinate),
+            );
+
+            let is_affine_double = matches!(
+                obj.attribute0.obj_mode,
+                object_attributes::ObjMode::AffineDouble
+            );
+
+            let sprite_screen_size = sprite_size * if is_affine_double { 2 } else { 1 };
+
+            let sprite_y_start = sprite_position.y;
+            let sprite_y_end = (sprite_y_start + sprite_screen_size.y) % WORLD_HEIGHT;
+
+            let scanline_in_sprite = if sprite_y_end > sprite_y_start {
+                y >= sprite_y_start && y < sprite_y_end
+            } else {
+                y >= sprite_y_start || y < sprite_y_end
+            };
+
+            if !scanline_in_sprite {
+                continue;
+            }
+
+            for idx in 0..sprite_screen_size.x {
+                let pixel_screen_sprite_origin =
+                    Point::new(idx, (y + WORLD_HEIGHT - sprite_position.y) % WORLD_HEIGHT);
+
+                if pixel_screen_sprite_origin.x > sprite_screen_size.x
+                    || pixel_screen_sprite_origin.y > sprite_screen_size.y
+                {
+                    continue;
+                }
+
+                let pixel_texture_sprite_origin = self.get_texture_space_point(
+                    sprite_size,
+                    pixel_screen_sprite_origin,
+                    obj.attribute1.transformation_kind,
+                    obj.attribute0.obj_mode,
+                );
+
+                if pixel_texture_sprite_origin.x < 0.0
+                    || pixel_texture_sprite_origin.y < 0.0
+                    || pixel_texture_sprite_origin.x >= f64::from(sprite_size.x)
+                    || pixel_texture_sprite_origin.y >= f64::from(sprite_size.y)
+                {
+                    continue;
+                }
+
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let pixel_texture_sprite_origin = pixel_texture_sprite_origin.map(|el| el as u16);
+
+                let pixel_texture_tile = pixel_texture_sprite_origin / 8;
+                let y_tile_idx = pixel_texture_sprite_origin.y % 8;
+                let x_tile_idx = pixel_texture_sprite_origin.x % 8;
+
+                let obj_character_vram_mapping = registers.get_obj_character_vram_mapping();
+                let x_screen = (sprite_position.x.wrapping_add(idx)) % 512;
+
+                // Check if pixel is non-transparent (same logic as normal sprites)
+                let is_opaque = match obj.attribute0.color_mode {
+                    object_attributes::ColorMode::Palette8bpp => {
+                        let base_tile = obj.attribute2.tile_number;
+                        let tile_offset = match obj_character_vram_mapping {
+                            lcd::ObjMappingKind::OneDimensional => {
+                                pixel_texture_tile.y * sprite_size_tile.x * 2
+                                    + pixel_texture_tile.x * 2
+                            }
+                            lcd::ObjMappingKind::TwoDimensional => {
+                                pixel_texture_tile.y * 32 + pixel_texture_tile.x * 2
+                            }
+                        };
+                        let tile_number = base_tile + tile_offset;
+                        let tile_data_offset = (tile_number << 5) + (y_tile_idx << 3) + x_tile_idx;
+                        let color_idx = memory.video_ram[0x10000 + tile_data_offset as usize];
+                        color_idx != 0
+                    }
+                    object_attributes::ColorMode::Palette4bpp => {
+                        let tile_offset = match obj_character_vram_mapping {
+                            lcd::ObjMappingKind::OneDimensional => {
+                                pixel_texture_tile.y * sprite_size_tile.x + pixel_texture_tile.x
+                            }
+                            lcd::ObjMappingKind::TwoDimensional => {
+                                pixel_texture_tile.y * 32 + pixel_texture_tile.x
+                            }
+                        };
+                        let tile_number = obj.attribute2.tile_number + tile_offset;
+                        let tile_data_offset =
+                            (tile_number << 5) + (y_tile_idx << 2) + (x_tile_idx >> 1);
+                        let pixel_byte = memory.video_ram[0x10000 + tile_data_offset as usize];
+                        let palette_offset_low = if (x_tile_idx & 1) != 0 {
+                            pixel_byte >> 4
+                        } else {
+                            pixel_byte & 0x0F
+                        };
+                        palette_offset_low != 0
+                    }
+                };
+
+                if is_opaque && x_screen < LCD_WIDTH as u16 {
+                    self.winobj_mask[x_screen as usize] = true;
+                }
+            }
+        }
+    }
+
+    /// Check if a pixel is covered by the Object Window.
+    pub const fn is_in_winobj(&self, x: u8) -> bool {
+        self.winobj_mask[x as usize]
+    }
+
     pub fn handle_enter_vdraw(&mut self, memory: &Memory, registers: &Registers) {
         (self.obj_attributes_arr, self.rotation_scaling_params) =
             object_attributes::get_attributes(memory.obj_attributes.as_slice());
 
         self.process_sprites_scanline(registers, memory);
+        self.process_winobj_sprites_scanline(registers, memory);
     }
 }

@@ -504,8 +504,10 @@ impl Lcd {
             return self.registers.get_win1_enables();
         }
 
-        // TODO: Check WINOBJ (requires checking if pixel is covered by a window-type sprite)
-        // For now, skip WINOBJ check
+        // Check WINOBJ - pixels covered by ObjectWindow sprites use WINOBJ enables
+        if winobj_enabled && self.layer_obj.is_in_winobj(x) {
+            return self.registers.get_winobj_enables();
+        }
 
         self.registers.get_winout_enables()
     }
