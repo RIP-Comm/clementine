@@ -16,7 +16,7 @@ license = "MIT"
 [workspace.dependencies]
 # Dev dependencies
 pretty_assertions = "1.4.1"
-rand = "0.9.2"
+rand = "0.10.0"
 
 # Shared production dependencies
 serde = { version = "1.0.228", features = ["derive"] }

@@ -5,12 +5,11 @@
     "rustup":        "latest",
     "pkg-config":    "latest",
     "openssl_3_3":   "3.3.2",
-    "cargo":         "1.90.0",
     "just":          "latest"
   },
   "shell": {
     "init_hook": [
-      "if [ ! -d $RUSTUP_HOME/toolchains -o ! -d $RUSTUP_HOME/toolchains/stable ]; then rustup default 1.91.1; rustup component add rust-analyzer; fi"
+      "if [ ! -d $RUSTUP_HOME/toolchains -o ! -d $RUSTUP_HOME/toolchains/stable ]; then rustup default 1.93.1; rustup component add rust-analyzer; fi"
     ],
     "scripts": {
       "test": ["cargo test"]
