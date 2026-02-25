@@ -15,11 +15,11 @@
 //! See [`layer_0`](super::layer_0) for detailed documentation on how regular
 //! tiled backgrounds work.
 
-use crate::cpu::hardware::lcd::PixelInfo;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
+use crate::cpu::hardware::lcd::PixelInfo;
 
-use super::{Layer, TextBgConfig, render_text_bg};
+use super::{render_text_bg, Layer, TextBgConfig};
 use serde::{Deserialize, Serialize};
 
 /// BG1
