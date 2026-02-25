@@ -34,8 +34,8 @@ use std::collections::BTreeSet;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-pub use emu::cpu::hardware::keypad::GbaButton;
 use emu::cpu::DisasmEntry;
+pub use emu::cpu::hardware::keypad::GbaButton;
 use emu::gba::Gba;
 
 /// GBA LCD dimensions
