@@ -7,11 +7,18 @@ use egui::{TextBuffer, TextEdit};
 use crate::emu_thread::{BreakpointKind, EmuCommand, EmuHandle};
 use crate::ui_traits::UiTool;
 
+/// Tolerance for floating point comparisons.
+const SPEED_EPSILON: f32 = 0.01;
+
 pub struct CpuHandler {
     emu_handle: Arc<Mutex<EmuHandle>>,
     b_address: UpperHexString,
     breakpoint_combo: BreakpointKind,
     cycle_to_skip_custom_value: u32,
+    /// Local copy of speed for the slider.
+    speed: f32,
+    /// Whether uncapped (max) speed is enabled.
+    uncapped: bool,
 }
 
 impl CpuHandler {
@@ -21,6 +28,25 @@ impl CpuHandler {
             b_address: UpperHexString::default(),
             breakpoint_combo: BreakpointKind::Equal,
             cycle_to_skip_custom_value: 5000,
+            speed: 1.0,
+            uncapped: false,
+        }
+    }
+
+    /// Send speed update to the emulator thread.
+    fn set_speed(&mut self, speed: f32) {
+        self.speed = speed;
+        self.uncapped = false;
+        if let Ok(mut handle) = self.emu_handle.lock() {
+            handle.send(EmuCommand::SetSpeed(speed));
+        }
+    }
+
+    /// Enable uncapped (maximum) speed.
+    fn set_uncapped(&mut self) {
+        self.uncapped = true;
+        if let Ok(mut handle) = self.emu_handle.lock() {
+            handle.send(EmuCommand::SetSpeed(0.0));
         }
     }
 }
@@ -96,18 +122,27 @@ impl UiTool for CpuHandler {
 
     #[allow(clippy::too_many_lines)]
     fn ui(&mut self, ui: &mut egui::Ui) {
-        let (cartridge_name, is_running, current_cycle, breakpoints) =
+        let (cartridge_name, is_running, current_cycle, breakpoints, current_speed) =
             self.emu_handle.lock().map_or_else(
-                |_| (String::new(), false, 0, Vec::new()),
+                |_| (String::new(), false, 0, Vec::new(), 1.0),
                 |handle| {
                     (
                         handle.state.cartridge_title.clone(),
                         handle.state.is_running,
                         handle.state.cycle,
                         handle.breakpoints.clone(),
+                        handle.speed,
                     )
                 },
             );
+
+        // Sync local speed with handle speed
+        if current_speed == 0.0 {
+            self.uncapped = true;
+        } else {
+            self.uncapped = false;
+            self.speed = current_speed;
+        }
 
         let mut name = cartridge_name;
         ui.add(TextEdit::singleline(&mut name).desired_width(140.0));
@@ -127,6 +162,29 @@ impl UiTool for CpuHandler {
                 && let Ok(mut handle) = self.emu_handle.lock()
             {
                 handle.send(EmuCommand::Pause);
+            }
+        });
+
+        // Speed control with preset buttons
+        ui.horizontal(|ui| {
+            ui.label("Speed:");
+
+            // Speed preset buttons
+            let speeds = [(1.0, "1x"), (2.0, "2x"), (4.0, "4x"), (8.0, "8x")];
+            for (speed, label) in speeds {
+                let is_selected = !self.uncapped && (self.speed - speed).abs() < SPEED_EPSILON;
+                if ui.selectable_label(is_selected, label).clicked() {
+                    self.set_speed(speed);
+                }
+            }
+
+            // Turbo/Max button - runs as fast as possible
+            if ui.selectable_label(self.uncapped, "Turbo").clicked() {
+                if self.uncapped {
+                    self.set_speed(1.0);
+                } else {
+                    self.set_uncapped();
+                }
             }
         });
 

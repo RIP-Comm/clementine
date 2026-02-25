@@ -34,8 +34,8 @@ use std::collections::BTreeSet;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use emu::cpu::DisasmEntry;
 pub use emu::cpu::hardware::keypad::GbaButton;
+use emu::cpu::DisasmEntry;
 use emu::gba::Gba;
 
 /// GBA LCD dimensions
@@ -45,7 +45,8 @@ pub const LCD_HEIGHT: usize = 160;
 /// Number of CPU cycles to run per batch before checking commands.
 /// This only affects responsiveness to pause/step commands.
 /// Frame sending is triggered by `VBlank` (~every 280,896 cycles).
-const CYCLES_PER_BATCH: u32 = 2000;
+/// Larger values = better performance but less responsive to pause commands.
+const CYCLES_PER_BATCH: u32 = 10000;
 
 /// Target frame duration for ~59.73 FPS
 /// 1 / 59.7275 ≈ 16.74ms
@@ -82,6 +83,8 @@ pub enum EmuCommand {
     WriteByte { address: u32, value: u8 },
     /// Enable or disable disassembly output.
     SetDisasmEnabled(bool),
+    /// Set emulation speed multiplier.
+    SetSpeed(f32),
     /// Shutdown the emulator thread.
     Shutdown,
 }
@@ -182,6 +185,12 @@ struct EmuThread {
 
     /// Timestamp when the last frame started (for frame rate limiting).
     frame_start: Instant,
+
+    /// Speed multiplier (1.0 = normal, 0.0 = uncapped).
+    speed_multiplier: f32,
+
+    /// Frame counter for frame skipping at high speeds.
+    frame_counter: u32,
 }
 
 impl EmuThread {
@@ -198,6 +207,8 @@ impl EmuThread {
             steps_remaining: 0,
             breakpoints: BTreeSet::new(),
             frame_start: Instant::now(),
+            speed_multiplier: 1.0,
+            frame_counter: 0,
         }
     }
 
@@ -290,12 +301,13 @@ impl EmuThread {
                 }
                 EmuCommand::SetDisasmEnabled(enabled) => {
                     if enabled {
-                        // Disasm is always enabled if the channel exists
-                        // (we can't easily re-create it here)
                     } else {
                         // Disable by dropping the transmitter
                         self.gba.cpu.disasm_tx = None;
                     }
+                }
+                EmuCommand::SetSpeed(multiplier) => {
+                    self.speed_multiplier = multiplier;
                 }
                 EmuCommand::Shutdown => {
                     return true;
@@ -333,17 +345,52 @@ impl EmuThread {
             // Execute 1 cycle - returns true when VBlank starts
             let vblank_started = self.gba.step();
 
-            // On VBlank: send frame, state update, and sleep to maintain ~60 FPS
+            // On VBlank: send frame, state update, and handle timing
             if vblank_started {
-                self.send_frame();
-                self.send_state();
+                self.frame_counter += 1;
 
-                // Frame rate limiting, sleep if we finished the frame early
-                let elapsed = self.frame_start.elapsed();
-                if elapsed < FRAME_DURATION {
-                    thread::sleep(FRAME_DURATION - elapsed);
+                // Calculate frame skip to maintain ~60 FPS display regardless of emulation speed
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let frame_skip = if self.speed_multiplier == 0.0 {
+                    // Uncapped: skip frames but still update display at ~60 FPS
+                    // We'll send frame based on elapsed time instead
+                    u32::MAX
+                } else if self.speed_multiplier > 1.0 {
+                    // Fast forward: skip frames proportionally
+                    self.speed_multiplier.round() as u32
+                } else {
+                    // Normal/slow speed: send every frame
+                    1
+                };
+
+                // For uncapped mode, send frame based on real time (~60 FPS)
+                // For other modes, send based on frame counter
+                let should_send_frame = if self.speed_multiplier == 0.0 {
+                    // Uncapped: send frame if 16ms has elapsed (60 FPS)
+                    self.frame_start.elapsed() >= FRAME_DURATION
+                } else {
+                    // Fixed speed: send every Nth frame
+                    self.frame_counter.is_multiple_of(frame_skip)
+                };
+
+                if should_send_frame {
+                    self.send_frame();
+                    self.send_state();
+                    if self.speed_multiplier == 0.0 {
+                        self.frame_start = Instant::now();
+                    }
                 }
-                self.frame_start = Instant::now();
+
+                // Frame rate limiting (only for speeds <= 4x)
+                // Above 4x, just run as fast as possible with frame skipping
+                if self.speed_multiplier > 0.0 && self.speed_multiplier <= 4.0 {
+                    let target_duration = FRAME_DURATION.div_f32(self.speed_multiplier);
+                    let elapsed = self.frame_start.elapsed();
+                    if let Some(sleep_duration) = target_duration.checked_sub(elapsed) {
+                        thread::sleep(sleep_duration);
+                    }
+                    self.frame_start = Instant::now();
+                }
             }
 
             // Handle stepping mode (only if stepping)
@@ -448,6 +495,8 @@ pub struct EmuHandle {
     pub pending_save_state: Option<Vec<u8>>,
     /// Pending memory data (address and bytes read).
     pub pending_memory_data: Option<(u32, Vec<u8>)>,
+    /// Current speed multiplier.
+    pub speed: f32,
 }
 
 impl EmuHandle {
@@ -460,6 +509,9 @@ impl EmuHandle {
             }
             EmuCommand::RemoveBreakpoint(address) => {
                 self.breakpoints.retain(|(addr, _)| addr != address);
+            }
+            EmuCommand::SetSpeed(multiplier) => {
+                self.speed = *multiplier;
             }
             _ => {}
         }
@@ -562,5 +614,6 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         breakpoints: Vec::new(),
         pending_save_state: None,
         pending_memory_data: None,
+        speed: 1.0,
     }
 }
