@@ -211,6 +211,95 @@ impl InternalMemory {
 }
 
 impl InternalMemory {
+    /// Fast-path word read for contiguous memory regions (ROM, WRAM, IWRAM).
+    /// Returns `None` for I/O or special regions that need byte-by-byte access.
+    #[inline]
+    pub fn try_read_word(&self, address: usize) -> Option<u32> {
+        match address {
+            // ROM (wait state 0, 1, 2) - most common case (instruction fetches)
+            0x0800_0000..=0x0DFF_FFFC => {
+                let offset = (address & 0x01FF_FFFF) % self.rom.len().max(1);
+                if offset + 3 < self.rom.len() {
+                    Some(u32::from_le_bytes([
+                        self.rom[offset],
+                        self.rom[offset + 1],
+                        self.rom[offset + 2],
+                        self.rom[offset + 3],
+                    ]))
+                } else {
+                    None // Near end of ROM or GPIO region, use slow path
+                }
+            }
+            // EWRAM (256KB, mirrored)
+            0x0200_0000..=0x02FF_FFFC => {
+                let offset = (address - 0x0200_0000) & 0x3_FFFF; // 256KB mask
+                Some(u32::from_le_bytes([
+                    self.working_ram[offset],
+                    self.working_ram[offset + 1],
+                    self.working_ram[offset + 2],
+                    self.working_ram[offset + 3],
+                ]))
+            }
+            // IWRAM (32KB, mirrored)
+            0x0300_0000..=0x03FF_FFFC => {
+                let offset = (address - 0x0300_0000) & 0x7FFF; // 32KB mask
+                Some(u32::from_le_bytes([
+                    self.working_iram[offset],
+                    self.working_iram[offset + 1],
+                    self.working_iram[offset + 2],
+                    self.working_iram[offset + 3],
+                ]))
+            }
+            // BIOS
+            0x0000_0000..=0x0000_3FFC => Some(u32::from_le_bytes([
+                self.bios_system_rom[address],
+                self.bios_system_rom[address + 1],
+                self.bios_system_rom[address + 2],
+                self.bios_system_rom[address + 3],
+            ])),
+            _ => None,
+        }
+    }
+
+    /// Fast-path halfword read for contiguous memory regions.
+    /// Returns `None` for I/O or special regions that need byte-by-byte access.
+    #[inline]
+    pub fn try_read_half_word(&self, address: usize) -> Option<u16> {
+        match address {
+            // ROM (wait state 0, 1, 2)
+            0x0800_0000..=0x0DFF_FFFE => {
+                let offset = (address & 0x01FF_FFFF) % self.rom.len().max(1);
+                if offset + 1 < self.rom.len() {
+                    Some(u16::from_le_bytes([self.rom[offset], self.rom[offset + 1]]))
+                } else {
+                    None
+                }
+            }
+            // EWRAM
+            0x0200_0000..=0x02FF_FFFE => {
+                let offset = (address - 0x0200_0000) & 0x3_FFFF;
+                Some(u16::from_le_bytes([
+                    self.working_ram[offset],
+                    self.working_ram[offset + 1],
+                ]))
+            }
+            // IWRAM
+            0x0300_0000..=0x03FF_FFFE => {
+                let offset = (address - 0x0300_0000) & 0x7FFF;
+                Some(u16::from_le_bytes([
+                    self.working_iram[offset],
+                    self.working_iram[offset + 1],
+                ]))
+            }
+            // BIOS
+            0x0000_0000..=0x0000_3FFE => Some(u16::from_le_bytes([
+                self.bios_system_rom[address],
+                self.bios_system_rom[address + 1],
+            ])),
+            _ => None,
+        }
+    }
+
     #[must_use]
     pub fn read_at(&self, address: usize) -> u8 {
         match address {

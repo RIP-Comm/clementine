@@ -126,7 +126,7 @@ pub struct EmuState {
     /// Saved Program Status Register.
     pub spsr: u32,
     /// Current cycle count.
-    pub cycle: u128,
+    pub cycle: u64,
     /// Whether the emulator is currently running.
     pub is_running: bool,
     /// Cartridge game title (12 chars max).

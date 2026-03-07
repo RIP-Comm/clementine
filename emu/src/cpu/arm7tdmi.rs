@@ -111,7 +111,7 @@ use crate::cpu::register_bank::RegisterBank;
 use crate::cpu::thumb::instruction::Instruction;
 use crate::cpu::thumb::mode::ThumbModeOpcode;
 
-use super::registers::{REG_SP, Registers};
+use super::registers::{Registers, REG_SP};
 use super::thumb;
 
 /// The ARM7TDMI CPU core.
@@ -159,7 +159,7 @@ pub struct Arm7tdmi {
     fetched_thumb: Option<u16>,
     decoded_thumb: Option<ThumbModeOpcode>,
 
-    pub current_cycle: u128,
+    pub current_cycle: u64,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -221,7 +221,7 @@ impl Default for Arm7tdmi {
             decoded_arm: None,
             fetched_thumb: None,
             decoded_thumb: None,
-            current_cycle: u128::default(),
+            current_cycle: 0,
         };
 
         // Setting ARM mode at startup

@@ -48,6 +48,11 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 
+# Optimize the emulation core even in dev builds so the emulator
+# is actually usable during development (debug emu code is ~20-50x slower).
+[profile.dev.package.emu]
+opt-level = 2
+
 [lints.clippy]
 complexity = "warn"
 correctness = "warn"

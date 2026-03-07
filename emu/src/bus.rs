@@ -80,7 +80,7 @@ pub struct Bus {
     serial: Serial,
     pub keypad: Keypad,
     interrupt_control: InterruptControl,
-    cycles_count: u128,
+    cycles_count: u64,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
     /// Tracks the last opcode fetched from BIOS for read protection
@@ -1079,7 +1079,7 @@ impl Bus {
         }
 
         // A pixel takes 4 cycles to get drawn
-        if self.cycles_count.is_multiple_of(4) {
+        if self.cycles_count & 3 == 0 {
             let lcd_output = self.lcd.step();
 
             if lcd_output.request_hblank_irq {
@@ -1113,7 +1113,7 @@ impl Bus {
         }
     }
 
-    const fn get_wait_cycles(&self, address: usize) -> u128 {
+    const fn get_wait_cycles(&self, address: usize) -> u64 {
         let _ = self;
         let _ = address;
 
@@ -1131,20 +1131,19 @@ impl Bus {
     }
 
     pub fn read_word(&mut self, mut address: usize) -> u32 {
-        // TODO: here we have to see how many times to wait for the waitcycles
-        // It depends on the bus width of the memory region
-        // Right now we're assuming that every region has a bus width of 32 bits
-        // So we wait only once to read a word.
-        // In reality for example WRAM has a bus width of 16 bits so we would
-        // have to repeat this cycle 2 times (to emulate the fact that we will access the memory
-        // two times)
-        // TODO: Implement proper cycle-based timing
+        // TODO: Implement proper cycle-based timing (bus width varies by region)
         self.cycles_count += self.get_wait_cycles(address);
 
         self.last_used_address = address;
 
         if address & 3 != 0 {
             address &= !3;
+        }
+
+        // Fast path: read 4 bytes at once for contiguous memory regions.
+        // This avoids 4 separate calls through the address-decode match.
+        if let Some(word) = self.internal_memory.try_read_word(address) {
+            return word;
         }
 
         let part_0: u32 = self.read_raw(address).into();
@@ -1187,6 +1186,11 @@ impl Bus {
 
         if address & 1 != 0 {
             address &= !1;
+        }
+
+        // Fast path: read 2 bytes at once for contiguous memory regions.
+        if let Some(half) = self.internal_memory.try_read_half_word(address) {
+            return half;
         }
 
         let part_0: u16 = self.read_raw(address).into();
