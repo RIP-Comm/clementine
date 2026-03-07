@@ -9,7 +9,7 @@
   },
   "shell": {
     "init_hook": [
-      "if [ ! -d $RUSTUP_HOME/toolchains -o ! -d $RUSTUP_HOME/toolchains/stable ]; then rustup default 1.93.1; rustup component add rust-analyzer; fi"
+      "if [ ! -d $RUSTUP_HOME/toolchains -o ! -d $RUSTUP_HOME/toolchains/stable ]; then rustup default 1.94.0; rustup component add rust-analyzer; fi"
     ],
     "scripts": {
       "test": ["cargo test"]
