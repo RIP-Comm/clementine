@@ -170,7 +170,7 @@
 //! Palette index 0 is always transparent for both backgrounds and sprites.
 //! Returning `None` from [`Layer::render`] indicates a transparent pixel.
 
-use super::{memory::Memory, registers::Registers, Color, PixelInfo};
+use super::{Color, PixelInfo, memory::Memory, registers::Registers};
 use crate::bitwise::Bits;
 
 pub mod layer_0;

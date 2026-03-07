@@ -55,7 +55,7 @@ use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
 use crate::cpu::hardware::lcd::{Color, PixelInfo};
 
-use super::{render_affine_bg, render_text_bg, AffineBgConfig, Layer, TextBgConfig};
+use super::{AffineBgConfig, Layer, TextBgConfig, render_affine_bg, render_text_bg};
 use serde::{Deserialize, Serialize};
 
 /// BG2
