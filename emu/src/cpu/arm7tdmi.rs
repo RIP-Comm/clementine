@@ -111,7 +111,7 @@ use crate::cpu::register_bank::RegisterBank;
 use crate::cpu::thumb::instruction::Instruction;
 use crate::cpu::thumb::mode::ThumbModeOpcode;
 
-use super::registers::{Registers, REG_SP};
+use super::registers::{REG_SP, Registers};
 use super::thumb;
 
 /// The ARM7TDMI CPU core.

@@ -1079,7 +1079,7 @@ impl Bus {
         }
 
         // A pixel takes 4 cycles to get drawn
-        if self.cycles_count & 3 == 0 {
+        if self.cycles_count.trailing_zeros() >= 2 {
             let lcd_output = self.lcd.step();
 
             if lcd_output.request_hblank_irq {

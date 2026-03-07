@@ -214,6 +214,7 @@ impl InternalMemory {
     /// Fast-path word read for contiguous memory regions (ROM, WRAM, IWRAM).
     /// Returns `None` for I/O or special regions that need byte-by-byte access.
     #[inline]
+    #[must_use]
     pub fn try_read_word(&self, address: usize) -> Option<u32> {
         match address {
             // ROM (wait state 0, 1, 2) - most common case (instruction fetches)
@@ -264,6 +265,7 @@ impl InternalMemory {
     /// Fast-path halfword read for contiguous memory regions.
     /// Returns `None` for I/O or special regions that need byte-by-byte access.
     #[inline]
+    #[must_use]
     pub fn try_read_half_word(&self, address: usize) -> Option<u16> {
         match address {
             // ROM (wait state 0, 1, 2)

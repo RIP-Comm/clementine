@@ -233,110 +233,7 @@ impl Lcd {
         }
 
         if self.should_draw {
-            let pixel_y = self.registers.vcount;
-            let pixel_x = self.pixel_index;
-
-            // Check forced blank (bit 7 of DISPCNT)
-            // When set, display white screen regardless of layer settings
-            if self.registers.dispcnt.get_bit(7) {
-                self.buffer[pixel_y as usize][pixel_x as usize] = Color::from_rgb(31, 31, 31);
-            } else {
-                // Determine which layers are enabled for this pixel based on window state
-                let window_enables = self.get_window_layer_enables(pixel_x as u8, pixel_y as u8);
-
-                let px = pixel_x as usize;
-                let py = pixel_y as usize;
-                let current_mode = self.registers.get_bg_mode();
-
-                // Render enabled layers directly into a stack array (max 5 layers: BG0-3 + OBJ).
-                // No heap allocation, no dynamic dispatch.
-                let mut pixels: [PixelInfo; 5] = [PixelInfo::default(); 5];
-                let mut count: usize = 0;
-
-                // BG0 (modes 0, 1 only)
-                if matches!(current_mode, 0 | 1)
-                    && self.registers.get_bg0_enabled()
-                    && window_enables.0
-                {
-                    if let Some(info) = self.layer_0.render(px, py, &self.memory, &self.registers) {
-                        pixels[count] = info;
-                        count += 1;
-                    }
-                }
-
-                // BG1 (modes 0, 1 only)
-                if matches!(current_mode, 0 | 1)
-                    && self.registers.get_bg1_enabled()
-                    && window_enables.1
-                {
-                    if let Some(info) = self.layer_1.render(px, py, &self.memory, &self.registers) {
-                        pixels[count] = info;
-                        count += 1;
-                    }
-                }
-
-                // BG2 (all modes)
-                if self.registers.get_bg2_enabled() && window_enables.2 {
-                    if let Some(info) = self.layer_2.render(px, py, &self.memory, &self.registers) {
-                        pixels[count] = info;
-                        count += 1;
-                    }
-                }
-
-                // BG3 (modes 0, 2 only)
-                if matches!(current_mode, 0 | 2)
-                    && self.registers.get_bg3_enabled()
-                    && window_enables.3
-                {
-                    if let Some(info) = self.layer_3.render(px, py, &self.memory, &self.registers) {
-                        pixels[count] = info;
-                        count += 1;
-                    }
-                }
-
-                // OBJ layer
-                if self.registers.get_obj_enabled() && window_enables.4 {
-                    if let Some(info) = self.layer_obj.render(px, py, &self.memory, &self.registers)
-                    {
-                        pixels[count] = info;
-                        count += 1;
-                    }
-                }
-
-                let layers_with_pixel = &mut pixels[..count];
-
-                // Sort by: (1) priority ascending, (2) OBJ before BGs at same priority,
-                // (3) lower BG number first for BGs with equal priority.
-                // OBJ layer is 4, BG layers are 0-3. For tie-breaking at same priority:
-                // - OBJ (layer 4) should appear BEFORE backgrounds
-                // - Lower BG numbers should appear before higher BG numbers
-                // We achieve this by mapping: OBJ(4)->0, BG0(0)->1, BG1(1)->2, etc.
-                layers_with_pixel.sort_unstable_by_key(|pixel| {
-                    let layer_order = if pixel.layer == 4 { 0 } else { pixel.layer + 1 };
-                    (pixel.priority, layer_order)
-                });
-
-                // If no layer renders a pixel, use the backdrop color (palette index 0 of BG palette)
-                let backdrop_color = Color::from_palette_color(u16::from_le_bytes([
-                    self.memory.bg_palette_ram[0],
-                    self.memory.bg_palette_ram[1],
-                ]));
-
-                // Get the top pixel (or backdrop if none)
-                let (top_color, top_layer) = layers_with_pixel
-                    .first()
-                    .map_or((backdrop_color, 5_u8), |info| (info.color, info.layer)); // 5 = backdrop
-
-                // Apply blending effects if enabled for this window region
-                let effects_enabled = window_enables.5;
-                let final_color = if effects_enabled {
-                    self.apply_blend_effect(top_color, top_layer, layers_with_pixel, backdrop_color)
-                } else {
-                    top_color
-                };
-
-                self.buffer[pixel_y as usize][pixel_x as usize] = final_color;
-            }
+            self.render_pixel();
         }
 
         self.pixel_index += 1;
@@ -363,6 +260,110 @@ impl Lcd {
         }
 
         output
+    }
+
+    /// Render a single pixel at the current scanline position.
+    ///
+    /// Composites all enabled layers, applies priority sorting and blending.
+    fn render_pixel(&mut self) {
+        let pixel_y = self.registers.vcount;
+        let pixel_x = self.pixel_index;
+
+        // Check forced blank (bit 7 of DISPCNT)
+        // When set, display white screen regardless of layer settings
+        if self.registers.dispcnt.get_bit(7) {
+            self.buffer[pixel_y as usize][pixel_x as usize] = Color::from_rgb(31, 31, 31);
+            return;
+        }
+
+        // Determine which layers are enabled for this pixel based on window state
+        let window_enables = self.get_window_layer_enables(pixel_x as u8, pixel_y as u8);
+
+        let px = pixel_x as usize;
+        let py = pixel_y as usize;
+        let current_mode = self.registers.get_bg_mode();
+
+        // Render enabled layers directly into a stack array (max 5 layers: BG0-3 + OBJ).
+        // No heap allocation, no dynamic dispatch.
+        let mut pixels: [PixelInfo; 5] = [PixelInfo::default(); 5];
+        let mut count: usize = 0;
+
+        // BG0 (modes 0, 1 only)
+        if matches!(current_mode, 0 | 1)
+            && self.registers.get_bg0_enabled()
+            && window_enables.0
+            && let Some(info) = self.layer_0.render(px, py, &self.memory, &self.registers)
+        {
+            pixels[count] = info;
+            count += 1;
+        }
+
+        // BG1 (modes 0, 1 only)
+        if matches!(current_mode, 0 | 1)
+            && self.registers.get_bg1_enabled()
+            && window_enables.1
+            && let Some(info) = self.layer_1.render(px, py, &self.memory, &self.registers)
+        {
+            pixels[count] = info;
+            count += 1;
+        }
+
+        // BG2 (all modes)
+        if self.registers.get_bg2_enabled()
+            && window_enables.2
+            && let Some(info) = self.layer_2.render(px, py, &self.memory, &self.registers)
+        {
+            pixels[count] = info;
+            count += 1;
+        }
+
+        // BG3 (modes 0, 2 only)
+        if matches!(current_mode, 0 | 2)
+            && self.registers.get_bg3_enabled()
+            && window_enables.3
+            && let Some(info) = self.layer_3.render(px, py, &self.memory, &self.registers)
+        {
+            pixels[count] = info;
+            count += 1;
+        }
+
+        // OBJ layer
+        if self.registers.get_obj_enabled()
+            && window_enables.4
+            && let Some(info) = self.layer_obj.render(px, py, &self.memory, &self.registers)
+        {
+            pixels[count] = info;
+            count += 1;
+        }
+
+        let layers_with_pixel = &mut pixels[..count];
+
+        // Sort by priority: (1) priority ascending, (2) OBJ before BGs at same priority,
+        // (3) lower BG number first. OBJ(4)->0, BG0(0)->1, BG1(1)->2, etc.
+        layers_with_pixel.sort_unstable_by_key(|pixel| {
+            let layer_order = if pixel.layer == 4 { 0 } else { pixel.layer + 1 };
+            (pixel.priority, layer_order)
+        });
+
+        // Backdrop color (palette index 0 of BG palette)
+        let backdrop_color = Color::from_palette_color(u16::from_le_bytes([
+            self.memory.bg_palette_ram[0],
+            self.memory.bg_palette_ram[1],
+        ]));
+
+        // Get the top pixel (or backdrop if none)
+        let (top_color, top_layer) = layers_with_pixel
+            .first()
+            .map_or((backdrop_color, 5_u8), |info| (info.color, info.layer)); // 5 = backdrop
+
+        // Apply blending effects if enabled for this window region
+        let final_color = if window_enables.5 {
+            self.apply_blend_effect(top_color, top_layer, layers_with_pixel, backdrop_color)
+        } else {
+            top_color
+        };
+
+        self.buffer[pixel_y as usize][pixel_x as usize] = final_color;
     }
 
     /// Apply color blending effects based on BLDCNT settings.
