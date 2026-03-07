@@ -244,34 +244,66 @@ impl Lcd {
                 // Determine which layers are enabled for this pixel based on window state
                 let window_enables = self.get_window_layer_enables(pixel_x as u8, pixel_y as u8);
 
-                // We get the enabled layers (depending on BG mode and registers), we call render on them
-                // we filter out the `None` and we sort by priority.
-                let mut layers_with_pixel = self
-                    .get_enabled_layers()
-                    .into_iter()
-                    .filter_map(|layer| {
-                        // Check if this layer is enabled by window
-                        let is_visible = match layer.layer_id() {
-                            0 => window_enables.0, // BG0
-                            1 => window_enables.1, // BG1
-                            2 => window_enables.2, // BG2
-                            3 => window_enables.3, // BG3
-                            4 => window_enables.4, // OBJ
-                            _ => true,
-                        };
+                let px = pixel_x as usize;
+                let py = pixel_y as usize;
+                let current_mode = self.registers.get_bg_mode();
 
-                        if !is_visible {
-                            return None;
-                        }
+                // Render enabled layers directly into a stack array (max 5 layers: BG0-3 + OBJ).
+                // No heap allocation, no dynamic dispatch.
+                let mut pixels: [PixelInfo; 5] = [PixelInfo::default(); 5];
+                let mut count: usize = 0;
 
-                        layer.render(
-                            pixel_x as usize,
-                            pixel_y as usize,
-                            &self.memory,
-                            &self.registers,
-                        )
-                    })
-                    .collect::<Vec<PixelInfo>>();
+                // BG0 (modes 0, 1 only)
+                if matches!(current_mode, 0 | 1)
+                    && self.registers.get_bg0_enabled()
+                    && window_enables.0
+                {
+                    if let Some(info) = self.layer_0.render(px, py, &self.memory, &self.registers) {
+                        pixels[count] = info;
+                        count += 1;
+                    }
+                }
+
+                // BG1 (modes 0, 1 only)
+                if matches!(current_mode, 0 | 1)
+                    && self.registers.get_bg1_enabled()
+                    && window_enables.1
+                {
+                    if let Some(info) = self.layer_1.render(px, py, &self.memory, &self.registers) {
+                        pixels[count] = info;
+                        count += 1;
+                    }
+                }
+
+                // BG2 (all modes)
+                if self.registers.get_bg2_enabled() && window_enables.2 {
+                    if let Some(info) = self.layer_2.render(px, py, &self.memory, &self.registers) {
+                        pixels[count] = info;
+                        count += 1;
+                    }
+                }
+
+                // BG3 (modes 0, 2 only)
+                if matches!(current_mode, 0 | 2)
+                    && self.registers.get_bg3_enabled()
+                    && window_enables.3
+                {
+                    if let Some(info) = self.layer_3.render(px, py, &self.memory, &self.registers) {
+                        pixels[count] = info;
+                        count += 1;
+                    }
+                }
+
+                // OBJ layer
+                if self.registers.get_obj_enabled() && window_enables.4 {
+                    if let Some(info) = self.layer_obj.render(px, py, &self.memory, &self.registers)
+                    {
+                        pixels[count] = info;
+                        count += 1;
+                    }
+                }
+
+                let layers_with_pixel = &mut pixels[..count];
 
                 // Sort by: (1) priority ascending, (2) OBJ before BGs at same priority,
                 // (3) lower BG number first for BGs with equal priority.
@@ -298,12 +330,7 @@ impl Lcd {
                 // Apply blending effects if enabled for this window region
                 let effects_enabled = window_enables.5;
                 let final_color = if effects_enabled {
-                    self.apply_blend_effect(
-                        top_color,
-                        top_layer,
-                        &layers_with_pixel,
-                        backdrop_color,
-                    )
+                    self.apply_blend_effect(top_color, top_layer, layers_with_pixel, backdrop_color)
                 } else {
                     top_color
                 };
@@ -336,35 +363,6 @@ impl Lcd {
         }
 
         output
-    }
-
-    fn get_enabled_layers(&self) -> Vec<&dyn Layer> {
-        let mut result: Vec<&dyn Layer> = Vec::new();
-
-        let current_mode = self.registers.get_bg_mode();
-
-        if matches!(current_mode, 0 | 1) && self.registers.get_bg0_enabled() {
-            result.push(&self.layer_0);
-        }
-
-        if matches!(current_mode, 0 | 1) && self.registers.get_bg1_enabled() {
-            result.push(&self.layer_1);
-        }
-
-        // BG2 is available in every mode
-        if self.registers.get_bg2_enabled() {
-            result.push(&self.layer_2);
-        }
-
-        if matches!(current_mode, 0 | 2) && self.registers.get_bg3_enabled() {
-            result.push(&self.layer_3);
-        }
-
-        if self.registers.get_obj_enabled() {
-            result.push(&self.layer_obj);
-        }
-
-        result
     }
 
     /// Apply color blending effects based on BLDCNT settings.

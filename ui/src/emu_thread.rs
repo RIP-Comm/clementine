@@ -34,8 +34,8 @@ use std::collections::BTreeSet;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use emu::cpu::DisasmEntry;
 pub use emu::cpu::hardware::keypad::GbaButton;
+use emu::cpu::DisasmEntry;
 use emu::gba::Gba;
 
 /// GBA LCD dimensions
@@ -386,15 +386,30 @@ impl EmuThread {
                     }
                 }
 
-                // Frame rate limiting (only for speeds <= 4x)
-                // Above 4x, just run as fast as possible with frame skipping
-                if self.speed_multiplier > 0.0 && self.speed_multiplier <= 4.0 {
+                // Frame rate limiting using accumulator-based timing.
+                // Sleep for the remaining time, and use accumulation (not reset)
+                // so that sleep overshoot is automatically corrected next frame.
+                if self.speed_multiplier > 0.0 {
                     let target_duration = FRAME_DURATION.div_f32(self.speed_multiplier);
                     let elapsed = self.frame_start.elapsed();
+
                     if let Some(sleep_duration) = target_duration.checked_sub(elapsed) {
                         thread::sleep(sleep_duration);
                     }
-                    self.frame_start = Instant::now();
+
+                    // Advance by target instead of resetting to now().
+                    // This compensates for sleep overshoot on the next frame.
+                    self.frame_start += target_duration;
+
+                    // If we fell behind by more than 2 frames (e.g. system sleep,
+                    // or emulation is too slow for the requested speed), reset
+                    // to avoid a burst of catch-up frames.
+                    if self.frame_start.elapsed() > target_duration * 2 {
+                        self.frame_start = Instant::now();
+                    }
+                } else {
+                    // Turbo mode (uncapped): yield to avoid pinning the core at 100%
+                    thread::yield_now();
                 }
             }
 

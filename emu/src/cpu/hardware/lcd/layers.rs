@@ -170,7 +170,7 @@
 //! Palette index 0 is always transparent for both backgrounds and sprites.
 //! Returning `None` from [`Layer::render`] indicates a transparent pixel.
 
-use super::{Color, PixelInfo, memory::Memory, registers::Registers};
+use super::{memory::Memory, registers::Registers, Color, PixelInfo};
 use crate::bitwise::Bits;
 
 pub mod layer_0;
@@ -506,6 +506,7 @@ pub fn render_affine_bg<T: AffineBgConfig>(
 /// Each layer type implements this trait to participate in the PPU's
 /// compositing pipeline. The LCD controller calls [`render`](Layer::render)
 /// for each enabled layer at each pixel position.
+#[allow(dead_code)]
 pub trait Layer {
     /// Returns the layer ID (0-3 for BG0-BG3, 4 for OBJ).
     fn layer_id(&self) -> u8;

@@ -18,11 +18,11 @@
 //! - `BG3PA`, `BG3PB`, `BG3PC`, `BG3PD`: Transformation matrix
 //! - `BG3X`, `BG3Y`: Reference point
 
-use crate::cpu::hardware::lcd::PixelInfo;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
+use crate::cpu::hardware::lcd::PixelInfo;
 
-use super::{AffineBgConfig, Layer, TextBgConfig, render_affine_bg, render_text_bg};
+use super::{render_affine_bg, render_text_bg, AffineBgConfig, Layer, TextBgConfig};
 use serde::{Deserialize, Serialize};
 
 /// BG3

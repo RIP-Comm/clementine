@@ -86,11 +86,11 @@
 //! higher priority (drawn on top). When multiple layers have the same priority,
 //! the layer with the lower number (BG0 < BG1 < BG2 < BG3) is drawn on top.
 
-use crate::cpu::hardware::lcd::PixelInfo;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
+use crate::cpu::hardware::lcd::PixelInfo;
 
-use super::{Layer, TextBgConfig, render_text_bg};
+use super::{render_text_bg, Layer, TextBgConfig};
 use serde::{Deserialize, Serialize};
 
 /// BG0
