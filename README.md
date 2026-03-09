@@ -71,6 +71,31 @@ just run-log ~/roms/pokemon_emerald.gba
 
 When `--log-to-file` is passed, logs are written to `clementine.log` in your system's temp directory. The path is printed at startup.
 
+## Features
+
+- **ARM7TDMI CPU** — ARM and Thumb instruction sets
+- **LCD rendering** — Backgrounds (modes 0–5), sprites, windowing, color blending effects (alpha, brightness)
+- **Input** — Keyboard-mapped GBA buttons
+- **Save/Load state** — Versioned save states with integrity checks (ROM/BIOS excluded from serialization)
+- **Speed control** — Adjustable emulation speed multiplier
+- **Pokemon tools** — Party viewer, wild encounter patching (see below)
+
+### Pokemon Debugger
+
+A built-in tool for Gen 3 Pokemon games (accessible from the sidebar). Supported games:
+
+| Game | Region | ROM Code |
+|------|--------|----------|
+| Pokemon FireRed | US | `BPRE` |
+| Pokemon LeafGreen | US | `BPGE` |
+| Pokemon Emerald | US | `BPEE` |
+| Pokemon Ruby | US | `AXVE` |
+| Pokemon Sapphire | US | `AXPE` |
+
+**Party tab** - View your party Pokemon (species, level, stats, moves, held items). The game version is auto-detected from the ROM header.
+
+**Wild tab** - Force all wild grass encounters to a specific Pokemon species and level. Search/select any of the 386 Pokemon by name, set a level, and click "Patch All Encounters". This patches the ROM encounter tables in memory (not on disk), so it resets when the emulator restarts.
+
 ## UI Tools
 
 The emulator includes several debug tools accessible via the sidebar:
@@ -79,7 +104,8 @@ The emulator includes several debug tools accessible via the sidebar:
 - **Cpu Handler** - Run/Pause/Step controls and breakpoints
 - **Cpu Registers** - View ARM7TDMI register values
 - **Disassembler** - Real-time disassembly of executed instructions
-- **Save Game** - Save/Load state
+- **Save Game** - Save/Load state with version validation
+- **Pokemon Debugger** - Party viewer and wild encounter cheats
 
 ## Development
 
