@@ -41,6 +41,24 @@ impl GameVersion {
         }
     }
 
+    /// ROM offset of the gWildMonHeaders table for this game version.
+    /// Each header is 20 bytes: `map_group`(1), `map_num`(1), pad(2),
+    /// `grass_ptr`(4), `water_ptr`(4), `rock_ptr`(4), `fish_ptr`(4).
+    /// Terminated by 0xFF,0xFF in the first two bytes.
+    const fn wild_encounters_offset(self) -> Option<u32> {
+        match self {
+            // Verified from ROM analysis
+            // Same ROM layout for FireRed and LeafGreen (same engine, shared encounter structure)
+            Self::FireRedUS | Self::LeafGreenUS => Some(0x003C_9D28),
+            // From pokeemerald decomp
+            Self::EmeraldUS => Some(0x0055_2D48),
+            // From pokeruby decomp
+            Self::RubyUS => Some(0x0039_D454),
+            Self::SapphireUS => Some(0x0039_D29C),
+            Self::Unknown => None,
+        }
+    }
+
     /// Display name for the UI.
     const fn display_name(self) -> &'static str {
         match self {
@@ -510,6 +528,22 @@ const SPECIES_TO_NATIONAL: &[u16] = &[
     383, 384, 380, 381, 385, 386, 358, // 405-411
 ];
 
+/// Reverse mapping: National Dex number -> Gen 3 internal species index.
+/// Built at compile time from `SPECIES_TO_NATIONAL`.
+#[allow(clippy::cast_possible_truncation)]
+const NATIONAL_TO_SPECIES: [u16; 387] = {
+    let mut table = [0u16; 387];
+    let mut i = 0;
+    while i < SPECIES_TO_NATIONAL.len() {
+        let national = SPECIES_TO_NATIONAL[i] as usize;
+        if national > 0 && national < 387 && table[national] == 0 {
+            table[national] = i as u16;
+        }
+        i += 1;
+    }
+    table
+};
+
 /// Experience required for each level in the "Medium Fast" growth rate (most common).
 /// Index 0 = level 1 (0 exp), index 99 = level 100.
 /// Formula: n^3 where n is the level.
@@ -711,6 +745,7 @@ fn decode_gba_text(data: &[u8]) -> String {
 }
 
 /// Debug tool for viewing and editing Pokemon game data.
+#[allow(clippy::struct_excessive_bools)]
 pub struct PokemonDebugger {
     emu_handle: Arc<Mutex<EmuHandle>>,
     /// Cached party data.
@@ -731,11 +766,22 @@ pub struct PokemonDebugger {
     pending_address: u32,
     /// Debug: last received data info.
     debug_info: String,
+    /// Search text for species filter in wild encounters tab.
+    species_search: String,
+    /// Currently selected species (National Dex number) to force in wild encounters.
+    selected_species: u16,
+    /// Level to set for forced wild encounters.
+    forced_level: u8,
+    /// Whether encounter patching is currently active.
+    encounters_patched: bool,
+    /// Whether we're waiting for encounter patch result.
+    pending_encounter_read: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
     Party,
+    WildEncounters,
 }
 
 impl PokemonDebugger {
@@ -757,6 +803,11 @@ impl PokemonDebugger {
             game_version,
             pending_address: game_version.party_address(),
             debug_info: format!("Auto-detected: {}", game_version.display_name()),
+            species_search: String::new(),
+            selected_species: 25, // Pikachu
+            forced_level: 5,
+            encounters_patched: false,
+            pending_encounter_read: false,
         }
     }
 
@@ -955,6 +1006,132 @@ impl PokemonDebugger {
         );
     }
 
+    /// Check for pending wild encounter patch result from the emu thread.
+    fn check_wild_patch_result(&mut self) {
+        let result = if let Ok(mut handle) = self.emu_handle.lock() {
+            handle.wild_patch_result.take()
+        } else {
+            return;
+        };
+        if let Some((maps_patched, message)) = result {
+            let name = if (self.selected_species as usize) < SPECIES_NAMES.len() {
+                SPECIES_NAMES[self.selected_species as usize]
+            } else {
+                "???"
+            };
+            self.debug_info = format!(
+                "{message}: all grass -> {name} (Lv.{}, internal #{})",
+                self.forced_level, NATIONAL_TO_SPECIES[self.selected_species as usize]
+            );
+            self.encounters_patched = maps_patched > 0;
+            self.pending_encounter_read = false;
+        }
+    }
+
+    /// Send a command to patch all grass encounter entries in ROM.
+    fn patch_all_encounters(&mut self) {
+        let Some(table_offset) = self.game_version.wild_encounters_offset() else {
+            self.debug_info = "No encounter table for this game version".to_string();
+            return;
+        };
+
+        let internal_species = if (self.selected_species as usize) < NATIONAL_TO_SPECIES.len() {
+            NATIONAL_TO_SPECIES[self.selected_species as usize]
+        } else {
+            0
+        };
+        if internal_species == 0 {
+            self.debug_info = "Invalid species selection".to_string();
+            return;
+        }
+
+        if let Ok(mut handle) = self.emu_handle.lock() {
+            handle.send(EmuCommand::PatchWildEncounters {
+                table_offset,
+                species: internal_species,
+                level: self.forced_level,
+            });
+            self.pending_encounter_read = true;
+            self.debug_info = "Patching...".to_string();
+        }
+    }
+
+    fn show_wild_tab(&mut self, ui: &mut egui::Ui) {
+        if self.game_version.wild_encounters_offset().is_none() {
+            ui.label("Wild encounter patching is not supported for this game version.");
+            ui.label("Currently only FireRed (EU) is supported.");
+            return;
+        }
+
+        ui.label("Force all wild grass encounters to a specific Pokemon.");
+        ui.small("Works by patching the ROM encounter tables in memory (not on disk).");
+        ui.add_space(4.0);
+
+        // Species search/select
+        ui.horizontal(|ui| {
+            ui.label("Search:");
+            ui.text_edit_singleline(&mut self.species_search);
+        });
+
+        let search = self.species_search.to_lowercase();
+        let filtered: Vec<(u16, &&str)> = SPECIES_NAMES
+            .iter()
+            .enumerate()
+            .skip(1) // skip index 0 "???"
+            .filter(|(_, name)| search.is_empty() || name.to_lowercase().contains(&search))
+            .map(|(i, name)| (u16::try_from(i).unwrap_or(0), name))
+            .take(50) // limit results
+            .collect();
+
+        let current_name = if (self.selected_species as usize) < SPECIES_NAMES.len() {
+            SPECIES_NAMES[self.selected_species as usize]
+        } else {
+            "???"
+        };
+
+        ui.horizontal(|ui| {
+            ui.label("Species:");
+            egui::ComboBox::from_id_salt("species_select")
+                .selected_text(format!("#{} {}", self.selected_species, current_name))
+                .width(200.0)
+                .show_ui(ui, |ui| {
+                    for (national_dex, name) in &filtered {
+                        ui.selectable_value(
+                            &mut self.selected_species,
+                            *national_dex,
+                            format!("#{national_dex} {name}"),
+                        );
+                    }
+                });
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Level:");
+            ui.add(egui::DragValue::new(&mut self.forced_level).range(1..=100));
+        });
+
+        ui.add_space(4.0);
+
+        ui.horizontal(|ui| {
+            if ui.button("Patch All Encounters").clicked() {
+                self.patch_all_encounters();
+            }
+            if self.pending_encounter_read {
+                ui.spinner();
+            }
+        });
+
+        if self.encounters_patched {
+            ui.colored_label(
+                egui::Color32::GREEN,
+                format!(
+                    "Active: all grass -> #{} {} Lv.{}",
+                    self.selected_species, current_name, self.forced_level
+                ),
+            );
+        }
+    }
+
     fn show_party_tab(&mut self, ui: &mut egui::Ui) {
         // Clone party data to avoid borrow issues
         let party_clone: Vec<Pokemon> = self.party.to_vec();
@@ -1032,6 +1209,7 @@ impl UiTool for PokemonDebugger {
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
         self.check_pending_data();
+        self.check_wild_patch_result();
 
         if self.auto_refresh {
             self.refresh_counter += 1;
@@ -1086,12 +1264,14 @@ impl UiTool for PokemonDebugger {
 
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.selected_tab, Tab::Party, "Party");
+            ui.selectable_value(&mut self.selected_tab, Tab::WildEncounters, "Wild");
         });
 
         ui.separator();
 
         match self.selected_tab {
             Tab::Party => self.show_party_tab(ui),
+            Tab::WildEncounters => self.show_wild_tab(ui),
         }
 
         ui.separator();

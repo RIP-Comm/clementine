@@ -34,8 +34,8 @@ use std::collections::BTreeSet;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-pub use emu::cpu::hardware::keypad::GbaButton;
 use emu::cpu::DisasmEntry;
+pub use emu::cpu::hardware::keypad::GbaButton;
 use emu::gba::Gba;
 
 /// GBA LCD dimensions
@@ -88,6 +88,19 @@ pub enum EmuCommand {
     ReadMemory { address: u32, length: usize },
     /// Write a byte to memory.
     WriteByte { address: u32, value: u8 },
+    /// Write a byte directly to the ROM buffer (bypasses read-only protection).
+    /// Offset is relative to ROM start (`0x0800_0000`).
+    WriteRom { offset: u32, value: u8 },
+    /// Read bytes directly from the ROM buffer.
+    ReadRom { offset: u32, length: usize },
+    /// Patch all wild grass encounters in the ROM encounter table.
+    /// Walks the header table, follows grass pointers, and overwrites
+    /// every entry's species and level.
+    PatchWildEncounters {
+        table_offset: u32,
+        species: u16,
+        level: u8,
+    },
     /// Enable or disable disassembly output.
     SetDisasmEnabled(bool),
     /// Set emulation speed multiplier.
@@ -122,6 +135,10 @@ pub enum EmuEvent {
     LoadStateFailed(String),
     /// Memory data response.
     MemoryData { address: u32, data: Vec<u8> },
+    /// ROM data response.
+    RomData { offset: u32, data: Vec<u8> },
+    /// Wild encounter patch result (`maps_patched`, `species_name`).
+    WildEncounterPatched { maps_patched: u32, message: String },
 }
 
 /// Snapshot of emulator state for UI display.
@@ -364,6 +381,87 @@ impl EmuThread {
                 EmuCommand::WriteByte { address, value } => {
                     self.gba.cpu.bus.write_byte(address as usize, value);
                 }
+                EmuCommand::WriteRom { offset, value } => {
+                    let rom = &mut self.gba.cpu.bus.internal_memory.rom;
+                    if (offset as usize) < rom.len() {
+                        rom[offset as usize] = value;
+                    }
+                }
+                EmuCommand::ReadRom { offset, length } => {
+                    let rom = &self.gba.cpu.bus.internal_memory.rom;
+                    let start = offset as usize;
+                    let end = (start + length).min(rom.len());
+                    let data = if start < rom.len() {
+                        rom[start..end].to_vec()
+                    } else {
+                        vec![]
+                    };
+                    self.send_event(EmuEvent::RomData { offset, data });
+                }
+                EmuCommand::PatchWildEncounters {
+                    table_offset,
+                    species,
+                    level,
+                } => {
+                    let rom = &mut self.gba.cpu.bus.internal_memory.rom;
+                    let species_bytes = species.to_le_bytes();
+                    let mut maps_patched = 0u32;
+                    let mut i = 0;
+
+                    loop {
+                        let pos = table_offset as usize + i * 20;
+                        if pos + 20 > rom.len() {
+                            break;
+                        }
+                        let map_group = rom[pos];
+                        let map_num = rom[pos + 1];
+                        // Terminator
+                        if map_group == 0xFF && map_num == 0xFF {
+                            break;
+                        }
+                        // Grass pointer (little-endian u32 at offset +4)
+                        let grass_ptr = u32::from_le_bytes([
+                            rom[pos + 4],
+                            rom[pos + 5],
+                            rom[pos + 6],
+                            rom[pos + 7],
+                        ]);
+                        // Valid ROM pointer
+                        if (0x0800_0000..0x0A00_0000).contains(&grass_ptr) {
+                            let info_offset = (grass_ptr - 0x0800_0000) as usize;
+                            // WildPokemonInfo: { rate: u32, pokemon_ptr: u32 }
+                            if info_offset + 8 <= rom.len() {
+                                let pokemon_ptr = u32::from_le_bytes([
+                                    rom[info_offset + 4],
+                                    rom[info_offset + 5],
+                                    rom[info_offset + 6],
+                                    rom[info_offset + 7],
+                                ]);
+                                if (0x0800_0000..0x0A00_0000).contains(&pokemon_ptr) {
+                                    let arr_offset = (pokemon_ptr - 0x0800_0000) as usize;
+                                    // Patch 12 entries: {min_level: u8, max_level: u8, species: u16}
+                                    for entry in 0..12usize {
+                                        let e = arr_offset + entry * 4;
+                                        if e + 4 <= rom.len() {
+                                            rom[e] = level; // min_level
+                                            rom[e + 1] = level; // max_level
+                                            rom[e + 2] = species_bytes[0];
+                                            rom[e + 3] = species_bytes[1];
+                                        }
+                                    }
+                                    maps_patched += 1;
+                                }
+                            }
+                        }
+                        i += 1;
+                    }
+
+                    tracing::info!("Patched {maps_patched} maps: species={species}, level={level}");
+                    self.send_event(EmuEvent::WildEncounterPatched {
+                        maps_patched,
+                        message: format!("Patched {maps_patched} maps: Lv.{level}"),
+                    });
+                }
                 EmuCommand::SetDisasmEnabled(enabled) => {
                     if enabled {
                     } else {
@@ -575,6 +673,10 @@ pub struct EmuHandle {
     pub pending_save_state: Option<Vec<u8>>,
     /// Pending memory data (address and bytes read).
     pub pending_memory_data: Option<(u32, Vec<u8>)>,
+    /// Pending ROM data (offset and bytes read).
+    pub pending_rom_data: Option<(u32, Vec<u8>)>,
+    /// Result of wild encounter patching.
+    pub wild_patch_result: Option<(u32, String)>,
     /// Error message from failed load state (set when load fails, cleared when taken).
     pub load_state_error: Option<String>,
     /// Set when a load state succeeds (cleared when taken).
@@ -627,6 +729,15 @@ impl EmuHandle {
                 }
                 EmuEvent::MemoryData { address, data } => {
                     self.pending_memory_data = Some((address, data));
+                }
+                EmuEvent::RomData { offset, data } => {
+                    self.pending_rom_data = Some((offset, data));
+                }
+                EmuEvent::WildEncounterPatched {
+                    maps_patched,
+                    message,
+                } => {
+                    self.wild_patch_result = Some((maps_patched, message));
                 }
             }
         }
@@ -704,6 +815,8 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         breakpoints: Vec::new(),
         pending_save_state: None,
         pending_memory_data: None,
+        pending_rom_data: None,
+        wild_patch_result: None,
         load_state_error: None,
         load_state_success: false,
         speed: 1.0,
