@@ -34,8 +34,8 @@ use std::collections::BTreeSet;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use emu::cpu::DisasmEntry;
 pub use emu::cpu::hardware::keypad::GbaButton;
+use emu::cpu::DisasmEntry;
 use emu::gba::Gba;
 
 /// GBA LCD dimensions
@@ -55,6 +55,13 @@ const FRAME_DURATION: Duration = Duration::from_micros(16_742);
 /// Channel buffer sizes
 const COMMAND_BUFFER_SIZE: usize = 64;
 const EVENT_BUFFER_SIZE: usize = 64;
+
+/// Magic bytes at the start of every save state file.
+const SAVE_STATE_HEADER: &[u8] = b"CLEM";
+
+/// Save state format version. Bump this whenever the serialized layout changes
+/// (e.g. adding/removing/reordering fields in any `Serialize`-derived struct).
+const SAVE_STATE_VERSION: u32 = 1;
 
 /// Commands sent from the UI thread to the emulator thread.
 #[derive(Debug, Clone)]
@@ -109,6 +116,8 @@ pub enum EmuEvent {
     Paused { reason: PauseReason },
     /// Save state data.
     SaveStateData(Vec<u8>),
+    /// Load state succeeded.
+    LoadStateSuccess,
     /// Load state failed with error message.
     LoadStateFailed(String),
     /// Memory data response.
@@ -259,19 +268,60 @@ impl EmuThread {
                     self.send_state();
                 }
                 EmuCommand::LoadState(data) => {
-                    // save channel of dis-ASM before replacing CPU state
-                    let disasm_tx = self.gba.cpu.disasm_tx.take();
+                    // Validate save state header
+                    if data.len() < SAVE_STATE_HEADER.len() + 4
+                        || &data[..SAVE_STATE_HEADER.len()] != SAVE_STATE_HEADER
+                    {
+                        tracing::error!("Invalid save state: missing or wrong header");
+                        self.send_event(EmuEvent::LoadStateFailed(
+                            "Not a valid save file (missing header). Delete the .sav file and create a new save.".to_string()
+                        ));
+                        continue;
+                    }
 
-                    match bincode::deserialize(&data) {
+                    let version_offset = SAVE_STATE_HEADER.len();
+                    let version_bytes: [u8; 4] =
+                        data[version_offset..version_offset + 4].try_into().unwrap();
+                    let file_version = u32::from_le_bytes(version_bytes);
+                    if file_version != SAVE_STATE_VERSION {
+                        tracing::error!(
+                            "Save state version mismatch: file={file_version}, expected={SAVE_STATE_VERSION}"
+                        );
+                        self.send_event(EmuEvent::LoadStateFailed(
+                            format!(
+                                "Incompatible save version (v{file_version}, expected v{SAVE_STATE_VERSION}). Delete the .sav file and create a new save."
+                            )
+                        ));
+                        continue;
+                    }
+
+                    let payload = &data[version_offset + 4..];
+
+                    // Save fields that are skipped during serialization so we can restore them
+                    let disasm_tx = self.gba.cpu.disasm_tx.take();
+                    let bios =
+                        std::mem::take(&mut self.gba.cpu.bus.internal_memory.bios_system_rom);
+                    let rom = std::mem::take(&mut self.gba.cpu.bus.internal_memory.rom);
+
+                    match bincode::deserialize(payload) {
                         Ok(cpu) => {
                             self.gba.cpu = cpu;
+                            // Restore skipped fields
                             self.gba.cpu.disasm_tx = disasm_tx;
-                            tracing::info!("Save state loaded successfully");
+                            self.gba.cpu.bus.internal_memory.bios_system_rom = bios;
+                            self.gba.cpu.bus.internal_memory.rom = rom;
+                            tracing::info!(
+                                "Save state loaded successfully (v{SAVE_STATE_VERSION})"
+                            );
+                            self.send_event(EmuEvent::LoadStateSuccess);
                             self.send_state();
                             self.send_frame();
                         }
                         Err(e) => {
+                            // Restore skipped fields to the original CPU (unchanged on error)
                             self.gba.cpu.disasm_tx = disasm_tx;
+                            self.gba.cpu.bus.internal_memory.bios_system_rom = bios;
+                            self.gba.cpu.bus.internal_memory.rom = rom;
                             tracing::error!("Failed to load save state: {e}");
                             self.send_event(EmuEvent::LoadStateFailed(
                                 "Incompatible save file. Delete the .sav file and create a new save.".to_string()
@@ -280,8 +330,17 @@ impl EmuThread {
                     }
                 }
                 EmuCommand::RequestSaveState => match bincode::serialize(&self.gba.cpu) {
-                    Ok(data) => {
-                        tracing::info!("Save state created: {} bytes", data.len());
+                    Ok(payload) => {
+                        // Prepend header + version so we can detect incompatible saves
+                        let mut data =
+                            Vec::with_capacity(SAVE_STATE_HEADER.len() + 4 + payload.len());
+                        data.extend_from_slice(SAVE_STATE_HEADER);
+                        data.extend_from_slice(&SAVE_STATE_VERSION.to_le_bytes());
+                        data.extend_from_slice(&payload);
+                        tracing::info!(
+                            "Save state created: {} bytes (v{SAVE_STATE_VERSION})",
+                            data.len()
+                        );
                         self.send_event(EmuEvent::SaveStateData(data));
                     }
                     Err(e) => {
@@ -517,6 +576,8 @@ pub struct EmuHandle {
     pub pending_memory_data: Option<(u32, Vec<u8>)>,
     /// Error message from failed load state (set when load fails, cleared when taken).
     pub load_state_error: Option<String>,
+    /// Set when a load state succeeds (cleared when taken).
+    pub load_state_success: bool,
     /// Current speed multiplier.
     pub speed: f32,
 }
@@ -556,6 +617,9 @@ impl EmuHandle {
                 EmuEvent::SaveStateData(data) => {
                     tracing::info!("Received save state data: {} bytes", data.len());
                     self.pending_save_state = Some(data);
+                }
+                EmuEvent::LoadStateSuccess => {
+                    self.load_state_success = true;
                 }
                 EmuEvent::LoadStateFailed(error) => {
                     self.load_state_error = Some(error);
@@ -640,6 +704,7 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         pending_save_state: None,
         pending_memory_data: None,
         load_state_error: None,
+        load_state_success: false,
         speed: 1.0,
     }
 }

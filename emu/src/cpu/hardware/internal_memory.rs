@@ -71,7 +71,9 @@ pub enum FlashState {
 #[derive(Serialize, Deserialize)]
 pub struct InternalMemory {
     /// From 0x00000000 to 0x00003FFF (16 `KBytes`).
-    bios_system_rom: Vec<u8>,
+    /// Skipped during serialization: read-only, already loaded from file at startup.
+    #[serde(skip)]
+    pub bios_system_rom: Vec<u8>,
 
     /// From 0x02000000 to 0x0203FFFF (256 `KBytes`).
     working_ram: Vec<u8>,
@@ -81,12 +83,14 @@ pub struct InternalMemory {
 
     /// From 0x08000000 to 0x0FFFFFFF.
     /// Basically here you can find different kind of rom loaded.
+    /// Skipped during serialization: read-only, already loaded from file at startup.
     // TODO: Not sure if we should split this into
     // 08000000-09FFFFFF Game Pak ROM/FlashROM (max 32MB) - Wait State 0
     // 0A000000-0BFFFFFF Game Pak ROM/FlashROM (max 32MB) - Wait State 1
     // 0C000000-0DFFFFFF Game Pak ROM/FlashROM (max 32MB) - Wait State 2
     // 0E000000-0E00FFFF Game Pak SRAM (max 64 KBytes) - 8bit Bus width
     // 0E010000-0FFFFFFF Not used
+    #[serde(skip)]
     pub rom: Vec<u8>,
 
     /// From 0x0E000000 to 0x0E01FFFF (128 `KBytes` for Flash).

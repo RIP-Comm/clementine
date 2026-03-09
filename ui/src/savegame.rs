@@ -15,6 +15,8 @@ pub struct SaveGame {
     pending_save: bool,
     /// Status message to display.
     status: Option<String>,
+    /// Set when a load attempt failed -- prevents accidental overwrite of the .sav file.
+    load_failed: bool,
 }
 
 impl SaveGame {
@@ -23,6 +25,7 @@ impl SaveGame {
             emu_handle,
             pending_save: false,
             status: None,
+            load_failed: false,
         }
     }
 
@@ -101,15 +104,20 @@ impl SaveGame {
         }
     }
 
-    fn check_load_error(&mut self) {
-        let error = if let Ok(mut handle) = self.emu_handle.lock() {
-            handle.load_state_error.take()
-        } else {
+    fn check_load_result(&mut self) {
+        let Ok(mut handle) = self.emu_handle.lock() else {
             return;
         };
 
-        if let Some(error_msg) = error {
+        if let Some(error_msg) = handle.load_state_error.take() {
             self.status = Some(format!("Error: {error_msg}"));
+            self.load_failed = true;
+        }
+
+        if handle.load_state_success {
+            handle.load_state_success = false;
+            self.load_failed = false;
+            self.status = Some("State loaded successfully.".to_string());
         }
     }
 }
@@ -121,7 +129,7 @@ impl UiTool for SaveGame {
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
         self.check_pending_save();
-        self.check_load_error();
+        self.check_load_result();
 
         egui::Window::new(self.name())
             .default_width(150.0)
@@ -132,8 +140,14 @@ impl UiTool for SaveGame {
 
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button("Save").clicked() {
+            let save_btn = ui.add_enabled(!self.load_failed, egui::Button::new("Save"));
+            if save_btn.clicked() {
                 self.save_state();
+            }
+            if self.load_failed {
+                save_btn.on_disabled_hover_text(
+                    "Save disabled: last load failed. Load a valid state first.",
+                );
             }
 
             if ui.button("Load").clicked() {
