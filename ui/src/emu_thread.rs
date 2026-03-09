@@ -239,6 +239,7 @@ impl EmuThread {
     }
 
     /// Process all pending commands. Returns true if should shutdown.
+    #[allow(clippy::too_many_lines)]
     fn process_commands(&mut self) -> bool {
         while let Ok(cmd) = self.cmd_rx.pop() {
             match cmd {

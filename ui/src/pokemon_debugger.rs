@@ -16,39 +16,63 @@ const PARTY_SIZE: usize = 6;
 /// Total bytes to fetch for party data.
 const PARTY_BYTES: usize = POKEMON_SIZE_BYTES * PARTY_SIZE;
 
-/// Known game versions and their party addresses.
-/// Sources: Bulbapedia, pret/pokeemerald decomp
+/// Known game versions and their memory addresses.
+/// Sources: pret/pokefirered, pret/pokeemerald, pret/pokeruby decomp projects
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum GameVersion {
-    EmeraldEU,
+    FireRedUS,
+    LeafGreenUS,
+    EmeraldUS,
+    RubyUS,
+    SapphireUS,
     Unknown,
 }
 
 impl GameVersion {
-    /// Get the party address for this game version.
+    /// Get the party address (gPlayerParty) for this game version.
     const fn party_address(self) -> u32 {
         match self {
-            Self::EmeraldEU | Self::Unknown => 0x0202_44EC,
+            // FR/LG: gSaveBlock1 at 0x0202_424C, playerParty at offset 0x38
+            Self::FireRedUS | Self::LeafGreenUS => 0x0202_4284,
+            // Emerald: gSaveBlock1 at 0x0202_42B4, playerParty at offset 0x238
+            Self::EmeraldUS | Self::Unknown => 0x0202_44EC,
+            // Ruby/Sapphire: gSaveBlock1 at 0x0202_5734, playerParty at offset 0x238
+            Self::RubyUS | Self::SapphireUS => 0x0202_596C,
         }
     }
 
     /// Display name for the UI.
     const fn display_name(self) -> &'static str {
         match self {
-            Self::EmeraldEU => "Emerald (EU)",
+            Self::FireRedUS => "FireRed (US)",
+            Self::LeafGreenUS => "LeafGreen (US)",
+            Self::EmeraldUS => "Emerald (US)",
+            Self::RubyUS => "Ruby (US)",
+            Self::SapphireUS => "Sapphire (US)",
             Self::Unknown => "Unknown",
         }
     }
 
-    /// Detect game version from the 4-character game code.
+    /// Detect game version from the 4-character game code in the ROM header.
     fn from_game_code(code: &str) -> Self {
         match code {
-            "BPEP" | "BPED" | "BPEF" | "BPES" | "BPEI" => Self::EmeraldEU,
+            "BPRE" => Self::FireRedUS,
+            "BPGE" => Self::LeafGreenUS,
+            "BPEE" => Self::EmeraldUS,
+            "AXVE" => Self::RubyUS,
+            "AXPE" => Self::SapphireUS,
             _ => Self::Unknown,
         }
     }
 
-    const ALL: &'static [Self] = &[Self::EmeraldEU, Self::Unknown];
+    const ALL: &'static [Self] = &[
+        Self::FireRedUS,
+        Self::LeafGreenUS,
+        Self::EmeraldUS,
+        Self::RubyUS,
+        Self::SapphireUS,
+        Self::Unknown,
+    ];
 }
 
 /// Pokemon species names indexed by National Dex number.
