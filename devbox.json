@@ -1,18 +1,13 @@
 {
-  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
-  "packages": {
-    "libiconv":      "latest",
-    "rustup":        "latest",
-    "pkg-config":    "latest",
-    "openssl_3_3":   "3.3.2",
-    "just":          "latest"
-  },
-  "shell": {
-    "init_hook": [
-      "if [ ! -d $RUSTUP_HOME/toolchains -o ! -d $RUSTUP_HOME/toolchains/stable ]; then rustup default 1.94.0; rustup component add rust-analyzer; fi"
-    ],
-    "scripts": {
-      "test": ["cargo test"]
-    }
-  }
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.2/.schema/devbox.schema.json",
+  "packages": [
+    "clippy@latest",
+    "rustfmt@latest",
+    "rust-analyzer@latest",
+    "pkg-config@latest",
+    "libiconv@latest",
+    "rustc@1.94.1",
+    "cargo@1.94.1",
+    "just@latest"
+  ]
 }
