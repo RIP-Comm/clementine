@@ -81,6 +81,11 @@ pub struct Bus {
     pub keypad: Keypad,
     interrupt_control: InterruptControl,
     cycles_count: u64,
+    /// Number of 4-cycle LCD pixel ticks already serviced. Used to keep the LCD
+    /// pixel clock in sync with `cycles_count` even when instructions advance the
+    /// cycle counter by more than one at a time.
+    #[serde(default)]
+    lcd_ticks_done: u64,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
     /// Tracks the last opcode fetched from BIOS for read protection
@@ -1078,8 +1083,16 @@ impl Bus {
             self.request_interrupt(IrqType::Timer3);
         }
 
-        // A pixel takes 4 cycles to get drawn
-        if self.cycles_count.trailing_zeros() >= 2 {
+        // A pixel takes 4 cycles to get drawn. `cycles_count` is bumped both here
+        // (one cycle per instruction) and by every memory access, so an instruction
+        // can advance it by several cycles at once. Step the LCD once for each
+        // 4-cycle tick that has elapsed since it was last serviced, otherwise the
+        // pixel clock falls behind whenever memory traffic is heavy (the previous
+        // `cycles_count % 4 == 0` check dropped every tick that didn't land exactly
+        // on a multiple of 4, freezing VCOUNT during memory-bound code).
+        let ticks_owed = self.cycles_count >> 2;
+        while self.lcd_ticks_done < ticks_owed {
+            self.lcd_ticks_done += 1;
             let lcd_output = self.lcd.step();
 
             if lcd_output.request_hblank_irq {
@@ -1088,6 +1101,13 @@ impl Bus {
 
             if lcd_output.request_vblank_irq {
                 self.request_interrupt(IrqType::VBlank);
+            }
+
+            // Signal a ready frame whenever the LCD enters VBlank, regardless of
+            // whether the VBlank IRQ is enabled. Games that poll DISPSTAT (e.g. the
+            // jsmolka test ROMs) never enable the IRQ but still need the display to
+            // refresh.
+            if lcd_output.entered_vblank {
                 vblank_started = true;
             }
 

@@ -185,11 +185,17 @@ impl Default for Lcd {
     }
 }
 
+// Just a per-step bag of edge flags, so several bools is fine here.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Default)]
 pub struct LcdStepOutput {
     pub request_vblank_irq: bool,
     pub request_hblank_irq: bool,
     pub request_vcount_irq: bool,
+    /// True when the LCD just entered the `VBlank` period (a full frame is ready).
+    /// Independent of the `VBlank` `IRQ` enable: games that poll `DISPSTAT` instead
+    /// of using interrupts still need the frame-ready signal to drive the display.
+    pub entered_vblank: bool,
 }
 
 impl Lcd {
@@ -224,6 +230,7 @@ impl Lcd {
             // We're drawing the first pixel of the Vblank period
 
             self.registers.set_vblank_flag(true);
+            output.entered_vblank = true;
 
             if self.registers.get_vblank_irq_enable() {
                 output.request_vblank_irq = true;
