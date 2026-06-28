@@ -239,7 +239,7 @@ impl MemoryInspector {
                         let addr = row_addr.wrapping_add(col as u32);
                         #[allow(clippy::cast_possible_wrap)] // intentional for signed display
                         let signed_byte = byte as i8;
-                        response.on_hover_text(format!("0x{addr:08X}: {byte} ({signed_byte})",));
+                        response.on_hover_text(format!("0x{addr:08X}: {byte} ({signed_byte})"));
                     }
                 }
 

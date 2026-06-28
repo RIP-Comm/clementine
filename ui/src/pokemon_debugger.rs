@@ -787,10 +787,9 @@ enum Tab {
 impl PokemonDebugger {
     pub fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
         // Auto-detect game version from game code
-        let game_version = emu_handle
-            .lock()
-            .map(|h| GameVersion::from_game_code(&h.state.game_code))
-            .unwrap_or(GameVersion::Unknown);
+        let game_version = emu_handle.lock().map_or(GameVersion::Unknown, |h| {
+            GameVersion::from_game_code(&h.state.game_code)
+        });
 
         Self {
             emu_handle,
