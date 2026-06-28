@@ -109,7 +109,6 @@ fn nes_rom_passes() {
     check("nes/nes.gba");
 }
 
-#[ignore = "fails at sub-test 1: unaligned/edge-case access handling"]
 #[test]
 fn unsafe_rom_passes() {
     check("unsafe/unsafe.gba");
