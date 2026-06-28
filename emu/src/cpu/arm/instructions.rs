@@ -568,7 +568,7 @@ impl ArmModeInstruction {
             Self::CoprocessorRegisterTransfer => {
                 panic!("CoprocessorRegisterTransfer not implemented")
             }
-            Self::SoftwareInterrupt => panic!("SoftwareInterrupt not implemented"),
+            Self::SoftwareInterrupt => "SWI".to_string(),
         }
     }
 }
