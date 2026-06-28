@@ -1151,11 +1151,12 @@ impl Bus {
 
     /// Wait-state cycles for a single memory access of `size` bytes (1, 2 or 4)
     /// at `address`. Models the per-region bus widths and the `GamePak` wait
-    /// states programmed in `WAITCNT`.
+    /// states programmed in `WAITCNT`, including the cheaper sequential (S)
+    /// timing when the access immediately follows the previous one.
     ///
-    /// Accesses are treated as non-sequential for now. Sequential (S-cycle)
-    /// timing and the `GamePak` prefetch buffer are not modelled yet, so ROM
-    /// sequential runs are slightly overcosted; that is a later Phase 1 step.
+    /// The `GamePak` prefetch buffer is still not modelled, so a code fetch
+    /// after a data access is charged a non-sequential cycle even though
+    /// prefetch would often hide it.
     fn access_cycles(&self, address: usize, size: u64) -> u64 {
         let region = (address >> 24) & 0xF;
         match region {
@@ -1165,7 +1166,10 @@ impl Bus {
             // Palette and VRAM: 16-bit bus, one extra cycle for 32-bit accesses
             0x5 | 0x6 if size == 4 => 2,
             // GamePak ROM mirrors: timing from WAITCNT per wait-state region
-            0x8..=0xD => self.gamepak_cycles(region, size),
+            0x8..=0xD => {
+                let sequential = address.wrapping_sub(self.last_used_address) as u64 == size;
+                self.gamepak_cycles(region, size, sequential)
+            }
             // GamePak SRAM: 8-bit bus, WAITCNT SRAM wait
             0xE | 0xF => 1 + Self::nwait(self.waitcnt().get_bits(0..=1)),
             // 32-bit bus with no wait states (BIOS, IWRAM, I/O, OAM), the
@@ -1188,26 +1192,36 @@ impl Bus {
         }
     }
 
-    /// `GamePak` ROM access cycles. A 32-bit access is two 16-bit bus accesses,
-    /// the first non-sequential (N) and the second sequential (S).
-    fn gamepak_cycles(&self, region: usize, size: u64) -> u64 {
+    /// Non-sequential (N) and sequential (S) wait cycles for a `GamePak` ROM
+    /// wait-state region, read from `WAITCNT`.
+    fn gamepak_waits(&self, region: usize) -> (u64, u64) {
         let w = self.waitcnt();
-        let (n_code, s_short, s_long) = match region {
-            // WS0, sequential wait is 2 or 1
-            0x8 | 0x9 => (w.get_bits(2..=3), w.get_bit(4), 2),
-            // WS1, sequential wait is 4 or 1
-            0xA | 0xB => (w.get_bits(5..=6), w.get_bit(7), 4),
-            // WS2, sequential wait is 8 or 1
-            _ => (w.get_bits(8..=9), w.get_bit(10), 8),
-        };
-
-        let n = 1 + Self::nwait(n_code);
-        if size == 4 {
-            let s_wait = if s_short { 1 } else { s_long };
-            n + 1 + s_wait
-        } else {
-            n
+        match region {
+            // WS0: sequential wait is 1 or 2
+            0x8 | 0x9 => (
+                Self::nwait(w.get_bits(2..=3)),
+                if w.get_bit(4) { 1 } else { 2 },
+            ),
+            // WS1: sequential wait is 1 or 4
+            0xA | 0xB => (
+                Self::nwait(w.get_bits(5..=6)),
+                if w.get_bit(7) { 1 } else { 4 },
+            ),
+            // WS2: sequential wait is 1 or 8
+            _ => (
+                Self::nwait(w.get_bits(8..=9)),
+                if w.get_bit(10) { 1 } else { 8 },
+            ),
         }
+    }
+
+    /// `GamePak` ROM access cycles. A 32-bit access is two 16-bit bus accesses:
+    /// the first sequential or not depending on the caller, the second always
+    /// sequential since it immediately follows the first.
+    fn gamepak_cycles(&self, region: usize, size: u64, sequential: bool) -> u64 {
+        let (n_wait, s_wait) = self.gamepak_waits(region);
+        let first = 1 + if sequential { s_wait } else { n_wait };
+        if size == 4 { first + 1 + s_wait } else { first }
     }
 
     pub fn read_word(&mut self, mut address: usize) -> u32 {
@@ -1323,6 +1337,40 @@ impl Bus {
 #[cfg(test)]
 mod tests {
     use crate::bus::Bus;
+
+    #[test]
+    fn access_cycles_constant_regions() {
+        let bus = Bus::default();
+        // 32-bit bus, no wait states.
+        assert_eq!(bus.access_cycles(0x0300_0000, 4), 1); // IWRAM word
+        assert_eq!(bus.access_cycles(0x0000_0000, 2), 1); // BIOS halfword
+        // EWRAM 16-bit bus: 3 cycles, doubled for a 32-bit access.
+        assert_eq!(bus.access_cycles(0x0200_0000, 1), 3);
+        assert_eq!(bus.access_cycles(0x0200_0000, 4), 6);
+        // VRAM: extra cycle only for 32-bit.
+        assert_eq!(bus.access_cycles(0x0600_0000, 2), 1);
+        assert_eq!(bus.access_cycles(0x0600_0000, 4), 2);
+    }
+
+    #[test]
+    fn gamepak_sequential_is_cheaper_than_non_sequential() {
+        let mut bus = Bus::default(); // WAITCNT = 0 -> WS0 N=4, S=2
+
+        // A fetch far from the previous access is non-sequential: 1 + N.
+        // The default last_used_address is 0, far from the ROM region.
+        assert_eq!(bus.access_cycles(0x0800_0000, 2), 1 + 4);
+
+        // The next halfword right after it is sequential: 1 + S.
+        bus.last_used_address = 0x0800_0000;
+        assert_eq!(bus.access_cycles(0x0800_0002, 2), 1 + 2);
+
+        // A 32-bit access is two halfword accesses: non-sequential then
+        // sequential = (1 + N) + (1 + S), and (1 + S) + (1 + S) when sequential.
+        bus.last_used_address = 0;
+        assert_eq!(bus.access_cycles(0x0800_0000, 4), (1 + 4) + (1 + 2));
+        bus.last_used_address = 0x0800_0000 - 4;
+        assert_eq!(bus.access_cycles(0x0800_0000, 4), (1 + 2) + (1 + 2));
+    }
 
     #[test]
     fn test_write_lcd_reg() {
