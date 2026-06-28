@@ -88,7 +88,11 @@ pub struct Bus {
     lcd_ticks_done: u64,
     /// Number of CPU cycles already accounted to the timers, so each `step`
     /// advances them by exactly the cycles elapsed since the last service.
-    #[serde(default)]
+    ///
+    /// This is a transient clock, not game state, so it is not serialized, it is
+    /// resynced to `cycles_count` after loading a save state. Keeping it out of
+    /// the layout also stops internal timing changes from breaking old saves.
+    #[serde(skip)]
     timer_cycles_done: u64,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
@@ -1061,6 +1065,13 @@ impl Bus {
         }
 
         self.write_raw(address, value);
+    }
+
+    /// Resync the transient timer clock after loading a save state, so the
+    /// first `step` does not advance the timers by the whole restored
+    /// `cycles_count`. The timer counters themselves are part of the save.
+    pub const fn resync_after_load(&mut self) {
+        self.timer_cycles_done = self.cycles_count;
     }
 
     /// Step all peripherals (timers, LCD, etc.) for one CPU cycle.

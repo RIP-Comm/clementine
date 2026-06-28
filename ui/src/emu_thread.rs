@@ -330,6 +330,7 @@ impl EmuThread {
                             self.gba.cpu.disasm_enabled = disasm_enabled;
                             self.gba.cpu.bus.internal_memory.bios_system_rom = bios;
                             self.gba.cpu.bus.internal_memory.rom = rom;
+                            self.gba.cpu.bus.resync_after_load();
                             tracing::info!(
                                 "Save state loaded successfully (v{SAVE_STATE_VERSION})"
                             );
