@@ -897,7 +897,9 @@ impl Bus {
                     self.internal_memory.read_at(address)
                 }
             }
-            (0x0200_0000..=0x03FF_FFFF) | (0x0800_0000..=0x0E00_FFFF) => {
+            // ROM (0x08-0x0D) plus the GamePak SRAM/Flash region (0x0E-0x0F),
+            // which mirrors its backup memory across the whole upper space.
+            (0x0200_0000..=0x03FF_FFFF) | (0x0800_0000..=0x0FFF_FFFF) => {
                 self.internal_memory.read_at(address)
             }
             0x0400_0000..=0x0400_005F => self.read_lcd_raw(address),
@@ -942,7 +944,7 @@ impl Bus {
 
                 self.lcd.memory.obj_attributes[unmasked_address - 0x0700_0000]
             }
-            0x000_4000..=0x1FF_FFFF | 0xE01_0000..=0xFFF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
+            0x000_4000..=0x1FF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
                 tracing::debug!("read on unused memory {address:x}");
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
@@ -959,7 +961,7 @@ impl Bus {
         // Mask address to 32-bit to handle potential overflow issues
         let address = address & 0xFFFF_FFFF;
         match address {
-            0x0000_0000..=0x0000_3FFF | 0x0200_0000..=0x03FF_FFFF | 0x0800_0000..=0x0E00_FFFF => {
+            0x0000_0000..=0x0000_3FFF | 0x0200_0000..=0x03FF_FFFF | 0x0800_0000..=0x0FFF_FFFF => {
                 self.internal_memory.write_at(address, value);
             }
             0x0400_0000..=0x0400_005F => self.write_lcd_raw(address, value),
@@ -1006,7 +1008,7 @@ impl Bus {
 
                 self.lcd.memory.obj_attributes[unmasked_address - 0x0700_0000] = value;
             }
-            0x000_4000..=0x1FF_FFFF | 0xE01_0000..=0xFFF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
+            0x000_4000..=0x1FF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
                 tracing::debug!("write on unused memory {address:x}");
                 self.unused_region.insert(address, value);
             }
@@ -1208,6 +1210,14 @@ impl Bus {
         self.interrupt_control.wait_state_control
     }
 
+    /// The single byte an 8-bit-bus store writes: the value rotated right by the
+    /// address's low bits, then its low byte. Addresses are well below 4 GiB and
+    /// taking the low byte is the intent, so the casts cannot lose data.
+    #[allow(clippy::cast_possible_truncation)]
+    const fn bus8_store_byte(value: u32, address: usize) -> u8 {
+        value.rotate_right(8 * (address as u32 & 3)) as u8
+    }
+
     /// Map a `WAITCNT` first-access (N) wait code to its cycle count.
     const fn nwait(code: u16) -> u64 {
         match code {
@@ -1273,6 +1283,12 @@ impl Bus {
 
         self.last_used_address = address;
 
+        // The GamePak SRAM/Flash region is an 8-bit bus: a wider read returns
+        // the single byte replicated across all lanes.
+        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
+            return u32::from(self.read_raw(address)) * 0x0101_0101;
+        }
+
         if address & 3 != 0 {
             address &= !3;
         }
@@ -1301,6 +1317,13 @@ impl Bus {
 
         self.last_used_address = address;
 
+        // The GamePak SRAM/Flash region is an 8-bit bus: a wider write stores a
+        // single byte, the one selected by rotating the value by the address.
+        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
+            self.write_raw(address, Self::bus8_store_byte(value, address));
+            return;
+        }
+
         if address & 3 != 0 {
             address &= !3;
         }
@@ -1320,6 +1343,12 @@ impl Bus {
         self.cycles_count += self.access_cycles(address, 2);
 
         self.last_used_address = address;
+
+        // The GamePak SRAM/Flash region is an 8-bit bus: a halfword read returns
+        // the single byte replicated across both lanes.
+        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
+            return u16::from(self.read_raw(address)) * 0x0101;
+        }
 
         if address & 1 != 0 {
             address &= !1;
@@ -1345,6 +1374,13 @@ impl Bus {
         self.cycles_count += self.access_cycles(address, 2);
 
         self.last_used_address = address;
+
+        // The GamePak SRAM/Flash region is an 8-bit bus: a halfword write stores
+        // a single byte, the one selected by rotating the value by the address.
+        if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
+            self.write_raw(address, Self::bus8_store_byte(u32::from(value), address));
+            return;
+        }
 
         if address & 1 != 0 {
             address &= !1;

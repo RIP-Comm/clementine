@@ -53,6 +53,62 @@ use crate::bitwise::Bits;
 
 use super::get_unmasked_address;
 
+/// Cartridge backup memory type, detected from a marker string in the ROM.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BackupType {
+    /// No save hardware.
+    #[default]
+    None,
+    /// 32 KB battery-backed SRAM, a flat 8-bit memory.
+    Sram,
+    /// 64 KB (512 Kbit) command-driven Flash.
+    Flash64,
+    /// 128 KB (1 Mbit) command-driven Flash with two banks.
+    Flash128,
+    /// Serial EEPROM (not yet implemented; treated as no save).
+    Eeprom,
+}
+
+impl BackupType {
+    /// Detect the backup type from the ID string the ROM embeds (e.g.
+    /// `SRAM_V`, `FLASH1M_V`). Longer/more specific markers are checked first.
+    fn detect(rom: &[u8]) -> Self {
+        let has = |pat: &[u8]| rom.windows(pat.len()).any(|w| w == pat);
+
+        if has(b"EEPROM_V") {
+            Self::Eeprom
+        } else if has(b"FLASH1M_V") {
+            Self::Flash128
+        } else if has(b"FLASH512_V") || has(b"FLASH_V") {
+            Self::Flash64
+        } else if has(b"SRAM_V") || has(b"SRAM_F_V") {
+            Self::Sram
+        } else {
+            Self::None
+        }
+    }
+
+    /// Size in bytes of the backing buffer for this type.
+    const fn buffer_size(self) -> usize {
+        match self {
+            Self::Flash64 => 0x1_0000,  // 64 KB
+            Self::Flash128 => 0x2_0000, // 128 KB
+            // SRAM is 32 KB; None/Eeprom keep a small unused buffer.
+            Self::Sram | Self::None | Self::Eeprom => 0x8000,
+        }
+    }
+
+    /// Flash manufacturer/device ID pair reported in ID mode.
+    const fn flash_id(self) -> (u8, u8) {
+        match self {
+            // Panasonic MN63F805MNP (512 Kbit)
+            Self::Flash64 => (0x32, 0x1B),
+            // Sanyo LE26FV10N1TS (1 Mbit)
+            _ => (0x62, 0x13),
+        }
+    }
+}
+
 /// Flash memory state for command handling
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FlashState {
@@ -93,9 +149,13 @@ pub struct InternalMemory {
     #[serde(skip)]
     pub rom: Vec<u8>,
 
-    /// From 0x0E000000 to 0x0E01FFFF (128 `KBytes` for Flash).
-    /// Game Pak SRAM/Flash used for save data.
+    /// Backup memory backing buffer (SRAM or Flash), sized to the detected
+    /// backup type. Game Pak save data lives here.
     sram: Vec<u8>,
+
+    /// Detected cartridge backup type, routing accesses to `0x0E00_0000`.
+    #[serde(default)]
+    backup_type: BackupType,
 
     /// Flash memory state machine
     flash_state: FlashState,
@@ -117,12 +177,15 @@ pub struct InternalMemory {
 impl InternalMemory {
     #[must_use]
     pub fn new(bios: [u8; 0x0000_4000], rom: &[u8]) -> Self {
+        let backup_type = BackupType::detect(rom);
         Self {
             bios_system_rom: bios.to_vec(),
             working_ram: vec![0; 0x0004_0000],
             working_iram: vec![0; 0x0000_8000],
             rom: rom.to_vec(),
-            sram: vec![0xFF; 0x0002_0000], // 128KB Flash, initialized to 0xFF (erased state)
+            // 0xFF is the erased state for both Flash and an unwritten SRAM cell.
+            sram: vec![0xFF; backup_type.buffer_size()],
+            backup_type,
             flash_state: FlashState::Ready,
             flash_bank: 0,
             gpio_data: 0,      // All pins low initially
@@ -145,6 +208,7 @@ impl Default for InternalMemory {
             working_iram: vec![0; 0x0000_8000],    // 32 KB IWRAM
             rom: vec![0; 0x0200_0000],             // 32 MB ROM (max size)
             sram: vec![0xFF; 0x0002_0000],         // 128 KB Flash
+            backup_type: BackupType::Flash128,
             flash_state: FlashState::Ready,
             flash_bank: 0,
             gpio_data: 0,
@@ -339,38 +403,30 @@ impl InternalMemory {
             0x0800_0000..=0x09FF_FFFF => self.read_rom(address - 0x0800_0000),
             0x0A00_0000..=0x0BFF_FFFF => self.read_rom(address - 0x0A00_0000),
             0x0C00_0000..=0x0DFF_FFFF => self.read_rom(address - 0x0C00_0000),
-            0x0E00_0000..=0x0E01_FFFF => {
+            0x0E00_0000..=0x0FFF_FFFF => {
                 let offset = address - 0x0E00_0000;
 
-                // In ID mode, return manufacturer/device ID
-                if self.flash_state == FlashState::IdMode {
-                    let id_value = match offset {
-                        // Sanyo LE26FV10N1TS (128KB / 1Mbit), same as mGBA uses
-                        0x0000 => 0x62, // Manufacturer ID (Sanyo)
-                        0x0001 => 0x13, // Device ID (1Mbit = 128KB)
-                        _ => 0xFF,
-                    };
-                    tracing::debug!(
-                        "Flash ID READ: addr=0x{address:08X}, offset=0x{offset:04X}, value=0x{id_value:02X}"
-                    );
-                    return id_value;
-                }
+                match self.backup_type {
+                    // No backup hardware: the bus floats high.
+                    BackupType::None | BackupType::Eeprom => 0xFF,
+                    // SRAM is a flat 8-bit memory, mirrored across the region.
+                    BackupType::Sram => self.sram[offset & (self.sram.len() - 1)],
+                    BackupType::Flash64 | BackupType::Flash128 => {
+                        // In ID mode, return the manufacturer/device ID.
+                        if self.flash_state == FlashState::IdMode {
+                            let (manufacturer, device) = self.backup_type.flash_id();
+                            return match offset {
+                                0x0000 => manufacturer,
+                                0x0001 => device,
+                                _ => 0xFF,
+                            };
+                        }
 
-                // Normal read: apply bank offset for 128KB flash
-                let real_offset = (self.flash_bank as usize * 0x10000) + (offset & 0xFFFF);
-                let value = if real_offset < self.sram.len() {
-                    self.sram[real_offset]
-                } else {
-                    0xFF
-                };
-                tracing::debug!(
-                    "Flash READ: addr=0x{:08X}, bank={}, offset=0x{:04X}, value=0x{:02X}",
-                    address,
-                    self.flash_bank,
-                    offset,
-                    value
-                );
-                value
+                        // Normal read: apply the bank offset for 128KB flash.
+                        let real_offset = (self.flash_bank as usize * 0x10000) + (offset & 0xFFFF);
+                        self.sram.get(real_offset).copied().unwrap_or(0xFF)
+                    }
+                }
             }
             0x0000_4000..=0x01FF_FFFF | 0x1000_0000..=0xFFFF_FFFF => {
                 tracing::debug!("READ on unused memory 0x{address:08X}");
@@ -454,147 +510,155 @@ impl InternalMemory {
                     tracing::debug!("Attempted write to ROM at {address:#010x}");
                 }
             }
-            0x0E00_0000..=0x0E01_FFFF => {
-                // Flash command/write handling
+            0x0E00_0000..=0x0FFF_FFFF => {
                 let offset = (address - 0x0E00_0000) & 0xFFFF; // 64KB offset within current bank
 
-                tracing::debug!(
-                    "Flash WRITE: addr=0x{:08X}, offset=0x{:04X}, value=0x{:02X}, state={:?}",
-                    address,
-                    offset,
-                    value,
-                    self.flash_state
-                );
-
-                // Handle Flash commands based on state machine
-                match self.flash_state {
-                    FlashState::Ready => {
-                        // First command byte: 0xAA to 0x5555
-                        if offset == 0x5555 && value == 0xAA {
-                            self.flash_state = FlashState::Command1;
-                        }
+                match self.backup_type {
+                    // No backup hardware: writes are dropped.
+                    BackupType::None | BackupType::Eeprom => {}
+                    // SRAM is written directly, mirrored across the region.
+                    BackupType::Sram => {
+                        let masked = (address - 0x0E00_0000) & (self.sram.len() - 1);
+                        self.sram[masked] = value;
                     }
-                    FlashState::Command1 => {
-                        // Second command byte: 0x55 to 0x2AAA
-                        if offset == 0x2AAA && value == 0x55 {
-                            self.flash_state = FlashState::Command2;
-                        } else {
-                            self.flash_state = FlashState::Ready;
-                        }
-                    }
-                    FlashState::Command2 => {
-                        // Third command byte determines operation
-                        if offset == 0x5555 {
-                            match value {
-                                0x90 => {
-                                    // Enter ID mode
-                                    tracing::debug!("Flash: Entering ID mode");
-                                    self.flash_state = FlashState::IdMode;
-                                }
-                                0xF0 => {
-                                    // Exit ID mode / Reset
-                                    tracing::debug!("Flash: Reset/Exit ID mode");
-                                    self.flash_state = FlashState::Ready;
-                                }
-                                0x80 => {
-                                    // Erase command prefix
-                                    tracing::debug!("Flash: Erase command prefix");
-                                    self.flash_state = FlashState::EraseCommand;
-                                }
-                                0xA0 => {
-                                    // Write byte command
-                                    tracing::debug!("Flash: Write command");
-                                    self.flash_state = FlashState::WriteCommand;
-                                }
-                                0xB0 => {
-                                    // Bank switch command (for 128KB flash)
-                                    tracing::debug!("Flash: Bank switch command");
-                                    self.flash_state = FlashState::BankSelect;
-                                }
-                                _ => {
-                                    tracing::debug!("Flash: Unknown command 0x{value:02X}");
-                                    self.flash_state = FlashState::Ready;
-                                }
-                            }
-                        } else {
-                            self.flash_state = FlashState::Ready;
-                        }
-                    }
-                    FlashState::IdMode => {
-                        // Any write to 0x5555 with 0xF0 exits ID mode
-                        if value == 0xF0 {
-                            tracing::debug!("Flash: Exit ID mode");
-                            self.flash_state = FlashState::Ready;
-                        }
-                        // Also handle standard command sequence in ID mode
-                        else if offset == 0x5555 && value == 0xAA {
-                            self.flash_state = FlashState::Command1;
-                        }
-                    }
-                    FlashState::EraseCommand => {
-                        // After 0x80, expect another 0xAA,0x55,command sequence
-                        // The state machine needs to cycle through Command1->Command2->actual erase
-                        if offset == 0x5555 && value == 0xAA {
-                            self.flash_state = FlashState::EraseCommand1;
-                        } else {
-                            self.flash_state = FlashState::Ready;
-                        }
-                    }
-                    FlashState::EraseCommand1 => {
-                        if offset == 0x2AAA && value == 0x55 {
-                            self.flash_state = FlashState::EraseCommand2;
-                        } else {
-                            self.flash_state = FlashState::Ready;
-                        }
-                    }
-                    FlashState::EraseCommand2 => {
-                        if value == 0x10 && offset == 0x5555 {
-                            // Chip erase
-                            tracing::debug!("Flash: Chip erase");
-                            self.sram.fill(0xFF);
-                            self.flash_state = FlashState::Ready;
-                        } else if value == 0x30 {
-                            // Sector erase (4KB sector)
-                            let sector_base =
-                                (self.flash_bank as usize * 0x10000) + (offset & 0xF000);
-                            tracing::debug!("Flash: Sector erase at 0x{sector_base:05X}");
-                            for i in 0..0x1000 {
-                                if sector_base + i < self.sram.len() {
-                                    self.sram[sector_base + i] = 0xFF;
-                                }
-                            }
-                        }
-                        self.flash_state = FlashState::Ready;
-                    }
-                    FlashState::BankSelect => {
-                        // Bank number written to 0x0000
-                        if offset == 0x0000 {
-                            self.flash_bank = value & 0x01; // Only 0 or 1 for 128KB
-                            tracing::debug!("Flash: Bank set to {}", self.flash_bank);
-                        }
-                        self.flash_state = FlashState::Ready;
-                    }
-                    FlashState::WriteCommand => {
-                        // Write single byte to flash
-                        let real_offset = (self.flash_bank as usize * 0x10000) + offset;
-                        if real_offset < self.sram.len() {
-                            // Flash write: can only clear bits (AND operation)
-                            self.sram[real_offset] &= value;
-                            tracing::debug!(
-                                "Flash: Write 0x{value:02X} to offset 0x{real_offset:05X}"
-                            );
-                        }
-                        self.flash_state = FlashState::Ready;
+                    BackupType::Flash64 | BackupType::Flash128 => {
+                        self.flash_write(offset, value);
                     }
                 }
-            }
-            0x0E02_0000..=0x0FFF_FFFF => {
-                // Outside Flash range, ignore
-                tracing::debug!("Attempted write to unused GamePak region at {address:#010x}");
             }
             _ => {
                 tracing::debug!("WRITE to unused memory 0x{address:08X} = 0x{value:02X}");
                 self.unused_region.insert(address, value);
+            }
+        }
+    }
+
+    /// Handle a write to Flash memory, driving the command state machine.
+    #[allow(clippy::too_many_lines)]
+    fn flash_write(&mut self, offset: usize, value: u8) {
+        tracing::debug!(
+            "Flash WRITE: offset=0x{:04X}, value=0x{:02X}, state={:?}",
+            offset,
+            value,
+            self.flash_state
+        );
+
+        // Handle Flash commands based on state machine
+        match self.flash_state {
+            FlashState::Ready => {
+                // First command byte: 0xAA to 0x5555
+                if offset == 0x5555 && value == 0xAA {
+                    self.flash_state = FlashState::Command1;
+                }
+            }
+            FlashState::Command1 => {
+                // Second command byte: 0x55 to 0x2AAA
+                if offset == 0x2AAA && value == 0x55 {
+                    self.flash_state = FlashState::Command2;
+                } else {
+                    self.flash_state = FlashState::Ready;
+                }
+            }
+            FlashState::Command2 => {
+                // Third command byte determines operation
+                if offset == 0x5555 {
+                    match value {
+                        0x90 => {
+                            // Enter ID mode
+                            tracing::debug!("Flash: Entering ID mode");
+                            self.flash_state = FlashState::IdMode;
+                        }
+                        0xF0 => {
+                            // Exit ID mode / Reset
+                            tracing::debug!("Flash: Reset/Exit ID mode");
+                            self.flash_state = FlashState::Ready;
+                        }
+                        0x80 => {
+                            // Erase command prefix
+                            tracing::debug!("Flash: Erase command prefix");
+                            self.flash_state = FlashState::EraseCommand;
+                        }
+                        0xA0 => {
+                            // Write byte command
+                            tracing::debug!("Flash: Write command");
+                            self.flash_state = FlashState::WriteCommand;
+                        }
+                        0xB0 => {
+                            // Bank switch command (for 128KB flash)
+                            tracing::debug!("Flash: Bank switch command");
+                            self.flash_state = FlashState::BankSelect;
+                        }
+                        _ => {
+                            tracing::debug!("Flash: Unknown command 0x{value:02X}");
+                            self.flash_state = FlashState::Ready;
+                        }
+                    }
+                } else {
+                    self.flash_state = FlashState::Ready;
+                }
+            }
+            FlashState::IdMode => {
+                // Any write to 0x5555 with 0xF0 exits ID mode
+                if value == 0xF0 {
+                    tracing::debug!("Flash: Exit ID mode");
+                    self.flash_state = FlashState::Ready;
+                }
+                // Also handle standard command sequence in ID mode
+                else if offset == 0x5555 && value == 0xAA {
+                    self.flash_state = FlashState::Command1;
+                }
+            }
+            FlashState::EraseCommand => {
+                // After 0x80, expect another 0xAA,0x55,command sequence
+                // The state machine needs to cycle through Command1->Command2->actual erase
+                if offset == 0x5555 && value == 0xAA {
+                    self.flash_state = FlashState::EraseCommand1;
+                } else {
+                    self.flash_state = FlashState::Ready;
+                }
+            }
+            FlashState::EraseCommand1 => {
+                if offset == 0x2AAA && value == 0x55 {
+                    self.flash_state = FlashState::EraseCommand2;
+                } else {
+                    self.flash_state = FlashState::Ready;
+                }
+            }
+            FlashState::EraseCommand2 => {
+                if value == 0x10 && offset == 0x5555 {
+                    // Chip erase
+                    tracing::debug!("Flash: Chip erase");
+                    self.sram.fill(0xFF);
+                    self.flash_state = FlashState::Ready;
+                } else if value == 0x30 {
+                    // Sector erase (4KB sector)
+                    let sector_base = (self.flash_bank as usize * 0x10000) + (offset & 0xF000);
+                    tracing::debug!("Flash: Sector erase at 0x{sector_base:05X}");
+                    for i in 0..0x1000 {
+                        if sector_base + i < self.sram.len() {
+                            self.sram[sector_base + i] = 0xFF;
+                        }
+                    }
+                }
+                self.flash_state = FlashState::Ready;
+            }
+            FlashState::BankSelect => {
+                // Bank number written to 0x0000
+                if offset == 0x0000 {
+                    self.flash_bank = value & 0x01; // Only 0 or 1 for 128KB
+                    tracing::debug!("Flash: Bank set to {}", self.flash_bank);
+                }
+                self.flash_state = FlashState::Ready;
+            }
+            FlashState::WriteCommand => {
+                // Write single byte to flash
+                let real_offset = (self.flash_bank as usize * 0x10000) + offset;
+                if real_offset < self.sram.len() {
+                    // Flash write: can only clear bits (AND operation)
+                    self.sram[real_offset] &= value;
+                    tracing::debug!("Flash: Write 0x{value:02X} to offset 0x{real_offset:05X}");
+                }
+                self.flash_state = FlashState::Ready;
             }
         }
     }

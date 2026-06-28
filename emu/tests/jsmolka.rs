@@ -115,25 +115,21 @@ fn unsafe_rom_passes() {
     check("unsafe/unsafe.gba");
 }
 
-#[ignore = "fails at sub-test 2: save backend not implemented"]
 #[test]
 fn save_none_rom_passes() {
     check("save/none.gba");
 }
 
-#[ignore = "fails at sub-test 2: SRAM backend not implemented"]
 #[test]
 fn save_sram_rom_passes() {
     check("save/sram.gba");
 }
 
-#[ignore = "fails at sub-test 2: Flash backend not implemented"]
 #[test]
 fn save_flash64_rom_passes() {
     check("save/flash64.gba");
 }
 
-#[ignore = "fails at sub-test 2: Flash backend not implemented"]
 #[test]
 fn save_flash128_rom_passes() {
     check("save/flash128.gba");
