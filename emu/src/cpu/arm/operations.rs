@@ -57,6 +57,13 @@ impl Arm7tdmi {
             op_code.get_bits(0..=11),
         );
 
+        // A register-specified shift amount (bit 4 set on a register operand)
+        // costs one extra internal cycle, since the CPU spends a cycle reading
+        // the shift register.
+        if op_kind == OperandKind::Register && op_code.get_bit(4) {
+            self.bus.add_internal_cycles(1);
+        }
+
         match alu_instruction {
             ArmModeAluInstr::And => {
                 self.and(destination.try_into().unwrap(), op1, op2, set_conditions);
@@ -1869,6 +1876,23 @@ mod tests {
         cpu.execute_arm(op_code);
 
         assert_eq!(cpu.registers.register_at(1), 16);
+    }
+
+    #[test]
+    fn register_specified_shift_costs_one_internal_cycle() {
+        // ADD R1, R0, R2, ROR R3: the shift amount comes from a register.
+        let mut cpu = Arm7tdmi::default();
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(0b1110_0000_1000_0000_0001_0011_0111_0010);
+        let before = cpu.bus.cycles();
+        cpu.execute_arm(op_code);
+        assert_eq!(cpu.bus.cycles() - before, 1);
+
+        // MOV R1, R0, LSL #0: an immediate shift adds no internal cycle.
+        let mut cpu = Arm7tdmi::default();
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(0b1110_0001_1011_0000_0001_0000_0000_0010);
+        let before = cpu.bus.cycles();
+        cpu.execute_arm(op_code);
+        assert_eq!(cpu.bus.cycles() - before, 0);
     }
 
     #[test]

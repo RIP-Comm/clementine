@@ -95,6 +95,20 @@ impl Arm7tdmi {
 
     pub fn alu_op(&mut self, op: ThumbModeAluInstruction, rs: u16, rd: u16) {
         let rs = self.registers.register_at(rs.into());
+
+        // The register-by-register shift operations spend one extra internal
+        // cycle reading the shift register, like the ARM register-specified
+        // shifts.
+        if matches!(
+            op,
+            ThumbModeAluInstruction::Lsl
+                | ThumbModeAluInstruction::Lsr
+                | ThumbModeAluInstruction::Asr
+                | ThumbModeAluInstruction::Ror
+        ) {
+            self.bus.add_internal_cycles(1);
+        }
+
         match op {
             ThumbModeAluInstruction::And => {
                 self.and(rd.into(), self.registers.register_at(rd.into()), rs, true);

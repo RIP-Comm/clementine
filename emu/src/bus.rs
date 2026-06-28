@@ -1081,6 +1081,12 @@ impl Bus {
         self.cycles_count += cycles;
     }
 
+    /// Total CPU cycles accounted so far. Used in tests to assert timing.
+    #[cfg(test)]
+    pub(crate) const fn cycles(&self) -> u64 {
+        self.cycles_count
+    }
+
     /// Step all peripherals (timers, LCD, etc.) for one CPU cycle.
     ///
     /// Returns `true` if `VBlank` just started (a new frame is ready).
