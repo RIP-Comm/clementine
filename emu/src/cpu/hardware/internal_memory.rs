@@ -154,7 +154,11 @@ pub struct InternalMemory {
     sram: Vec<u8>,
 
     /// Detected cartridge backup type, routing accesses to `0x0E00_0000`.
-    #[serde(default)]
+    ///
+    /// Derived from the ROM, which is itself not serialized, so this is skipped
+    /// and re-detected after a save state load. Keeping it out of the layout
+    /// also avoids breaking existing saves when the field was added.
+    #[serde(skip)]
     backup_type: BackupType,
 
     /// Flash memory state machine
@@ -193,6 +197,12 @@ impl InternalMemory {
             gpio_control: 1,   // GPIO enabled (allow reads)
             unused_region: HashMap::new(),
         }
+    }
+
+    /// Re-detect the backup type from the ROM. Called after a save state load,
+    /// where the ROM is restored separately and `backup_type` is not serialized.
+    pub fn redetect_backup_type(&mut self) {
+        self.backup_type = BackupType::detect(&self.rom);
     }
 }
 
