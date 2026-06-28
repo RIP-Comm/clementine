@@ -92,3 +92,49 @@ fn thumb_rom_passes() {
 fn memory_rom_passes() {
     check("memory/memory.gba");
 }
+
+// The ROMs below still fail against the emulator, each at the noted sub-test.
+// They are wired in but ignored so they do not break CI, and serve as targets:
+// run them with `cargo test -p emu --test jsmolka -- --ignored`.
+
+#[ignore = "fails at sub-test 1: BIOS function emulation is incomplete"]
+#[test]
+fn bios_rom_passes() {
+    check("bios/bios.gba");
+}
+
+#[ignore = "fails at sub-test 2"]
+#[test]
+fn nes_rom_passes() {
+    check("nes/nes.gba");
+}
+
+#[ignore = "fails at sub-test 1: unaligned/edge-case access handling"]
+#[test]
+fn unsafe_rom_passes() {
+    check("unsafe/unsafe.gba");
+}
+
+#[ignore = "fails at sub-test 2: save backend not implemented"]
+#[test]
+fn save_none_rom_passes() {
+    check("save/none.gba");
+}
+
+#[ignore = "fails at sub-test 2: SRAM backend not implemented"]
+#[test]
+fn save_sram_rom_passes() {
+    check("save/sram.gba");
+}
+
+#[ignore = "fails at sub-test 2: Flash backend not implemented"]
+#[test]
+fn save_flash64_rom_passes() {
+    check("save/flash64.gba");
+}
+
+#[ignore = "fails at sub-test 2: Flash backend not implemented"]
+#[test]
+fn save_flash128_rom_passes() {
+    check("save/flash128.gba");
+}
