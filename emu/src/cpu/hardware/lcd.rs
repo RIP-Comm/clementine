@@ -196,6 +196,9 @@ pub struct LcdStepOutput {
     /// Independent of the `VBlank` `IRQ` enable: games that poll `DISPSTAT` instead
     /// of using interrupts still need the frame-ready signal to drive the display.
     pub entered_vblank: bool,
+    /// True when the LCD just entered `HBlank` on a visible scanline. Independent
+    /// of the `HBlank` `IRQ` enable, since it also drives `HBlank` DMA.
+    pub entered_hblank: bool,
 }
 
 impl Lcd {
@@ -219,6 +222,7 @@ impl Lcd {
                 // We're entering Hblank
 
                 self.registers.set_hblank_flag(true);
+                output.entered_hblank = true;
 
                 if self.registers.get_hblank_irq_enable() {
                     output.request_hblank_irq = true;

@@ -543,31 +543,46 @@ impl Bus {
         self.check_and_execute_dma();
     }
 
-    /// Check if a DMA transfer should start and execute it completely
+    /// Latch newly enabled DMA channels and run any immediate (timing 0) one.
     fn check_and_execute_dma(&mut self) {
         if let Some(channel_idx) = self.dma.check_immediate_transfer() {
-            // Execute all transfers for this DMA channel
-            let is_32bit = self.dma.channels[channel_idx].control & (1 << 10) != 0;
+            self.run_dma_block(channel_idx);
+        }
+    }
 
-            loop {
-                let source = self.dma.channels[channel_idx].internal_source as usize;
-                let dest = self.dma.channels[channel_idx].internal_dest as usize;
-
-                // Perform the actual memory copy
-                if is_32bit {
-                    let value = self.read_word(source);
-                    self.write_word(dest, value);
-                } else {
-                    let value = self.read_half_word(source);
-                    self.write_half_word(dest, value);
-                }
-
-                // Update DMA state (increments internal_source and internal_dest) and check if more transfers remain
-                if !self.dma.execute_transfer(channel_idx, |_, _, _| {}) {
-                    break;
-                }
+    /// Run the DMA channels triggered by an LCD timing event (1 = `VBlank`,
+    /// 2 = `HBlank`). Each runs one latched block of transfers.
+    fn run_event_dma(&mut self, timing: u16) {
+        let triggered = self.dma.channels_for_timing(timing);
+        for (idx, &active) in triggered.iter().enumerate() {
+            if active {
+                self.run_dma_block(idx);
             }
         }
+    }
+
+    /// Transfer one channel's currently latched block of units, then apply the
+    /// repeat or disable rules.
+    fn run_dma_block(&mut self, idx: usize) {
+        let is_32bit = self.dma.channels[idx].control.get_bit(10);
+        let count = self.dma.channels[idx].internal_count;
+
+        for _ in 0..count {
+            let source = self.dma.channels[idx].internal_source as usize;
+            let dest = self.dma.channels[idx].internal_dest as usize;
+
+            if is_32bit {
+                let value = self.read_word(source);
+                self.write_word(dest, value);
+            } else {
+                let value = self.read_half_word(source);
+                self.write_half_word(dest, value);
+            }
+
+            self.dma.advance(idx, is_32bit);
+        }
+
+        self.dma.finish_block(idx);
     }
 
     fn read_sound_raw(&self, address: usize) -> u8 {
@@ -1138,12 +1153,19 @@ impl Bus {
                 self.request_interrupt(IrqType::VBlank);
             }
 
+            // HBlank-timed DMA fires at the start of each visible scanline.
+            if lcd_output.entered_hblank {
+                self.run_event_dma(2);
+            }
+
             // Signal a ready frame whenever the LCD enters VBlank, regardless of
             // whether the VBlank IRQ is enabled. Games that poll DISPSTAT (e.g. the
             // jsmolka test ROMs) never enable the IRQ but still need the display to
             // refresh.
             if lcd_output.entered_vblank {
                 vblank_started = true;
+                // VBlank-timed DMA fires once when VBlank begins.
+                self.run_event_dma(1);
             }
 
             if lcd_output.request_vcount_irq {
