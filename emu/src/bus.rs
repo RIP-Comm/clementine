@@ -86,6 +86,10 @@ pub struct Bus {
     /// cycle counter by more than one at a time.
     #[serde(default)]
     lcd_ticks_done: u64,
+    /// Number of CPU cycles already accounted to the timers, so each `step`
+    /// advances them by exactly the cycles elapsed since the last service.
+    #[serde(default)]
+    timer_cycles_done: u64,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
     /// Tracks the last opcode fetched from BIOS for read protection
@@ -1066,8 +1070,11 @@ impl Bus {
         self.cycles_count += 1;
         let mut vblank_started = false;
 
-        // Step timers every CPU cycle
-        let timer_result = self.timers.step();
+        // Advance the timers by the cycles elapsed since they were last serviced,
+        // which includes the memory wait states added during this instruction.
+        let timer_cycles = self.cycles_count - self.timer_cycles_done;
+        self.timer_cycles_done = self.cycles_count;
+        let timer_result = self.timers.step(timer_cycles);
         if timer_result.timer0_overflow {
             self.request_interrupt(IrqType::Timer0);
         }

@@ -125,115 +125,200 @@ impl Timers {
         }
     }
 
-    /// Step all timers by one CPU cycle. Returns which timer IRQs should be triggered.
-    pub fn step(&mut self) -> TimerOverflowResult {
-        let mut result = TimerOverflowResult::default();
+    /// Advance all timers by `cycles` CPU cycles. Returns which timer IRQs
+    /// should be triggered (an overflow happened while that timer's IRQ is
+    /// enabled).
+    ///
+    /// Cascade timers tick once per overflow of the timer below them, so the
+    /// overflow counts are threaded down the chain independently of whether
+    /// each timer's IRQ is enabled.
+    pub fn step(&mut self, cycles: u64) -> TimerOverflowResult {
+        // Timer 0 never cascades; the cascade bit is ignored on hardware.
+        let tm0 = if Self::is_enabled(self.tm0cnt_h) && !Self::is_cascade(self.tm0cnt_h) {
+            Self::advance(
+                &mut self.tm0cnt_l,
+                self.tm0_reload,
+                &mut self.tm0_prescaler_counter,
+                Self::get_prescaler(self.tm0cnt_h),
+                cycles,
+            )
+        } else {
+            0
+        };
 
-        // Timer 0 (never cascades)
-        if Self::is_enabled(self.tm0cnt_h) && !Self::is_cascade(self.tm0cnt_h) {
-            let prescaler = Self::get_prescaler(self.tm0cnt_h);
-            self.tm0_prescaler_counter += 1;
-            if self.tm0_prescaler_counter >= prescaler {
-                self.tm0_prescaler_counter = 0;
-                let (new_val, overflow) = self.tm0cnt_l.overflowing_add(1);
-                if overflow {
-                    self.tm0cnt_l = self.tm0_reload;
-                    if Self::is_irq_enabled(self.tm0cnt_h) {
-                        result.timer0_overflow = true;
-                    }
-                } else {
-                    self.tm0cnt_l = new_val;
-                }
-            }
+        let tm1 = self.step_timer(self.tm1cnt_h, cycles, tm0, 1);
+        let tm2 = self.step_timer(self.tm2cnt_h, cycles, tm1, 2);
+        let tm3 = self.step_timer(self.tm3cnt_h, cycles, tm2, 3);
+
+        TimerOverflowResult {
+            timer0_overflow: tm0 > 0 && Self::is_irq_enabled(self.tm0cnt_h),
+            timer1_overflow: tm1 > 0 && Self::is_irq_enabled(self.tm1cnt_h),
+            timer2_overflow: tm2 > 0 && Self::is_irq_enabled(self.tm2cnt_h),
+            timer3_overflow: tm3 > 0 && Self::is_irq_enabled(self.tm3cnt_h),
+        }
+    }
+
+    /// Advance one of timers 1..=3 and return how many times it overflowed.
+    /// In cascade mode it ticks once per overflow of the timer below it,
+    /// otherwise it is driven by its own prescaler.
+    fn step_timer(&mut self, control: u16, cycles: u64, prev_overflows: u32, timer: usize) -> u32 {
+        if !Self::is_enabled(control) {
+            return 0;
         }
 
-        // Timer 1
-        let tm0_overflow = result.timer0_overflow;
-        if Self::is_enabled(self.tm1cnt_h) {
-            let should_tick = if Self::is_cascade(self.tm1cnt_h) {
-                tm0_overflow
-            } else {
-                let prescaler = Self::get_prescaler(self.tm1cnt_h);
-                self.tm1_prescaler_counter += 1;
-                if self.tm1_prescaler_counter >= prescaler {
-                    self.tm1_prescaler_counter = 0;
-                    true
-                } else {
-                    false
-                }
-            };
+        let (counter, reload, prescaler_counter) = match timer {
+            1 => (
+                &mut self.tm1cnt_l,
+                self.tm1_reload,
+                &mut self.tm1_prescaler_counter,
+            ),
+            2 => (
+                &mut self.tm2cnt_l,
+                self.tm2_reload,
+                &mut self.tm2_prescaler_counter,
+            ),
+            _ => (
+                &mut self.tm3cnt_l,
+                self.tm3_reload,
+                &mut self.tm3_prescaler_counter,
+            ),
+        };
 
-            if should_tick {
-                let (new_val, overflow) = self.tm1cnt_l.overflowing_add(1);
-                if overflow {
-                    self.tm1cnt_l = self.tm1_reload;
-                    if Self::is_irq_enabled(self.tm1cnt_h) {
-                        result.timer1_overflow = true;
-                    }
-                } else {
-                    self.tm1cnt_l = new_val;
-                }
-            }
+        if Self::is_cascade(control) {
+            Self::apply_ticks(counter, reload, prev_overflows)
+        } else {
+            Self::advance(
+                counter,
+                reload,
+                prescaler_counter,
+                Self::get_prescaler(control),
+                cycles,
+            )
+        }
+    }
+
+    /// Advance a prescaler-driven timer by `cycles`, carrying the prescaler
+    /// remainder across calls. Returns how many times the counter overflowed.
+    // The remainder is below the prescaler (<= 1024) and the tick count fits a
+    // u32 for any realistic per-step cycle delta, so the casts cannot truncate.
+    #[allow(clippy::cast_possible_truncation)]
+    fn advance(
+        counter: &mut u16,
+        reload: u16,
+        prescaler_counter: &mut u32,
+        prescaler: u32,
+        cycles: u64,
+    ) -> u32 {
+        let total = u64::from(*prescaler_counter) + cycles;
+        let ticks = total / u64::from(prescaler);
+        *prescaler_counter = (total % u64::from(prescaler)) as u32;
+        Self::apply_ticks(counter, reload, ticks as u32)
+    }
+
+    /// Add `ticks` to a timer counter, reloading on each overflow. Returns the
+    /// number of overflows. After the first overflow the counter runs from
+    /// `reload`, so the wrap period is `0x1_0000 - reload`.
+    // The two `as u16` results are reduced modulo the wrap period, so they are
+    // always below `0x1_0000` and cannot truncate.
+    #[allow(clippy::cast_possible_truncation)]
+    fn apply_ticks(counter: &mut u16, reload: u16, ticks: u32) -> u32 {
+        if ticks == 0 {
+            return 0;
         }
 
-        // Timer 2
-        let tm1_overflow = result.timer1_overflow;
-        if Self::is_enabled(self.tm2cnt_h) {
-            let should_tick = if Self::is_cascade(self.tm2cnt_h) {
-                tm1_overflow
-            } else {
-                let prescaler = Self::get_prescaler(self.tm2cnt_h);
-                self.tm2_prescaler_counter += 1;
-                if self.tm2_prescaler_counter >= prescaler {
-                    self.tm2_prescaler_counter = 0;
-                    true
-                } else {
-                    false
-                }
-            };
-
-            if should_tick {
-                let (new_val, overflow) = self.tm2cnt_l.overflowing_add(1);
-                if overflow {
-                    self.tm2cnt_l = self.tm2_reload;
-                    if Self::is_irq_enabled(self.tm2cnt_h) {
-                        result.timer2_overflow = true;
-                    }
-                } else {
-                    self.tm2cnt_l = new_val;
-                }
-            }
+        let value = u32::from(*counter) + ticks;
+        if value < 0x1_0000 {
+            *counter = value as u16;
+            return 0;
         }
 
-        // Timer 3
-        let tm2_overflow = result.timer2_overflow;
-        if Self::is_enabled(self.tm3cnt_h) {
-            let should_tick = if Self::is_cascade(self.tm3cnt_h) {
-                tm2_overflow
-            } else {
-                let prescaler = Self::get_prescaler(self.tm3cnt_h);
-                self.tm3_prescaler_counter += 1;
-                if self.tm3_prescaler_counter >= prescaler {
-                    self.tm3_prescaler_counter = 0;
-                    true
-                } else {
-                    false
-                }
-            };
+        let period = 0x1_0000 - u32::from(reload);
+        let past_first = value - 0x1_0000;
+        let overflows = 1 + past_first / period;
+        *counter = (u32::from(reload) + past_first % period) as u16;
+        overflows
+    }
+}
 
-            if should_tick {
-                let (new_val, overflow) = self.tm3cnt_l.overflowing_add(1);
-                if overflow {
-                    self.tm3cnt_l = self.tm3_reload;
-                    if Self::is_irq_enabled(self.tm3cnt_h) {
-                        result.timer3_overflow = true;
-                    }
-                } else {
-                    self.tm3cnt_l = new_val;
-                }
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        result
+    // Control register bits: enable (7), irq (6), cascade (2), prescaler (0-1).
+    const ENABLE: u16 = 1 << 7;
+    const IRQ: u16 = 1 << 6;
+    const CASCADE: u16 = 1 << 2;
+
+    #[test]
+    fn overflows_after_exactly_one_full_period() {
+        let mut t = Timers::default();
+        t.set_reload(0, 0);
+        t.set_control(0, ENABLE | IRQ); // prescaler 1, counter reloads to 0
+
+        // One short of a full 16-bit period: no overflow yet.
+        let r = t.step(0xFFFF);
+        assert!(!r.timer0_overflow);
+        assert_eq!(t.tm0cnt_l, 0xFFFF);
+
+        // The cycle that completes the period overflows and reloads to 0.
+        let r = t.step(1);
+        assert!(r.timer0_overflow);
+        assert_eq!(t.tm0cnt_l, 0);
+    }
+
+    #[test]
+    fn prescaler_divides_and_carries_remainder() {
+        let mut t = Timers::default();
+        t.set_reload(0, 0xFFFF); // wrap period of one tick
+        t.set_control(0, ENABLE | IRQ | 0b01); // prescaler 64
+
+        // 63 cycles: not enough for a single tick.
+        assert!(!t.step(63).timer0_overflow);
+        assert_eq!(t.tm0cnt_l, 0xFFFF);
+
+        // The 64th cycle produces one tick, which overflows the reloaded counter.
+        let r = t.step(1);
+        assert!(r.timer0_overflow);
+        assert_eq!(t.tm0cnt_l, 0xFFFF);
+    }
+
+    #[test]
+    fn multiple_overflows_in_a_single_step() {
+        let mut t = Timers::default();
+        t.set_reload(0, 0xFF00); // period of 0x100 ticks
+        t.set_control(0, ENABLE | IRQ);
+
+        // Two full periods plus a bit in one step.
+        let r = t.step(0x100 * 2 + 5);
+        assert!(r.timer0_overflow);
+        assert_eq!(t.tm0cnt_l, 0xFF05);
+    }
+
+    #[test]
+    fn cascade_ticks_once_per_lower_overflow() {
+        let mut t = Timers::default();
+        // Timer 0 overflows every cycle (period of one tick).
+        t.set_reload(0, 0xFFFF);
+        t.set_control(0, ENABLE);
+
+        // Timer 1 cascades, period of two ticks.
+        t.set_reload(1, 0xFFFE);
+        t.set_control(1, ENABLE | IRQ | CASCADE);
+
+        // Three timer-0 overflows advance the cascade timer three ticks,
+        // which is one and a half of its two-tick period: one overflow.
+        let r = t.step(3);
+        assert!(r.timer1_overflow);
+        assert_eq!(t.tm1cnt_l, 0xFFFF);
+    }
+
+    #[test]
+    fn disabled_timer_does_not_advance() {
+        let mut t = Timers::default();
+        t.set_reload(0, 0);
+        // Not enabled.
+        let r = t.step(1_000_000);
+        assert!(!r.timer0_overflow);
+        assert_eq!(t.tm0cnt_l, 0);
     }
 }
