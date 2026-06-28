@@ -20,7 +20,7 @@ test-roms:
 
 # run clippy with heavy config
 lint:
-    @cargo clippy --workspace
+    @cargo clippy --workspace --all-targets
 
 # clean build directory
 clean:
