@@ -20,7 +20,11 @@ rand = "0.10.0"
 
 # Shared production dependencies
 serde = { version = "1.0.228", features = ["derive"] }
-eframe = { version = "0.35.0", default-features = false, features = ["glow"] }
+eframe = { version = "0.35.0", default-features = false, features = [
+    "glow",
+    "wayland",
+    "x11",
+] }
 egui = { version = "0.35.0", default-features = false }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
