@@ -1074,6 +1074,13 @@ impl Bus {
         self.timer_cycles_done = self.cycles_count;
     }
 
+    /// Account for internal (I) cycles, where the CPU does work without touching
+    /// the bus (e.g. the iterations of a multiply). They still advance the clock,
+    /// so the timers and LCD pick them up on the next `step`.
+    pub(crate) const fn add_internal_cycles(&mut self, cycles: u64) {
+        self.cycles_count += cycles;
+    }
+
     /// Step all peripherals (timers, LCD, etc.) for one CPU cycle.
     ///
     /// Returns `true` if `VBlank` just started (a new frame is ready).

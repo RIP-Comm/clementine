@@ -628,6 +628,11 @@ impl Arm7tdmi {
         self.registers.set_register_at(reg_result, result as u32);
         self.cpsr.set_zero_flag(result == 0);
         self.cpsr.set_sign_flag(result.get_bit(31));
+
+        // Same Booth-multiplier internal cycles as the ARM MUL; the multiplier
+        // operand is the source register Rm (op1 here).
+        self.bus
+            .add_internal_cycles(Self::multiply_cycles(op1, true, 0));
     }
 }
 

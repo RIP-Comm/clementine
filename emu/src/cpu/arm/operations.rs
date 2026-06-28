@@ -1135,6 +1135,25 @@ impl Arm7tdmi {
         }
     }
 
+    /// Internal (I) cycles a multiply spends iterating over the multiplier `rs`.
+    ///
+    /// The ARM7TDMI Booth multiplier processes `rs` one byte at a time and stops
+    /// early once the remaining high bits are all zero (and, for signed
+    /// variants, all one). `extra` is the variant's added cycles (accumulate and
+    /// the long-result penalty).
+    pub(crate) const fn multiply_cycles(rs: u32, signed: bool, extra: u64) -> u64 {
+        let m = if rs & 0xFFFF_FF00 == 0 || (signed && rs & 0xFFFF_FF00 == 0xFFFF_FF00) {
+            1
+        } else if rs & 0xFFFF_0000 == 0 || (signed && rs & 0xFFFF_0000 == 0xFFFF_0000) {
+            2
+        } else if rs & 0xFF00_0000 == 0 || (signed && rs & 0xFF00_0000 == 0xFF00_0000) {
+            3
+        } else {
+            4
+        };
+        m + extra
+    }
+
     pub fn mul_or_mla(
         &mut self,
         set_condition_codes: bool,
@@ -1160,6 +1179,13 @@ impl Arm7tdmi {
             self.cpsr.set_zero_flag(result == 0);
             self.cpsr.set_sign_flag(result.get_bit(31));
         }
+
+        // MUL is m internal cycles, MLA is m + 1.
+        self.bus.add_internal_cycles(Self::multiply_cycles(
+            rs_operand_value,
+            true,
+            does_accumulate.into(),
+        ));
     }
 
     pub fn umull_or_umlal(
@@ -1192,6 +1218,14 @@ impl Arm7tdmi {
             self.cpsr.set_zero_flag(result == 0);
             self.cpsr.set_sign_flag(result.get_bit(63));
         }
+
+        // Unsigned long: UMULL is m + 1, UMLAL is m + 2. Unsigned has no
+        // all-ones early termination.
+        self.bus.add_internal_cycles(Self::multiply_cycles(
+            self.registers.register_at(rs as usize),
+            false,
+            1 + u64::from(does_accumulate),
+        ));
     }
 
     pub fn smull_or_smlal(
@@ -1228,6 +1262,13 @@ impl Arm7tdmi {
             self.cpsr.set_zero_flag(result == 0);
             self.cpsr.set_sign_flag(result.get_bit(63));
         }
+
+        // Signed long: SMULL is m + 1, SMLAL is m + 2.
+        self.bus.add_internal_cycles(Self::multiply_cycles(
+            rs_operand_value,
+            true,
+            1 + u64::from(does_accumulate),
+        ));
     }
 }
 
@@ -1243,6 +1284,32 @@ mod tests {
     use crate::cpu::psr::Psr;
 
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn multiply_internal_cycles_count_operand_bytes() {
+        // m grows with how many significant bytes the multiplier has.
+        assert_eq!(Arm7tdmi::multiply_cycles(0, true, 0), 1);
+        assert_eq!(Arm7tdmi::multiply_cycles(0xFF, true, 0), 1);
+        assert_eq!(Arm7tdmi::multiply_cycles(0x100, true, 0), 2);
+        assert_eq!(Arm7tdmi::multiply_cycles(0x1_0000, true, 0), 3);
+        assert_eq!(Arm7tdmi::multiply_cycles(0x0100_0000, true, 0), 4);
+    }
+
+    #[test]
+    fn multiply_internal_cycles_signed_early_terminates_on_all_ones() {
+        // Signed sees the all-ones high bytes as terminated, unsigned does not.
+        assert_eq!(Arm7tdmi::multiply_cycles(0xFFFF_FFFF, true, 0), 1);
+        assert_eq!(Arm7tdmi::multiply_cycles(0xFFFF_FFFF, false, 0), 4);
+    }
+
+    #[test]
+    fn multiply_internal_cycles_add_variant_extra() {
+        // MUL is m, MLA is m + 1; the long penalty adds on top.
+        assert_eq!(Arm7tdmi::multiply_cycles(0, true, 0), 1); // MUL
+        assert_eq!(Arm7tdmi::multiply_cycles(0, true, 1), 2); // MLA
+        assert_eq!(Arm7tdmi::multiply_cycles(0, false, 1), 2); // UMULL
+        assert_eq!(Arm7tdmi::multiply_cycles(0, false, 2), 3); // UMLAL
+    }
 
     pub trait BitsUtilsTest
     where
