@@ -94,6 +94,10 @@ pub struct Bus {
     /// the layout also stops internal timing changes from breaking old saves.
     #[serde(skip)]
     timer_cycles_done: u64,
+    /// Set while the bus is servicing an instruction fetch, so the `GamePak`
+    /// prefetch buffer timing is applied only to the opcode stream.
+    #[serde(skip)]
+    in_opcode_fetch: bool,
     last_used_address: usize,
     unused_region: HashMap<usize, u8>,
     /// Tracks the last opcode fetched from BIOS for read protection
@@ -1181,7 +1185,16 @@ impl Bus {
             // GamePak ROM mirrors: timing from WAITCNT per wait-state region
             0x8..=0xD => {
                 let sequential = address.wrapping_sub(self.last_used_address) as u64 == size;
-                self.gamepak_cycles(region, size, sequential)
+                // With the prefetch buffer enabled, a sequential opcode fetch is
+                // delivered from the buffer at one cycle per 16-bit unit instead
+                // of paying the ROM wait states. This is the optimistic case
+                // where the prefetcher has kept up, which holds for the tight
+                // loops that dominate ROM execution.
+                if self.in_opcode_fetch && sequential && self.waitcnt().get_bit(14) {
+                    size / 2
+                } else {
+                    self.gamepak_cycles(region, size, sequential)
+                }
             }
             // GamePak SRAM: 8-bit bus, WAITCNT SRAM wait
             0xE | 0xF => 1 + Self::nwait(self.waitcnt().get_bits(0..=1)),
@@ -1235,6 +1248,24 @@ impl Bus {
         let (n_wait, s_wait) = self.gamepak_waits(region);
         let first = 1 + if sequential { s_wait } else { n_wait };
         if size == 4 { first + 1 + s_wait } else { first }
+    }
+
+    /// Read a 32-bit opcode from memory, applying the `GamePak` prefetch buffer
+    /// timing for sequential fetches.
+    pub fn read_opcode_word(&mut self, address: usize) -> u32 {
+        self.in_opcode_fetch = true;
+        let value = self.read_word(address);
+        self.in_opcode_fetch = false;
+        value
+    }
+
+    /// Read a 16-bit opcode from memory, applying the `GamePak` prefetch buffer
+    /// timing for sequential fetches.
+    pub fn read_opcode_half_word(&mut self, address: usize) -> u16 {
+        self.in_opcode_fetch = true;
+        let value = self.read_half_word(address);
+        self.in_opcode_fetch = false;
+        value
     }
 
     pub fn read_word(&mut self, mut address: usize) -> u32 {
@@ -1381,6 +1412,36 @@ mod tests {
         // sequential = (1 + N) + (1 + S), and (1 + S) + (1 + S) when sequential.
         bus.last_used_address = 0;
         assert_eq!(bus.access_cycles(0x0800_0000, 4), (1 + 4) + (1 + 2));
+        bus.last_used_address = 0x0800_0000 - 4;
+        assert_eq!(bus.access_cycles(0x0800_0000, 4), (1 + 2) + (1 + 2));
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    fn prefetch_makes_sequential_opcode_fetches_cheap() {
+        let mut bus = Bus::default(); // WAITCNT = 0 -> WS0 N=4, S=2
+
+        // Without prefetch, even a sequential opcode fetch pays the ROM waits.
+        bus.in_opcode_fetch = true;
+        bus.last_used_address = 0x0800_0000 - 4;
+        assert_eq!(bus.access_cycles(0x0800_0000, 4), (1 + 2) + (1 + 2));
+
+        // Enable the prefetch buffer (WAITCNT bit 14).
+        bus.interrupt_control.wait_state_control = 1 << 14;
+
+        // A sequential opcode fetch now comes from the buffer: one cycle per
+        // 16-bit unit (two for a word, one for a halfword).
+        bus.last_used_address = 0x0800_0000 - 4;
+        assert_eq!(bus.access_cycles(0x0800_0000, 4), 2);
+        bus.last_used_address = 0x0800_0000 - 2;
+        assert_eq!(bus.access_cycles(0x0800_0000, 2), 1);
+
+        // A non-sequential fetch (a branch target) still pays the full waits.
+        bus.last_used_address = 0;
+        assert_eq!(bus.access_cycles(0x0800_0000, 4), (1 + 4) + (1 + 2));
+
+        // A data access never benefits from the prefetch buffer.
+        bus.in_opcode_fetch = false;
         bus.last_used_address = 0x0800_0000 - 4;
         assert_eq!(bus.access_cycles(0x0800_0000, 4), (1 + 2) + (1 + 2));
     }

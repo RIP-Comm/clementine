@@ -258,7 +258,7 @@ impl Arm7tdmi {
         // Update current PC for BIOS read protection
         self.bus.set_current_pc(pc as usize);
 
-        let opcode = self.bus.read_word(pc as usize);
+        let opcode = self.bus.read_opcode_word(pc as usize);
 
         // If fetching from BIOS, save this opcode for read protection
         if (pc as usize) < 0x4000 {
@@ -278,7 +278,7 @@ impl Arm7tdmi {
         // Update current PC for BIOS read protection
         self.bus.set_current_pc(pc as usize);
 
-        let opcode = self.bus.read_half_word(pc as usize);
+        let opcode = self.bus.read_opcode_half_word(pc as usize);
 
         // If fetching from BIOS, save this opcode for read protection (extended to 32-bit)
         if (pc as usize) < 0x4000 {
