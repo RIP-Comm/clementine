@@ -321,8 +321,8 @@ impl EmuThread {
                         std::mem::take(&mut self.gba.cpu.bus.internal_memory.bios_system_rom);
                     let rom = std::mem::take(&mut self.gba.cpu.bus.internal_memory.rom);
 
-                    match bincode::deserialize(payload) {
-                        Ok(cpu) => {
+                    match bincode::serde::decode_from_slice(payload, bincode::config::standard()) {
+                        Ok((cpu, _)) => {
                             self.gba.cpu = cpu;
                             // Restore skipped fields
                             self.gba.cpu.disasm_tx = disasm_tx;
@@ -347,7 +347,10 @@ impl EmuThread {
                         }
                     }
                 }
-                EmuCommand::RequestSaveState => match bincode::serialize(&self.gba.cpu) {
+                EmuCommand::RequestSaveState => match bincode::serde::encode_to_vec(
+                    &self.gba.cpu,
+                    bincode::config::standard(),
+                ) {
                     Ok(payload) => {
                         // Prepend header + version so we can detect incompatible saves
                         let mut data =

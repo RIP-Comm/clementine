@@ -8,10 +8,9 @@ license.workspace = true
 [dependencies]
 eframe.workspace = true
 egui.workspace = true
-egui_extras = { version = "0.33.0", features = ["image"] }
+egui_extras = { version = "0.35.0", features = ["image"] }
 emu = { path = "../emu" }
-native-dialog = "0.7.0"
-bincode = "1.3.3"
+bincode = { version = "2.0.0", features = ["serde"] }
 rtrb = "0.3"
 tracing.workspace = true
 

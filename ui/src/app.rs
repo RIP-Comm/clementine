@@ -210,7 +210,9 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+
         // instead of spinning, request repaint at ~60 FPS to match GBA frame rate
         ctx.request_repaint_after(std::time::Duration::from_millis(16));
 
@@ -219,12 +221,12 @@ impl eframe::App for App {
             handle.poll();
         }
 
-        self.handle_input(ctx);
+        self.handle_input(&ctx);
 
-        egui::SidePanel::right("Clementine Tools")
+        egui::Panel::right("Clementine Tools")
             .resizable(false)
-            .default_width(200.0)
-            .show(ctx, |ui| {
+            .default_size(200.0)
+            .show(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.heading("✒ Clementine Tools");
                 });
@@ -241,7 +243,7 @@ impl eframe::App for App {
                 self.checkboxes(ui);
             });
 
-        self.windows(ctx);
+        self.windows(&ctx);
     }
 }
 

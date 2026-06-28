@@ -20,8 +20,8 @@ rand = "0.10.0"
 
 # Shared production dependencies
 serde = { version = "1.0.228", features = ["derive"] }
-eframe = { version = "0.33.3", default-features = false, features = ["glow"] }
-egui = { version = "0.33.3", default-features = false }
+eframe = { version = "0.35.0", default-features = false, features = ["glow"] }
+egui = { version = "0.35.0", default-features = false }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
@@ -29,7 +29,6 @@ tracing-appender = "0.2"
 [dependencies]
 eframe.workspace = true
 egui = { workspace = true, default-features = true }
-egui_glium = "0.33.2"
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-appender.workspace = true

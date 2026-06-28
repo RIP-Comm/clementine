@@ -77,19 +77,19 @@ impl TextBuffer for UpperHexString {
         &self.0
     }
 
-    fn insert_text(&mut self, text: &str, char_index: usize) -> usize {
+    fn insert_text(&mut self, text: &str, char_index: egui::text::CharIndex) -> usize {
         let mut text_string = text.to_string();
         text_string.retain(|c| c.is_ascii_hexdigit());
         text_string.make_ascii_uppercase();
 
         let byte_idx = byte_index_from_char_index(self.as_str(), char_index);
 
-        self.insert_str(byte_idx, text_string.as_str());
+        self.insert_str(byte_idx.into(), text_string.as_str());
 
         text.chars().count()
     }
 
-    fn delete_char_range(&mut self, char_range: Range<usize>) {
+    fn delete_char_range(&mut self, char_range: Range<egui::text::CharIndex>) {
         assert!(char_range.start <= char_range.end);
 
         // Get both byte indices
@@ -97,7 +97,7 @@ impl TextBuffer for UpperHexString {
         let byte_end = byte_index_from_char_index(self.as_str(), char_range.end);
 
         // Then drain all characters within this range
-        self.drain(byte_start..byte_end);
+        self.drain(egui::epaint::text::ByteRangeExt::as_usize(&(byte_start..byte_end)));
     }
 
     fn type_id(&self) -> std::any::TypeId {
