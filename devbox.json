@@ -6,8 +6,8 @@
     "rust-analyzer@latest",
     "pkg-config@latest",
     "libiconv@latest",
-    "rustc@1.94.1",
-    "cargo@1.94.1",
+    "rustc@1.95.0",
+    "cargo@1.95.0",
     "just@latest"
   ]
 }
