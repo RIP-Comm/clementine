@@ -397,6 +397,10 @@ impl Arm7tdmi {
                     self.bus.write_word(address, rm_value);
                     self.registers.set_register_at(rd as usize, old_value);
                 }
+
+                // SWP is 1S + 2N + 1I: the read and write are counted above, the
+                // internal cycle moves the read value into the register.
+                self.bus.add_internal_cycles(1);
             }
             ArmModeInstruction::BranchAndExchange {
                 condition: _,
@@ -1394,6 +1398,21 @@ mod tests {
     use crate::cpu::thumb::instruction::Instruction;
 
     use super::*;
+
+    #[test]
+    fn swap_costs_read_write_plus_internal_cycle() {
+        // SWP R1, R2, [R0]: word swap at an IWRAM address.
+        let op_code = 0b1110_0001_0000_0000_0001_0000_1001_0010;
+        let mut cpu = Arm7tdmi::default();
+        cpu.registers.set_register_at(0, 0x0300_0000); // IWRAM, 1 cycle per access
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+
+        let before = cpu.bus.cycles();
+        cpu.execute_arm(op_code);
+
+        // IWRAM word read (1) + write (1) + one internal cycle.
+        assert_eq!(cpu.bus.cycles() - before, 3);
+    }
 
     #[test]
     fn arm_branch() {
