@@ -10,6 +10,14 @@ build:
 test:
     @cargo test --workspace --all-features
 
+# clone/update the jsmolka test ROMs into <dir> (or $CLEMENTINE_TEST_ROMS, or ./.test-roms)
+fetch-test-roms dir="":
+    @scripts/fetch-test-roms.sh {{dir}}
+
+# run the accuracy harness against the jsmolka ROMs (needs CLEMENTINE_TEST_ROMS + a BIOS)
+test-roms:
+    @cargo test -p emu --test jsmolka -- --nocapture
+
 # run clippy with heavy config
 lint:
     @cargo clippy --workspace

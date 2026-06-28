@@ -1,20 +1,37 @@
-//! Runs the jsmolka test ROMs (arm.gba / thumb.gba) and checks they pass.
+//! Runs the jsmolka gba-tests ROMs headless and checks they pass.
 //!
 //! Each ROM stores the failing test id in r12 and then spins in `idle: b idle`.
 //! r12 == 0 means every sub-test passed. The ROMs poll DISPSTAT for VBlank
 //! instead of using interrupts, so they exercise the LCD pixel clock and the
 //! frame-ready signaling in `Bus::step`.
 //!
-//! These tests need the real BIOS (`gba_bios.bin` in the repo root) and the
-//! jsmolka ROMs checked out as a sibling of this repo. They skip when the files
-//! are missing so CI without those assets stays green.
+//! The ROMs are not vendored. Point `CLEMENTINE_TEST_ROMS` at a checkout of
+//! <https://github.com/jsmolka/gba-tests> (see `scripts/fetch-test-roms.sh`).
+//! A real BIOS is required too: `CLEMENTINE_BIOS`, or `gba_bios.bin` in the repo
+//! root. When either is missing the tests skip so CI without the assets stays
+//! green.
 
 use emu::gba::Gba;
+use std::path::PathBuf;
+
+/// Directory holding the jsmolka gba-tests checkout.
+fn test_roms_dir() -> Option<PathBuf> {
+    std::env::var_os("CLEMENTINE_TEST_ROMS").map(PathBuf::from)
+}
+
+/// BIOS path: `CLEMENTINE_BIOS` if set, otherwise the repo-root `gba_bios.bin`.
+fn bios_path() -> PathBuf {
+    std::env::var_os("CLEMENTINE_BIOS")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("../gba_bios.bin"))
+}
 
 /// Run a ROM until it settles into the `b self` idle loop, then return r12.
-fn run_until_idle(rom_path: &str) -> Option<u32> {
-    let bios = std::fs::read("../gba_bios.bin").ok()?;
-    let rom = std::fs::read(rom_path).ok()?;
+/// Returns `None` when the BIOS or the ROM is not available, so the caller can
+/// skip instead of failing.
+fn run_until_idle(rom_relative: &str) -> Option<u32> {
+    let bios = std::fs::read(bios_path()).ok()?;
+    let rom = std::fs::read(test_roms_dir()?.join(rom_relative)).ok()?;
 
     let bios: [u8; 0x4000] = bios.get(0..0x4000)?.try_into().ok()?;
     let mut gba = Gba::new(bios, &rom);
@@ -51,18 +68,27 @@ fn run_until_idle(rom_path: &str) -> Option<u32> {
     Some(gba.cpu.registers.register_at(12))
 }
 
-#[test]
-fn arm_rom_passes() {
-    match run_until_idle("../../gba-tests/arm/arm.gba") {
-        None => eprintln!("skipping: arm.gba or gba_bios.bin not found"),
-        Some(r12) => assert_eq!(r12, 0, "arm.gba failed at test number {r12}"),
+/// Assert a ROM passes, or skip when the assets are missing.
+fn check(rom_relative: &str) {
+    match run_until_idle(rom_relative) {
+        None => {
+            eprintln!("skipping {rom_relative}: set CLEMENTINE_TEST_ROMS (and a BIOS) to run it")
+        }
+        Some(r12) => assert_eq!(r12, 0, "{rom_relative} failed at test number {r12}"),
     }
 }
 
 #[test]
+fn arm_rom_passes() {
+    check("arm/arm.gba");
+}
+
+#[test]
 fn thumb_rom_passes() {
-    match run_until_idle("../../gba-tests/thumb/thumb.gba") {
-        None => eprintln!("skipping: thumb.gba or gba_bios.bin not found"),
-        Some(r12) => assert_eq!(r12, 0, "thumb.gba failed at test number {r12}"),
-    }
+    check("thumb/thumb.gba");
+}
+
+#[test]
+fn memory_rom_passes() {
+    check("memory/memory.gba");
 }
