@@ -154,6 +154,12 @@ pub struct Arm7tdmi {
     #[serde(skip)]
     pub disasm_tx: Option<rtrb::Producer<DisasmEntry>>,
 
+    /// Whether to push every executed instruction to the disassembler channel.
+    /// Kept off by default so the hot path skips the per-instruction push when
+    /// the disassembler window is closed.
+    #[serde(skip)]
+    pub disasm_enabled: bool,
+
     fetched_arm: Option<u32>,
     decoded_arm: Option<ArmModeOpcode>,
     fetched_thumb: Option<u16>,
@@ -217,6 +223,7 @@ impl Default for Arm7tdmi {
             registers: Registers::default(),
             register_bank: RegisterBank::default(),
             disasm_tx: None,
+            disasm_enabled: false,
             fetched_arm: None,
             decoded_arm: None,
             fetched_thumb: None,
@@ -307,7 +314,9 @@ impl Arm7tdmi {
         }
 
         // push dis-ASM to the channel
-        if let Some(tx) = &mut self.disasm_tx {
+        if self.disasm_enabled
+            && let Some(tx) = &mut self.disasm_tx
+        {
             let pc = self.registers.program_counter() as u32;
             let _ = tx.push(DisasmEntry::Arm {
                 pc,
@@ -506,7 +515,9 @@ impl Arm7tdmi {
     /// It can panics if destination register is None.
     pub fn execute_thumb(&mut self, op_code: ThumbModeOpcode) {
         // push dis-ASM to the channel
-        if let Some(tx) = &mut self.disasm_tx {
+        if self.disasm_enabled
+            && let Some(tx) = &mut self.disasm_tx
+        {
             let pc = self.registers.program_counter() as u32;
             let _ = tx.push(DisasmEntry::Thumb {
                 pc,

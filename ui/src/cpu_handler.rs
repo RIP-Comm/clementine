@@ -97,7 +97,9 @@ impl TextBuffer for UpperHexString {
         let byte_end = byte_index_from_char_index(self.as_str(), char_range.end);
 
         // Then drain all characters within this range
-        self.drain(egui::epaint::text::ByteRangeExt::as_usize(&(byte_start..byte_end)));
+        self.drain(egui::epaint::text::ByteRangeExt::as_usize(
+            &(byte_start..byte_end),
+        ));
     }
 
     fn type_id(&self) -> std::any::TypeId {

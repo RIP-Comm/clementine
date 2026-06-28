@@ -317,6 +317,7 @@ impl EmuThread {
 
                     // Save fields that are skipped during serialization so we can restore them
                     let disasm_tx = self.gba.cpu.disasm_tx.take();
+                    let disasm_enabled = self.gba.cpu.disasm_enabled;
                     let bios =
                         std::mem::take(&mut self.gba.cpu.bus.internal_memory.bios_system_rom);
                     let rom = std::mem::take(&mut self.gba.cpu.bus.internal_memory.rom);
@@ -326,6 +327,7 @@ impl EmuThread {
                             self.gba.cpu = cpu;
                             // Restore skipped fields
                             self.gba.cpu.disasm_tx = disasm_tx;
+                            self.gba.cpu.disasm_enabled = disasm_enabled;
                             self.gba.cpu.bus.internal_memory.bios_system_rom = bios;
                             self.gba.cpu.bus.internal_memory.rom = rom;
                             tracing::info!(
@@ -347,27 +349,27 @@ impl EmuThread {
                         }
                     }
                 }
-                EmuCommand::RequestSaveState => match bincode::serde::encode_to_vec(
-                    &self.gba.cpu,
-                    bincode::config::standard(),
-                ) {
-                    Ok(payload) => {
-                        // Prepend header + version so we can detect incompatible saves
-                        let mut data =
-                            Vec::with_capacity(SAVE_STATE_HEADER.len() + 4 + payload.len());
-                        data.extend_from_slice(SAVE_STATE_HEADER);
-                        data.extend_from_slice(&SAVE_STATE_VERSION.to_le_bytes());
-                        data.extend_from_slice(&payload);
-                        tracing::info!(
-                            "Save state created: {} bytes (v{SAVE_STATE_VERSION})",
-                            data.len()
-                        );
-                        self.send_event(EmuEvent::SaveStateData(data));
+                EmuCommand::RequestSaveState => {
+                    match bincode::serde::encode_to_vec(&self.gba.cpu, bincode::config::standard())
+                    {
+                        Ok(payload) => {
+                            // Prepend header + version so we can detect incompatible saves
+                            let mut data =
+                                Vec::with_capacity(SAVE_STATE_HEADER.len() + 4 + payload.len());
+                            data.extend_from_slice(SAVE_STATE_HEADER);
+                            data.extend_from_slice(&SAVE_STATE_VERSION.to_le_bytes());
+                            data.extend_from_slice(&payload);
+                            tracing::info!(
+                                "Save state created: {} bytes (v{SAVE_STATE_VERSION})",
+                                data.len()
+                            );
+                            self.send_event(EmuEvent::SaveStateData(data));
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to create save state: {e}");
+                        }
                     }
-                    Err(e) => {
-                        tracing::error!("Failed to create save state: {e}");
-                    }
-                },
+                }
                 EmuCommand::SetKey { button, pressed } => {
                     self.gba.cpu.bus.keypad.set_button(button, pressed);
                 }
@@ -466,11 +468,9 @@ impl EmuThread {
                     });
                 }
                 EmuCommand::SetDisasmEnabled(enabled) => {
-                    if enabled {
-                    } else {
-                        // Disable by dropping the transmitter
-                        self.gba.cpu.disasm_tx = None;
-                    }
+                    // Gate the per-instruction push without tearing down the
+                    // channel, so the disassembler can be toggled on and off.
+                    self.gba.cpu.disasm_enabled = enabled;
                 }
                 EmuCommand::SetSpeed(multiplier) => {
                     self.speed_multiplier = multiplier;

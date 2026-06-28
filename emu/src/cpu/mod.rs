@@ -41,10 +41,13 @@ use thumb::instruction::Instruction as ThumbModeInstruction;
 
 /// Default buffer capacity for the disassembler channel.
 ///
-/// Large enough to handle bursts without blocking the CPU.
-/// At ~16.78 MHz and 60fps, that's ~280k instructions per frame.
-/// We use a large buffer to avoid any backpressure on the CPU.
-pub const DISASM_BUFFER_CAPACITY: usize = 1024 * 1024;
+/// The CPU produces far more instructions per second than the UI can drain, so
+/// the channel is always saturated while running. We intentionally keep it small
+/// so the entries the disassembler reads are always the most recent ones: with a
+/// large buffer the UI would forever lag ~1.6s behind, replaying ancient history
+/// instead of showing what is executing now. The UI drains the whole buffer each
+/// frame, so this stays below `MAX_ENTRIES_PER_FRAME`.
+pub const DISASM_BUFFER_CAPACITY: usize = 8192;
 
 /// An entry in the disassembler buffer.
 ///

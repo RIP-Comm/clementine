@@ -34,7 +34,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::emu_thread::EmuHandle;
+use crate::emu_thread::{EmuCommand, EmuHandle};
 use crate::ui_traits::UiTool;
 use egui::{ScrollArea, TextEdit, TextStyle};
 
@@ -51,6 +51,9 @@ pub struct Disassembler {
     display_text: String,
     /// Number of lines currently in `display_text`.
     line_count: usize,
+    /// Tracks whether the CPU is currently pushing instructions to us, so we
+    /// only send a toggle command when the window opens or closes.
+    enabled: bool,
 }
 
 impl Disassembler {
@@ -59,6 +62,19 @@ impl Disassembler {
             emu_handle,
             display_text: String::with_capacity(MAX_DISPLAY_LINES * 50),
             line_count: 0,
+            enabled: false,
+        }
+    }
+
+    /// Enable instruction pushing while the window is open, disable it when
+    /// closed, so the CPU hot path skips the per-instruction work otherwise.
+    fn set_enabled(&mut self, enabled: bool) {
+        if self.enabled == enabled {
+            return;
+        }
+        self.enabled = enabled;
+        if let Ok(mut handle) = self.emu_handle.lock() {
+            handle.send(EmuCommand::SetDisasmEnabled(enabled));
         }
     }
 
@@ -100,6 +116,8 @@ impl UiTool for Disassembler {
     }
 
     fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
+        self.set_enabled(*open);
+
         egui::Window::new(self.name())
             .resizable(true)
             .open(open)
