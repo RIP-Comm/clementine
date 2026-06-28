@@ -792,6 +792,12 @@ impl Arm7tdmi {
             },
         }
 
+        // Like LDR, a halfword/signed load spends one internal cycle writing
+        // the value back to the register file.
+        if load_store_kind == LoadStoreKind::Load {
+            self.bus.add_internal_cycles(1);
+        }
+
         if load_store_kind == LoadStoreKind::Load && source_destination_register == REG_PC {
             self.flush_pipeline();
         }
@@ -886,6 +892,12 @@ impl Arm7tdmi {
                 }
             }
             SingleDataTransferKind::Pld => todo!("implement single data transfer operation"),
+        }
+
+        // A load spends one internal cycle moving the fetched value into the
+        // register file (LDR is 1S + 1N + 1I); a store has no such cycle.
+        if kind == SingleDataTransferKind::Ldr {
+            self.bus.add_internal_cycles(1);
         }
 
         // If LDR and Rd == R15 we flush the pipeline
@@ -1893,6 +1905,40 @@ mod tests {
         let before = cpu.bus.cycles();
         cpu.execute_arm(op_code);
         assert_eq!(cpu.bus.cycles() - before, 0);
+    }
+
+    #[test]
+    fn load_costs_one_more_internal_cycle_than_store() {
+        // Build LDR/STR R1, [R0] with the same word addressing.
+        fn build(load: bool) -> u32 {
+            let mut op = 0u32;
+            op.set_bits(28..=31, Condition::AL as u32);
+            op.set_bits(26..=27, 0b01); // single data transfer
+            op.set_bits(24..=24, 1); // pre-indexed
+            op.set_bits(23..=23, 1); // up
+            op.set_bits(20..=20, u32::from(load)); // load (1) or store (0)
+            op.set_bits(16..=19, 0); // base register R0
+            op.set_bits(12..=15, 1); // source/destination R1
+            op
+        }
+
+        let addr = 0x0300_0000; // IWRAM, same cost for read and write
+
+        let mut cpu = Arm7tdmi::default();
+        cpu.registers.set_register_at(0, addr);
+        let ldr: ArmModeOpcode = Arm7tdmi::decode(build(true));
+        let before = cpu.bus.cycles();
+        cpu.execute_arm(ldr);
+        let load_cost = cpu.bus.cycles() - before;
+
+        let mut cpu = Arm7tdmi::default();
+        cpu.registers.set_register_at(0, addr);
+        let str_op: ArmModeOpcode = Arm7tdmi::decode(build(false));
+        let before = cpu.bus.cycles();
+        cpu.execute_arm(str_op);
+        let store_cost = cpu.bus.cycles() - before;
+
+        assert_eq!(load_cost, store_cost + 1);
     }
 
     #[test]
