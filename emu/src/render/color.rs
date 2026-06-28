@@ -60,7 +60,7 @@ mod test {
 
     #[test]
     fn check() {
-        let c = Color(0b0000100010001000);
+        let c = Color(0b0000_1000_1000_1000);
         assert_eq!(c.red(), 0b01000);
         assert_eq!(c.green(), 0b00100);
         assert_eq!(c.blue(), 0b00010);

@@ -1,7 +1,7 @@
 //! Runs the jsmolka gba-tests ROMs headless and checks they pass.
 //!
 //! Each ROM stores the failing test id in r12 and then spins in `idle: b idle`.
-//! r12 == 0 means every sub-test passed. The ROMs poll DISPSTAT for VBlank
+//! r12 == 0 means every sub-test passed. The ROMs poll DISPSTAT for `VBlank`
 //! instead of using interrupts, so they exercise the LCD pixel clock and the
 //! frame-ready signaling in `Bus::step`.
 //!
@@ -22,14 +22,15 @@ fn test_roms_dir() -> Option<PathBuf> {
 /// BIOS path: `CLEMENTINE_BIOS` if set, otherwise the repo-root `gba_bios.bin`.
 fn bios_path() -> PathBuf {
     std::env::var_os("CLEMENTINE_BIOS")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("../gba_bios.bin"))
+        .map_or_else(|| PathBuf::from("../gba_bios.bin"), PathBuf::from)
 }
 
 /// Run a ROM until it settles into the `b self` idle loop, then return r12.
 /// Returns `None` when the BIOS or the ROM is not available, so the caller can
 /// skip instead of failing.
 fn run_until_idle(rom_relative: &str) -> Option<u32> {
+    const BUDGET: u64 = 300_000_000;
+
     let bios = std::fs::read(bios_path()).ok()?;
     let rom = std::fs::read(test_roms_dir()?.join(rom_relative)).ok()?;
 
@@ -44,7 +45,6 @@ fn run_until_idle(rom_relative: &str) -> Option<u32> {
     let mut window_min = usize::MAX;
     let mut window_max = 0usize;
     let mut stable = 0u32;
-    const BUDGET: u64 = 300_000_000;
 
     for _ in 0..BUDGET {
         gba.step();
@@ -72,7 +72,7 @@ fn run_until_idle(rom_relative: &str) -> Option<u32> {
 fn check(rom_relative: &str) {
     match run_until_idle(rom_relative) {
         None => {
-            eprintln!("skipping {rom_relative}: set CLEMENTINE_TEST_ROMS (and a BIOS) to run it")
+            eprintln!("skipping {rom_relative}: set CLEMENTINE_TEST_ROMS (and a BIOS) to run it");
         }
         Some(r12) => assert_eq!(r12, 0, "{rom_relative} failed at test number {r12}"),
     }

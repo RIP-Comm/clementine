@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_is_on() {
-        let b = 0b110011101_u32;
+        let b = 0b1_1001_1101_u32;
         assert!(b.is_bit_on(0));
         assert!(!b.is_bit_on(1));
         assert!(b.is_bit_on(2));
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_is_off() {
-        let b = 0b110011101_u32;
+        let b = 0b1_1001_1101_u32;
         assert!(!b.is_bit_off(0));
         assert!(b.is_bit_off(1));
         assert!(!b.is_bit_off(2));
@@ -190,37 +190,37 @@ mod tests {
 
     #[test]
     fn test_set_on() {
-        let mut b = 0b110011101_u32;
+        let mut b = 0b1_1001_1101_u32;
         b.set_bit_on(1);
         b.set_bit_on(0);
         b.set_bit_on(11);
-        assert_eq!(b, 0b100110011111);
+        assert_eq!(b, 0b1001_1001_1111);
     }
 
     #[test]
     fn test_set_off() {
-        let mut b = 0b1101001101_u32;
+        let mut b = 0b11_0100_1101_u32;
         b.set_bit_off(0);
         b.set_bit_off(4);
         b.set_bit_off(5);
         b.set_bit_off(6);
         b.set_bit_off(20);
-        assert_eq!(b, 0b1100001100);
+        assert_eq!(b, 0b11_0000_1100);
     }
 
     #[test]
     fn set_bit() {
-        let mut b = 0b1100110_u32;
+        let mut b = 0b110_0110_u32;
         b.set_bit(0, true);
         b.set_bit(1, true);
         b.set_bit(2, false);
         b.set_bit(3, false);
-        assert_eq!(b, 0b1100011)
+        assert_eq!(b, 0b110_0011);
     }
 
     #[test]
     fn get_bit() {
-        let b = 0b1011001110_u32;
+        let b = 0b10_1100_1110_u32;
         assert!(b.get_bit(1));
         assert!(!b.get_bit(0));
         assert!(b.get_bit(2));
@@ -228,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "bit_idx < Self::BIT_WIDTH")]
     fn invalid_index() {
         let b = 0u32;
         b.is_bit_on(32);
@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn get_gits() {
-        let b = 0b1011001110_u32;
+        let b = 0b10_1100_1110_u32;
         assert_eq!(b.get_bits(0..=3), 0b1110);
         assert_eq!(b.get_bits(1..=1), 0b1);
         assert_eq!(b.get_bits(4..=7), 0b1100);
@@ -248,25 +248,25 @@ mod tests {
 
     #[test]
     fn are_bits_on() {
-        let b = 0b1011001110_u32;
+        let b = 0b10_1100_1110_u32;
         assert!(!b.are_bits_on(0..=3));
         assert!(b.are_bits_on(1..=3));
     }
 
     #[test]
     fn get_byte() {
-        let b: u32 = 0b00000001_00100010_00000100_01001000;
+        let b: u32 = 0b0000_0001_0010_0010_0000_0100_0100_1000;
 
-        assert_eq!(b.get_byte(0), 0b01001000_u8);
-        assert_eq!(b.get_byte(1), 0b00000100_u8);
-        assert_eq!(b.get_byte(2), 0b00100010_u8);
-        assert_eq!(b.get_byte(3), 0b00000001_u8);
+        assert_eq!(b.get_byte(0), 0b0100_1000_u8);
+        assert_eq!(b.get_byte(1), 0b0000_0100_u8);
+        assert_eq!(b.get_byte(2), 0b0010_0010_u8);
+        assert_eq!(b.get_byte(3), 0b0000_0001_u8);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "byte_nth < Self::BYTE_WIDTH")]
     fn get_byte_panic() {
-        let b: u32 = 0b00000001_00000010_00000100_00001000;
+        let b: u32 = 0b0000_0001_0000_0010_0000_0100_0000_1000;
 
         b.get_byte(4);
     }
@@ -296,14 +296,15 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "byte_nth < Self::BYTE_WIDTH")]
     fn set_byte_panic() {
-        let mut b: u32 = 0b00000001_00000010_00000100_00001000;
+        let mut b: u32 = 0b0000_0001_0000_0010_0000_0100_0000_1000;
 
         b.set_byte(4, 0);
     }
 
     #[test]
+    #[allow(clippy::cast_possible_wrap)] // reinterpreting the sign-extended bits as i32 is the point
     fn check_sign_extended() {
         let a: u32 = 0b1001; // -7 in i4
 

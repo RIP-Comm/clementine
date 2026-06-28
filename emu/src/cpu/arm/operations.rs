@@ -1296,21 +1296,21 @@ mod tests {
 
     #[test]
     fn set_bits() {
-        let mut b = 0b10001001_u32;
+        let mut b = 0b1000_1001_u32;
         b.set_bits(4..=5, 0b11);
-        assert_eq!(b, 0b10111001_u32);
+        assert_eq!(b, 0b1011_1001_u32);
         b.set_bits(1..=2, 0b11);
-        assert_eq!(b, 0b10111111_u32);
+        assert_eq!(b, 0b1011_1111_u32);
 
-        let mut b = 0b00000000_00000000_u32;
-        b.set_bits(0..=7, 0b11111111_u32);
-        assert_eq!(b, 0b00000000_11111111_u32);
+        let mut b = 0b0000_0000_0000_0000_u32;
+        b.set_bits(0..=7, 0b1111_1111_u32);
+        assert_eq!(b, 0b0000_0000_1111_1111_u32);
     }
 
     #[test]
     fn check_cmn() {
         {
-            let op_code = 0b1110_00_0_1011_0_1001_1111_000000001110;
+            let op_code = 0b1110_0001_0110_1001_1111_0000_0000_1110;
             let mut cpu = Arm7tdmi::default();
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
@@ -1327,7 +1327,7 @@ mod tests {
     #[test]
     fn check_teq() {
         {
-            let op_code = 0b1110_00_1_1001_1_1100_0000_000000000001;
+            let op_code = 0b1110_0011_0011_1100_0000_0000_0000_0001;
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1360,7 +1360,7 @@ mod tests {
             assert!(!cpu.cpsr.overflow_flag());
         }
         {
-            let op_code: u32 = 0b0000_00_0_1001_0_1001_1111_000000001100;
+            let op_code: u32 = 0b0000_0001_0010_1001_1111_0000_0000_1100;
             let cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1382,7 +1382,7 @@ mod tests {
             }
         }
         {
-            let op_code = 0b1110_00_0_1001_1_1001_0011_000000000000;
+            let op_code = 0b1110_0001_0011_1001_0011_0000_0000_0000;
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1413,7 +1413,7 @@ mod tests {
 
     #[test]
     fn check_cmp() {
-        let op_code: u32 = 0b1110_00_1_1010_1_1110_0000_000000000000;
+        let op_code: u32 = 0b1110_0011_0101_1110_0000_0000_0000_0000;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1447,7 +1447,7 @@ mod tests {
     #[test]
     fn check_orr() {
         {
-            let op_code: u32 = 0b0000_00_1_1100_0_1100_1100_000011000000;
+            let op_code: u32 = 0b0000_0011_1000_1100_1100_0000_1100_0000;
             let cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1478,7 +1478,7 @@ mod tests {
     #[test]
     fn check_mov() {
         {
-            let op_code: u32 = 0b0000_00_1_1101_0_0000_1110_000000000100;
+            let op_code: u32 = 0b0000_0011_1010_0000_1110_0000_0000_0100;
             let cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1502,7 +1502,7 @@ mod tests {
             }
         }
         {
-            let op_code: u32 = 0b1110_00_1_1101_0_0000_0000_000011011111;
+            let op_code: u32 = 0b1110_0011_1010_0000_0000_0000_1101_1111;
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1539,7 +1539,7 @@ mod tests {
             assert!(!cpu.cpsr.overflow_flag());
         }
         {
-            let op_code: u32 = 0b1110_00_1_1101_0_0000_1100_001100000001;
+            let op_code: u32 = 0b1110_0011_1010_0000_1100_0011_0000_0001;
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1566,7 +1566,7 @@ mod tests {
             assert!(!cpu.cpsr.carry_flag());
             assert!(!cpu.cpsr.overflow_flag());
             cpu.execute_arm(op_code);
-            assert_eq!(cpu.registers.register_at(12), 0x4000000);
+            assert_eq!(cpu.registers.register_at(12), 0x0400_0000);
             assert!(!cpu.cpsr.sign_flag());
             assert!(!cpu.cpsr.zero_flag());
             assert!(!cpu.cpsr.carry_flag());
@@ -1577,7 +1577,7 @@ mod tests {
     #[test]
     fn check_add() {
         {
-            let op_code: u32 = 0b1110_00_1_0100_0_1111_0000_000000000001;
+            let op_code: u32 = 0b1110_0010_1000_1111_0000_0000_0000_0001;
             let mut cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1611,7 +1611,7 @@ mod tests {
             assert!(!cpu.cpsr.overflow_flag());
         }
 
-        let op_code = 0b1110_00_1_0100_0_1111_0000_000000100000;
+        let op_code = 0b1110_0010_1000_1111_0000_0000_0010_0000;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1635,7 +1635,7 @@ mod tests {
     fn check_add_pc_operand_shift_register() {
         // Case when R15 is used as operand and shift amount is taken from register:
         // R2 = R1 + (R15 << R3)
-        let op_code = 0b1110_00_0_0100_0_0001_0010_0011_0001_1111;
+        let op_code = 0b1110_0000_1000_0001_0010_0011_0001_1111;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1667,7 +1667,7 @@ mod tests {
 
     #[test]
     fn check_add_carry_bit() {
-        let op_code: u32 = 0b1110_00_0_0100_1_1111_0000_0000_0000_1110;
+        let op_code: u32 = 0b1110_0000_1001_1111_0000_0000_0000_1110;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1700,7 +1700,7 @@ mod tests {
     #[test]
     fn check_mov_rx_immediate() {
         // MOV R0, 0
-        let mut op_code: u32 = 0b1110_00_1_1101_0_0000_0000_0000_0000_0000;
+        let mut op_code: u32 = 0b1110_0011_1010_0000_0000_0000_0000_0000;
 
         // bits [11-8] are ROR-Shift applied to nn
         let is = op_code & 0b0000_0000_0000_0000_0000_1111_0000_0000;
@@ -1738,7 +1738,7 @@ mod tests {
     #[test]
     fn check_mov_cpsr() {
         // Checks for Z flag
-        let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
+        let op_code = 0b1110_0001_1011_0000_0001_0000_0000_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1763,7 +1763,7 @@ mod tests {
         assert!(cpu.cpsr.zero_flag());
 
         // Checks for Z flag
-        let op_code = 0b1110_00_0_1101_1_0000_0001_00000_00_0_0010;
+        let op_code = 0b1110_0001_1011_0000_0001_0000_0000_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
@@ -1775,7 +1775,7 @@ mod tests {
 
     #[test]
     fn shift_from_register_is_0() {
-        let op_code = 0b1110_00_0_0100_0_0000_0001_0011_0111_0010;
+        let op_code = 0b1110_0000_1000_0000_0001_0011_0111_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1806,7 +1806,7 @@ mod tests {
 
     #[test]
     fn check_and() {
-        let op_code = 0b1110_00_1_0000_0_0000_0001_0000_10101010;
+        let op_code = 0b1110_0010_0000_0000_0001_0000_1010_1010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1830,12 +1830,12 @@ mod tests {
 
         cpu.execute_arm(op_code);
 
-        assert_eq!(cpu.registers.register_at(1), 0b10101010);
+        assert_eq!(cpu.registers.register_at(1), 0b1010_1010);
     }
 
     #[test]
     fn check_eor() {
-        let op_code = 0b1110_00_1_0001_0_0000_0001_0000_10101010;
+        let op_code = 0b1110_0010_0010_0000_0001_0000_1010_1010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1854,17 +1854,17 @@ mod tests {
             }
         );
 
-        cpu.registers.set_register_at(0, 0b11111111);
+        cpu.registers.set_register_at(0, 0b1111_1111);
 
         cpu.execute_arm(op_code);
 
-        assert_eq!(cpu.registers.register_at(1), 0b01010101);
+        assert_eq!(cpu.registers.register_at(1), 0b0101_0101);
     }
 
     #[test]
     fn check_tst() {
         {
-            let op_code = 0b0000_00_0_1000_0_1111_1100_0000_00000000;
+            let op_code = 0b0000_0001_0000_1111_1100_0000_0000_0000;
             let cpu = Arm7tdmi::default();
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
@@ -1882,7 +1882,7 @@ mod tests {
         }
         {
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_00_1_1000_1_0000_0001_0000_00000000;
+            let op_code = 0b1110_0011_0001_0000_0001_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             assert_eq!(
@@ -1907,7 +1907,7 @@ mod tests {
 
     #[test]
     fn check_bic() {
-        let op_code = 0b1110_00_1_1110_0_0000_0001_0000_10101010;
+        let op_code = 0b1110_0011_1100_0000_0001_0000_1010_1010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1926,16 +1926,16 @@ mod tests {
             }
         );
 
-        cpu.registers.set_register_at(0, 0b11111111);
+        cpu.registers.set_register_at(0, 0b1111_1111);
 
         cpu.execute_arm(op_code);
 
-        assert_eq!(cpu.registers.register_at(1), 0b01010101);
+        assert_eq!(cpu.registers.register_at(1), 0b0101_0101);
     }
 
     #[test]
     fn check_mvn() {
-        let op_code = 0b1110_00_1_1111_1_0000_0001_0000_11111111;
+        let op_code = 0b1110_0011_1111_0000_0001_0000_1111_1111;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1962,7 +1962,7 @@ mod tests {
 
     #[test]
     fn check_sub() {
-        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let op_code = 0b1110_0000_0101_0000_0001_0000_0000_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -1993,7 +1993,7 @@ mod tests {
         assert!(!cpu.cpsr.sign_flag());
 
         //Covers carry logic
-        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let op_code = 0b1110_0000_0101_0000_0001_0000_0000_0010;
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.registers.set_register_at(2, 15);
         cpu.execute_arm(op_code);
@@ -2005,7 +2005,7 @@ mod tests {
         assert!(!cpu.cpsr.zero_flag());
 
         // Covers overflow logic
-        let op_code = 0b1110_00_0_0010_1_0000_0001_00000_00_0_0010;
+        let op_code = 0b1110_0000_0101_0000_0001_0000_0000_0010;
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
             op_code.instruction,
@@ -2039,7 +2039,7 @@ mod tests {
     #[test]
     fn check_adc() {
         // Covers all flags=0
-        let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
+        let op_code = 0b1110_0000_1011_0000_0001_0000_0000_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -2072,7 +2072,7 @@ mod tests {
         assert!(!cpu.cpsr.sign_flag());
 
         // Covers carry during first sum
-        let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
+        let op_code = 0b1110_0000_1011_0000_0001_0000_0000_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -2105,7 +2105,7 @@ mod tests {
         assert!(!cpu.cpsr.sign_flag());
 
         // Covers carry during second sum
-        let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
+        let op_code = 0b1110_0000_1011_0000_0001_0000_0000_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -2138,7 +2138,7 @@ mod tests {
         assert!(!cpu.cpsr.sign_flag());
 
         // Covers overflow during first sum
-        let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
+        let op_code = 0b1110_0000_1011_0000_0001_0000_0000_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -2172,7 +2172,7 @@ mod tests {
         assert!(cpu.cpsr.sign_flag());
 
         // Covers overflow during second sum
-        let op_code = 0b1110_00_0_0101_1_0000_0001_0000_0_00_0_0010;
+        let op_code = 0b1110_0000_1011_0000_0001_0000_0000_0010;
         let mut cpu = Arm7tdmi::default();
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         assert_eq!(
@@ -2218,7 +2218,7 @@ mod tests {
         // value in rs = 10
         cpu.ror(5, 10);
 
-        assert_eq!(4194304, cpu.registers.register_at(5));
+        assert_eq!(4_194_304, cpu.registers.register_at(5));
         assert!(!cpu.cpsr.zero_flag());
         assert!(!cpu.cpsr.sign_flag());
         assert!(!cpu.cpsr.carry_flag());
@@ -2229,7 +2229,7 @@ mod tests {
         {
             // Covers MRS with CPSR and User mode
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_00010_0_001111_0000_000000000000;
+            let op_code = 0b1110_0001_0000_1111_0000_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2251,14 +2251,14 @@ mod tests {
             cpu.execute_arm(op_code);
 
             assert_eq!(
-                0b1111_00000000000000000000_110_10000,
+                0b1111_0000_0000_0000_0000_0000_1101_0000,
                 cpu.registers.register_at(0),
             );
         }
         {
             // Covers MRS with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_00010_1_001111_0000_000000000000;
+            let op_code = 0b1110_0001_0100_1111_0000_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2284,13 +2284,13 @@ mod tests {
 
             assert_eq!(
                 cpu.registers.register_at(0),
-                0b1111_00000000000000000000_001_10001
+                0b1111_0000_0000_0000_0000_0000_0011_0001
             );
         }
         {
             // Covers MSR with CPSR and User Mode
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_00010_0_1010011111_00000000_0000;
+            let op_code = 0b1110_0001_0010_1001_1111_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2307,12 +2307,15 @@ mod tests {
             cpu.execute_arm(op_code);
 
             // All flags set and User mode
-            assert_eq!(0b1111_00000000000000000000_110_10000, u32::from(cpu.cpsr));
+            assert_eq!(
+                0b1111_0000_0000_0000_0000_0000_1101_0000,
+                u32::from(cpu.cpsr)
+            );
         }
         {
             // Covers MSR with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_00010_1_1010011111_00000000_0000;
+            let op_code = 0b1110_0001_0110_1001_1111_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2334,7 +2337,7 @@ mod tests {
         {
             // Covers MSR-flags with CPSR and User mode
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_00_0_10_0_1010001111_00000000_0000;
+            let op_code = 0b1110_0001_0010_1000_1111_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2358,12 +2361,15 @@ mod tests {
             cpu.execute_arm(op_code);
 
             // All flags set and User mode
-            assert_eq!(0b1111_00000000000000000000_110_10000, u32::from(cpu.cpsr));
+            assert_eq!(
+                0b1111_0000_0000_0000_0000_0000_1101_0000,
+                u32::from(cpu.cpsr)
+            );
         }
         {
             // Covers MSR-flags with SPSR_fiq
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_00_0_10_1_1010001111_00000000_0000;
+            let op_code = 0b1110_0001_0110_1000_1111_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2395,7 +2401,7 @@ mod tests {
             // This tests the graceful fallback behavior for SPSR access in User/System modes
             let mut cpu = Arm7tdmi::default();
             // MRS R1, SPSR (but we're in User mode, so it should return CPSR)
-            let op_code = 0b1110_00010_1_001111_0001_000000000000;
+            let op_code = 0b1110_0001_0100_1111_0001_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2424,7 +2430,7 @@ mod tests {
         {
             // Test MRS with SPSR in System mode - should also return CPSR
             let mut cpu = Arm7tdmi::default();
-            let op_code = 0b1110_00010_1_001111_0010_000000000000;
+            let op_code = 0b1110_0001_0100_1111_0010_0000_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
 
             cpu.cpsr.set_mode(Mode::System);
@@ -2443,7 +2449,7 @@ mod tests {
     #[test]
     fn check_ldr() {
         {
-            let op_code = 0b1110_01_0_1_1_1_0_1_1100_1100_001100000000;
+            let op_code = 0b1110_0101_1101_1100_1100_0011_0000_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2466,7 +2472,7 @@ mod tests {
             }
         }
         {
-            let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
+            let op_code = 0b1110_0101_1001_1111_1101_0000_1101_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2489,7 +2495,7 @@ mod tests {
             }
         }
         {
-            let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000010111000;
+            let op_code = 0b1110_0101_1001_1111_1101_0000_1011_1000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2512,7 +2518,7 @@ mod tests {
             }
         }
         {
-            let op_code = 0b1110_01_0_1_1_0_0_1_1111_1101_000011010000;
+            let op_code = 0b1110_0101_1001_1111_1101_0000_1101_0000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2560,21 +2566,21 @@ mod tests {
 
             // because in this specific case address will be
             // then will be 0x03000050 (.wrapping_add(offset))
-            cpu.registers.set_program_counter(0x03000050);
+            cpu.registers.set_program_counter(0x0300_0050);
 
             // simulate mem already contains something.
-            cpu.bus.write_byte(0x03000068, 99);
+            cpu.bus.write_byte(0x0300_0068, 99);
 
             cpu.execute_arm(op_code);
             assert_eq!(cpu.registers.register_at(13), 99);
-            assert_eq!(cpu.registers.program_counter(), 0x03000050);
+            assert_eq!(cpu.registers.program_counter(), 0x0300_0050);
         }
     }
 
     #[test]
     fn check_str() {
         {
-            let op_code = 0b1110_01_0_1_1_1_0_0_0100_0100_001000001000;
+            let op_code = 0b1110_0101_1100_0100_0100_0010_0000_1000;
             let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
             assert_eq!(
                 op_code.instruction,
@@ -2619,21 +2625,21 @@ mod tests {
                 let f = op_code.instruction.disassembler();
                 assert_eq!(f, "STR R1, #0");
             }
-            cpu.registers.set_register_at(1, 16843008);
+            cpu.registers.set_register_at(1, 16_843_008);
 
             // because in this specific case address will be
             // then will be 0x03000050 + 8 (.wrapping_sub(offset))
-            cpu.registers.set_program_counter(0x03000050);
+            cpu.registers.set_program_counter(0x0300_0050);
 
             cpu.execute_arm(op_code);
 
             let bus = cpu.bus;
 
-            assert_eq!(bus.read_raw(0x01010100), 0);
-            assert_eq!(bus.read_raw(0x01010100 + 1), 1);
-            assert_eq!(bus.read_raw(0x01010100 + 2), 1);
-            assert_eq!(bus.read_raw(0x01010100 + 3), 1);
-            assert_eq!(cpu.registers.program_counter(), 0x03000050);
+            assert_eq!(bus.read_raw(0x0101_0100), 0);
+            assert_eq!(bus.read_raw(0x0101_0100 + 1), 1);
+            assert_eq!(bus.read_raw(0x0101_0100 + 2), 1);
+            assert_eq!(bus.read_raw(0x0101_0100 + 3), 1);
+            assert_eq!(cpu.registers.program_counter(), 0x0300_0050);
         }
         {
             let op_code = 0b1110_0101_1100_1111_1101_0000_0001_1000;
@@ -2661,15 +2667,15 @@ mod tests {
 
             // because in this specific case address will be
             // then will be 0x03000050 (.wrapping_add(offset))
-            cpu.registers.set_program_counter(0x03000050);
+            cpu.registers.set_program_counter(0x0300_0050);
             cpu.registers.set_register_at(13, 50);
 
             cpu.execute_arm(op_code);
 
             let memory = cpu.bus.internal_memory;
 
-            assert_eq!(memory.read_at(0x03000068), 50);
-            assert_eq!(cpu.registers.program_counter(), 0x03000050);
+            assert_eq!(memory.read_at(0x0300_0068), 50);
+            assert_eq!(cpu.registers.program_counter(), 0x0300_0050);
         }
     }
 
@@ -2700,9 +2706,9 @@ mod tests {
         // simulate mem already contains something at PC + offset.
         // in u32 this is 16843009 00000001_00000001_00000001_00000001.
         // Address = PC + 40 = EWRAM + 40
-        cpu.bus.write_word((EWRAM + 40) as usize, 0x01010101);
+        cpu.bus.write_word((EWRAM + 40) as usize, 0x0101_0101);
         cpu.execute_arm(op_code);
-        assert_eq!(cpu.registers.register_at(13), 16843009);
+        assert_eq!(cpu.registers.register_at(13), 16_843_009);
         assert_eq!(cpu.registers.program_counter(), EWRAM as usize);
     }
 
@@ -2797,9 +2803,9 @@ mod tests {
         let rdlo_destination_register: u32 = 8;
 
         cpu.registers
-            .set_register_at(rm_operand_register as usize, 123456);
+            .set_register_at(rm_operand_register as usize, 123_456);
         cpu.registers
-            .set_register_at(rs_operand_register as usize, 654321);
+            .set_register_at(rs_operand_register as usize, 654_321);
         cpu.registers
             .set_register_at(rdhi_destination_register as usize, 0);
         cpu.registers
@@ -2827,7 +2833,7 @@ mod tests {
             cpu.registers
                 .register_at(rdlo_destination_register as usize) as u64;
         let rdhilo_register_value: u64 = rdhi_register_value << 32 | rdlo_register_value;
-        assert_eq!(rdhilo_register_value, 123456 * 654321);
+        assert_eq!(rdhilo_register_value, 123_456 * 654_321);
         assert!(!cpu.cpsr.carry_flag());
         assert!(!cpu.cpsr.zero_flag());
         assert!(!cpu.cpsr.overflow_flag());
@@ -2843,9 +2849,9 @@ mod tests {
         let rdhi_destination_register: u32 = 7;
         let rdlo_destination_register: u32 = 8;
 
-        let operand_1 = 123456_u32;
-        let operand_2 = 654321_u32;
-        let accumulate = 123456789_u32;
+        let operand_1 = 123_456_u32;
+        let operand_2 = 654_321_u32;
+        let accumulate = 123_456_789_u32;
         cpu.registers
             .set_register_at(rm_operand_register as usize, operand_1);
         cpu.registers
@@ -2895,8 +2901,8 @@ mod tests {
         let rdhi_destination_register: u32 = 7;
         let rdlo_destination_register: u32 = 8;
 
-        let operand_1 = -123456_i32;
-        let operand_2 = 654321_i32;
+        let operand_1 = -123_456_i32;
+        let operand_2 = 654_321_i32;
         cpu.registers.set_register_at(
             rm_operand_register as usize,
             u32::from_be_bytes(operand_1.to_be_bytes()),
@@ -2977,8 +2983,8 @@ mod tests {
         op_code.set_bits(4..=7, 0b1001);
         op_code.set_bits(0..=3, rm_operand_register);
         op_code.set_bits(8..=11, rs_operand_register);
-        op_code.set_bits(12..=15, rdlo_destination_register as u32);
-        op_code.set_bits(16..=19, rdhi_destination_register as u32);
+        op_code.set_bits(12..=15, rdlo_destination_register);
+        op_code.set_bits(16..=19, rdhi_destination_register);
         op_code.set_bits(20..=20, 0b1);
         op_code.set_bits(21..=24, 0b0111); // 0111b: SMLAL{cond}{S} RdLo,RdHi,Rm,Rs ;sign.m&a.  RdHiLo=Rm*Rs+RdHiLo
         op_code.set_bits(25..=27, 0b000);
@@ -3015,14 +3021,14 @@ mod tests {
         // MOVS R0, #0xFF000000 (encoded as immediate=0xFF, rotation field=4 -> 8 bits)
         // Bits: 1110_00_1_1101_1_0000_0000_0100_11111111
         //       cond  I Op  S Rn   Rd   rot  immediate
-        let op_code = 0b1110_00_1_1101_1_0000_0000_0100_11111111;
+        let op_code = 0b1110_0011_1011_0000_0000_0100_1111_1111;
         let mut cpu = Arm7tdmi::default();
         cpu.cpsr.set_carry_flag(false); // Start with carry clear
 
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
 
-        assert_eq!(cpu.registers.register_at(0), 0xFF000000);
+        assert_eq!(cpu.registers.register_at(0), 0xFF00_0000);
         assert!(
             cpu.cpsr.carry_flag(),
             "Carry flag should be SET when bit rotated out is 1"
@@ -3040,7 +3046,7 @@ mod tests {
 
         // MOVS R0, #0xFF00 (encoded as immediate=0xFF, rotation field=12 -> 24 bits)
         // Bits: 1110_00_1_1101_1_0000_0000_1100_11111111
-        let op_code = 0b1110_00_1_1101_1_0000_0000_1100_11111111;
+        let op_code = 0b1110_0011_1011_0000_0000_1100_1111_1111;
         let mut cpu = Arm7tdmi::default();
         cpu.cpsr.set_carry_flag(true); // Start with carry set
 
@@ -3063,7 +3069,7 @@ mod tests {
 
         // MOVS R0, #0x55 (immediate=0x55, rotation=0)
         // Bits: 1110_00_1_1101_1_0000_0000_0000_01010101
-        let op_code = 0b1110_00_1_1101_1_0000_0000_0000_01010101;
+        let op_code = 0b1110_0011_1011_0000_0000_0000_0101_0101;
 
         // Test with carry initially SET
         let mut cpu = Arm7tdmi::default();
@@ -3100,16 +3106,16 @@ mod tests {
         // immediate=0xFF, rotation field=4 (8 bits) -> 0xFF000000
         // Bits: 1110_00_1_0100_1_0001_0000_0100_11111111
         //       cond  I ADD  S Rn   Rd   rot  immediate
-        let op_code = 0b1110_00_1_0100_1_0001_0000_0100_11111111;
+        let op_code = 0b1110_0010_1001_0001_0000_0100_1111_1111;
         let mut cpu = Arm7tdmi::default();
-        cpu.registers.set_register_at(1, 0x00000001);
+        cpu.registers.set_register_at(1, 0x0000_0001);
         cpu.cpsr.set_carry_flag(false);
 
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
 
         // Result should be 0x00000001 + 0xFF000000 = 0xFF000001
-        assert_eq!(cpu.registers.register_at(0), 0xFF000001);
+        assert_eq!(cpu.registers.register_at(0), 0xFF00_0001);
         // Carry flag from addition (no carry out from this addition)
         // Even though rotation would set carry to 1, arithmetic ops don't use rotation carry
         assert!(
@@ -3127,9 +3133,9 @@ mod tests {
         // Bits: 1110_00_1_1000_1_0000_0000_0100_11111111
         //       cond  I TST  S Rn   SBZ  rot  immediate
         // Note: TST always has S=1 implicitly
-        let op_code = 0b1110_00_1_1000_1_0000_0000_0100_11111111;
+        let op_code = 0b1110_0011_0001_0000_0000_0100_1111_1111;
         let mut cpu = Arm7tdmi::default();
-        cpu.registers.set_register_at(0, 0xFFFFFFFF);
+        cpu.registers.set_register_at(0, 0xFFFF_FFFF);
         cpu.cpsr.set_carry_flag(false);
 
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
@@ -3155,16 +3161,16 @@ mod tests {
         // Let me use 0x02 rotated by 1 position: 0x02 ROR 2 = 0x80000000
         // Bits: 1110_00_1_0000_1_0001_0010_0001_00000010
         //       cond  I AND  S Rn   Rd   rot  immediate
-        let op_code = 0b1110_00_1_0000_1_0001_0010_0001_00000010;
+        let op_code = 0b1110_0010_0001_0001_0010_0001_0000_0010;
         let mut cpu = Arm7tdmi::default();
-        cpu.registers.set_register_at(1, 0xFFFFFFFF);
+        cpu.registers.set_register_at(1, 0xFFFF_FFFF);
         cpu.cpsr.set_carry_flag(false);
 
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
 
         // 0x02 ROR 2 = 0x80000000
-        assert_eq!(cpu.registers.register_at(2), 0x80000000);
+        assert_eq!(cpu.registers.register_at(2), 0x8000_0000);
         // Bit 1 of 0x02 is shifted out, which is 1
         assert!(
             cpu.cpsr.carry_flag(),
@@ -3201,7 +3207,7 @@ mod tests {
         // Execute SUBS R15, R15, #4 with condition AL
         // opcode: 1110_00_0_0010_1_1111_1111_000000000100
         //         cond  I SUB  S Rn   Rd   immediate
-        let op_code = 0b1110_00_1_0010_1_1111_1111_000000000100;
+        let op_code = 0b1110_0010_0101_1111_1111_0000_0000_0100;
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
 
@@ -3230,7 +3236,7 @@ mod tests {
         cpu.registers.set_register_at(0, 2);
         cpu.cpsr.set_carry_flag(false); // NOT(C) = 1
         // SBCS R0, R0, #0
-        let op_code = 0b1110_00_1_0110_1_0000_0000_0000_00000000;
+        let op_code = 0b1110_0010_1101_0000_0000_0000_0000_0000;
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(0), 1, "Result should be 1");
@@ -3241,7 +3247,7 @@ mod tests {
         cpu.registers.set_register_at(0, 2);
         cpu.cpsr.set_carry_flag(false); // NOT(C) = 1
         // SBCS R0, R0, #1
-        let op_code = 0b1110_00_1_0110_1_0000_0000_0000_00000001;
+        let op_code = 0b1110_0010_1101_0000_0000_0000_0000_0001;
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
         assert_eq!(cpu.registers.register_at(0), 0, "Result should be 0");
@@ -3252,12 +3258,12 @@ mod tests {
         cpu.registers.set_register_at(0, 2);
         cpu.cpsr.set_carry_flag(false); // NOT(C) = 1
         // SBCS R0, R0, #2
-        let op_code = 0b1110_00_1_0110_1_0000_0000_0000_00000010;
+        let op_code = 0b1110_0010_1101_0000_0000_0000_0000_0010;
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
         assert_eq!(
             cpu.registers.register_at(0),
-            0xFFFFFFFF,
+            0xFFFF_FFFF,
             "Result should be -1"
         );
         assert!(
@@ -3273,14 +3279,14 @@ mod tests {
         let mut cpu = Arm7tdmi::default();
 
         // Store 0x00000020 at aligned address
-        let mem = 0x03000000; // IWRAM
-        cpu.bus.write_word(mem, 0x00000020);
+        let mem = 0x0300_0000; // IWRAM
+        cpu.bus.write_word(mem, 0x0000_0020);
 
         // First test the Arm7tdmi::read_word method directly
         // 0x00000020 ror 24 = 0x00002000 (8192)
         let direct_read = cpu.read_word(mem + 3);
         assert_eq!(
-            direct_read, 0x00002000,
+            direct_read, 0x0000_2000,
             "Direct read_word should rotate correctly"
         );
 
@@ -3310,7 +3316,7 @@ mod tests {
 
         // Check that r1 contains the rotated value
         assert_eq!(
-            result, 0x00002000,
+            result, 0x0000_2000,
             "Misaligned load should rotate value: 0x00000020 ror 24 = 0x00002000"
         );
     }
@@ -3321,7 +3327,7 @@ mod tests {
         // When STR writes back to the same register being stored, the OLD value
         // (before writeback) should be stored, not the new value after writeback
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000;
+        let mem = 0x0300_0000;
 
         // STR r0, [r0, #4]! - Pre-indexed with writeback
         // opcode: 0xE5A00004
@@ -3364,7 +3370,7 @@ mod tests {
         // Test for ARM7 misaligned halfword load behavior (test 408)
         // When loading a halfword from a misaligned address, the result should be rotated
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000;
+        let mem = 0x0300_0000;
 
         // Store halfword 32 (0x0020) at aligned address
         cpu.bus.write_half_word(mem, 32);
@@ -3374,7 +3380,7 @@ mod tests {
         // 0x00000020 ror 8 = 0x20000000 (536870912)
         let result = cpu.read_half_word(mem + 1, false);
         assert_eq!(
-            result, 0x20000000,
+            result, 0x2000_0000,
             "Misaligned halfword load should rotate: 0x0020 ror 8 = 0x20000000"
         );
     }
@@ -3382,7 +3388,7 @@ mod tests {
     #[test]
     fn test_misaligned_swap() {
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000; // IWRAM
+        let mem = 0x0300_0000; // IWRAM
 
         // store 64 at aligned address
         cpu.bus.write_word(mem, 64);
@@ -3410,7 +3416,7 @@ mod tests {
         // r3 contains the rotated value: 64 ror 8 = 0x40000000
         assert_eq!(
             cpu.registers.register_at(3),
-            0x40000000,
+            0x4000_0000,
             "Misaligned swap should rotate read value: 64 ror 8 = 0x40000000"
         );
 
@@ -3427,7 +3433,7 @@ mod tests {
         // Test for ARM7 block transfer with S bit: Store user registers (test 511)
         // When in FIQ mode and using STM with S bit (^), should store user mode registers
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000; // IWRAM
+        let mem = 0x0300_0000; // IWRAM
 
         // Set system mode r8 = 32
         cpu.registers.set_register_at(8, 32);
@@ -3470,7 +3476,7 @@ mod tests {
         // Test for ARM7 block transfer with S bit: Load user registers (test 512)
         // When in FIQ mode and using LDM with S bit (^), should load into user mode registers
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000; // IWRAM
+        let mem = 0x0300_0000; // IWRAM
 
         // Store value 0xA at mem-4 (where r9 will be loaded from with LDMFD descending)
         cpu.bus.write_word(mem - 4, 0xA);
@@ -3520,10 +3526,10 @@ mod tests {
         // Test for empty register list with LDMIA (test 513)
         // LDMIA r0!, {} should load R15 from [r0] and increment r0 by 0x40
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000;
+        let mem = 0x0300_0000;
 
         // Store a test value at mem (this would be loaded into R15/PC)
-        cpu.bus.write_word(mem, 0x08000100);
+        cpu.bus.write_word(mem, 0x0800_0100);
 
         // Set r0 to mem
         cpu.registers.set_register_at(0, mem as u32);
@@ -3556,7 +3562,7 @@ mod tests {
         // Test for empty register list with STMDA (test 530)
         // STMDA r0!, {} should store PC at [r0 - 0x3C] and set r0 = r0 - 0x40
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000100;
+        let mem = 0x0300_0100;
 
         cpu.registers.set_register_at(0, mem as u32);
 
@@ -3597,8 +3603,8 @@ mod tests {
     fn test_block_transfer_empty_list_loads_pc() {
         // Test that empty register list loads R15 and jumps (test 513/514)
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000;
-        let target_address = 0x08000100;
+        let mem = 0x0300_0000;
+        let target_address = 0x0800_0100;
 
         // Store target address at [mem]
         cpu.bus.write_word(mem, target_address);
@@ -3642,10 +3648,10 @@ mod tests {
     fn test_block_transfer_empty_list_test513_514() {
         // Exact simulation of tests 513/514 from arm.gba
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000;
+        let mem = 0x0300_0000;
 
         // Simulate t513: adr r0, t514; str r0, [mem]; mov r0, mem
-        let t514_address = 0x08001000; // Simulated address of t514
+        let t514_address = 0x0800_1000; // Simulated address of t514
         cpu.bus.write_word(mem, t514_address);
         cpu.registers.set_register_at(0, mem as u32);
 
@@ -3662,7 +3668,7 @@ mod tests {
         op_code.set_bits(0..=15, 0); // Empty reg list
 
         assert_eq!(
-            op_code, 0xE8B00000,
+            op_code, 0xE8B0_0000,
             "Instruction encoding should match test"
         );
 
@@ -3687,7 +3693,7 @@ mod tests {
         // Test 516: Load writeback base first in rlist
         // When base register is in the list, loaded value takes precedence over writeback
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000;
+        let mem = 0x0300_0000;
 
         // Store r0=0xA and r2 to memory
         cpu.registers.set_register_at(0, 0xA);
@@ -3722,7 +3728,7 @@ mod tests {
         op_code.set_bits(1..=1, 1); // r1
         op_code.set_bits(2..=2, 1); // r2
 
-        assert_eq!(op_code, 0xE8B10006, "Should match test instruction");
+        assert_eq!(op_code, 0xE8B1_0006, "Should match test instruction");
 
         let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
         cpu.execute_arm(op_code);
@@ -3744,7 +3750,7 @@ mod tests {
         use crate::cpu::condition::Condition;
 
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000u32;
+        let mem = 0x0300_0000_u32;
 
         // Setup: r0 = mem, r1 = 0xA
         cpu.registers.set_register_at(0, mem);
@@ -3807,7 +3813,7 @@ mod tests {
         use crate::cpu::condition::Condition;
 
         let mut cpu = Arm7tdmi::default();
-        let mem = 0x03000000u32;
+        let mem = 0x0300_0000_u32;
 
         // Setup: r1 = mem, r0 = 0xA
         cpu.registers.set_register_at(1, mem);

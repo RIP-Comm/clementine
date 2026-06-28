@@ -605,11 +605,11 @@ mod test {
 
     #[test]
     fn decode_load_store_register_offset() {
-        let output = Instruction::try_from(0b0101_00_0_000_001_010).unwrap();
+        let output = Instruction::try_from(0b0101_0000_0000_1010).unwrap();
         assert_eq!(
             Instruction::LoadStoreRegisterOffset {
                 load_store: LoadStoreKind::Store,
-                byte_word: Default::default(),
+                byte_word: ReadWriteKind::default(),
                 ro: 0,
                 base_register: 1,
                 destination_register: 2,
@@ -639,7 +639,7 @@ mod test {
         );
         assert_eq!("BX R0, R14", output.disassembler());
 
-        let output = Instruction::try_from(0b010001_00_0_1_000_001).unwrap();
+        let output = Instruction::try_from(0b0100_0100_0100_0001).unwrap();
         assert_eq!(
             Instruction::HiRegisterOpBX {
                 register_operation: ThumbHighRegisterOperation::Add,
@@ -781,7 +781,7 @@ mod test {
 
     #[test]
     fn decode_load_store_half_word() {
-        let output = Instruction::try_from(0b1000_1_00001_000_001).unwrap();
+        let output = Instruction::try_from(0b1000_1000_0100_0001).unwrap();
         assert_eq!(
             Instruction::LoadStoreHalfword {
                 load_store: LoadStoreKind::Load,
@@ -793,7 +793,7 @@ mod test {
         );
         assert_eq!("LDRH R1, [R0, #2]", output.disassembler());
 
-        let output = Instruction::try_from(0b1000_0_00001_000_001).unwrap();
+        let output = Instruction::try_from(0b1000_0000_0100_0001).unwrap();
         assert_eq!(
             Instruction::LoadStoreHalfword {
                 load_store: LoadStoreKind::Store,
@@ -811,7 +811,7 @@ mod test {
         // LDR R2, [R1, #8] - word load with immediate offset
         // Format: 011 B L offset5 Rb Rd
         // B=0 (word), L=1 (load), offset=2 (<<2 = 8), Rb=1, Rd=2
-        let output = Instruction::try_from(0b0110_1_00010_001_010).unwrap();
+        let output = Instruction::try_from(0b0110_1000_1000_1010).unwrap();
         assert_eq!(
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Load,
@@ -826,7 +826,7 @@ mod test {
 
         // STR R3, [R4, #16] - word store with immediate offset
         // B=0 (word), L=0 (store), offset=4 (<<2 = 16), Rb=4, Rd=3
-        let output = Instruction::try_from(0b0110_0_00100_100_011).unwrap();
+        let output = Instruction::try_from(0b0110_0001_0010_0011).unwrap();
         assert_eq!(
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Store,
@@ -841,7 +841,7 @@ mod test {
 
         // LDRB R5, [R6, #7] - byte load with immediate offset
         // B=1 (byte), L=1 (load), offset=7, Rb=6, Rd=5
-        let output = Instruction::try_from(0b0111_1_00111_110_101).unwrap();
+        let output = Instruction::try_from(0b0111_1001_1111_0101).unwrap();
         assert_eq!(
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Load,
@@ -856,7 +856,7 @@ mod test {
 
         // STRB R0, [R1, #0] - byte store with zero offset
         // B=1 (byte), L=0 (store), offset=0, Rb=1, Rd=0
-        let output = Instruction::try_from(0b0111_0_00000_001_000).unwrap();
+        let output = Instruction::try_from(0b0111_0000_0000_1000).unwrap();
         assert_eq!(
             Instruction::LoadStoreImmOffset {
                 load_store: LoadStoreKind::Store,
@@ -877,7 +877,7 @@ mod test {
         // Second: 1111 1xxx xxxx xxxx (H=1, completes the call)
 
         // First half: setup high offset
-        let output = Instruction::try_from(0b1111_0_000_0000_0001).unwrap();
+        let output = Instruction::try_from(0b1111_0000_0000_0001).unwrap();
         assert_eq!(
             Instruction::LongBranchLink {
                 h: false,
@@ -887,7 +887,7 @@ mod test {
         );
 
         // Second half: complete branch
-        let output = Instruction::try_from(0b1111_1_000_0000_0010).unwrap();
+        let output = Instruction::try_from(0b1111_1000_0000_0010).unwrap();
         assert_eq!(Instruction::LongBranchLink { h: true, offset: 2 }, output);
     }
 }

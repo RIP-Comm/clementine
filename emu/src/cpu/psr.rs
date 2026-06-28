@@ -172,7 +172,7 @@ impl Psr {
         self.0.set_bit(28, value);
     }
 
-    /// Used by QADD, QSUB, QDADD, QDSUB, SMLAxy, and SMLAWy only.
+    /// Used by QADD, QSUB, QDADD, QDSUB, `SMLAxy`, and `SMLAWy` only.
     /// The Q-flag can be tested/reset by MSR/MRS opcodes only.
     /// These opcodes set the Q-flag in case of overflows, but leave it unchanged otherwise.
     #[cfg(test)] // TODO: remove cfg when this API will be used at least one in prod code.

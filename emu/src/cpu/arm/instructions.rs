@@ -988,7 +988,7 @@ mod tests {
 
     #[test]
     fn decode_data_processing() {
-        let output = ArmModeInstruction::from(0b1110_00_0_1011_0_1001_1111_000000001110);
+        let output = ArmModeInstruction::from(0b1110_0001_0110_1001_1111_0000_0000_1110);
         assert_eq!(
             ArmModeInstruction::PSRTransfer {
                 condition: Condition::AL,
@@ -1042,7 +1042,7 @@ mod tests {
 
     #[test]
     fn decode_single_data_transfer() {
-        let output = ArmModeInstruction::from(0b11100111010100010101000000001100);
+        let output = ArmModeInstruction::from(0b1110_0111_0101_0001_0101_0000_0000_1100);
         assert_eq!(
             output,
             ArmModeInstruction::SingleDataTransfer {

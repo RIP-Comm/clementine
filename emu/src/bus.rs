@@ -1318,7 +1318,7 @@ mod tests {
         let address = 0x0400_0049; // WININ higher byte
 
         bus.write_raw(address, 5);
-        assert_eq!(bus.lcd.registers.winin, (5 << 8) | 10);
+        assert_eq!(bus.lcd.registers.winin, (5 << 8) | 0x0A);
     }
 
     #[test]
@@ -1326,7 +1326,7 @@ mod tests {
         let mut bus = Bus::default();
         let address = 0x0400_0048; // WININ lower byte
 
-        bus.lcd.registers.winin = (5 << 8) | 10;
+        bus.lcd.registers.winin = (5 << 8) | 0x0A;
 
         assert_eq!(bus.read_raw(address), 10);
 
@@ -1350,7 +1350,7 @@ mod tests {
         let mut bus = Bus::default();
         let address = 0x0400_0100;
 
-        bus.timers.tm0cnt_l = (5 << 8) | 10;
+        bus.timers.tm0cnt_l = (5 << 8) | 0x0A;
 
         assert_eq!(bus.read_raw(address), 10);
     }
