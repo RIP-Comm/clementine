@@ -213,13 +213,19 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
 
-        // instead of spinning, request repaint at ~60 FPS to match GBA frame rate
-        ctx.request_repaint_after(std::time::Duration::from_millis(16));
-
         // Poll the emulator for new events (frames, state updates, etc.)
-        if let Ok(mut handle) = self.emu_handle.lock() {
+        let is_running = self.emu_handle.lock().is_ok_and(|mut handle| {
             handle.poll();
-        }
+            handle.state.is_running
+        });
+
+        // Drive repaints at ~60 FPS only while the emulator is running, so a new
+        // frame shows up promptly. When it is paused there is nothing animating,
+        // so fall back to a slow tick that still picks up asynchronous events
+        // (a finished step, a load result) without spinning a core at 60 FPS.
+        // egui also repaints on its own whenever there is user interaction.
+        let repaint_after = if is_running { 16 } else { 200 };
+        ctx.request_repaint_after(std::time::Duration::from_millis(repaint_after));
 
         self.handle_input(&ctx);
 
