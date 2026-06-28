@@ -266,6 +266,8 @@ impl Arm7tdmi {
         let value = self.read_word(address);
         let dest = r_destination.into();
         self.registers.set_register_at(dest, value);
+        // A load spends one internal cycle writing the value back.
+        self.bus.add_internal_cycles(1);
     }
 
     /// Executes a load/store with register offset.
@@ -303,6 +305,10 @@ impl Arm7tdmi {
                 let value = self.read_word(address);
                 self.registers.set_register_at(rd, value);
             }
+        }
+
+        if load_store == LoadStoreKind::Load {
+            self.bus.add_internal_cycles(1);
         }
     }
 
@@ -348,6 +354,11 @@ impl Arm7tdmi {
                     .set_register_at(r_destination.try_into().unwrap(), value);
             }
         }
+
+        // Every form here is a load except store halfword (false, false).
+        if (sign_extend_flag, h_flag) != (false, false) {
+            self.bus.add_internal_cycles(1);
+        }
     }
 
     /// Executes a load/store with immediate offset.
@@ -388,6 +399,10 @@ impl Arm7tdmi {
                 self.registers.set_register_at(rd, v as u32);
             }
         }
+
+        if load_store == LoadStoreKind::Load {
+            self.bus.add_internal_cycles(1);
+        }
     }
 
     /// Executes a halfword load/store instruction.
@@ -421,6 +436,10 @@ impl Arm7tdmi {
                 );
             }
         }
+
+        if load_store == LoadStoreKind::Load {
+            self.bus.add_internal_cycles(1);
+        }
     }
 
     /// Executes an SP-relative load/store instruction.
@@ -447,6 +466,10 @@ impl Arm7tdmi {
                 self.bus
                     .write_word(address.try_into().unwrap(), self.registers.register_at(rd));
             }
+        }
+
+        if load_store == LoadStoreKind::Load {
+            self.bus.add_internal_cycles(1);
         }
     }
 
@@ -522,6 +545,11 @@ impl Arm7tdmi {
 
         self.registers.set_register_at(REG_SP, reg_sp);
 
+        // POP is a load: one internal cycle for the final write-back.
+        if load_store == LoadStoreKind::Load {
+            self.bus.add_internal_cycles(1);
+        }
+
         if load_store == LoadStoreKind::Load && pc_lr {
             self.flush_pipeline();
         }
@@ -590,6 +618,11 @@ impl Arm7tdmi {
 
         self.registers
             .set_register_at(base_register, base_address + register_count * 4);
+
+        // LDMIA is a load: one internal cycle for the final write-back.
+        if load_store == LoadStoreKind::Load {
+            self.bus.add_internal_cycles(1);
+        }
 
         if load_store == LoadStoreKind::Load && register_list.is_bit_on(15) {
             self.flush_pipeline();

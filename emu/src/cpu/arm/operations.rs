@@ -1039,6 +1039,12 @@ impl Arm7tdmi {
             self.cpsr = spsr;
         }
 
+        // LDM, like a single load, spends one internal cycle on the last
+        // register write-back (nS + 1N + 1I); STM has no internal cycle.
+        if load_store == LoadStoreKind::Load {
+            self.bus.add_internal_cycles(1);
+        }
+
         // If LDM and R15 is in register list we flush the pipeline
         if load_store == LoadStoreKind::Load && r15_in_list {
             self.flush_pipeline();
@@ -1936,6 +1942,40 @@ mod tests {
         let str_op: ArmModeOpcode = Arm7tdmi::decode(build(false));
         let before = cpu.bus.cycles();
         cpu.execute_arm(str_op);
+        let store_cost = cpu.bus.cycles() - before;
+
+        assert_eq!(load_cost, store_cost + 1);
+    }
+
+    #[test]
+    fn block_load_costs_one_more_internal_cycle_than_store() {
+        // LDMIA/STMIA R0, {R1} over a single register.
+        fn build(load: bool) -> u32 {
+            let mut op = 0u32;
+            op.set_bits(28..=31, Condition::AL as u32);
+            op.set_bits(25..=27, 0b100); // block data transfer
+            op.set_bits(24..=24, 0); // post-indexed
+            op.set_bits(23..=23, 1); // up
+            op.set_bits(20..=20, u32::from(load)); // load (1) or store (0)
+            op.set_bits(16..=19, 0); // base register R0
+            op.set_bits(0..=15, 0b10); // register list = R1
+            op
+        }
+
+        let addr = 0x0300_0000; // IWRAM
+
+        let mut cpu = Arm7tdmi::default();
+        cpu.registers.set_register_at(0, addr);
+        let ldm: ArmModeOpcode = Arm7tdmi::decode(build(true));
+        let before = cpu.bus.cycles();
+        cpu.execute_arm(ldm);
+        let load_cost = cpu.bus.cycles() - before;
+
+        let mut cpu = Arm7tdmi::default();
+        cpu.registers.set_register_at(0, addr);
+        let stm: ArmModeOpcode = Arm7tdmi::decode(build(false));
+        let before = cpu.bus.cycles();
+        cpu.execute_arm(stm);
         let store_cost = cpu.bus.cycles() - before;
 
         assert_eq!(load_cost, store_cost + 1);
