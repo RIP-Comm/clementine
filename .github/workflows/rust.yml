@@ -28,7 +28,7 @@ jobs:
       - name: Setup just
         uses: extractions/setup-just@v3
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Check fmt
         run: cargo fmt -- --check
@@ -47,7 +47,7 @@ jobs:
     steps:
       - name: Setup just
         uses: extractions/setup-just@v3
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Test
         run: just test
@@ -62,7 +62,7 @@ jobs:
     steps:
       - name: Setup just
         uses: extractions/setup-just@v3
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Fetch test ROMs
