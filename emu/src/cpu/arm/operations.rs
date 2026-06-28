@@ -1069,24 +1069,37 @@ impl Arm7tdmi {
         };
 
         // If we are decreasing we still want to store the lowest reg to the lowest
-        // memory address. For this reason we reverse the loop order.
+        // memory address. For this reason we reverse the loop order so the base
+        // write-back ends on the right value.
         let range_registers: Box<dyn Iterator<Item = u8>> = match offsetting {
             Offsetting::Down => Box::new((0..=15).rev()),
             Offsetting::Up => Box::new(0..=15),
         };
 
+        // Collect the (address, register) pairs first. The actual transfers must
+        // run in ascending address order, which is how the hardware walks memory:
+        // it matters for memory-mapped registers with side effects, such as
+        // writing a DMA control register that triggers a transfer mid-STM.
+        let mut transfers: [(usize, usize); 16] = [(0, 0); 16];
+        let mut count = 0;
         for reg_source in range_registers {
             if reg_list.is_bit_on(reg_source) {
                 if indexing == Indexing::Pre {
                     *address = change_address(*address);
                 }
 
-                transfer(self, *address, reg_source.into());
+                transfers[count] = (*address, reg_source.into());
+                count += 1;
 
                 if indexing == Indexing::Post {
                     *address = change_address(*address);
                 }
             }
+        }
+
+        transfers[..count].sort_unstable_by_key(|&(addr, _)| addr);
+        for &(addr, reg_source) in &transfers[..count] {
+            transfer(self, addr, reg_source);
         }
     }
 

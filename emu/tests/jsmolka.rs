@@ -103,7 +103,6 @@ fn bios_rom_passes() {
     check("bios/bios.gba");
 }
 
-#[ignore = "fails at sub-test 2"]
 #[test]
 fn nes_rom_passes() {
     check("nes/nes.gba");
