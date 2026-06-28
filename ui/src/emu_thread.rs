@@ -670,6 +670,9 @@ pub struct EmuHandle {
     pub state: EmuState,
     /// Latest frame from the emulator.
     pub frame: Option<Box<FrameBuffer>>,
+    /// Monotonic counter bumped on every new frame, so the display can skip
+    /// rebuilding/uploading the texture when nothing changed.
+    pub frame_seq: u64,
     /// List of active breakpoints (mirrored from emu thread).
     pub breakpoints: Vec<(u32, BreakpointKind)>,
     /// Pending save state data (set when save is requested, cleared when taken).
@@ -716,6 +719,7 @@ impl EmuHandle {
                 }
                 EmuEvent::Frame(frame) => {
                     self.frame = Some(frame);
+                    self.frame_seq = self.frame_seq.wrapping_add(1);
                 }
                 EmuEvent::Paused { reason: _ } => {
                     self.state.is_running = false;
@@ -815,6 +819,7 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         thread_handle: Some(thread_handle),
         state: initial_state,
         frame: None,
+        frame_seq: 0,
         breakpoints: Vec::new(),
         pending_save_state: None,
         pending_memory_data: None,

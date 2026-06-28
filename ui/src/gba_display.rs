@@ -11,6 +11,9 @@ pub struct GbaDisplay {
     emu_handle: Arc<Mutex<EmuHandle>>,
     /// Cached texture, reused across frames to avoid recreation overhead.
     texture: Option<TextureHandle>,
+    /// Frame sequence of the texture currently uploaded, to skip re-uploading
+    /// an unchanged frame on repaints that carry no new emulator output.
+    uploaded_seq: Option<u64>,
 }
 
 impl GbaDisplay {
@@ -18,6 +21,7 @@ impl GbaDisplay {
         Self {
             emu_handle,
             texture: None,
+            uploaded_seq: None,
         }
     }
 }
@@ -41,28 +45,28 @@ impl UiTool for GbaDisplay {
     }
 
     fn ui(&mut self, ui: &mut Ui) {
-        // Get the latest frame from the cached state
-        let rgb_data = self.emu_handle.lock().map_or_else(
-            |_| vec![0u8; LCD_WIDTH * LCD_HEIGHT * 3],
-            |handle| {
-                handle
-                    .frame
-                    .as_ref()
-                    .map_or_else(|| vec![0u8; LCD_WIDTH * LCD_HEIGHT * 3], |f| f.to_vec())
-            },
-        );
+        // Grab the latest frame plus its sequence number. Only rebuild and
+        // re-upload the texture when a new frame has actually arrived.
+        let frame = self.emu_handle.lock().ok().and_then(|handle| {
+            (Some(handle.frame_seq) != self.uploaded_seq || self.texture.is_none())
+                .then(|| (handle.frame_seq, handle.frame.as_ref().map(|f| f.to_vec())))
+        });
 
-        let image = ColorImage::from_rgb([LCD_WIDTH, LCD_HEIGHT], &rgb_data);
+        if let Some((seq, rgb)) = frame {
+            let rgb_data = rgb.unwrap_or_else(|| vec![0u8; LCD_WIDTH * LCD_HEIGHT * 3]);
+            let image = ColorImage::from_rgb([LCD_WIDTH, LCD_HEIGHT], &rgb_data);
 
-        match &mut self.texture {
-            Some(tex) => tex.set(image, TextureOptions::NEAREST),
-            None => {
-                self.texture = Some(ui.ctx().load_texture(
-                    "gba_display",
-                    image,
-                    TextureOptions::NEAREST,
-                ));
+            match &mut self.texture {
+                Some(tex) => tex.set(image, TextureOptions::NEAREST),
+                None => {
+                    self.texture = Some(ui.ctx().load_texture(
+                        "gba_display",
+                        image,
+                        TextureOptions::NEAREST,
+                    ));
+                }
             }
+            self.uploaded_seq = Some(seq);
         }
 
         if let Some(tex) = &self.texture {
