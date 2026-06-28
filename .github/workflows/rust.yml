@@ -29,6 +29,9 @@ jobs:
         uses: extractions/setup-just@v3
 
       - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: clippy, rustfmt
 
       - name: Check fmt
         run: cargo fmt -- --check
@@ -48,7 +51,7 @@ jobs:
       - name: Setup just
         uses: extractions/setup-just@v3
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0
       - name: Test
         run: just test
 
@@ -63,7 +66,7 @@ jobs:
       - name: Setup just
         uses: extractions/setup-just@v3
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0
 
       - name: Fetch test ROMs
         run: |

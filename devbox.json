@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.2/.schema/devbox.schema.json",
   "packages": [
     "clippy@1.95.0",
-    "rustfmt@latest",
+    "rustfmt@1.95.0",
     "rust-analyzer@latest",
     "pkg-config@latest",
     "libiconv@latest",

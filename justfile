@@ -18,9 +18,9 @@ fetch-test-roms dir="":
 test-roms:
     @cargo test -p emu --test jsmolka -- --nocapture
 
-# run clippy with heavy config
+# run clippy with heavy config, failing on any warning
 lint:
-    @cargo clippy --workspace --all-targets
+    @cargo clippy --workspace --all-targets -- -D warnings
 
 # clean build directory
 clean:
