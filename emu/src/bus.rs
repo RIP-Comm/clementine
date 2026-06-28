@@ -1005,8 +1005,7 @@ impl Bus {
     }
 
     pub fn read_byte(&mut self, address: usize) -> u8 {
-        // TODO: Implement proper cycle-based timing
-        self.cycles_count += self.get_wait_cycles(address);
+        self.cycles_count += self.access_cycles(address, 1);
 
         self.last_used_address = address;
 
@@ -1014,8 +1013,7 @@ impl Bus {
     }
 
     pub fn write_byte(&mut self, address: usize, value: u8) {
-        // TODO: Implement proper cycle-based timing
-        self.cycles_count += self.get_wait_cycles(address);
+        self.cycles_count += self.access_cycles(address, 1);
 
         self.last_used_address = address;
 
@@ -1133,26 +1131,69 @@ impl Bus {
         }
     }
 
-    const fn get_wait_cycles(&self, address: usize) -> u64 {
-        let _ = self;
-        let _ = address;
+    /// Wait-state cycles for a single memory access of `size` bytes (1, 2 or 4)
+    /// at `address`. Models the per-region bus widths and the `GamePak` wait
+    /// states programmed in `WAITCNT`.
+    ///
+    /// Accesses are treated as non-sequential for now. Sequential (S-cycle)
+    /// timing and the `GamePak` prefetch buffer are not modelled yet, so ROM
+    /// sequential runs are slightly overcosted; that is a later Phase 1 step.
+    fn access_cycles(&self, address: usize, size: u64) -> u64 {
+        let region = (address >> 24) & 0xF;
+        match region {
+            // EWRAM: 16-bit bus with 2 default wait states, doubled for 32-bit
+            0x2 if size == 4 => 6,
+            0x2 => 3,
+            // Palette and VRAM: 16-bit bus, one extra cycle for 32-bit accesses
+            0x5 | 0x6 if size == 4 => 2,
+            // GamePak ROM mirrors: timing from WAITCNT per wait-state region
+            0x8..=0xD => self.gamepak_cycles(region, size),
+            // GamePak SRAM: 8-bit bus, WAITCNT SRAM wait
+            0xE | 0xF => 1 + Self::nwait(self.waitcnt().get_bits(0..=1)),
+            // 32-bit bus with no wait states (BIOS, IWRAM, I/O, OAM), the
+            // 16-bit single-access regions above, and anything unmapped
+            _ => 1,
+        }
+    }
 
-        // let _is_sequential =
-        // address == self.last_used_address || address + 4 == self.last_used_address;
+    const fn waitcnt(&self) -> u16 {
+        self.interrupt_control.wait_state_control
+    }
 
-        // TODO: Restore this when we have a proper memory map
-        // match address {
-        // Bios
-        // 0x0..=0x3FFF => 1,
-        // _ => 1,
-        // }
+    /// Map a `WAITCNT` first-access (N) wait code to its cycle count.
+    const fn nwait(code: u16) -> u64 {
+        match code {
+            0 => 4,
+            1 => 3,
+            2 => 2,
+            _ => 8,
+        }
+    }
 
-        1
+    /// `GamePak` ROM access cycles. A 32-bit access is two 16-bit bus accesses,
+    /// the first non-sequential (N) and the second sequential (S).
+    fn gamepak_cycles(&self, region: usize, size: u64) -> u64 {
+        let w = self.waitcnt();
+        let (n_code, s_short, s_long) = match region {
+            // WS0, sequential wait is 2 or 1
+            0x8 | 0x9 => (w.get_bits(2..=3), w.get_bit(4), 2),
+            // WS1, sequential wait is 4 or 1
+            0xA | 0xB => (w.get_bits(5..=6), w.get_bit(7), 4),
+            // WS2, sequential wait is 8 or 1
+            _ => (w.get_bits(8..=9), w.get_bit(10), 8),
+        };
+
+        let n = 1 + Self::nwait(n_code);
+        if size == 4 {
+            let s_wait = if s_short { 1 } else { s_long };
+            n + 1 + s_wait
+        } else {
+            n
+        }
     }
 
     pub fn read_word(&mut self, mut address: usize) -> u32 {
-        // TODO: Implement proper cycle-based timing (bus width varies by region)
-        self.cycles_count += self.get_wait_cycles(address);
+        self.cycles_count += self.access_cycles(address, 4);
 
         self.last_used_address = address;
 
@@ -1180,7 +1221,7 @@ impl Bus {
     ///
     /// Panics if the value cannot be split into bytes (should not happen).
     pub fn write_word(&mut self, mut address: usize, value: u32) {
-        self.cycles_count += self.get_wait_cycles(address);
+        self.cycles_count += self.access_cycles(address, 4);
 
         self.last_used_address = address;
 
@@ -1200,7 +1241,7 @@ impl Bus {
     }
 
     pub fn read_half_word(&mut self, mut address: usize) -> u16 {
-        self.cycles_count += self.get_wait_cycles(address);
+        self.cycles_count += self.access_cycles(address, 2);
 
         self.last_used_address = address;
 
@@ -1225,7 +1266,7 @@ impl Bus {
     ///
     /// Panics if the value cannot be split into bytes (should not happen).
     pub fn write_half_word(&mut self, mut address: usize, value: u16) {
-        self.cycles_count += self.get_wait_cycles(address);
+        self.cycles_count += self.access_cycles(address, 2);
 
         self.last_used_address = address;
 
