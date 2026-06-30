@@ -58,7 +58,7 @@ impl UiTool for CpuRegisters {
             .striped(true)
             .show(ui, |ui| {
                 for (index, reg) in registers.iter().enumerate() {
-                    let mut value = match self.base_kind {
+                    let value = match self.base_kind {
                         BaseKind::Dec => reg.to_string(),
                         BaseKind::Hex => format!("0x{reg:x}"),
                     };
@@ -69,7 +69,7 @@ impl UiTool for CpuRegisters {
                         format!("R{index:?}")
                     });
 
-                    ui.text_edit_singleline(&mut value);
+                    ui.add(egui::Label::new(egui::RichText::new(value).monospace()).selectable(true));
 
                     ui.end_row();
                 }

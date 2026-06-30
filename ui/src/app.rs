@@ -180,9 +180,12 @@ impl App {
             Box::<about::About>::default(),
         ];
 
+        // Open only the game view and the run controls at launch. The other
+        // tools are debug panels the user can toggle on from the sidebar, so
+        // showing all of them at once just buries the display under windows.
         let mut open = BTreeSet::new();
-        for tool in &tools {
-            open.insert(tool.name().to_owned());
+        for name in ["Gba Display", "Cpu Handler", "ROM Info", "Save Game"] {
+            open.insert(name.to_owned());
         }
 
         Self {
@@ -269,7 +272,7 @@ impl App {
             (Key::S, GbaButton::R),
         ];
 
-        ctx.input(|input| {
+        let (toggle_fullscreen, is_fullscreen, fast_forward, normal_speed) = ctx.input(|input| {
             for &(key, button) in KEY_MAPPINGS {
                 if input.key_pressed(key)
                     && let Ok(mut handle) = self.emu_handle.lock()
@@ -288,7 +291,31 @@ impl App {
                     });
                 }
             }
+
+            (
+                input.key_pressed(Key::F11),
+                input.viewport().fullscreen.unwrap_or(false),
+                input.key_pressed(Key::Space),
+                input.key_released(Key::Space),
+            )
         });
+
+        if toggle_fullscreen {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_fullscreen));
+        }
+
+        // Hold Space to run uncapped, release to drop back to real-time speed.
+        if fast_forward {
+            self.send(EmuCommand::SetSpeed(0.0));
+        } else if normal_speed {
+            self.send(EmuCommand::SetSpeed(1.0));
+        }
+    }
+
+    fn send(&self, cmd: EmuCommand) {
+        if let Ok(mut handle) = self.emu_handle.lock() {
+            handle.send(cmd);
+        }
     }
 }
 

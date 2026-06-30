@@ -146,8 +146,7 @@ impl UiTool for CpuHandler {
             self.speed = current_speed;
         }
 
-        let mut name = cartridge_name;
-        ui.add(TextEdit::singleline(&mut name).desired_width(140.0));
+        ui.heading(cartridge_name);
 
         ui.horizontal(|ui| {
             if ui
