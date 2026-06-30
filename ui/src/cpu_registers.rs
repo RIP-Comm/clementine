@@ -69,7 +69,9 @@ impl UiTool for CpuRegisters {
                         format!("R{index:?}")
                     });
 
-                    ui.add(egui::Label::new(egui::RichText::new(value).monospace()).selectable(true));
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(value).monospace()).selectable(true),
+                    );
 
                     ui.end_row();
                 }
