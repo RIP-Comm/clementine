@@ -677,6 +677,32 @@ impl Pokemon {
     }
 }
 
+/// Parse one cheat line `ADDRESS VALUE` (hex, separated by whitespace or `:`).
+/// The value's byte width is derived from its hex digit count and the bytes are
+/// emitted little-endian so they can be written straight to memory.
+fn parse_cheat_line(line: &str) -> Option<Cheat> {
+    let mut parts = line.split([' ', '\t', ':', ',']).filter(|s| !s.is_empty());
+    let addr_str = parts.next()?.trim_start_matches("0x");
+    let val_str = parts.next()?.trim_start_matches("0x");
+
+    let address = u32::from_str_radix(addr_str, 16).ok()?;
+    let value = u32::from_str_radix(val_str, 16).ok()?;
+
+    let width = match val_str.len() {
+        0 => return None,
+        1..=2 => 1,
+        3..=4 => 2,
+        _ => 4,
+    };
+    let values = value.to_le_bytes()[..width].to_vec();
+
+    Some(Cheat {
+        address,
+        values,
+        enabled: true,
+    })
+}
+
 /// Decode GBA text encoding to UTF-8 string.
 fn decode_gba_text(data: &[u8]) -> String {
     let mut result = String::new();
@@ -776,12 +802,29 @@ pub struct PokemonDebugger {
     encounters_patched: bool,
     /// Whether we're waiting for encounter patch result.
     pending_encounter_read: bool,
+    /// Per-slot HP lock (freezes current HP to max HP each frame, no-faint).
+    hp_locked: [bool; PARTY_SIZE],
+    /// Text box for entering raw cheat codes.
+    cheat_input: String,
+    /// Active raw cheats (freeze writes applied every frame).
+    cheats: Vec<Cheat>,
+    /// Status line for the cheats tab.
+    cheat_status: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
     Party,
     WildEncounters,
+    Cheats,
+}
+
+/// A single active cheat: a memory region re-applied every frame.
+#[derive(Clone)]
+struct Cheat {
+    address: u32,
+    values: Vec<u8>,
+    enabled: bool,
 }
 
 impl PokemonDebugger {
@@ -807,6 +850,10 @@ impl PokemonDebugger {
             forced_level: 5,
             encounters_patched: false,
             pending_encounter_read: false,
+            hp_locked: [false; PARTY_SIZE],
+            cheat_input: String::new(),
+            cheats: Vec::new(),
+            cheat_status: String::new(),
         }
     }
 
@@ -889,6 +936,136 @@ impl PokemonDebugger {
         let pokemon = &self.party[slot as usize];
         if pokemon.valid {
             self.write_u16(slot, 0x56, pokemon.max_hp);
+        }
+    }
+
+    /// Toggle freezing a slot's current HP to its max HP (no-faint cheat).
+    /// The freeze re-applies every frame on the emulator thread.
+    fn set_hp_lock(&self, slot: u32, lock: bool) {
+        let address = self.effective_address() + slot * POKEMON_SIZE + 0x56;
+        if let Ok(mut handle) = self.emu_handle.lock() {
+            if lock {
+                let max_hp = self.party[slot as usize].max_hp;
+                handle.send(EmuCommand::SetFreeze {
+                    address,
+                    values: max_hp.to_le_bytes().to_vec(),
+                });
+            } else {
+                handle.send(EmuCommand::ClearFreeze { address });
+            }
+        }
+    }
+
+    /// Parse the cheat input box (one `ADDRESS VALUE` per line, hex) and add a
+    /// freeze for each valid line. Value byte-width follows the hex digit count
+    /// (1, 2 or 4 bytes), written little-endian.
+    fn add_cheats_from_input(&mut self) {
+        let mut added = 0;
+        let mut failed = 0;
+        for line in self.cheat_input.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if let Some(cheat) = parse_cheat_line(line) {
+                self.send_cheat(&cheat);
+                // Replace any existing cheat at the same address.
+                self.cheats.retain(|c| c.address != cheat.address);
+                self.cheats.push(cheat);
+                added += 1;
+            } else {
+                failed += 1;
+            }
+        }
+        self.cheat_status = format!("Added {added}, skipped {failed} invalid");
+        self.cheat_input.clear();
+    }
+
+    /// Push a cheat's freeze state to the emulator thread.
+    fn send_cheat(&self, cheat: &Cheat) {
+        if let Ok(mut handle) = self.emu_handle.lock() {
+            if cheat.enabled {
+                handle.send(EmuCommand::SetFreeze {
+                    address: cheat.address,
+                    values: cheat.values.clone(),
+                });
+            } else {
+                handle.send(EmuCommand::ClearFreeze {
+                    address: cheat.address,
+                });
+            }
+        }
+    }
+
+    fn show_cheats_tab(&mut self, ui: &mut egui::Ui) {
+        ui.label("Raw cheat codes: one per line as ADDRESS VALUE (hex).");
+        ui.small("Example: 02024284 1F  (freezes that byte to 0x1F every frame)");
+        ui.small("Value width follows digits: 2=byte, 4=u16, 8=u32, little-endian.");
+        ui.add_space(4.0);
+
+        ui.add(
+            egui::TextEdit::multiline(&mut self.cheat_input)
+                .desired_rows(3)
+                .hint_text("02024284 1F\n0203F3A8 270F")
+                .font(egui::TextStyle::Monospace),
+        );
+
+        ui.horizontal(|ui| {
+            if ui.button("Add codes").clicked() {
+                self.add_cheats_from_input();
+            }
+            if ui.button("Clear all").clicked() {
+                if let Ok(mut handle) = self.emu_handle.lock() {
+                    handle.send(EmuCommand::ClearAllFreezes);
+                }
+                self.cheats.clear();
+                self.cheat_status = "Cleared all cheats".to_string();
+            }
+        });
+
+        if !self.cheat_status.is_empty() {
+            ui.small(&self.cheat_status);
+        }
+
+        ui.separator();
+
+        if self.cheats.is_empty() {
+            ui.weak("No active cheats.");
+            return;
+        }
+
+        let mut remove: Option<usize> = None;
+        let mut toggled: Option<usize> = None;
+        for (idx, cheat) in self.cheats.iter().enumerate() {
+            ui.horizontal(|ui| {
+                let mut enabled = cheat.enabled;
+                if ui.checkbox(&mut enabled, "").changed() {
+                    toggled = Some(idx);
+                }
+                let hex: String = cheat.values.iter().rev().fold(String::new(), |mut s, b| {
+                    use std::fmt::Write;
+                    let _ = write!(s, "{b:02X}");
+                    s
+                });
+                ui.monospace(format!("0x{:08X} = {hex}", cheat.address));
+                if ui.button("x").clicked() {
+                    remove = Some(idx);
+                }
+            });
+        }
+
+        if let Some(idx) = toggled {
+            self.cheats[idx].enabled = !self.cheats[idx].enabled;
+            let cheat = self.cheats[idx].clone();
+            self.send_cheat(&cheat);
+        }
+        if let Some(idx) = remove {
+            let cheat = self.cheats.remove(idx);
+            if let Ok(mut handle) = self.emu_handle.lock() {
+                handle.send(EmuCommand::ClearFreeze {
+                    address: cheat.address,
+                });
+            }
         }
     }
 
@@ -1192,6 +1369,11 @@ impl PokemonDebugger {
                             self.level_up(slot);
                             self.request_party_data();
                         }
+                        let mut locked = self.hp_locked[slot as usize];
+                        if ui.checkbox(&mut locked, "Lock HP").changed() {
+                            self.hp_locked[slot as usize] = locked;
+                            self.set_hp_lock(slot, locked);
+                        }
                     });
                 });
 
@@ -1264,6 +1446,7 @@ impl UiTool for PokemonDebugger {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.selected_tab, Tab::Party, "Party");
             ui.selectable_value(&mut self.selected_tab, Tab::WildEncounters, "Wild");
+            ui.selectable_value(&mut self.selected_tab, Tab::Cheats, "Cheats");
         });
 
         ui.separator();
@@ -1271,6 +1454,7 @@ impl UiTool for PokemonDebugger {
         match self.selected_tab {
             Tab::Party => self.show_party_tab(ui),
             Tab::WildEncounters => self.show_wild_tab(ui),
+            Tab::Cheats => self.show_cheats_tab(ui),
         }
 
         ui.separator();

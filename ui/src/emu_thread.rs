@@ -88,6 +88,15 @@ pub enum EmuCommand {
     ReadMemory { address: u32, length: usize },
     /// Write a byte to memory.
     WriteByte { address: u32, value: u8 },
+    /// Write multiple consecutive bytes starting at `address`.
+    WriteBytes { address: u32, values: Vec<u8> },
+    /// Freeze a memory region: re-write `values` at `address` every frame.
+    /// Replaces any existing freeze that starts at the same address.
+    SetFreeze { address: u32, values: Vec<u8> },
+    /// Stop freezing the region that starts at `address`.
+    ClearFreeze { address: u32 },
+    /// Remove every frozen region.
+    ClearAllFreezes,
     /// Write a byte directly to the ROM buffer (bypasses read-only protection).
     /// Offset is relative to ROM start (`0x0800_0000`).
     WriteRom { offset: u32, value: u8 },
@@ -219,6 +228,15 @@ struct EmuThread {
 
     /// Frame counter for frame skipping at high speeds.
     frame_counter: u32,
+
+    /// Memory regions re-written every frame (cheat freeze / lock value).
+    freezes: Vec<Freeze>,
+}
+
+/// A memory region held at a constant value, re-applied once per frame.
+struct Freeze {
+    address: u32,
+    values: Vec<u8>,
 }
 
 impl EmuThread {
@@ -237,6 +255,7 @@ impl EmuThread {
             frame_start: Instant::now(),
             speed_multiplier: 1.0,
             frame_counter: 0,
+            freezes: Vec::new(),
         }
     }
 
@@ -388,6 +407,22 @@ impl EmuThread {
                 EmuCommand::WriteByte { address, value } => {
                     self.gba.cpu.bus.write_byte(address as usize, value);
                 }
+                EmuCommand::WriteBytes { address, values } => {
+                    self.write_bytes(address, &values);
+                }
+                EmuCommand::SetFreeze { address, values } => {
+                    if let Some(freeze) = self.freezes.iter_mut().find(|f| f.address == address) {
+                        freeze.values = values;
+                    } else {
+                        self.freezes.push(Freeze { address, values });
+                    }
+                }
+                EmuCommand::ClearFreeze { address } => {
+                    self.freezes.retain(|f| f.address != address);
+                }
+                EmuCommand::ClearAllFreezes => {
+                    self.freezes.clear();
+                }
                 EmuCommand::WriteRom { offset, value } => {
                     let rom = &mut self.gba.cpu.bus.internal_memory.rom;
                     if (offset as usize) < rom.len() {
@@ -516,6 +551,10 @@ impl EmuThread {
             // On VBlank: send frame, state update, and handle timing
             if vblank_started {
                 self.frame_counter += 1;
+
+                // Re-apply frozen cheat values once per frame, before the game
+                // logic for the next frame can read them back.
+                self.apply_freezes();
 
                 // Calculate frame skip to maintain ~60 FPS display regardless of emulation speed
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -653,6 +692,25 @@ impl EmuThread {
         }
 
         self.send_event(EmuEvent::Frame(frame));
+    }
+
+    /// Write consecutive bytes starting at `address`.
+    fn write_bytes(&mut self, address: u32, values: &[u8]) {
+        for (i, value) in values.iter().enumerate() {
+            #[allow(clippy::cast_possible_truncation)]
+            self.gba.cpu.bus.write_byte(address as usize + i, *value);
+        }
+    }
+
+    /// Re-write every frozen region to hold its value constant.
+    fn apply_freezes(&mut self) {
+        for idx in 0..self.freezes.len() {
+            let address = self.freezes[idx].address;
+            // Clone the (small) byte slice to release the borrow on `self.freezes`
+            // before borrowing the bus mutably.
+            let values = self.freezes[idx].values.clone();
+            self.write_bytes(address, &values);
+        }
     }
 
     /// Send an event to the UI (non-blocking, drops if full).
