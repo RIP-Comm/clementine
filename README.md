@@ -75,6 +75,7 @@ When `--log-to-file` is passed, logs are written to `clementine.log` in your sys
 
 - **ARM7TDMI CPU** — ARM and Thumb instruction sets
 - **LCD rendering** — Backgrounds (modes 0–5), sprites, windowing, color blending effects (alpha, brightness)
+- **Audio** — DMA sound channels A/B (timer-driven FIFOs refilled by DMA) and the four PSG channels (2 square with sweep/envelope, wave, noise), mixed per SOUNDCNT and played through the host device with master volume/mute
 - **Input** — Keyboard-mapped GBA buttons
 - **Save/Load state** — Versioned save states with integrity checks (ROM/BIOS excluded from serialization)
 - **Speed control** — Adjustable emulation speed multiplier
@@ -105,6 +106,10 @@ The emulator includes several debug tools accessible via the sidebar:
 - **Cpu Registers** - View ARM7TDMI register values
 - **Disassembler** - Real-time disassembly of executed instructions
 - **Save Game** - Save/Load state with version validation
+- **ROM Info** - Cartridge header metadata and validity checks
+- **Keypad Debug** - Inspect and toggle GBA button state
+- **Memory Inspector** - Browse and edit memory regions
+- **Sound** - Master volume and mute for audio output
 - **Pokemon Debugger** - Party viewer and wild encounter cheats
 
 ## Development
@@ -134,8 +139,9 @@ The emulator uses a multi-threaded architecture:
 
 - **UI Thread**: Runs the egui/eframe GUI at ~60fps
 - **CPU Thread**: Runs the GBA emulation independently
+- **Audio Thread**: A `cpal` callback pulls mixed samples the CPU thread produces
 
-Communication between threads uses lock-free SPSC (single-producer, single-consumer) channels for commands (UI -> CPU) and events (CPU -> UI).
+Communication between threads uses lock-free SPSC (single-producer, single-consumer) channels for commands (UI -> CPU), events (CPU -> UI) and audio samples (CPU -> audio device).
 
 ## Tests ROM
 
