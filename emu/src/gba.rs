@@ -110,4 +110,14 @@ impl Gba {
     pub fn step(&mut self) -> bool {
         self.cpu.step()
     }
+
+    /// Wire up audio output. Creates a lock-free sample ring feeding the host
+    /// audio device at `output_rate` Hz and returns the consumer end. The
+    /// emulator pushes interleaved stereo `f32` frames; `capacity` is the number
+    /// of individual `f32` slots (two per stereo frame).
+    pub fn init_audio(&mut self, output_rate: u32, capacity: usize) -> rtrb::Consumer<f32> {
+        let (producer, consumer) = rtrb::RingBuffer::new(capacity);
+        self.cpu.bus.set_audio_out(producer, output_rate);
+        consumer
+    }
 }

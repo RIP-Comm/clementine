@@ -337,6 +337,7 @@ impl EmuThread {
                     // Save fields that are skipped during serialization so we can restore them
                     let disasm_tx = self.gba.cpu.disasm_tx.take();
                     let disasm_enabled = self.gba.cpu.disasm_enabled;
+                    let (audio_out, audio_rate) = self.gba.cpu.bus.take_audio_out();
                     let bios =
                         std::mem::take(&mut self.gba.cpu.bus.internal_memory.bios_system_rom);
                     let rom = std::mem::take(&mut self.gba.cpu.bus.internal_memory.rom);
@@ -347,6 +348,7 @@ impl EmuThread {
                             // Restore skipped fields
                             self.gba.cpu.disasm_tx = disasm_tx;
                             self.gba.cpu.disasm_enabled = disasm_enabled;
+                            self.gba.cpu.bus.restore_audio_out(audio_out, audio_rate);
                             self.gba.cpu.bus.internal_memory.bios_system_rom = bios;
                             self.gba.cpu.bus.internal_memory.rom = rom;
                             self.gba.cpu.bus.internal_memory.redetect_backup_type();
@@ -361,6 +363,7 @@ impl EmuThread {
                         Err(e) => {
                             // Restore skipped fields to the original CPU (unchanged on error)
                             self.gba.cpu.disasm_tx = disasm_tx;
+                            self.gba.cpu.bus.restore_audio_out(audio_out, audio_rate);
                             self.gba.cpu.bus.internal_memory.bios_system_rom = bios;
                             self.gba.cpu.bus.internal_memory.rom = rom;
                             tracing::error!("Failed to load save state: {e}");

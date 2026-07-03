@@ -10,6 +10,11 @@ pub struct TimerOverflowResult {
     pub timer1_overflow: bool,
     pub timer2_overflow: bool,
     pub timer3_overflow: bool,
+    /// Overflow of timers 0 and 1 regardless of their IRQ enable bit. The DMA
+    /// sound engine is clocked by these and must react even when the timer IRQ
+    /// is off.
+    pub timer0_raw_overflow: bool,
+    pub timer1_raw_overflow: bool,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -155,6 +160,8 @@ impl Timers {
             timer1_overflow: tm1 > 0 && Self::is_irq_enabled(self.tm1cnt_h),
             timer2_overflow: tm2 > 0 && Self::is_irq_enabled(self.tm2cnt_h),
             timer3_overflow: tm3 > 0 && Self::is_irq_enabled(self.tm3cnt_h),
+            timer0_raw_overflow: tm0 > 0,
+            timer1_raw_overflow: tm1 > 0,
         }
     }
 

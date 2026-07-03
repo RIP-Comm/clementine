@@ -1,5 +1,6 @@
 mod about;
 pub mod app;
+mod audio;
 mod cpu_handler;
 mod cpu_registers;
 mod disassembler;

@@ -147,6 +147,8 @@ pub struct App {
     emu_handle: Arc<Mutex<EmuHandle>>,
     tools: Vec<Box<dyn UiTool>>,
     open: BTreeSet<String>,
+    /// Kept alive to keep audio playing, `None` when no output device.
+    _audio: Option<crate::audio::AudioPlayer>,
 }
 
 impl App {
@@ -163,6 +165,10 @@ impl App {
 
         // Take consumer for disassembler channel before spawning thread
         let disasm_rx = gba.disasm_rx.take().expect("disasm_rx should be present");
+
+        // Start audio before the emulator moves onto its thread.
+        // The ring holds ~0.5s of stereo samples so brief scheduling hiccups do not underrun.
+        let audio = crate::audio::start(|rate| gba.init_audio(rate, 1 << 15));
 
         // Spawn the emulator thread and get the handle
         let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx)));
@@ -192,6 +198,7 @@ impl App {
             emu_handle,
             tools,
             open,
+            _audio: audio,
         }
     }
 

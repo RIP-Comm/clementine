@@ -585,6 +585,49 @@ impl Bus {
         self.dma.finish_block(idx);
     }
 
+    /// Pop the DMA sound channels clocked by the given timer and refill any FIFO
+    /// that dropped to half through its sound DMA channel.
+    fn feed_dma_sound(&mut self, timer: u8) {
+        let refill = self.sound.on_timer_overflow(timer);
+        if refill[0] {
+            self.run_fifo_dma(0x0400_00A0);
+        }
+        if refill[1] {
+            self.run_fifo_dma(0x0400_00A4);
+        }
+    }
+
+    /// Run the sound DMA channels feeding the FIFO at `dest`. FIFO DMA always
+    /// moves four 32-bit units into the fixed FIFO address and leaves the
+    /// channel enabled (it is set up to repeat).
+    fn run_fifo_dma(&mut self, dest: u32) {
+        // Only DMA1 and DMA2 can drive the sound FIFOs, in special timing mode.
+        for idx in 1..=2 {
+            let channel = &self.dma.channels[idx];
+            let is_fifo = channel.control.get_bit(15)
+                && channel.control.get_bits(12..=13) == 3
+                && channel.destination_address == dest;
+            if !is_fifo {
+                continue;
+            }
+
+            let src_control = channel.control.get_bits(7..=8);
+            for _ in 0..4 {
+                let source = self.dma.channels[idx].internal_source as usize;
+                let value = self.read_word(source);
+                self.write_word(dest as usize, value);
+
+                // The destination is fixed; only the source pointer advances.
+                let channel = &mut self.dma.channels[idx];
+                match src_control {
+                    0 => channel.internal_source = channel.internal_source.wrapping_add(4),
+                    1 => channel.internal_source = channel.internal_source.wrapping_sub(4),
+                    _ => {}
+                }
+            }
+        }
+    }
+
     fn read_sound_raw(&self, address: usize) -> u8 {
         match address {
             0x0400_0060 => self.sound.channel1_sweep.get_byte(0),
@@ -618,14 +661,8 @@ impl Bus {
             0x0400_0090..=0x0400_009F => {
                 self.sound.channel3_wave_pattern_ram[address - 0x0400_0090]
             }
-            0x0400_00A0 => self.sound.channel_a_fifo.get_byte(0),
-            0x0400_00A1 => self.sound.channel_a_fifo.get_byte(1),
-            0x0400_00A2 => self.sound.channel_a_fifo.get_byte(2),
-            0x0400_00A3 => self.sound.channel_a_fifo.get_byte(3),
-            0x0400_00A4 => self.sound.channel_b_fifo.get_byte(0),
-            0x0400_00A5 => self.sound.channel_b_fifo.get_byte(1),
-            0x0400_00A6 => self.sound.channel_b_fifo.get_byte(2),
-            0x0400_00A7 => self.sound.channel_b_fifo.get_byte(3),
+            // The DMA sound FIFOs are write-only on hardware.
+            0x0400_00A0..=0x0400_00A7 => 0,
             0x0400_0066..=0x0400_0067
             | 0x0400_006A..=0x0400_006B
             | 0x0400_006E..=0x0400_006F
@@ -667,7 +704,17 @@ impl Bus {
             0x0400_0080 => self.sound.control_stereo_volume_enable.set_byte(0, value),
             0x0400_0081 => self.sound.control_stereo_volume_enable.set_byte(1, value),
             0x0400_0082 => self.sound.control_mixing_dma_control.set_byte(0, value),
-            0x0400_0083 => self.sound.control_mixing_dma_control.set_byte(1, value),
+            0x0400_0083 => {
+                self.sound.control_mixing_dma_control.set_byte(1, value);
+                // High byte holds the FIFO reset bits: bit 3 (SOUNDCNT_H bit 11)
+                // for channel A, bit 7 (bit 15) for channel B.
+                if value.get_bit(3) {
+                    self.sound.reset_fifo(0);
+                }
+                if value.get_bit(7) {
+                    self.sound.reset_fifo(1);
+                }
+            }
             0x0400_0084 => self.sound.control_sound_on_off.set_byte(0, value),
             0x0400_0085 => self.sound.control_sound_on_off.set_byte(1, value),
             0x0400_0088 => self.sound.sound_pwm_control.set_byte(0, value),
@@ -675,14 +722,8 @@ impl Bus {
             0x0400_0090..=0x0400_009F => {
                 self.sound.channel3_wave_pattern_ram[address - 0x0400_0090] = value;
             }
-            0x0400_00A0 => self.sound.channel_a_fifo.set_byte(0, value),
-            0x0400_00A1 => self.sound.channel_a_fifo.set_byte(1, value),
-            0x0400_00A2 => self.sound.channel_a_fifo.set_byte(2, value),
-            0x0400_00A3 => self.sound.channel_a_fifo.set_byte(3, value),
-            0x0400_00A4 => self.sound.channel_b_fifo.set_byte(0, value),
-            0x0400_00A5 => self.sound.channel_b_fifo.set_byte(1, value),
-            0x0400_00A6 => self.sound.channel_b_fifo.set_byte(2, value),
-            0x0400_00A7 => self.sound.channel_b_fifo.set_byte(3, value),
+            0x0400_00A0..=0x0400_00A3 => self.sound.push_fifo(0, value),
+            0x0400_00A4..=0x0400_00A7 => self.sound.push_fifo(1, value),
             0x0400_0066..=0x0400_0067
             | 0x0400_006A..=0x0400_006B
             | 0x0400_006E..=0x0400_006F
@@ -696,6 +737,12 @@ impl Bus {
                 self.unused_region.insert(address, value);
             }
             _ => panic!("Sound write address is out of bound"),
+        }
+
+        // Let the PSG channels react to triggers, length reloads and DAC-off
+        // writes once the raw register byte is in place.
+        if (0x0400_0060..=0x0400_007F).contains(&address) {
+            self.sound.psg_register_written(address, value);
         }
     }
 
@@ -1133,6 +1180,16 @@ impl Bus {
             self.request_interrupt(IrqType::Timer3);
         }
 
+        // DMA sound channels are clocked by timer 0/1 overflows, independent of
+        // whether those timers raise an IRQ.
+        if timer_result.timer0_raw_overflow {
+            self.feed_dma_sound(0);
+        }
+        if timer_result.timer1_raw_overflow {
+            self.feed_dma_sound(1);
+        }
+        self.sound.step(timer_cycles);
+
         // A pixel takes 4 cycles to get drawn. `cycles_count` is bumped both here
         // (one cycle per instruction) and by every memory access, so an instruction
         // can advance it by several cycles at once. Step the LCD once for each
@@ -1188,6 +1245,23 @@ impl Bus {
             internal_memory: memory,
             ..Default::default()
         }
+    }
+
+    /// Attach the host audio sink so the DMA sound engine can emit samples at
+    /// `output_rate` Hz.
+    pub fn set_audio_out(&mut self, producer: rtrb::Producer<f32>, output_rate: u32) {
+        self.sound.set_audio_out(producer, output_rate);
+    }
+
+    /// Detach the audio sink before a save state load, so it survives the CPU
+    /// being replaced by the deserialized one.
+    pub const fn take_audio_out(&mut self) -> (Option<rtrb::Producer<f32>>, u32) {
+        self.sound.take_audio_out()
+    }
+
+    /// Reinstall the audio sink after a save state load.
+    pub fn restore_audio_out(&mut self, producer: Option<rtrb::Producer<f32>>, output_rate: u32) {
+        self.sound.restore_audio_out(producer, output_rate);
     }
 
     /// Wait-state cycles for a single memory access of `size` bytes (1, 2 or 4)
