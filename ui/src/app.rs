@@ -103,12 +103,14 @@
 //! [`App::update()`]: eframe::App::update
 //! [`EmuHandle`]: crate::emu_thread::EmuHandle
 
+use crate::audio::AudioPlayer;
 use crate::disassembler::Disassembler;
 use crate::emu_thread::{self, EmuCommand, EmuHandle, GbaButton};
 use crate::keypad_debug::KeypadDebug;
 use crate::memory_inspector::MemoryInspector;
 use crate::pokemon_debugger::PokemonDebugger;
 use crate::rom_info::RomInfo;
+use crate::sound_controls::SoundControls;
 use emu::gba::Gba;
 
 use super::cpu_registers::CpuRegisters;
@@ -169,6 +171,7 @@ impl App {
         // Start audio before the emulator moves onto its thread.
         // The ring holds ~0.5s of stereo samples so brief scheduling hiccups do not underrun.
         let audio = crate::audio::start(|rate| gba.init_audio(rate, 1 << 15));
+        let audio_controls = audio.as_ref().map(AudioPlayer::controls);
 
         // Spawn the emulator thread and get the handle
         let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx)));
@@ -183,6 +186,7 @@ impl App {
             Box::new(KeypadDebug::new(Arc::clone(&emu_handle))),
             Box::new(MemoryInspector::new(Arc::clone(&emu_handle))),
             Box::new(PokemonDebugger::new(Arc::clone(&emu_handle))),
+            Box::new(SoundControls::new(audio_controls)),
             Box::<about::About>::default(),
         ];
 
@@ -190,7 +194,13 @@ impl App {
         // tools are debug panels the user can toggle on from the sidebar, so
         // showing all of them at once just buries the display under windows.
         let mut open = BTreeSet::new();
-        for name in ["Gba Display", "Cpu Handler", "ROM Info", "Save Game"] {
+        for name in [
+            "Gba Display",
+            "Cpu Handler",
+            "ROM Info",
+            "Save Game",
+            "Sound",
+        ] {
             open.insert(name.to_owned());
         }
 
