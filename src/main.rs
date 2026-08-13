@@ -135,6 +135,14 @@ fn main() {
         }
     };
 
+    if bios_data.len() < 0x4000 {
+        eprintln!(
+            "Error: BIOS is {} bytes, expected at least 16384 (16 KiB)",
+            bios_data.len()
+        );
+        std::process::exit(6);
+    }
+
     let cartridge_data = match std::fs::read(&cartridge_name) {
         Ok(data) => data,
         Err(e) => {
@@ -142,6 +150,14 @@ fn main() {
             std::process::exit(2);
         }
     };
+
+    if cartridge_data.len() < 0xE4 {
+        eprintln!(
+            "Error: ROM is {} bytes, too small to contain a cartridge header",
+            cartridge_data.len()
+        );
+        std::process::exit(7);
+    }
 
     eframe::run_native(
         "Clementine - A GBA Emulator",

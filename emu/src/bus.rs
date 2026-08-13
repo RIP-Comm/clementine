@@ -675,7 +675,10 @@ impl Bus {
                 tracing::debug!("read on unused memory {address:x}");
                 self.unused_region.get(&address).map_or(0, |v| *v)
             }
-            _ => panic!("Sound read address is out of bound"),
+            _ => {
+                tracing::warn!("read on out-of-bound sound address {address:x}");
+                0
+            }
         }
     }
 
@@ -736,7 +739,9 @@ impl Bus {
                 tracing::debug!("write on unused memory, {address:x}");
                 self.unused_region.insert(address, value);
             }
-            _ => panic!("Sound write address is out of bound"),
+            _ => {
+                tracing::warn!("write on out-of-bound sound address {address:x}");
+            }
         }
 
         // Let the PSG channels react to triggers, length reloads and DAC-off
