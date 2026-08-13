@@ -21,6 +21,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -34,6 +38,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install ALSA
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
@@ -56,6 +61,7 @@ jobs:
           just-version: 1.46.0
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
       - name: Install ALSA
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
@@ -76,6 +82,7 @@ jobs:
           just-version: 1.46.0
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install ALSA
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
