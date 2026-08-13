@@ -205,42 +205,43 @@ impl Lcd {
     pub fn step(&mut self) -> LcdStepOutput {
         let mut output = LcdStepOutput::default();
 
-        if self.registers.vcount < 160 {
-            // We either are in Vdraw or Hblank
-            if self.pixel_index == 0 {
-                // We're drawing the first pixel of the scanline, we're entering Vdraw
+        if self.pixel_index == 0 {
+            // Start of a scanline: the HBlank flag clears on every line.
+            self.registers.set_hblank_flag(false);
 
-                self.registers.set_hblank_flag(false);
+            if self.registers.vcount < 160 {
+                // Entering Vdraw on a visible line.
                 self.registers.set_vblank_flag(false);
-
                 self.should_draw = true;
 
                 // Cache attributes and scanline
                 self.layer_obj
                     .handle_enter_vdraw(&self.memory, &self.registers);
-            } else if self.pixel_index == 240 {
-                // We're entering Hblank
+            } else if self.registers.vcount == 160 {
+                // First line of the Vblank period.
+                self.registers.set_vblank_flag(true);
+                output.entered_vblank = true;
 
-                self.registers.set_hblank_flag(true);
-                output.entered_hblank = true;
-
-                if self.registers.get_hblank_irq_enable() {
-                    output.request_hblank_irq = true;
+                if self.registers.get_vblank_irq_enable() {
+                    output.request_vblank_irq = true;
                 }
 
                 self.should_draw = false;
             }
-        } else if self.registers.vcount == 160 && self.pixel_index == 0 {
-            // We're drawing the first pixel of the Vblank period
+        } else if self.pixel_index == 240 {
+            // Entering Hblank. The flag and IRQ happen on every scanline,
+            // including the Vblank lines, but Hblank DMA only runs on the
+            // visible lines (signalled by entered_hblank).
+            self.registers.set_hblank_flag(true);
 
-            self.registers.set_vblank_flag(true);
-            output.entered_vblank = true;
-
-            if self.registers.get_vblank_irq_enable() {
-                output.request_vblank_irq = true;
+            if self.registers.get_hblank_irq_enable() {
+                output.request_hblank_irq = true;
             }
 
-            self.should_draw = false;
+            if self.registers.vcount < 160 {
+                output.entered_hblank = true;
+                self.should_draw = false;
+            }
         }
 
         if self.should_draw {
