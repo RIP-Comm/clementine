@@ -389,6 +389,12 @@ pub trait AffineBgConfig {
 /// - Always 8bpp color mode
 /// - Map sizes: 128×128, 256×256, 512×512, or 1024×1024
 /// - Optional wraparound at map edges
+/// Sign-extend a 28-bit affine reference point (BGxX/BGxY) stored in a u32 to
+/// a full i32. Bit 27 is the sign bit, and bits 28-31 are ignored.
+pub fn sign_extend_28(value: u32) -> i32 {
+    ((value << 4) as i32) >> 4
+}
+
 pub fn render_affine_bg<T: AffineBgConfig>(
     config: &T,
     screen_x: usize,
@@ -529,4 +535,23 @@ pub trait Layer {
         memory: &Memory,
         registers: &Registers,
     ) -> Option<PixelInfo>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sign_extend_28;
+
+    #[test]
+    fn sign_extend_28_handles_sign_and_upper_bits() {
+        assert_eq!(sign_extend_28(0), 0);
+        assert_eq!(sign_extend_28(1), 1);
+        // 28-bit -1 (0x0FFFFFFF) must become full i32 -1.
+        assert_eq!(sign_extend_28(0x0FFF_FFFF), -1);
+        // Most negative 28-bit value.
+        assert_eq!(sign_extend_28(0x0800_0000), -(1 << 27));
+        // Largest positive 28-bit value.
+        assert_eq!(sign_extend_28(0x07FF_FFFF), (1 << 27) - 1);
+        // Bits 28-31 are ignored.
+        assert_eq!(sign_extend_28(0xF000_0001), 1);
+    }
 }

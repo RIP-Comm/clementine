@@ -22,7 +22,9 @@ use crate::cpu::hardware::lcd::PixelInfo;
 use crate::cpu::hardware::lcd::memory::Memory;
 use crate::cpu::hardware::lcd::registers::Registers;
 
-use super::{AffineBgConfig, Layer, TextBgConfig, render_affine_bg, render_text_bg};
+use super::{
+    AffineBgConfig, Layer, TextBgConfig, render_affine_bg, render_text_bg, sign_extend_28,
+};
 use serde::{Deserialize, Serialize};
 
 /// BG3
@@ -79,9 +81,8 @@ impl AffineBgConfig for Layer3 {
         )
     }
 
-    #[allow(clippy::cast_possible_wrap)]
     fn get_reference_point(&self, reg: &Registers) -> (i32, i32) {
-        (reg.bg3x as i32, reg.bg3y as i32)
+        (sign_extend_28(reg.bg3x), sign_extend_28(reg.bg3y))
     }
 
     fn get_bg_control(&self, reg: &Registers) -> u16 {
