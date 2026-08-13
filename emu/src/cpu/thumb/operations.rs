@@ -113,16 +113,17 @@ impl Arm7tdmi {
             }
             ThumbModeAluInstruction::Lsl => {
                 let destination = rd.into();
-                // If the shift amount is 0 then the second operand is just Rd
-                let second_operand = if rs == 0 {
+                // Only the low 8 bits of Rs are the shift amount, and an amount
+                // of 0 leaves Rd and the carry untouched.
+                let shift_amount = rs & 0xFF;
+                let second_operand = if shift_amount == 0 {
                     self.registers.register_at(destination)
                 } else {
-                    // Otherwise we reuse the ARM logic
                     self.shift_operand(
                         crate::cpu::arm::alu_instruction::ArmModeAluInstr::Mov,
                         true,
                         ShiftKind::Lsl,
-                        rs,
+                        shift_amount,
                         self.registers.register_at(destination),
                     )
                 };
@@ -131,16 +132,15 @@ impl Arm7tdmi {
             }
             ThumbModeAluInstruction::Lsr => {
                 let destination = rd.into();
-                // If the shift amount is 0 then the second operand is just Rd
-                let second_operand = if rs == 0 {
+                let shift_amount = rs & 0xFF;
+                let second_operand = if shift_amount == 0 {
                     self.registers.register_at(destination)
                 } else {
-                    // Otherwise we reuse the ARM logic
                     self.shift_operand(
                         crate::cpu::arm::alu_instruction::ArmModeAluInstr::Mov,
                         true,
                         ShiftKind::Lsr,
-                        rs,
+                        shift_amount,
                         self.registers.register_at(destination),
                     )
                 };
@@ -149,16 +149,15 @@ impl Arm7tdmi {
             }
             ThumbModeAluInstruction::Asr => {
                 let destination = rd.into();
-                // If the shift amount in 0 then the second operand is just Rd
-                let second_operand = if rs == 0 {
+                let shift_amount = rs & 0xFF;
+                let second_operand = if shift_amount == 0 {
                     self.registers.register_at(destination)
                 } else {
-                    // Otherwise we reuse the ARM logic
                     self.shift_operand(
                         crate::cpu::arm::alu_instruction::ArmModeAluInstr::Mov,
                         true,
                         ShiftKind::Asr,
-                        rs,
+                        shift_amount,
                         self.registers.register_at(destination),
                     )
                 };
