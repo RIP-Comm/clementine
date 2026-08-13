@@ -27,9 +27,11 @@ jobs:
     steps:
       - name: Setup just
         uses: extractions/setup-just@v4
+        with:
+          just-version: 1.46.0
 
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: clippy, rustfmt
 
@@ -50,8 +52,10 @@ jobs:
     steps:
       - name: Setup just
         uses: extractions/setup-just@v4
+        with:
+          just-version: 1.46.0
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@1.97.1
       - name: Install ALSA
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
@@ -68,8 +72,10 @@ jobs:
     steps:
       - name: Setup just
         uses: extractions/setup-just@v4
+        with:
+          just-version: 1.46.0
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@1.97.1
 
       - name: Install ALSA
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
