@@ -273,6 +273,10 @@ pub fn render_text_bg<T: TextBgConfig>(
     let tilemap_index = local_tile_y * 32 + local_tile_x;
     let tilemap_entry_addr = screen_base + screen_block_offset + tilemap_index * 2;
 
+    if tilemap_entry_addr + 1 >= memory.video_ram.len() {
+        return None;
+    }
+
     let tilemap_entry = u16::from_le_bytes([
         memory.video_ram[tilemap_entry_addr],
         memory.video_ram[tilemap_entry_addr + 1],
@@ -304,10 +308,16 @@ pub fn render_text_bg<T: TextBgConfig>(
     let palette_index = if is_8bpp {
         // 8bpp: 64 bytes per tile, 1 byte per pixel
         let offset = char_base + tile_number * 64 + final_pixel_y * 8 + final_pixel_x;
+        if offset >= memory.video_ram.len() {
+            return None;
+        }
         memory.video_ram[offset] as usize
     } else {
         // 4bpp: 32 bytes per tile, 4 bits per pixel (2 pixels per byte)
         let offset = char_base + tile_number * 32 + final_pixel_y * 4 + final_pixel_x / 2;
+        if offset >= memory.video_ram.len() {
+            return None;
+        }
         let byte = memory.video_ram[offset];
         if final_pixel_x % 2 == 0 {
             (byte & 0x0F) as usize
