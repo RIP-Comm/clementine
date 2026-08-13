@@ -62,15 +62,10 @@ impl Arm7tdmi {
             Operation::Mov => {
                 self.registers.set_register_at(dest, offset);
 
-                // FIXME: Not sure if we should preserve the carry flag.
-                // Documentation says that this is equal to an ARM MOVS Rd, #offset8
-                // And in general MOV doesn't preserve the carry flag in ARM
-                self.cpsr.set_carry_flag(false);
+                // Equivalent to ARM MOVS Rd, #offset8 with a rotate of 0, which
+                // leaves the carry untouched and only updates N and Z. offset8 is
+                // zero-extended so the result is never negative.
                 self.cpsr.set_zero_flag(offset == 0);
-
-                // FIXME: Since we're using an 8bits immediate it can't be negative since it's zero-extended
-                // To check if it's zero-extended for real. Documentation says that this is equal to an
-                // ARM MOVS Rd, #offset8 and ARM zero-extends in Mov immediate.
                 self.cpsr.set_sign_flag(false);
             }
             Operation::Cmp => {
