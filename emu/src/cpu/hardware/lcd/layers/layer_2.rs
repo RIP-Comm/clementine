@@ -138,9 +138,9 @@ impl Layer for Layer2 {
         match registers.get_bg_mode() {
             0 => render_text_bg(self, x, y, memory, registers),
             1 | 2 => render_affine_bg(self, x, y, memory, registers),
-            3 => Self::render_mode3(x, y, memory),
+            3 => Self::render_mode3(x, y, memory, registers),
             4 => Self::render_mode4(x, y, memory, registers),
-            5 => Self::render_mode5(x, y, memory),
+            5 => Self::render_mode5(x, y, memory, registers),
             _ => None,
         }
     }
@@ -148,7 +148,12 @@ impl Layer for Layer2 {
 
 impl Layer2 {
     /// Render BG2 in Mode 3 (240×160, 15-bit direct color bitmap).
-    fn render_mode3(x: usize, y: usize, memory: &Memory) -> Option<PixelInfo> {
+    fn render_mode3(
+        x: usize,
+        y: usize,
+        memory: &Memory,
+        registers: &Registers,
+    ) -> Option<PixelInfo> {
         // Mode 3: linear bitmap, 2 bytes per pixel
         let offset = (y * 240 + x) * 2;
 
@@ -160,7 +165,7 @@ impl Layer2 {
 
         Some(PixelInfo {
             color: Color::from_palette_color(color),
-            priority: 0,
+            priority: registers.bg2cnt.get_bits(0..=1) as u8,
             layer: 2,
         })
     }
@@ -198,13 +203,18 @@ impl Layer2 {
 
         Some(PixelInfo {
             color: Color::from_palette_color(color),
-            priority: 0,
+            priority: registers.bg2cnt.get_bits(0..=1) as u8,
             layer: 2,
         })
     }
 
     /// Render BG2 in Mode 5 (160×128, 15-bit direct color bitmap with page flipping).
-    fn render_mode5(x: usize, y: usize, memory: &Memory) -> Option<PixelInfo> {
+    fn render_mode5(
+        x: usize,
+        y: usize,
+        memory: &Memory,
+        registers: &Registers,
+    ) -> Option<PixelInfo> {
         // Mode 5: smaller resolution, transparent outside
         if x >= 160 || y >= 128 {
             return None;
@@ -220,7 +230,7 @@ impl Layer2 {
 
         Some(PixelInfo {
             color: Color::from_palette_color(color),
-            priority: 0,
+            priority: registers.bg2cnt.get_bits(0..=1) as u8,
             layer: 2,
         })
     }
