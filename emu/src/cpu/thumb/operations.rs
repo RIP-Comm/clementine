@@ -613,7 +613,8 @@ impl Arm7tdmi {
         // On a load with the base register in the list, the value fetched from
         // memory wins and no write-back happens. Otherwise write back the
         // incremented base.
-        let base_in_list = load_store == LoadStoreKind::Load && register_list.is_bit_on(base_register as u8);
+        let base_in_list =
+            load_store == LoadStoreKind::Load && register_list.is_bit_on(base_register as u8);
         if !base_in_list {
             self.registers
                 .set_register_at(base_register, base_address + register_count * 4);

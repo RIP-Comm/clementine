@@ -373,6 +373,11 @@ pub trait AffineBgConfig {
     fn get_bg_control(&self, reg: &Registers) -> u16;
 }
 
+/// Sign-extend a 28-bit affine reference point (BGxX/BGxY) held in a u32 to a full i32, where bit 27 is the sign and bits 28-31 are ignored.
+pub const fn sign_extend_28(value: u32) -> i32 {
+    ((value << 4).cast_signed()) >> 4
+}
+
 /// Renders an affine-mode background pixel.
 ///
 /// This is the shared implementation for affine backgrounds (BG2/BG3 in mode 2).
@@ -389,12 +394,6 @@ pub trait AffineBgConfig {
 /// - Always 8bpp color mode
 /// - Map sizes: 128×128, 256×256, 512×512, or 1024×1024
 /// - Optional wraparound at map edges
-/// Sign-extend a 28-bit affine reference point (BGxX/BGxY) stored in a u32 to
-/// a full i32. Bit 27 is the sign bit, and bits 28-31 are ignored.
-pub fn sign_extend_28(value: u32) -> i32 {
-    ((value << 4) as i32) >> 4
-}
-
 pub fn render_affine_bg<T: AffineBgConfig>(
     config: &T,
     screen_x: usize,
