@@ -266,7 +266,10 @@ impl Lcd {
         if self.registers.vcount.get_byte(0) == self.registers.get_vcount_setting() {
             self.registers.set_vcounter_flag(true);
 
-            if self.registers.get_vcounter_irq_enable() {
+            // Edge-trigger the IRQ: request it once when the line changes into a
+            // match (pixel_index just wrapped to 0), not on every pixel of the
+            // matching scanline.
+            if self.pixel_index == 0 && self.registers.get_vcounter_irq_enable() {
                 output.request_vcount_irq = true;
             }
         }
