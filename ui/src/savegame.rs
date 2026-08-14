@@ -15,8 +15,6 @@ pub struct SaveGame {
     pending_save: bool,
     /// Status message to display.
     status: Option<String>,
-    /// Set when a load attempt failed -- prevents accidental overwrite of the .sav file.
-    load_failed: bool,
 }
 
 impl SaveGame {
@@ -25,7 +23,6 @@ impl SaveGame {
             emu_handle,
             pending_save: false,
             status: None,
-            load_failed: false,
         }
     }
 
@@ -119,12 +116,10 @@ impl SaveGame {
 
         if let Some(error_msg) = handle.load_state_error.take() {
             self.status = Some(format!("Error: {error_msg}"));
-            self.load_failed = true;
         }
 
         if handle.load_state_success {
             handle.load_state_success = false;
-            self.load_failed = false;
             self.status = Some("State loaded successfully.".to_string());
         }
     }
@@ -148,14 +143,11 @@ impl UiTool for SaveGame {
 
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let save_btn = ui.add_enabled(!self.load_failed, egui::Button::new("Save"));
-            if save_btn.clicked() {
+            // Save stays enabled even after a failed load. An incompatible .sav
+            // is exactly the case where the user needs to write a fresh save
+            // over it, and the atomic write never corrupts the old file.
+            if ui.button("Save").clicked() {
                 self.save_state();
-            }
-            if self.load_failed {
-                save_btn.on_disabled_hover_text(
-                    "Save disabled: last load failed. Load a valid state first.",
-                );
             }
 
             if ui.button("Load").clicked() {
