@@ -419,27 +419,30 @@ impl Lcd {
 
         match blend_mode {
             1 => {
-                // Alpha blending - blend top with second target below it
+                // Alpha blending only happens with the layer directly below the
+                // top pixel. If that layer is not a second target, there is no
+                // blend even when a lower layer would qualify.
                 let target2 = self.registers.get_blend_target2();
 
-                // Find the second layer that is a target2
-                let second_layer = layers.iter().skip(1).find(|p| match p.layer {
-                    0 => target2.0,
-                    1 => target2.1,
-                    2 => target2.2,
-                    3 => target2.3,
-                    4 => target2.4,
-                    _ => false,
-                });
-
-                let second_color = if let Some(layer) = second_layer {
-                    layer.color
-                } else if target2.5 {
-                    // Backdrop is target2
-                    backdrop_color
-                } else {
-                    // No valid second target found
-                    return top_color;
+                let second_color = match layers.get(1) {
+                    Some(layer) => {
+                        let is_target2 = match layer.layer {
+                            0 => target2.0,
+                            1 => target2.1,
+                            2 => target2.2,
+                            3 => target2.3,
+                            4 => target2.4,
+                            _ => false,
+                        };
+                        if is_target2 {
+                            layer.color
+                        } else {
+                            return top_color;
+                        }
+                    }
+                    // Nothing below the top pixel but the backdrop.
+                    None if target2.5 => backdrop_color,
+                    None => return top_color,
                 };
 
                 let (eva, evb) = self.registers.get_blend_alpha();
@@ -528,5 +531,44 @@ impl Lcd {
         }
 
         self.registers.get_winout_enables()
+    }
+}
+
+#[cfg(test)]
+mod blend_tests {
+    use super::{Color, Lcd, PixelInfo};
+
+    fn px(color: u16, layer: u8) -> PixelInfo {
+        PixelInfo {
+            color: Color(color),
+            priority: 0,
+            layer,
+        }
+    }
+
+    #[test]
+    fn alpha_blend_only_uses_the_layer_directly_below() {
+        let mut lcd = Lcd::default();
+        // Alpha mode (BLDCNT bits 6-7 = 01), BG0 = target1 (bit 0),
+        // BG2 = target2 (bit 10). BG1 is not a target2.
+        lcd.registers.bldcnt = (1 << 6) | (1 << 0) | (1 << 10);
+        let top = Color(0x7FFF);
+
+        // Directly below the top BG0 is BG1 (not target2); BG2 further down is a
+        // target2 but must be ignored, so no blend happens.
+        let layers = [px(0x7FFF, 0), px(0x1234, 1), px(0x0421, 2)];
+        assert_eq!(
+            lcd.apply_blend_effect(top, 0, &layers, Color(0)).0,
+            top.0,
+            "must not blend with a target2 that is not directly below"
+        );
+
+        // With BG2 (a target2) directly below the top, blending occurs.
+        let layers = [px(0x7FFF, 0), px(0x0421, 2)];
+        assert_ne!(
+            lcd.apply_blend_effect(top, 0, &layers, Color(0)).0,
+            top.0,
+            "must blend when the layer directly below is a target2"
+        );
     }
 }
