@@ -130,7 +130,7 @@ impl Default for Memory {
     fn default() -> Self {
         Self {
             bg_palette_ram: Box::new([0; 0x200]),
-            obj_palette_ram: Box::new([8; 0x200]),
+            obj_palette_ram: Box::new([0; 0x200]),
             video_ram: Box::new([0; 0x18000]),
             obj_attributes: Box::new([0; 0x400]),
         }
