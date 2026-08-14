@@ -119,6 +119,7 @@ pub(crate) enum IrqType {
     Dma1,
     Dma2,
     Dma3,
+    Keypad,
 }
 
 impl IrqType {
@@ -135,6 +136,7 @@ impl IrqType {
             Self::Dma1 => 9,
             Self::Dma2 => 10,
             Self::Dma3 => 11,
+            Self::Keypad => 12,
         }
     }
 
@@ -1257,6 +1259,12 @@ impl Bus {
             if lcd_output.request_vcount_irq {
                 self.request_interrupt(IrqType::VCount);
             }
+        }
+
+        // The keypad interrupt is level based, so re-request it while the
+        // selected key combination is held.
+        if self.keypad.irq_condition_met() {
+            self.request_interrupt(IrqType::Keypad);
         }
 
         vblank_started

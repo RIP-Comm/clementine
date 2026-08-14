@@ -38,6 +38,27 @@ impl Keypad {
         }
     }
 
+    /// Whether the keypad interrupt condition currently holds. KEYCNT bit 14
+    /// enables the interrupt, bits 0-9 select the keys, and bit 15 chooses the
+    /// condition: 0 means any selected key is pressed, 1 means all of them are.
+    /// `key_input` is active low, so a pressed key reads as 0.
+    #[must_use]
+    pub const fn irq_condition_met(&self) -> bool {
+        if self.key_interrupt_control & (1 << 14) == 0 {
+            return false;
+        }
+        let selected = self.key_interrupt_control & 0x03FF;
+        if selected == 0 {
+            return false;
+        }
+        let pressed = !self.key_input & 0x03FF;
+        if self.key_interrupt_control & (1 << 15) == 0 {
+            pressed & selected != 0
+        } else {
+            pressed & selected == selected
+        }
+    }
+
     /// Set button state: pressed = true, released = false.
     /// GBA uses active-low logic: bit 0 = pressed, bit 1 = released.
     pub const fn set_button(&mut self, button: GbaButton, pressed: bool) {
@@ -48,5 +69,41 @@ impl Keypad {
             // Release: set the bit (set to 1)
             self.key_input |= button as u16;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GbaButton, Keypad};
+
+    #[test]
+    fn no_irq_when_disabled() {
+        let mut kp = Keypad::new();
+        // Select A and press it, but leave the enable bit (14) off.
+        kp.key_interrupt_control = GbaButton::A as u16;
+        kp.set_button(GbaButton::A, true);
+        assert!(!kp.irq_condition_met());
+    }
+
+    #[test]
+    fn or_condition_fires_on_any_selected_key() {
+        let mut kp = Keypad::new();
+        // Enable IRQ, OR mode, select A and B.
+        kp.key_interrupt_control = (1 << 14) | GbaButton::A as u16 | GbaButton::B as u16;
+        assert!(!kp.irq_condition_met());
+        kp.set_button(GbaButton::B, true);
+        assert!(kp.irq_condition_met());
+    }
+
+    #[test]
+    fn and_condition_needs_all_selected_keys() {
+        let mut kp = Keypad::new();
+        // Enable IRQ, AND mode (bit 15), select A and B.
+        kp.key_interrupt_control =
+            (1 << 15) | (1 << 14) | GbaButton::A as u16 | GbaButton::B as u16;
+        kp.set_button(GbaButton::A, true);
+        assert!(!kp.irq_condition_met(), "only one of two keys held");
+        kp.set_button(GbaButton::B, true);
+        assert!(kp.irq_condition_met(), "both selected keys held");
     }
 }
