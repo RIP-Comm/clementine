@@ -687,8 +687,9 @@ impl Sound {
             right += b;
         }
 
-        // Two full-scale channels can sum to 2.0, so halve to stay unclipped.
-        (left * 0.5, right * 0.5)
+        // No pre-attenuation: a single active channel plays at full scale like
+        // hardware, and the final mix clamps if two channels sum past 1.0.
+        (left, right)
     }
 
     fn mix_psg(&self) -> (f32, f32) {
@@ -805,6 +806,20 @@ mod tests {
 
         s.step(512);
         assert_eq!(consumer.slots(), 2); // one left + one right
+    }
+
+    #[test]
+    fn dma_sound_single_channel_plays_at_full_scale() {
+        let s = Sound {
+            sample_a: 127, // max 8-bit signed sample
+            // SOUNDCNT_H: bit 2 = channel A full volume, bits 9 and 8 = A to
+            // the left and right outputs.
+            control_mixing_dma_control: (1 << 2) | (1 << 9) | (1 << 8),
+            ..Default::default()
+        };
+        let (left, right) = s.mix_dma_sound();
+        assert!(left > 0.9, "single channel must be near full scale: {left}");
+        assert!((left - right).abs() < 1e-6);
     }
 
     #[test]
