@@ -1144,24 +1144,32 @@ impl Bus {
                 tracing::debug!("OAM byte write ignored");
                 return;
             }
-            // VRAM byte writes: In bitmap modes, byte writes are duplicated to halfwords
-            // and work throughout the framebuffer area. In tile modes, byte writes to
-            // OBJ VRAM (0x0601_0000-0x0601_7FFF) have special behavior.
-            // For now, allow byte writes to all of VRAM (96KB = 0x0001_8000 bytes)
+            // VRAM byte writes: a write to BG VRAM is duplicated across the
+            // aligned halfword, while a write to OBJ VRAM is ignored. The
+            // BG/OBJ boundary is 0x10000 in tile modes and 0x14000 in bitmap
+            // modes.
             0x0600_0000..=0x06FF_FFFF => {
                 let unmasked_address =
                     get_unmasked_address(address, 0x00FF_0000, 0xFF00_FFFF, 16, 2);
 
-                // Byte writes work throughout VRAM (duplicated as halfword)
-                if unmasked_address < 0x0601_8000 {
-                    // Write as halfword with byte duplicated, aligned to halfword boundary
+                // De-mirror the last 32K so the offset is within the real 96K.
+                let offset = unmasked_address - 0x0600_0000;
+                let vram_offset = if offset >= 0x1_8000 {
+                    offset - 0x8000
+                } else {
+                    offset
+                };
+
+                let bg_mode = self.lcd.registers.dispcnt & 0b111;
+                let obj_boundary = if bg_mode >= 3 { 0x1_4000 } else { 0x1_0000 };
+
+                if vram_offset < obj_boundary {
+                    // BG VRAM: duplicate the byte across the halfword.
                     let aligned_address = address & !1;
                     self.write_raw(aligned_address, value);
                     self.write_raw(aligned_address + 1, value);
                 } else {
-                    tracing::debug!(
-                        "VRAM byte write ignored (unmasked address 0x{unmasked_address:08X} >= 0x0601_8000)"
-                    );
+                    tracing::debug!("VRAM byte write to OBJ region ignored at 0x{address:08X}");
                 }
                 return;
             }
@@ -1600,6 +1608,36 @@ mod tests {
             0,
             "DMA0 completion must set IF bit 8"
         );
+    }
+
+    #[test]
+    fn vram_byte_write_ignored_in_obj_region_tile_mode() {
+        let mut bus = Bus::default();
+        bus.lcd.registers.dispcnt = 0; // tile mode 0, OBJ starts at 0x10000
+
+        // BG region: duplicated across the halfword.
+        bus.write_byte(0x0600_0000, 0xCD);
+        assert_eq!(bus.lcd.memory.video_ram[0], 0xCD);
+        assert_eq!(bus.lcd.memory.video_ram[1], 0xCD);
+
+        // OBJ region: ignored.
+        bus.write_byte(0x0601_0000, 0xAB);
+        assert_eq!(bus.lcd.memory.video_ram[0x1_0000], 0);
+    }
+
+    #[test]
+    fn vram_byte_write_boundary_is_mode_dependent() {
+        let mut bus = Bus::default();
+        bus.lcd.registers.dispcnt = 3; // bitmap mode 3, OBJ starts at 0x14000
+
+        // 0x10000 is BG in bitmap mode, so it is duplicated.
+        bus.write_byte(0x0601_0000, 0x11);
+        assert_eq!(bus.lcd.memory.video_ram[0x1_0000], 0x11);
+        assert_eq!(bus.lcd.memory.video_ram[0x1_0001], 0x11);
+
+        // 0x14000 is OBJ in bitmap mode, so it is ignored.
+        bus.write_byte(0x0601_4000, 0x22);
+        assert_eq!(bus.lcd.memory.video_ram[0x1_4000], 0);
     }
 
     #[test]
