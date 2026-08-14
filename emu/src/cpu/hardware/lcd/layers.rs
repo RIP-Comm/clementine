@@ -348,6 +348,7 @@ pub fn render_text_bg<T: TextBgConfig>(
         color,
         priority: config.get_priority(registers),
         layer: config.layer_id(),
+        semi_transparent: false,
     })
 }
 
@@ -513,6 +514,7 @@ pub fn render_affine_bg<T: AffineBgConfig>(
         color,
         priority,
         layer: config.layer_id(),
+        semi_transparent: false,
     })
 }
 

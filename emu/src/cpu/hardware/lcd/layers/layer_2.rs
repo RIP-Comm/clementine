@@ -167,6 +167,7 @@ impl Layer2 {
             color: Color::from_palette_color(color),
             priority: registers.bg2cnt.get_bits(0..=1) as u8,
             layer: 2,
+            semi_transparent: false,
         })
     }
 
@@ -205,6 +206,7 @@ impl Layer2 {
             color: Color::from_palette_color(color),
             priority: registers.bg2cnt.get_bits(0..=1) as u8,
             layer: 2,
+            semi_transparent: false,
         })
     }
 
@@ -232,6 +234,7 @@ impl Layer2 {
             color: Color::from_palette_color(color),
             priority: registers.bg2cnt.get_bits(0..=1) as u8,
             layer: 2,
+            semi_transparent: false,
         })
     }
 }

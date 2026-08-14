@@ -145,6 +145,9 @@ struct PixelInfo {
     /// Lower values are drawn on top when priorities are equal.
     /// OBJ (4) is treated specially, it wins ties with BGs of same priority.
     layer: u8,
+    /// Set for OBJ pixels drawn in the semi-transparent gfx mode. Such a pixel
+    /// forces alpha blending with the layer below regardless of BLDCNT.
+    semi_transparent: bool,
 }
 
 #[serde_as]
@@ -393,7 +396,17 @@ impl Lcd {
         layers: &[PixelInfo],
         backdrop_color: Color,
     ) -> Color {
-        let blend_mode = self.registers.get_blend_mode();
+        // A semi-transparent OBJ on top forces alpha blending and acts as a
+        // first target regardless of BLDCNT.
+        let semi_obj = layers
+            .first()
+            .is_some_and(|p| p.layer == 4 && p.semi_transparent);
+
+        let blend_mode = if semi_obj {
+            1
+        } else {
+            self.registers.get_blend_mode()
+        };
 
         // Mode 0 = no blending
         if blend_mode == 0 {
@@ -403,15 +416,16 @@ impl Lcd {
         let target1 = self.registers.get_blend_target1();
 
         // Check if top layer is a first target
-        let is_target1 = match top_layer {
-            0 => target1.0, // BG0
-            1 => target1.1, // BG1
-            2 => target1.2, // BG2
-            3 => target1.3, // BG3
-            4 => target1.4, // OBJ
-            5 => target1.5, // Backdrop
-            _ => false,
-        };
+        let is_target1 = semi_obj
+            || match top_layer {
+                0 => target1.0, // BG0
+                1 => target1.1, // BG1
+                2 => target1.2, // BG2
+                3 => target1.3, // BG3
+                4 => target1.4, // OBJ
+                5 => target1.5, // Backdrop
+                _ => false,
+            };
 
         if !is_target1 {
             return top_color;
@@ -543,6 +557,16 @@ mod blend_tests {
             color: Color(color),
             priority: 0,
             layer,
+            semi_transparent: false,
+        }
+    }
+
+    fn semi_obj_px(color: u16) -> PixelInfo {
+        PixelInfo {
+            color: Color(color),
+            priority: 0,
+            layer: 4,
+            semi_transparent: true,
         }
     }
 
@@ -569,6 +593,32 @@ mod blend_tests {
             lcd.apply_blend_effect(top, 0, &layers, Color(0)).0,
             top.0,
             "must blend when the layer directly below is a target2"
+        );
+    }
+
+    #[test]
+    fn semi_transparent_obj_forces_alpha_blend() {
+        let mut lcd = Lcd::default();
+        // No blend mode selected (bits 6-7 = 0) and OBJ not a target1, but BG0
+        // is a second target (bit 8).
+        lcd.registers.bldcnt = 1 << 8;
+        let top = Color(0x7FFF);
+
+        // A semi-transparent OBJ on top blends with the BG0 target2 below it,
+        // even though BLDCNT has no blend mode and OBJ is not a first target.
+        let layers = [semi_obj_px(0x7FFF), px(0x0421, 0)];
+        assert_ne!(
+            lcd.apply_blend_effect(top, 4, &layers, Color(0)).0,
+            top.0,
+            "semi-transparent OBJ must blend with the target2 below"
+        );
+
+        // If the layer directly below is not a second target, no blend happens.
+        let layers = [semi_obj_px(0x7FFF), px(0x0421, 1)];
+        assert_eq!(
+            lcd.apply_blend_effect(top, 4, &layers, Color(0)).0,
+            top.0,
+            "no blend when the layer below is not a target2"
         );
     }
 }

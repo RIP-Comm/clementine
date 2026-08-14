@@ -465,6 +465,10 @@ impl LayerObj {
                     ),
                     priority: obj.attribute2.priority,
                     layer: 4,
+                    semi_transparent: matches!(
+                        obj.attribute0.gfx_mode,
+                        object_attributes::GfxMode::AlphaBlending
+                    ),
                 };
 
                 self.sprite_pixels_scanline[x_screen as usize] =
