@@ -1533,7 +1533,7 @@ impl Bus {
     /// Returns true if there is an enabled interrupt pending
     #[must_use]
     pub const fn is_irq_pending(&self) -> bool {
-        // Only 14 interrupt sources exist; bits 14-15 of IE/IF are unused, and
+        // Only 14 interrupt sources exist. Bits 14-15 of IE/IF are unused, and
         // only bit 0 of IME is meaningful. Mask them so stray upper bits cannot
         // spoof a pending interrupt.
         const IRQ_MASK: u16 = 0x3FFF;

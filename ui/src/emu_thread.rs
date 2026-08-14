@@ -729,7 +729,7 @@ impl EmuThread {
     }
 
     /// Send an event to the UI. Droppable events are dropped when the ring is
-    /// full; reliable ones are queued and retried on later sends.
+    /// full. Reliable ones are queued and retried on later sends.
     fn send_event(&mut self, event: EmuEvent) {
         // Retry previously queued reliable events first, keeping their order.
         while let Some(pending) = self.pending_events.pop_front() {

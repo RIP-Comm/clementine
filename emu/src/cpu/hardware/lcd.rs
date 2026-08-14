@@ -578,7 +578,7 @@ mod blend_tests {
         lcd.registers.bldcnt = (1 << 6) | (1 << 0) | (1 << 10);
         let top = Color(0x7FFF);
 
-        // Directly below the top BG0 is BG1 (not target2); BG2 further down is a
+        // Directly below the top BG0 is BG1 (not target2). BG2 further down is a
         // target2 but must be ignored, so no blend happens.
         let layers = [px(0x7FFF, 0), px(0x1234, 1), px(0x0421, 2)];
         assert_eq!(

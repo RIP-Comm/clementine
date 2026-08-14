@@ -321,8 +321,8 @@ impl InternalMemory {
         match address {
             // ROM (wait state 0, 1, 2) - most common case (instruction fetches)
             0x0800_0000..=0x0DFF_FFFC => {
-                // A GPIO cart maps 0xC4-0xC9 to registers; route overlapping
-                // reads to the slow byte path so they see live GPIO state.
+                // A GPIO cart maps 0xC4-0xC9 to registers, so route overlapping
+                // reads to the slow byte path where they see live GPIO state.
                 let raw = address & 0x01FF_FFFF;
                 if self.gpio_present && raw <= 0xC9 && raw + 3 >= 0xC4 {
                     return None;
@@ -497,14 +497,14 @@ impl InternalMemory {
             for (i, byte) in data.chunks(8).enumerate() {
                 self.sram[base + i] = byte.iter().fold(0u8, |acc, &b| (acc << 1) | u8::from(b));
             }
-            // Programming done; subsequent reads report ready.
+            // Programming done, so subsequent reads report ready.
             self.eeprom_out.clear();
         }
         self.eeprom_out_pos = 0;
     }
 
     /// Byte offset in `sram` for an EEPROM block, masked to the decoded size (64
-    /// blocks for 6-bit, 1024 for 14-bit; each block is 8 bytes).
+    /// blocks for 6-bit, 1024 for 14-bit, and each block is 8 bytes).
     const fn eeprom_block_offset(addr: usize, width: usize) -> usize {
         let blocks = if width == 14 { 1024 } else { 64 };
         (addr % blocks) * 8

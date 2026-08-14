@@ -535,7 +535,7 @@ impl Registers {
 /// screen edge clamps naturally because visible x never reaches it.
 const fn in_horizontal_range(left: u8, right: u8, x: u8) -> bool {
     if left >= right {
-        // Inverted window covers [left, edge); equal bounds is an empty window.
+        // Inverted window covers [left, edge). Equal bounds is an empty window.
         left != right && x >= left
     } else {
         x >= left && x < right
@@ -548,7 +548,7 @@ const fn in_horizontal_range(left: u8, right: u8, x: u8) -> bool {
 /// `bottom < top` the window runs from `top` to the bottom of the screen.
 const fn in_vertical_range(top: u8, bottom: u8, y: u8) -> bool {
     if top >= bottom {
-        // Inverted window covers [top, edge); equal bounds is an empty window.
+        // Inverted window covers [top, edge). Equal bounds is an empty window.
         top != bottom && y >= top
     } else {
         y >= top && y < bottom
