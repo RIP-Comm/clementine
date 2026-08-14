@@ -121,6 +121,7 @@ use crate::{
 use egui::Key;
 use std::{
     collections::BTreeSet,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -165,7 +166,7 @@ impl App {
     /// # Panics
     /// It panics if the cartridge can't be opened.
     #[must_use]
-    pub fn new(bios_data: &[u8], cartridge_data: &[u8]) -> Self {
+    pub fn new(bios_data: &[u8], cartridge_data: &[u8], battery_path: Option<PathBuf>) -> Self {
         let mut gba = Gba::new(
             bios_data[0..0x0000_4000].try_into().unwrap(),
             cartridge_data,
@@ -180,7 +181,7 @@ impl App {
         let audio_controls = audio.as_ref().map(AudioPlayer::controls);
 
         // Spawn the emulator thread and get the handle
-        let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx)));
+        let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx, battery_path)));
 
         // Fast-forward key is shared so the speed panel can rebind it while the
         // input handler reads it each frame. Defaults to Space.

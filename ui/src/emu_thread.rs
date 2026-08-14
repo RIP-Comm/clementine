@@ -31,6 +31,7 @@
 //! - **Disasm** (CPU → UI): `DisasmEntry` for disassembler (reuses existing channel)
 
 use std::collections::{BTreeSet, VecDeque};
+use std::path::PathBuf;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -235,6 +236,13 @@ struct EmuThread {
     /// Reliable events that did not fit in the ring, retried on later sends so
     /// responses like save-state data are never silently dropped.
     pending_events: VecDeque<EmuEvent>,
+
+    /// Where the cartridge battery save is written, if a path was provided.
+    battery_path: Option<PathBuf>,
+    /// A battery write is pending after a recent save, debounced by the counter.
+    battery_pending: bool,
+    /// Batches of quiet remaining before the pending battery write is flushed.
+    battery_debounce: u32,
 }
 
 /// A memory region held at a constant value, re-applied once per frame.
@@ -248,6 +256,7 @@ impl EmuThread {
         gba: Gba,
         cmd_rx: rtrb::Consumer<EmuCommand>,
         event_tx: rtrb::Producer<EmuEvent>,
+        battery_path: Option<PathBuf>,
     ) -> Self {
         Self {
             gba,
@@ -261,21 +270,61 @@ impl EmuThread {
             frame_counter: 0,
             freezes: Vec::new(),
             pending_events: VecDeque::new(),
+            battery_path,
+            battery_pending: false,
+            battery_debounce: 0,
         }
     }
 
     fn run(mut self) {
         loop {
             if self.process_commands() {
-                return; // shutdown
+                // Persist any unsaved battery data on exit, but only if the game
+                // actually wrote to save memory.
+                if self.battery_pending || self.gba.cpu.bus.internal_memory.take_save_dirty() {
+                    self.flush_battery();
+                }
+                return;
             }
 
             if self.running || self.steps_remaining > 0 {
                 self.execute_batch();
+                self.tick_battery_flush();
             } else {
                 // sleep briefly to avoid busy-waiting
                 thread::sleep(Duration::from_millis(1));
             }
+        }
+    }
+
+    /// Debounce battery writes: mark a write pending when the save memory changes
+    /// and flush once emulation has been quiet for a short while, so a multi-byte
+    /// save becomes a single file write.
+    fn tick_battery_flush(&mut self) {
+        if self.gba.cpu.bus.internal_memory.take_save_dirty() {
+            self.battery_pending = true;
+            self.battery_debounce = 120;
+        } else if self.battery_pending {
+            self.battery_debounce = self.battery_debounce.saturating_sub(1);
+            if self.battery_debounce == 0 {
+                self.flush_battery();
+            }
+        }
+    }
+
+    /// Write the cartridge battery save to disk atomically, if a path is set.
+    fn flush_battery(&mut self) {
+        self.battery_pending = false;
+        let Some(path) = self.battery_path.clone() else {
+            return;
+        };
+        let data = self.gba.cpu.bus.internal_memory.battery_data();
+        let tmp = path.with_extension("srm.tmp");
+        if std::fs::write(&tmp, data)
+            .and_then(|()| std::fs::rename(&tmp, &path))
+            .is_err()
+        {
+            // Best effort: a failed battery flush must not crash emulation.
         }
     }
 
@@ -861,7 +910,18 @@ impl Drop for EmuHandle {
 ///
 /// # Returns
 /// An `EmuHandle` for sending commands and receiving events.
-pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
+pub fn spawn(
+    mut gba: Gba,
+    disasm_rx: rtrb::Consumer<DisasmEntry>,
+    battery_path: Option<PathBuf>,
+) -> EmuHandle {
+    // Load an existing battery save into the cartridge save memory.
+    if let Some(path) = &battery_path
+        && let Ok(data) = std::fs::read(path)
+    {
+        gba.cpu.bus.internal_memory.load_battery(&data);
+    }
+
     // Create command channel (UI → CPU)
     let (cmd_tx, cmd_rx) = rtrb::RingBuffer::new(COMMAND_BUFFER_SIZE);
 
@@ -896,7 +956,7 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
 
     // Spawn the emulator thread
     let thread_handle = thread::spawn(move || {
-        let emu_thread = EmuThread::new(gba, cmd_rx, event_tx);
+        let emu_thread = EmuThread::new(gba, cmd_rx, event_tx, battery_path);
         emu_thread.run();
     });
 

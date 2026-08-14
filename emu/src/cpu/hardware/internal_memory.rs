@@ -181,6 +181,11 @@ pub struct InternalMemory {
     /// Real-time clock driven over the GPIO pins.
     rtc: super::rtc::Rtc,
 
+    /// Set whenever the cartridge save memory is written, so the host can flush
+    /// the battery file. Not serialized.
+    #[serde(skip)]
+    save_dirty: bool,
+
     /// From 0x00004000 to `0x01FF_FFFF`.
     /// From 0x10000000 to `0xFFFF_FFFF`.
     unused_region: HashMap<usize, u8>,
@@ -216,6 +221,7 @@ impl InternalMemory {
             gpio_control: 1,   // GPIO enabled (allow reads)
             gpio_present: false,
             rtc: super::rtc::Rtc::default(),
+            save_dirty: false,
             unused_region: HashMap::new(),
             eeprom_buffer: Vec::new(),
             eeprom_out: Vec::new(),
@@ -227,6 +233,27 @@ impl InternalMemory {
     /// where the ROM is restored separately and `backup_type` is not serialized.
     pub fn redetect_backup_type(&mut self) {
         self.backup_type = BackupType::detect(&self.rom);
+    }
+
+    /// The cartridge battery save memory (SRAM, Flash or EEPROM contents).
+    #[must_use]
+    pub fn battery_data(&self) -> &[u8] {
+        &self.sram
+    }
+
+    /// Load a battery save file into the save memory, truncating or leaving the
+    /// tail untouched if the sizes differ.
+    pub fn load_battery(&mut self, data: &[u8]) {
+        let len = data.len().min(self.sram.len());
+        self.sram[..len].copy_from_slice(&data[..len]);
+    }
+
+    /// Take the save-dirty flag, clearing it. Returns true if the save memory was
+    /// written since the last call.
+    pub const fn take_save_dirty(&mut self) -> bool {
+        let dirty = self.save_dirty;
+        self.save_dirty = false;
+        dirty
     }
 }
 
@@ -250,6 +277,7 @@ impl Default for InternalMemory {
             gpio_control: 1,
             gpio_present: false,
             rtc: super::rtc::Rtc::default(),
+            save_dirty: false,
             unused_region: HashMap::new(),
             eeprom_buffer: Vec::new(),
             eeprom_out: Vec::new(),
@@ -510,6 +538,7 @@ impl InternalMemory {
             for (i, byte) in data.chunks(8).enumerate() {
                 self.sram[base + i] = byte.iter().fold(0u8, |acc, &b| (acc << 1) | u8::from(b));
             }
+            self.save_dirty = true;
             // Programming done, so subsequent reads report ready.
             self.eeprom_out.clear();
         }
@@ -636,6 +665,7 @@ impl InternalMemory {
                     BackupType::Sram => {
                         let masked = (address - 0x0E00_0000) & (self.sram.len() - 1);
                         self.sram[masked] = value;
+                        self.save_dirty = true;
                     }
                     BackupType::Flash64 | BackupType::Flash128 => {
                         self.flash_write(offset, value);
@@ -745,6 +775,7 @@ impl InternalMemory {
                     // Chip erase
                     tracing::debug!("Flash: Chip erase");
                     self.sram.fill(0xFF);
+                    self.save_dirty = true;
                     self.flash_state = FlashState::Ready;
                 } else if value == 0x30 {
                     // Sector erase (4KB sector)
@@ -755,6 +786,7 @@ impl InternalMemory {
                             self.sram[sector_base + i] = 0xFF;
                         }
                     }
+                    self.save_dirty = true;
                 }
                 self.flash_state = FlashState::Ready;
             }
@@ -772,6 +804,7 @@ impl InternalMemory {
                 if real_offset < self.sram.len() {
                     // Flash write: can only clear bits (AND operation)
                     self.sram[real_offset] &= value;
+                    self.save_dirty = true;
                     tracing::debug!("Flash: Write 0x{value:02X} to offset 0x{real_offset:05X}");
                 }
                 self.flash_state = FlashState::Ready;
@@ -948,6 +981,27 @@ mod tests {
             }
         }
         assert_eq!(got, data, "EEPROM read must return what was written");
+    }
+
+    #[test]
+    fn battery_loads_and_marks_dirty_on_save_write() {
+        let mut im = InternalMemory {
+            backup_type: BackupType::Sram,
+            sram: vec![0xFF; 0x8000],
+            ..Default::default()
+        };
+
+        im.load_battery(&[1, 2, 3]);
+        assert_eq!(&im.battery_data()[..3], &[1, 2, 3]);
+
+        // No save write yet.
+        assert!(!im.take_save_dirty());
+
+        // A write to SRAM marks the battery dirty and lands in the buffer.
+        im.write_at(0x0E00_0000, 0x42);
+        assert!(im.take_save_dirty());
+        assert!(!im.take_save_dirty(), "flag clears after being taken");
+        assert_eq!(im.battery_data()[0], 0x42);
     }
 
     #[test]

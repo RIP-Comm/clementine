@@ -159,10 +159,19 @@ fn main() {
         std::process::exit(7);
     }
 
+    // The cartridge battery save lives next to the ROM with a .srm extension.
+    let battery_path = std::path::PathBuf::from(&cartridge_name).with_extension("srm");
+
     eframe::run_native(
         "Clementine - A GBA Emulator",
         options,
-        Box::new(|_cc| Ok(Box::new(ui::app::App::new(&bios_data, &cartridge_data)))),
+        Box::new(move |_cc| {
+            Ok(Box::new(ui::app::App::new(
+                &bios_data,
+                &cartridge_data,
+                Some(battery_path),
+            )))
+        }),
     )
     .ok();
 }
