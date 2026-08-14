@@ -107,7 +107,18 @@ impl Arm7tdmi {
             }
         }
 
-        if set_conditions && destination == REG_PC {
+        // Test instructions (TST/TEQ/CMP/CMN) never write the destination, so
+        // even with S=1 and the Rd field set to R15 they must not restore SPSR
+        // or flush the pipeline.
+        let is_test_op = matches!(
+            alu_instruction,
+            ArmModeAluInstr::Teq
+                | ArmModeAluInstr::Cmn
+                | ArmModeAluInstr::Cmp
+                | ArmModeAluInstr::Tst
+        );
+
+        if set_conditions && destination == REG_PC && !is_test_op {
             // We move current SPSR into the CPSR.
 
             assert!(
@@ -135,16 +146,7 @@ impl Arm7tdmi {
             self.cpsr = current_spsr;
         }
 
-        // Test instructions do not modify destination so we don't flush pipeline even if
-        // destination == R15
-        if !matches!(
-            alu_instruction,
-            ArmModeAluInstr::Teq
-                | ArmModeAluInstr::Cmn
-                | ArmModeAluInstr::Cmp
-                | ArmModeAluInstr::Tst
-        ) && destination == REG_PC
-        {
+        if !is_test_op && destination == REG_PC {
             self.flush_pipeline();
         }
     }
@@ -3414,6 +3416,35 @@ mod tests {
 
         // 3. PC should be updated (original + 8 - 4 = original + 4)
         // But after pipeline flush, the exact value depends on implementation
+    }
+
+    #[test]
+    fn cmp_with_s_bit_and_pc_dest_does_not_restore_spsr() {
+        // A test op (CMP) always has S=1. If the unused Rd field happens to be
+        // R15 it must still not restore SPSR into CPSR, since the instruction
+        // never writes the destination.
+        let mut cpu = Arm7tdmi::default();
+
+        cpu.swap_mode(Mode::Fiq);
+        cpu.cpsr = Psr::from(Mode::Fiq);
+        cpu.registers.set_register_at(8, 64); // r8_fiq
+        cpu.spsr = Psr::from(Mode::System);
+
+        // CMP with S=1, Rn=R0, Rd field = R15, immediate 0.
+        let op_code = 0b1110_0011_0101_0000_1111_0000_0000_0000;
+        let op_code: ArmModeOpcode = Arm7tdmi::decode(op_code);
+        cpu.execute_arm(op_code);
+
+        assert_eq!(
+            cpu.cpsr.mode(),
+            Mode::Fiq,
+            "CMP must not restore SPSR into CPSR"
+        );
+        assert_eq!(
+            cpu.registers.register_at(8),
+            64,
+            "banked FIQ register must be untouched"
+        );
     }
 
     #[test]
