@@ -65,7 +65,7 @@ pub enum BackupType {
     Flash64,
     /// 128 KB (1 Mbit) command-driven Flash with two banks.
     Flash128,
-    /// Serial EEPROM (not yet implemented; treated as no save).
+    /// Serial EEPROM, accessed via DMA in the upper Game Pak region.
     Eeprom,
 }
 
@@ -176,6 +176,17 @@ pub struct InternalMemory {
     /// From 0x00004000 to `0x01FF_FFFF`.
     /// From 0x10000000 to `0xFFFF_FFFF`.
     unused_region: HashMap<usize, u8>,
+
+    /// EEPROM serial transfer state. Not serialized: it is only meaningful in
+    /// the middle of a transfer, and the stored EEPROM contents live in `sram`.
+    /// `eeprom_buffer` accumulates the bits the game clocks in and `eeprom_out`
+    /// holds the bits to clock back out for a read.
+    #[serde(skip)]
+    eeprom_buffer: Vec<bool>,
+    #[serde(skip)]
+    eeprom_out: Vec<bool>,
+    #[serde(skip)]
+    eeprom_out_pos: usize,
 }
 
 impl InternalMemory {
@@ -196,6 +207,9 @@ impl InternalMemory {
             gpio_direction: 0, // All pins as inputs initially
             gpio_control: 1,   // GPIO enabled (allow reads)
             unused_region: HashMap::new(),
+            eeprom_buffer: Vec::new(),
+            eeprom_out: Vec::new(),
+            eeprom_out_pos: 0,
         }
     }
 
@@ -225,6 +239,9 @@ impl Default for InternalMemory {
             gpio_direction: 0,
             gpio_control: 1,
             unused_region: HashMap::new(),
+            eeprom_buffer: Vec::new(),
+            eeprom_out: Vec::new(),
+            eeprom_out_pos: 0,
         }
     }
 }
@@ -378,6 +395,102 @@ impl InternalMemory {
             ])),
             _ => None,
         }
+    }
+
+    /// Whether an access to `address` targets the serial EEPROM. EEPROM lives in
+    /// the upper Game Pak region: the whole `0x0D` block for ROMs up to 16 MB, or
+    /// only its last 256 bytes for larger ROMs (which use `0x0D` for ROM itself).
+    #[must_use]
+    pub fn is_eeprom_access(&self, address: usize) -> bool {
+        if self.backup_type != BackupType::Eeprom {
+            return false;
+        }
+        if self.rom.len() > 0x0100_0000 {
+            (0x0DFF_FF00..=0x0DFF_FFFF).contains(&address)
+        } else {
+            (0x0D00_0000..=0x0DFF_FFFF).contains(&address)
+        }
+    }
+
+    /// Clock one bit into the EEPROM from a DMA halfword write (only bit 0 is
+    /// used). The bits accumulate until a read interprets the command.
+    pub fn eeprom_write(&mut self, value: u16) {
+        // A write that begins a new command after a read has finished clears the
+        // stale output.
+        if self.eeprom_out_pos >= self.eeprom_out.len() && !self.eeprom_out.is_empty() {
+            self.eeprom_out.clear();
+            self.eeprom_out_pos = 0;
+        }
+        self.eeprom_buffer.push(value & 1 == 1);
+    }
+
+    /// Clock one bit out of the EEPROM for a DMA halfword read. The first read
+    /// after a command has been clocked in interprets that command.
+    pub fn eeprom_read(&mut self) -> u16 {
+        if !self.eeprom_buffer.is_empty() {
+            self.eeprom_interpret_command();
+        }
+
+        if self.eeprom_out_pos < self.eeprom_out.len() {
+            let bit = self.eeprom_out[self.eeprom_out_pos];
+            self.eeprom_out_pos += 1;
+            return u16::from(bit);
+        }
+
+        // Idle or programming finished: report ready.
+        1
+    }
+
+    /// Interpret a fully clocked-in command. `11` is a read request, `10` a write
+    /// request. The address width (6 or 14 bits) is inferred from the length of
+    /// the bit stream.
+    fn eeprom_interpret_command(&mut self) {
+        let buffer = std::mem::take(&mut self.eeprom_buffer);
+        if buffer.len() < 3 || !buffer[0] {
+            return; // Not a valid command.
+        }
+
+        let is_read = buffer[1];
+        let bits_to_addr = |bits: &[bool]| {
+            bits.iter()
+                .fold(0usize, |acc, &b| (acc << 1) | usize::from(b))
+        };
+
+        if is_read {
+            // Read request: 2 command + address + stop. A 14-bit read is 17 bits.
+            let width: usize = if buffer.len() >= 17 { 14 } else { 6 };
+            let addr = bits_to_addr(&buffer[2..2 + width]);
+            let base = Self::eeprom_block_offset(addr, width);
+
+            // Output is 4 ignored zero bits followed by 64 data bits, MSB first.
+            self.eeprom_out = Vec::with_capacity(68);
+            self.eeprom_out.extend(std::iter::repeat_n(false, 4));
+            for i in 0..64 {
+                let byte = self.sram[base + i / 8];
+                self.eeprom_out.push((byte >> (7 - (i % 8))) & 1 == 1);
+            }
+        } else {
+            // Write request: 2 command + address + 64 data + stop. A 14-bit write
+            // is 81 bits.
+            let width: usize = if buffer.len() >= 81 { 14 } else { 6 };
+            let addr = bits_to_addr(&buffer[2..2 + width]);
+            let base = Self::eeprom_block_offset(addr, width);
+
+            let data = &buffer[2 + width..2 + width + 64];
+            for (i, byte) in data.chunks(8).enumerate() {
+                self.sram[base + i] = byte.iter().fold(0u8, |acc, &b| (acc << 1) | u8::from(b));
+            }
+            // Programming done; subsequent reads report ready.
+            self.eeprom_out.clear();
+        }
+        self.eeprom_out_pos = 0;
+    }
+
+    /// Byte offset in `sram` for an EEPROM block, masked to the decoded size (64
+    /// blocks for 6-bit, 1024 for 14-bit; each block is 8 bytes).
+    const fn eeprom_block_offset(addr: usize, width: usize) -> usize {
+        let blocks = if width == 14 { 1024 } else { 64 };
+        (addr % blocks) * 8
     }
 
     #[must_use]
@@ -793,5 +906,64 @@ mod tests {
 
         im.write_at(0x03FFF1FF, 1);
         assert_eq!(im.working_iram[0x71FF], 1);
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    fn eeprom_round_trip(width: usize, addr: usize) {
+        let mut im = InternalMemory {
+            backup_type: BackupType::Eeprom,
+            sram: vec![0xFF; 0x8000],
+            ..Default::default()
+        };
+        let data: [u8; 8] = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0];
+
+        let push_addr = |cmd: &mut Vec<u8>| {
+            for i in (0..width).rev() {
+                cmd.push(((addr >> i) & 1) as u8);
+            }
+        };
+
+        // Write command: 10 + address + 64 data bits + stop.
+        let mut cmd = vec![1u8, 0];
+        push_addr(&mut cmd);
+        for &byte in &data {
+            for i in (0..8).rev() {
+                cmd.push((byte >> i) & 1);
+            }
+        }
+        cmd.push(0);
+        for b in cmd {
+            im.eeprom_write(u16::from(b));
+        }
+        // A read after the stop bit commits the programming.
+        assert_eq!(im.eeprom_read(), 1);
+
+        // Read command: 11 + address + stop.
+        let mut cmd = vec![1u8, 1];
+        push_addr(&mut cmd);
+        cmd.push(0);
+        for b in cmd {
+            im.eeprom_write(u16::from(b));
+        }
+
+        // 4 dummy bits + 64 data bits, MSB first.
+        let out: Vec<u16> = (0..68).map(|_| im.eeprom_read()).collect();
+        let mut got = [0u8; 8];
+        for (byte_i, slot) in got.iter_mut().enumerate() {
+            for bit_i in 0..8 {
+                *slot = (*slot << 1) | out[4 + byte_i * 8 + bit_i] as u8;
+            }
+        }
+        assert_eq!(got, data, "EEPROM read must return what was written");
+    }
+
+    #[test]
+    fn eeprom_6bit_write_then_read_round_trips() {
+        eeprom_round_trip(6, 3);
+    }
+
+    #[test]
+    fn eeprom_14bit_write_then_read_round_trips() {
+        eeprom_round_trip(14, 500);
     }
 }

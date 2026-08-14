@@ -1469,6 +1469,12 @@ impl Bus {
 
         self.last_used_address = address;
 
+        // Serial EEPROM in the upper Game Pak region is clocked out one bit per
+        // halfword read (via DMA).
+        if self.internal_memory.is_eeprom_access(address) {
+            return self.internal_memory.eeprom_read();
+        }
+
         // The GamePak SRAM/Flash region is an 8-bit bus: a halfword read returns
         // the single byte replicated across both lanes.
         if (0x0E00_0000..=0x0FFF_FFFF).contains(&address) {
@@ -1499,6 +1505,12 @@ impl Bus {
         self.cycles_count += self.access_cycles(address, 2);
 
         self.last_used_address = address;
+
+        // Serial EEPROM: a DMA halfword write clocks one bit in.
+        if self.internal_memory.is_eeprom_access(address) {
+            self.internal_memory.eeprom_write(value);
+            return;
+        }
 
         // The GamePak SRAM/Flash region is an 8-bit bus: a halfword write stores
         // a single byte, the one selected by rotating the value by the address.
