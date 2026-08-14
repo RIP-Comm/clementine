@@ -70,7 +70,7 @@ impl SaveGame {
             self.pending_save = false;
             let path = self.get_save_path();
 
-            match std::fs::write(&path, &data) {
+            match Self::write_atomic(&path, &data) {
                 Ok(()) => {
                     let size_kb = data.len() / 1024;
                     self.status = Some(format!("Saved to {} ({size_kb} KB)", path.display()));
@@ -80,6 +80,14 @@ impl SaveGame {
                 }
             }
         }
+    }
+
+    /// Write the save to a sibling temp file and rename it over the target, so
+    /// an interrupted write cannot corrupt or truncate the existing save.
+    fn write_atomic(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+        let tmp = path.with_extension("sav.tmp");
+        std::fs::write(&tmp, data)?;
+        std::fs::rename(&tmp, path)
     }
 
     fn load_state(&mut self) {
@@ -181,5 +189,27 @@ impl UiTool for SaveGame {
         if self.pending_save {
             ui.spinner();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SaveGame;
+
+    #[test]
+    fn write_atomic_replaces_file_and_leaves_no_temp() {
+        let path = std::env::temp_dir().join("clementine_write_atomic_test.sav");
+        let tmp = path.with_extension("sav.tmp");
+        let _ = std::fs::remove_file(&path);
+
+        SaveGame::write_atomic(&path, &[1, 2, 3]).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), [1, 2, 3]);
+
+        // A second write overwrites the first with no leftover temp file.
+        SaveGame::write_atomic(&path, &[4, 5]).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), [4, 5]);
+        assert!(!tmp.exists(), "temp file must be renamed away");
+
+        let _ = std::fs::remove_file(&path);
     }
 }
