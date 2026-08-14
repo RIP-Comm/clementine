@@ -25,23 +25,34 @@ impl Registers {
         self.control.get_bits(12..=13)
     }
 
-    /// Word count to load, treating 0 as the maximum for the channel.
-    const fn reload_count(&self, idx: usize) -> u32 {
-        if self.word_count == 0 {
-            match idx {
-                0..=2 => 0x4000, // DMA0-2: 16K units
-                _ => 0x1_0000,   // DMA3: 64K units
-            }
-        } else {
-            self.word_count as u32
+    /// Address bit widths per channel: (source, destination). DMA0-2 cannot
+    /// target ROM so their destination is 27 bits, and DMA0 also cannot read ROM
+    /// so its source is 27 bits. DMA3 reaches ROM with 28-bit addresses.
+    const fn address_masks(idx: usize) -> (u32, u32) {
+        match idx {
+            0 => (0x07FF_FFFF, 0x07FF_FFFF),
+            1 | 2 => (0x0FFF_FFFF, 0x07FF_FFFF),
+            _ => (0x0FFF_FFFF, 0x0FFF_FFFF),
         }
+    }
+
+    /// Word count to load, treating 0 as the maximum for the channel. The count
+    /// is 14 bits for DMA0-2 and 16 bits for DMA3.
+    const fn reload_count(&self, idx: usize) -> u32 {
+        let (mask, max) = match idx {
+            0..=2 => (0x3FFF, 0x4000), // DMA0-2: 14-bit count, 16K max
+            _ => (0xFFFF, 0x1_0000),   // DMA3: 16-bit count, 64K max
+        };
+        let count = self.word_count & mask;
+        if count == 0 { max } else { count as u32 }
     }
 
     /// Latch the source, destination and count into the internal registers,
     /// done when the channel is enabled.
     const fn latch(&mut self, idx: usize) {
-        self.internal_source = self.source_address;
-        self.internal_dest = self.destination_address;
+        let (src_mask, dst_mask) = Self::address_masks(idx);
+        self.internal_source = self.source_address & src_mask;
+        self.internal_dest = self.destination_address & dst_mask;
         self.internal_count = self.reload_count(idx);
     }
 }
@@ -111,7 +122,8 @@ impl Dma {
             channel.internal_count = channel.reload_count(idx);
             // Destination control 3 reloads the destination each repeat.
             if channel.control.get_bits(5..=6) == 3 {
-                channel.internal_dest = channel.destination_address;
+                let (_, dst_mask) = Registers::address_masks(idx);
+                channel.internal_dest = channel.destination_address & dst_mask;
             }
         } else {
             channel.control.set_bit_off(15);
@@ -191,6 +203,51 @@ mod tests {
 
         assert_eq!(dma.channels[0].internal_count, 0x4000);
         assert_eq!(dma.channels[3].internal_count, 0x1_0000);
+    }
+
+    #[test]
+    fn dma0_masks_addresses_to_internal_regions() {
+        // DMA0 cannot touch ROM: a source and destination in the ROM region are
+        // masked down to 27 bits on latch.
+        let mut dma = Dma::default();
+        dma.channels[0] = Registers {
+            source_address: 0x0800_0000,
+            destination_address: 0x0A00_0004,
+            word_count: 4,
+            control: ENABLE,
+            ..Default::default()
+        };
+        dma.check_immediate_transfer();
+
+        assert_eq!(dma.channels[0].internal_source, 0x0800_0000 & 0x07FF_FFFF);
+        assert_eq!(dma.channels[0].internal_dest, 0x0A00_0004 & 0x07FF_FFFF);
+    }
+
+    #[test]
+    fn dma3_keeps_full_rom_addresses() {
+        // DMA3 reaches ROM, so its addresses survive the 28-bit mask unchanged.
+        let mut dma = Dma::default();
+        dma.channels[3] = Registers {
+            source_address: 0x0800_0000,
+            destination_address: 0x0200_0000,
+            word_count: 4,
+            control: ENABLE,
+            ..Default::default()
+        };
+        dma.check_immediate_transfer();
+
+        assert_eq!(dma.channels[3].internal_source, 0x0800_0000);
+        assert_eq!(dma.channels[3].internal_dest, 0x0200_0000);
+    }
+
+    #[test]
+    fn dma0_2_count_is_14_bits() {
+        // A count of 0x4000 has no low 14 bits set, so DMA0-2 read it as 0, which
+        // means the channel maximum.
+        let mut dma = Dma::default();
+        dma.channels[1] = enabled_channel(0, 0x4000);
+        dma.check_immediate_transfer();
+        assert_eq!(dma.channels[1].internal_count, 0x4000);
     }
 
     #[test]
