@@ -17,8 +17,6 @@ pub struct CpuHandler {
     cycle_to_skip_custom_value: u32,
     /// Local copy of speed for the slider.
     speed: f32,
-    /// Whether uncapped (max) speed is enabled.
-    uncapped: bool,
 }
 
 impl CpuHandler {
@@ -29,24 +27,14 @@ impl CpuHandler {
             breakpoint_combo: BreakpointKind::Equal,
             cycle_to_skip_custom_value: 5000,
             speed: 1.0,
-            uncapped: false,
         }
     }
 
     /// Send speed update to the emulator thread.
     fn set_speed(&mut self, speed: f32) {
         self.speed = speed;
-        self.uncapped = false;
         if let Ok(mut handle) = self.emu_handle.lock() {
             handle.send(EmuCommand::SetSpeed(speed));
-        }
-    }
-
-    /// Enable uncapped (maximum) speed.
-    fn set_uncapped(&mut self) {
-        self.uncapped = true;
-        if let Ok(mut handle) = self.emu_handle.lock() {
-            handle.send(EmuCommand::SetSpeed(0.0));
         }
     }
 }
@@ -138,11 +126,9 @@ impl UiTool for CpuHandler {
                 },
             );
 
-        // Sync local speed with handle speed
-        if current_speed == 0.0 {
-            self.uncapped = true;
-        } else {
-            self.uncapped = false;
+        // Sync local speed with handle speed. A held fast-forward can drive it
+        // above the presets, in which case no preset is highlighted.
+        if current_speed > 0.0 {
             self.speed = current_speed;
         }
 
@@ -170,21 +156,12 @@ impl UiTool for CpuHandler {
         ui.horizontal(|ui| {
             ui.label("Speed:");
 
-            // Speed preset buttons
+            // Speed preset buttons. 8x is the maximum.
             let speeds = [(1.0, "1x"), (2.0, "2x"), (4.0, "4x"), (8.0, "8x")];
             for (speed, label) in speeds {
-                let is_selected = !self.uncapped && (self.speed - speed).abs() < SPEED_EPSILON;
+                let is_selected = (self.speed - speed).abs() < SPEED_EPSILON;
                 if ui.selectable_label(is_selected, label).clicked() {
                     self.set_speed(speed);
-                }
-            }
-
-            // Turbo/Max button - runs as fast as possible
-            if ui.selectable_label(self.uncapped, "Turbo").clicked() {
-                if self.uncapped {
-                    self.set_speed(1.0);
-                } else {
-                    self.set_uncapped();
                 }
             }
         });

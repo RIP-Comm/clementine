@@ -151,6 +151,10 @@ pub struct App {
     open: BTreeSet<String>,
     /// Kept alive to keep audio playing, `None` when no output device.
     _audio: Option<crate::audio::AudioPlayer>,
+    /// True while the fast-forward key is held.
+    fast_forwarding: bool,
+    /// Speed to restore when the fast-forward key is released.
+    saved_speed: f32,
 }
 
 impl App {
@@ -209,6 +213,8 @@ impl App {
             tools,
             open,
             _audio: audio,
+            fast_forwarding: false,
+            saved_speed: 1.0,
         }
     }
 
@@ -275,7 +281,12 @@ impl eframe::App for App {
 
 impl App {
     /// Handle keyboard input and send button commands to the emulator.
-    fn handle_input(&self, ctx: &egui::Context) {
+    fn handle_input(&mut self, ctx: &egui::Context) {
+        // Hold this key to temporarily fast-forward. Kept as a constant so the
+        // binding lives in one place until a remapping UI exists.
+        const FAST_FORWARD_KEY: Key = Key::Space;
+        const FAST_FORWARD_SPEED: f32 = 4.0;
+
         const KEY_MAPPINGS: &[(Key, GbaButton)] = &[
             (Key::Z, GbaButton::A),
             (Key::X, GbaButton::B),
@@ -289,43 +300,48 @@ impl App {
             (Key::S, GbaButton::R),
         ];
 
-        let (toggle_fullscreen, is_fullscreen, fast_forward, normal_speed) = ctx.input(|input| {
-            for &(key, button) in KEY_MAPPINGS {
-                if input.key_pressed(key)
-                    && let Ok(mut handle) = self.emu_handle.lock()
-                {
-                    handle.send(EmuCommand::SetKey {
-                        button,
-                        pressed: true,
-                    });
+        let (toggle_fullscreen, is_fullscreen, fast_forward_pressed, fast_forward_released) = ctx
+            .input(|input| {
+                for &(key, button) in KEY_MAPPINGS {
+                    if input.key_pressed(key)
+                        && let Ok(mut handle) = self.emu_handle.lock()
+                    {
+                        handle.send(EmuCommand::SetKey {
+                            button,
+                            pressed: true,
+                        });
+                    }
+                    if input.key_released(key)
+                        && let Ok(mut handle) = self.emu_handle.lock()
+                    {
+                        handle.send(EmuCommand::SetKey {
+                            button,
+                            pressed: false,
+                        });
+                    }
                 }
-                if input.key_released(key)
-                    && let Ok(mut handle) = self.emu_handle.lock()
-                {
-                    handle.send(EmuCommand::SetKey {
-                        button,
-                        pressed: false,
-                    });
-                }
-            }
 
-            (
-                input.key_pressed(Key::F11),
-                input.viewport().fullscreen.unwrap_or(false),
-                input.key_pressed(Key::Space),
-                input.key_released(Key::Space),
-            )
-        });
+                (
+                    input.key_pressed(Key::F11),
+                    input.viewport().fullscreen.unwrap_or(false),
+                    input.key_pressed(FAST_FORWARD_KEY),
+                    input.key_released(FAST_FORWARD_KEY),
+                )
+            });
 
         if toggle_fullscreen {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_fullscreen));
         }
 
-        // Hold Space to run uncapped, release to drop back to real-time speed.
-        if fast_forward {
-            self.send(EmuCommand::SetSpeed(0.0));
-        } else if normal_speed {
-            self.send(EmuCommand::SetSpeed(1.0));
+        // Hold the fast-forward key to run at FAST_FORWARD_SPEED, then drop back
+        // to whatever speed was set before the key was pressed.
+        if fast_forward_pressed && !self.fast_forwarding {
+            self.fast_forwarding = true;
+            self.saved_speed = self.emu_handle.lock().map_or(1.0, |handle| handle.speed);
+            self.send(EmuCommand::SetSpeed(FAST_FORWARD_SPEED));
+        } else if fast_forward_released && self.fast_forwarding {
+            self.fast_forwarding = false;
+            self.send(EmuCommand::SetSpeed(self.saved_speed));
         }
     }
 
