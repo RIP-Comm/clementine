@@ -759,18 +759,6 @@ impl Arm7tdmi {
                     // Ensure PC stays halfword-aligned in Thumb mode
                     new_pc.set_bit_off(0);
 
-                    // Log PC advancement for debugging the loop
-                    if old_pc == 0x081DCA90 || old_pc == 0x081DCA92 || old_pc == 0x081DCCE8 {
-                        tracing::debug!("ADVANCING PC (Thumb): 0x{old_pc:08X} -> 0x{new_pc:08X}");
-                    }
-
-                    // Detect PC going to invalid address (not ROM 0x08000000+, not RAM 0x02000000+ or 0x03000000+, not BIOS 0x0-0x4000)
-                    if new_pc > 0x00010000 && new_pc < 0x02000000 {
-                        tracing::warn!(
-                            "!!! SUSPICIOUS PC JUMP (Thumb) !!!\n  PC advancing to 0x{new_pc:08X} (invalid address range!)"
-                        );
-                    }
-
                     self.registers.set_program_counter(new_pc);
                 }
             }
@@ -824,13 +812,6 @@ impl Arm7tdmi {
                     // Ensure PC stays word-aligned in ARM mode
                     new_pc.set_bit_off(0);
                     new_pc.set_bit_off(1);
-
-                    // Detect PC going to invalid address
-                    if new_pc > 0x00010000 && new_pc < 0x02000000 {
-                        tracing::warn!(
-                            "!!! SUSPICIOUS PC JUMP (ARM) !!!\n  PC advancing to 0x{new_pc:08X} (invalid address range!)"
-                        );
-                    }
 
                     self.registers.set_program_counter(new_pc);
                 }
