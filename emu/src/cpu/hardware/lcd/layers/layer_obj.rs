@@ -240,6 +240,12 @@ impl LayerObj {
                 continue;
             }
 
+            // In bitmap modes 3-5 the lower half of OBJ VRAM holds the bitmap,
+            // so sprite tile numbers below 512 must not display.
+            if registers.get_bg_mode() >= 3 && obj.attribute2.tile_number < 512 {
+                continue;
+            }
+
             let (sprite_width, sprite_height) =
                 match (obj.attribute0.obj_shape, obj.attribute1.obj_size) {
                     (object_attributes::ObjShape::Square, object_attributes::ObjSize::Size0) => {
@@ -385,8 +391,9 @@ impl LayerObj {
                 let color_offset = match obj.attribute0.color_mode {
                     object_attributes::ColorMode::Palette8bpp => {
                         // For 8bpp sprites, tile numbering uses 32-byte s-tile offsets
-                        // Each 8bpp tile is 64 bytes (d-tile) = 2 s-tiles, so we multiply by 2
-                        let base_tile = obj.attribute2.tile_number;
+                        // Each 8bpp tile is 64 bytes (d-tile) = 2 s-tiles, so we multiply by 2.
+                        // The base tile number's low bit is ignored for 8bpp.
+                        let base_tile = obj.attribute2.tile_number & !1;
                         let tile_offset = match obj_character_vram_mapping {
                             lcd::ObjMappingKind::OneDimensional => {
                                 // In 1D mode, tiles are consecutive in memory
