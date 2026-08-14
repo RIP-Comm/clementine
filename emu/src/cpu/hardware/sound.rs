@@ -616,8 +616,13 @@ impl Sound {
     fn emit_sample(&mut self) {
         let (left, right) = self.mix();
         if let Some(out) = self.audio_out.as_mut() {
-            let _ = out.push(left);
-            let _ = out.push(right);
+            // Push the left and right samples together or not at all. Dropping
+            // only one of them on a nearly full ring would shift the L/R parity
+            // and swap the channels for the rest of playback.
+            if out.slots() >= 2 {
+                let _ = out.push(left);
+                let _ = out.push(right);
+            }
         }
     }
 
@@ -778,6 +783,31 @@ mod tests {
 
         s.step(512);
         assert_eq!(consumer.slots(), 2); // one left + one right
+    }
+
+    #[test]
+    fn nearly_full_ring_keeps_stereo_parity() {
+        // With only an odd number of free slots, a naive push would emit the
+        // left sample and drop the right, swapping the channels forever. The
+        // frame must be emitted atomically, so the pushed count stays even.
+        let (producer, consumer) = rtrb::RingBuffer::new(3);
+        let mut s = Sound {
+            control_sound_on_off: MASTER_ON,
+            ..Default::default()
+        };
+        s.set_audio_out(producer, 32768);
+
+        // First frame uses two of the three slots, leaving one free.
+        s.emit_sample();
+        // Second frame cannot fit a full stereo pair, so it emits nothing.
+        s.emit_sample();
+
+        assert_eq!(
+            consumer.slots() % 2,
+            0,
+            "pushed sample count must stay even"
+        );
+        assert_eq!(consumer.slots(), 2);
     }
 
     #[test]
