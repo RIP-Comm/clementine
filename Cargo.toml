@@ -15,17 +15,17 @@ license = "MIT"
 
 [workspace.dependencies]
 # Dev dependencies
-pretty_assertions = "1.4.1"
-rand = "0.10.0"
+pretty_assertions = "1.4"
+rand = "0.10"
 
 # Shared production dependencies
-serde = { version = "1.0.228", features = ["derive"] }
-eframe = { version = "0.35.0", default-features = false, features = [
+serde = { version = "1", features = ["derive"] }
+eframe = { version = "0.36", default-features = false, features = [
     "glow",
     "wayland",
     "x11",
 ] }
-egui = { version = "0.35.0", default-features = false }
+egui = { version = "0.36", default-features = false }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"

@@ -9,7 +9,7 @@ license.workspace = true
 rand = { workspace = true, optional = true }
 rtrb = "0.3"
 serde.workspace = true
-serde_with = "3.4.0"
+serde_with = "3"
 tracing.workspace = true
 
 [dev-dependencies]
