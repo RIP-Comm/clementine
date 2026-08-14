@@ -205,6 +205,33 @@ impl Registers {
         (self.internal_bg3x, self.internal_bg3y)
     }
 
+    /// BG mosaic block size (horizontal, vertical), each 1 to 16 pixels.
+    pub(super) fn bg_mosaic_size(&self) -> (usize, usize) {
+        (
+            self.mosaic.get_bits(0..=3) as usize + 1,
+            self.mosaic.get_bits(4..=7) as usize + 1,
+        )
+    }
+
+    /// OBJ mosaic block size (horizontal, vertical), each 1 to 16 pixels.
+    pub(super) fn obj_mosaic_size(&self) -> (usize, usize) {
+        (
+            self.mosaic.get_bits(8..=11) as usize + 1,
+            self.mosaic.get_bits(12..=15) as usize + 1,
+        )
+    }
+
+    /// Whether the given background has its mosaic bit set (`BGxCNT` bit 6).
+    pub(super) fn bg_mosaic_enabled(&self, layer_id: u8) -> bool {
+        let cnt = match layer_id {
+            0 => self.bg0cnt,
+            1 => self.bg1cnt,
+            2 => self.bg2cnt,
+            _ => self.bg3cnt,
+        };
+        cnt.get_bit(6)
+    }
+
     pub(super) fn get_bg0_enabled(&self) -> bool {
         self.dispcnt.get_bit(8)
     }

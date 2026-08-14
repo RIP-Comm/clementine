@@ -239,6 +239,9 @@ pub fn render_text_bg<T: TextBgConfig>(
     let (map_width, map_height) = config.get_screen_size(registers);
     let (hofs, vofs) = config.get_scroll(registers);
 
+    // Mosaic snaps each pixel to the top-left of its block before scrolling.
+    let (x, y) = mosaic_snap_bg(config.layer_id(), x, y, registers);
+
     // Apply scrolling with map size wrapping
     let scroll_x = (x + hofs as usize) % map_width;
     let scroll_y = (y + vofs as usize) % map_height;
@@ -389,6 +392,16 @@ pub const fn sign_extend_28(value: u32) -> i32 {
     ((value << 4).cast_signed()) >> 4
 }
 
+/// Snap a background pixel to the top-left of its mosaic block when the layer
+/// has mosaic enabled, otherwise return the coordinate unchanged.
+fn mosaic_snap_bg(layer_id: u8, x: usize, y: usize, registers: &Registers) -> (usize, usize) {
+    if !registers.bg_mosaic_enabled(layer_id) {
+        return (x, y);
+    }
+    let (mh, mv) = registers.bg_mosaic_size();
+    (x - x % mh, y - y % mv)
+}
+
 /// Renders an affine-mode background pixel.
 ///
 /// This is the shared implementation for affine backgrounds (BG2/BG3 in mode 2).
@@ -416,6 +429,15 @@ pub fn render_affine_bg<T: AffineBgConfig>(
     // by advance_affine_internals, so only pa and pc are applied per pixel here.
     let (pa, _pb, pc, _pd) = config.get_affine_params(registers);
     let (ref_x, ref_y) = config.get_reference_point(registers);
+
+    // Horizontal mosaic snaps the sampled column. Vertical mosaic for affine is
+    // not modeled here since it interacts with the per-scanline reference.
+    let screen_x = if registers.bg_mosaic_enabled(config.layer_id()) {
+        let (mh, _) = registers.bg_mosaic_size();
+        screen_x - screen_x % mh
+    } else {
+        screen_x
+    };
 
     // Apply affine transformation (8.8 fixed-point math)
     // Screen coords (0-239) always fit in i32
@@ -550,7 +572,26 @@ pub trait Layer {
 
 #[cfg(test)]
 mod tests {
-    use super::sign_extend_28;
+    use super::{Registers, mosaic_snap_bg, sign_extend_28};
+
+    #[test]
+    fn mosaic_snap_is_identity_when_disabled() {
+        let reg = Registers::default();
+        assert_eq!(mosaic_snap_bg(0, 5, 7, &reg), (5, 7));
+    }
+
+    #[test]
+    fn mosaic_snap_quantizes_to_block_origin() {
+        let mut reg = Registers::default();
+        // BG mosaic H size 2 (bits 0-3 = 1), V size 3 (bits 4-7 = 2).
+        reg.mosaic = 0x0021;
+        // Enable mosaic on BG0 (BG0CNT bit 6).
+        reg.bg0cnt = 1 << 6;
+
+        assert_eq!(mosaic_snap_bg(0, 5, 7, &reg), (4, 6));
+        // A background without the mosaic bit is unaffected.
+        assert_eq!(mosaic_snap_bg(1, 5, 7, &reg), (5, 7));
+    }
 
     #[test]
     fn sign_extend_28_handles_sign_and_upper_bits() {

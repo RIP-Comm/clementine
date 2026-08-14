@@ -326,6 +326,18 @@ impl LayerObj {
                 let pixel_screen_sprite_origin =
                     Point::new(idx, (y + WORLD_HEIGHT - sprite_position.y) % WORLD_HEIGHT);
 
+                // OBJ mosaic snaps this sprite-local screen coordinate to the
+                // top-left of its block, so a block of pixels samples one texel.
+                let pixel_screen_sprite_origin = if obj.attribute0.obj_mosaic {
+                    let (mh, mv) = registers.obj_mosaic_size();
+                    Point::new(
+                        pixel_screen_sprite_origin.x - pixel_screen_sprite_origin.x % mh as u16,
+                        pixel_screen_sprite_origin.y - pixel_screen_sprite_origin.y % mv as u16,
+                    )
+                } else {
+                    pixel_screen_sprite_origin
+                };
+
                 // We check that the coordinates in the screen space are inside the sprite
                 // Taking care of the fact that if the sprite in AffineDouble it has double the dimensions
                 if pixel_screen_sprite_origin.x > sprite_screen_size.x

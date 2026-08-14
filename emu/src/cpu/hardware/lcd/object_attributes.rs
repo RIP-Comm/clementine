@@ -246,7 +246,7 @@ pub struct ObjAttribute0 {
     /// Graphics effect mode (normal, alpha blend, or object window).
     pub gfx_mode: GfxMode,
     /// Whether mosaic effect is applied to this sprite.
-    obj_mosaic: bool,
+    pub obj_mosaic: bool,
     /// Color depth (4bpp = 16 colors, 8bpp = 256 colors).
     pub color_mode: ColorMode,
     /// Sprite shape (square, horizontal, or vertical).
