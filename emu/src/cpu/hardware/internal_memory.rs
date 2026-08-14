@@ -173,6 +173,11 @@ pub struct InternalMemory {
     gpio_direction: u16, // Pin direction (4-bit, 1=output, 0=input)
     gpio_control: u16,   // GPIO enable/control (1-bit)
 
+    /// True once the game has written a GPIO register, marking a cart that has
+    /// the GPIO chip (RTC etc). Until then ROM offsets 0xC4-0xC9 read as plain
+    /// ROM, since non-GPIO carts store code and data there.
+    gpio_present: bool,
+
     /// From 0x00004000 to `0x01FF_FFFF`.
     /// From 0x10000000 to `0xFFFF_FFFF`.
     unused_region: HashMap<usize, u8>,
@@ -206,6 +211,7 @@ impl InternalMemory {
             gpio_data: 0,      // All pins low initially
             gpio_direction: 0, // All pins as inputs initially
             gpio_control: 1,   // GPIO enabled (allow reads)
+            gpio_present: false,
             unused_region: HashMap::new(),
             eeprom_buffer: Vec::new(),
             eeprom_out: Vec::new(),
@@ -238,6 +244,7 @@ impl Default for InternalMemory {
             gpio_data: 0,
             gpio_direction: 0,
             gpio_control: 1,
+            gpio_present: false,
             unused_region: HashMap::new(),
             eeprom_buffer: Vec::new(),
             eeprom_out: Vec::new(),
@@ -253,7 +260,7 @@ impl InternalMemory {
         // 0xC4/0xC5 = Data register (pin state)
         // 0xC6/0xC7 = Direction register
         // 0xC8/0xC9 = Control register
-        if (0xC4..=0xC9).contains(&address) {
+        if self.gpio_present && (0xC4..=0xC9).contains(&address) {
             let value = match address {
                 0xC4 => self.gpio_data.get_byte(0),
                 0xC5 => self.gpio_data.get_byte(1),
@@ -314,6 +321,12 @@ impl InternalMemory {
         match address {
             // ROM (wait state 0, 1, 2) - most common case (instruction fetches)
             0x0800_0000..=0x0DFF_FFFC => {
+                // A GPIO cart maps 0xC4-0xC9 to registers; route overlapping
+                // reads to the slow byte path so they see live GPIO state.
+                let raw = address & 0x01FF_FFFF;
+                if self.gpio_present && raw <= 0xC9 && raw + 3 >= 0xC4 {
+                    return None;
+                }
                 let offset = (address & 0x01FF_FFFF) % self.rom.len().max(1);
                 if offset + 3 < self.rom.len() {
                     Some(u32::from_le_bytes([
@@ -365,6 +378,10 @@ impl InternalMemory {
         match address {
             // ROM (wait state 0, 1, 2)
             0x0800_0000..=0x0DFF_FFFE => {
+                let raw = address & 0x01FF_FFFF;
+                if self.gpio_present && raw <= 0xC9 && raw + 1 >= 0xC4 {
+                    return None;
+                }
                 let offset = (address & 0x01FF_FFFF) % self.rom.len().max(1);
                 if offset + 1 < self.rom.len() {
                     Some(u16::from_le_bytes([self.rom[offset], self.rom[offset + 1]]))
@@ -612,6 +629,7 @@ impl InternalMemory {
                 // Check if this is a GPIO write (ROM offset 0xC4-0xC9)
                 let rom_offset = address & 0x01FFFFFF; // Mask to get offset within ROM region
                 if (0xC4..=0xC9).contains(&rom_offset) {
+                    self.gpio_present = true;
                     tracing::debug!("GPIO WRITE: offset 0x{rom_offset:04X} = 0x{value:02X}");
                     match rom_offset {
                         0xC4 => self.gpio_data.set_byte(0, value),
@@ -955,6 +973,25 @@ mod tests {
             }
         }
         assert_eq!(got, data, "EEPROM read must return what was written");
+    }
+
+    #[test]
+    fn gpio_intercepts_halfword_reads_only_after_a_gpio_write() {
+        let mut im = InternalMemory::default();
+        im.rom[0xC4] = 0xAA;
+        im.rom[0xC5] = 0xBB;
+
+        // No GPIO write yet: 0xC4 reads plain ROM, fast halfword path included.
+        assert_eq!(im.try_read_half_word(0x0800_00C4), Some(0xBBAA));
+        assert_eq!(im.read_at(0x0800_00C4), 0xAA);
+
+        // The game enables GPIO and writes the data register.
+        im.write_at(0x0800_00C6, 0x0F); // direction = output
+        im.write_at(0x0800_00C4, 0x05); // data
+
+        // Now the fast path defers and the read returns the live GPIO register.
+        assert_eq!(im.try_read_half_word(0x0800_00C4), None);
+        assert_eq!(im.read_at(0x0800_00C4), 0x05);
     }
 
     #[test]
