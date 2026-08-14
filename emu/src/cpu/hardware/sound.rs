@@ -136,6 +136,13 @@ pub struct Sound {
     /// output device.
     #[serde(skip)]
     audio_out: Option<rtrb::Producer<f32>>,
+
+    /// Previous input and output of the stereo DC-blocking filter, indexed by
+    /// left and right. Not serialized because it is short-lived audio state.
+    #[serde(skip)]
+    dc_prev_in: [f32; 2],
+    #[serde(skip)]
+    dc_prev_out: [f32; 2],
 }
 
 // The PSG bit fields extracted here are all a few bits wide, and the cycle
@@ -612,9 +619,24 @@ impl Sound {
         }
     }
 
+    /// One-pole DC-blocking high-pass filter, applied per stereo channel. It
+    /// removes the constant offset the PSG DAC introduces, so an enabled but
+    /// idle channel settles to silence instead of a large negative level, and
+    /// enabling a channel no longer produces an audible thump.
+    fn dc_block(&mut self, channel: usize, input: f32) -> f32 {
+        // R near 1 places the cutoff at a few Hz, below the audible range.
+        const R: f32 = 0.999;
+        let output = R.mul_add(self.dc_prev_out[channel], input - self.dc_prev_in[channel]);
+        self.dc_prev_in[channel] = input;
+        self.dc_prev_out[channel] = output;
+        output
+    }
+
     /// Mix all channels into a stereo frame and push it.
     fn emit_sample(&mut self) {
         let (left, right) = self.mix();
+        let left = self.dc_block(0, left).clamp(-1.0, 1.0);
+        let right = self.dc_block(1, right).clamp(-1.0, 1.0);
         if let Some(out) = self.audio_out.as_mut() {
             // Push the left and right samples together or not at all. Dropping
             // only one of them on a nearly full ring would shift the L/R parity
@@ -783,6 +805,27 @@ mod tests {
 
         s.step(512);
         assert_eq!(consumer.slots(), 2); // one left + one right
+    }
+
+    #[test]
+    fn dc_block_removes_constant_offset() {
+        let mut s = Sound::default();
+        // An idle enabled channel feeds a constant level like dac(0) = -1.0.
+        let mut out = 0.0;
+        for _ in 0..10000 {
+            out = s.dc_block(0, -1.0);
+        }
+        assert!(
+            out.abs() < 0.01,
+            "constant DC must decay toward zero: {out}"
+        );
+    }
+
+    #[test]
+    fn dc_block_passes_the_initial_step() {
+        let mut s = Sound::default();
+        // The first sample of a step passes through before the offset decays.
+        assert!((s.dc_block(0, 1.0) - 1.0).abs() < 1e-6);
     }
 
     #[test]
