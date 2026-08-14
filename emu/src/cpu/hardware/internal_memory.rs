@@ -533,25 +533,7 @@ impl InternalMemory {
             }
             0x0300_0000..=0x03FF_FFFF => {
                 let unmasked = get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8);
-                let idx = unmasked - 0x0300_0000;
-                let value = self.working_iram[idx];
-
-                // Debug: Log reads around the problematic address
-                if (0x0300_36A0..=0x0300_36B0).contains(&unmasked) {
-                    tracing::debug!(
-                        "IWRAM READ: addr=0x{address:08X}, unmasked=0x{unmasked:08X}, idx=0x{idx:04X}, value=0x{value:02X}"
-                    );
-                }
-
-                // Log reads from IRQ handler pointer area
-                if unmasked >= 0x03007FFC {
-                    tracing::debug!(
-                        "!!! READ FROM IRQ HANDLER POINTER AREA !!!\n  \
-                         Address: 0x{address:08X} (unmask to 0x{unmasked:08X}), Value: 0x{value:02X}"
-                    );
-                }
-
-                value
+                self.working_iram[unmasked - 0x0300_0000]
             }
             0x0800_0000..=0x09FF_FFFF => self.read_rom(address - 0x0800_0000),
             0x0A00_0000..=0x0BFF_FFFF => self.read_rom(address - 0x0A00_0000),
@@ -603,39 +585,11 @@ impl InternalMemory {
                     - 0x0200_0000] = value;
             }
             0x0300_0000..=0x0300_7FFF => {
-                // Log writes to IRQ handler pointer area (last 4 bytes of IWRAM)
-                if address >= 0x03007FFC {
-                    tracing::debug!(
-                        "!!! WRITE TO IRQ HANDLER POINTER AREA !!!\n  \
-                         Address: 0x{address:08X}, Value: 0x{value:02X}",
-                    );
-                }
-                // Log writes to IRQ handler code area (for debugging)
-                if (0x03003580..0x03003600).contains(&address) {
-                    tracing::debug!(
-                        "!!! WRITE TO IRQ HANDLER CODE AREA !!!\n  \
-                         Address: 0x{address:08X}, Value: 0x{value:02X}",
-                    );
-                }
-                // Debug: Log writes around the problematic address
-                if (0x0300_36A0..=0x0300_36B0).contains(&address) {
-                    let idx = address - 0x0300_0000;
-                    tracing::debug!(
-                        "IWRAM WRITE: addr=0x{address:08X}, idx=0x{idx:04X}, value=0x{value:02X}"
-                    );
-                }
                 self.working_iram[address - 0x0300_0000] = value;
             }
             // Mirror
             0x0300_8000..=0x03FF_FFFF => {
                 let unmasked = get_unmasked_address(address, 0x00FF_F000, 0xFF00_0FFF, 12, 8);
-                // Log writes to IRQ handler pointer area (mirrors to last 4 bytes of IWRAM)
-                if unmasked >= 0x03007FFC {
-                    tracing::debug!(
-                        "!!! WRITE TO IRQ HANDLER POINTER AREA (mirrored) !!!\n  \
-                         Address: 0x{address:08X} (unmask to 0x{unmasked:08X}), Value: 0x{value:02X}",
-                    );
-                }
                 self.working_iram[unmasked - 0x0300_0000] = value;
             }
             0x0800_0000..=0x0DFF_FFFF => {
