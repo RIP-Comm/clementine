@@ -15,6 +15,45 @@ pub enum GbaButton {
     L = 1 << 9,
 }
 
+impl GbaButton {
+    /// All GBA buttons, for iterating over key bindings.
+    pub const ALL: [Self; 10] = [
+        Self::A,
+        Self::B,
+        Self::Select,
+        Self::Start,
+        Self::Right,
+        Self::Left,
+        Self::Up,
+        Self::Down,
+        Self::R,
+        Self::L,
+    ];
+
+    /// Stable display name, used to persist key bindings.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::A => "A",
+            Self::B => "B",
+            Self::Select => "Select",
+            Self::Start => "Start",
+            Self::Right => "Right",
+            Self::Left => "Left",
+            Self::Up => "Up",
+            Self::Down => "Down",
+            Self::R => "R",
+            Self::L => "L",
+        }
+    }
+
+    /// Resolve a button from its [`name`](Self::name).
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|button| button.name() == name)
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Keypad {
     pub key_input: u16,

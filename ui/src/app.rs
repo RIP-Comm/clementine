@@ -162,6 +162,8 @@ pub struct App {
     audio_controls: Option<Arc<crate::audio::AudioControls>>,
     /// Where persistent UI settings are stored.
     settings_path: PathBuf,
+    /// Shared keyboard-to-GBA-button bindings, editable from the keypad panel.
+    key_bindings: Arc<Mutex<Vec<(GbaButton, Key)>>>,
 }
 
 impl App {
@@ -202,6 +204,9 @@ impl App {
         // input handler reads it each frame.
         let fast_forward_key = Arc::new(Mutex::new(settings.fast_forward_key()));
 
+        // GBA button bindings are shared so the keypad panel can rebind them.
+        let key_bindings = Arc::new(Mutex::new(settings.key_bindings()));
+
         let tools: Vec<Box<dyn UiTool>> = vec![
             Box::new(RomInfo::new(Arc::clone(&emu_handle))),
             Box::new(SaveGame::new(Arc::clone(&emu_handle))),
@@ -212,7 +217,10 @@ impl App {
             Box::new(GbaDisplay::new(Arc::clone(&emu_handle))),
             Box::new(CpuRegisters::new(Arc::clone(&emu_handle))),
             Box::new(Disassembler::new(Arc::clone(&emu_handle))),
-            Box::new(KeypadDebug::new(Arc::clone(&emu_handle))),
+            Box::new(KeypadDebug::new(
+                Arc::clone(&emu_handle),
+                Arc::clone(&key_bindings),
+            )),
             Box::new(MemoryInspector::new(Arc::clone(&emu_handle))),
             Box::new(PokemonDebugger::new(Arc::clone(&emu_handle))),
             Box::new(SoundControls::new(audio_controls.clone())),
@@ -243,6 +251,7 @@ impl App {
             fast_forward_key,
             audio_controls,
             settings_path,
+            key_bindings,
         }
     }
 
@@ -262,11 +271,22 @@ impl App {
             .name()
             .to_string();
 
+        let key_bindings = self.key_bindings.lock().map_or_else(
+            |_| Vec::new(),
+            |bindings| {
+                bindings
+                    .iter()
+                    .map(|(button, key)| (button.name().to_string(), key.name().to_string()))
+                    .collect()
+            },
+        );
+
         let settings = crate::settings::Settings {
             fast_forward_key,
             speed,
             volume,
             muted,
+            key_bindings,
         };
         settings.save(&self.settings_path);
     }
@@ -342,24 +362,16 @@ impl App {
     /// Handle keyboard input and send button commands to the emulator.
     fn handle_input(&mut self, ctx: &egui::Context) {
         const FAST_FORWARD_SPEED: f32 = 4.0;
-        const KEY_MAPPINGS: &[(Key, GbaButton)] = &[
-            (Key::Z, GbaButton::A),
-            (Key::X, GbaButton::B),
-            (Key::Enter, GbaButton::Start),
-            (Key::Backspace, GbaButton::Select),
-            (Key::ArrowUp, GbaButton::Up),
-            (Key::ArrowDown, GbaButton::Down),
-            (Key::ArrowLeft, GbaButton::Left),
-            (Key::ArrowRight, GbaButton::Right),
-            (Key::A, GbaButton::L),
-            (Key::S, GbaButton::R),
-        ];
 
         let fast_forward_key = self.fast_forward_key.lock().map_or(Key::Space, |key| *key);
+        let key_mappings = self
+            .key_bindings
+            .lock()
+            .map_or_else(|_| Vec::new(), |bindings| bindings.clone());
 
         let (toggle_fullscreen, is_fullscreen, fast_forward_pressed, fast_forward_released) = ctx
             .input(|input| {
-                for &(key, button) in KEY_MAPPINGS {
+                for &(button, key) in &key_mappings {
                     if input.key_pressed(key)
                         && let Ok(mut handle) = self.emu_handle.lock()
                     {

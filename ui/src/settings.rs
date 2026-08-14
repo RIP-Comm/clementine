@@ -6,6 +6,22 @@ use std::path::PathBuf;
 use egui::Key;
 use serde::{Deserialize, Serialize};
 
+use crate::emu_thread::GbaButton;
+
+/// Default keyboard-to-GBA-button mapping.
+pub const DEFAULT_BINDINGS: [(Key, GbaButton); 10] = [
+    (Key::Z, GbaButton::A),
+    (Key::X, GbaButton::B),
+    (Key::Enter, GbaButton::Start),
+    (Key::Backspace, GbaButton::Select),
+    (Key::ArrowUp, GbaButton::Up),
+    (Key::ArrowDown, GbaButton::Down),
+    (Key::ArrowLeft, GbaButton::Left),
+    (Key::ArrowRight, GbaButton::Right),
+    (Key::A, GbaButton::L),
+    (Key::S, GbaButton::R),
+];
+
 #[derive(Serialize, Deserialize)]
 pub struct Settings {
     /// Name of the hold-to-fast-forward key (see [`egui::Key::name`]).
@@ -16,6 +32,8 @@ pub struct Settings {
     pub volume: f32,
     /// Whether audio is muted.
     pub muted: bool,
+    /// GBA button bindings as (button name, key name) pairs.
+    pub key_bindings: Vec<(String, String)>,
 }
 
 impl Default for Settings {
@@ -25,8 +43,18 @@ impl Default for Settings {
             speed: 1.0,
             volume: 1.0,
             muted: false,
+            key_bindings: DEFAULT_BINDINGS
+                .iter()
+                .map(|(key, button)| (button.name().to_string(), key.name().to_string()))
+                .collect(),
         }
     }
+}
+
+/// Resolve an [`egui::Key`] from its name, returning `None` if unrecognized.
+#[must_use]
+pub fn key_from_name(name: &str) -> Option<Key> {
+    Key::ALL.iter().copied().find(|key| key.name() == name)
 }
 
 impl Settings {
@@ -66,11 +94,27 @@ impl Settings {
     /// Space if the name is not recognized.
     #[must_use]
     pub fn fast_forward_key(&self) -> Key {
-        Key::ALL
+        key_from_name(&self.fast_forward_key).unwrap_or(Key::Space)
+    }
+
+    /// Resolve the stored GBA button bindings, dropping any unrecognized entry
+    /// and falling back to the defaults if none survive.
+    #[must_use]
+    pub fn key_bindings(&self) -> Vec<(GbaButton, Key)> {
+        let bindings: Vec<(GbaButton, Key)> = self
+            .key_bindings
             .iter()
-            .copied()
-            .find(|key| key.name() == self.fast_forward_key)
-            .unwrap_or(Key::Space)
+            .filter_map(|(button, key)| Some((GbaButton::from_name(button)?, key_from_name(key)?)))
+            .collect();
+
+        if bindings.is_empty() {
+            DEFAULT_BINDINGS
+                .iter()
+                .map(|(key, button)| (*button, *key))
+                .collect()
+        } else {
+            bindings
+        }
     }
 }
 
@@ -102,6 +146,7 @@ mod tests {
             speed: 4.0,
             volume: 0.5,
             muted: true,
+            ..Default::default()
         };
         let bytes = bincode::serde::encode_to_vec(&settings, bincode::config::standard()).unwrap();
         let (decoded, _): (Settings, _) =
