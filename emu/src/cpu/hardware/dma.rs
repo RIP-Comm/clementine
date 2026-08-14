@@ -10,7 +10,7 @@ pub struct Registers {
     // Internal state for active DMA
     pub(crate) internal_source: u32,
     pub(crate) internal_dest: u32,
-    pub(crate) internal_count: u16,
+    pub(crate) internal_count: u32,
     pub(crate) was_enabled: bool,
 }
 
@@ -26,14 +26,14 @@ impl Registers {
     }
 
     /// Word count to load, treating 0 as the maximum for the channel.
-    const fn reload_count(&self, idx: usize) -> u16 {
+    const fn reload_count(&self, idx: usize) -> u32 {
         if self.word_count == 0 {
             match idx {
                 0..=2 => 0x4000, // DMA0-2: 16K units
-                _ => 0,          // DMA3: 64K units (wraps to 0 in u16, pre-existing limit)
+                _ => 0x1_0000,   // DMA3: 64K units
             }
         } else {
-            self.word_count
+            self.word_count as u32
         }
     }
 
@@ -178,6 +178,19 @@ mod tests {
         assert_eq!(dma.channels[3].internal_source, 0x0200_0004);
         assert_eq!(dma.channels[3].internal_dest, 0x0300_0004);
         assert_eq!(dma.channels[3].internal_count, 1);
+    }
+
+    #[test]
+    fn zero_word_count_latches_channel_maximum() {
+        // A word count of 0 means the channel maximum: 0x4000 for DMA0-2 and
+        // 0x10000 for DMA3, which does not fit in a u16.
+        let mut dma = Dma::default();
+        dma.channels[0] = enabled_channel(0, 0);
+        dma.channels[3] = enabled_channel(0, 0);
+        dma.check_immediate_transfer();
+
+        assert_eq!(dma.channels[0].internal_count, 0x4000);
+        assert_eq!(dma.channels[3].internal_count, 0x1_0000);
     }
 
     #[test]
