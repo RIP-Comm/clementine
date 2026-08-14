@@ -155,6 +155,8 @@ pub struct App {
     fast_forwarding: bool,
     /// Speed to restore when the fast-forward key is released.
     saved_speed: f32,
+    /// Key that triggers hold-to-fast-forward, configurable from the speed panel.
+    fast_forward_key: Arc<Mutex<Key>>,
 }
 
 impl App {
@@ -180,10 +182,17 @@ impl App {
         // Spawn the emulator thread and get the handle
         let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx)));
 
+        // Fast-forward key is shared so the speed panel can rebind it while the
+        // input handler reads it each frame. Defaults to Space.
+        let fast_forward_key = Arc::new(Mutex::new(Key::Space));
+
         let tools: Vec<Box<dyn UiTool>> = vec![
             Box::new(RomInfo::new(Arc::clone(&emu_handle))),
             Box::new(SaveGame::new(Arc::clone(&emu_handle))),
-            Box::new(CpuHandler::new(Arc::clone(&emu_handle))),
+            Box::new(CpuHandler::new(
+                Arc::clone(&emu_handle),
+                Arc::clone(&fast_forward_key),
+            )),
             Box::new(GbaDisplay::new(Arc::clone(&emu_handle))),
             Box::new(CpuRegisters::new(Arc::clone(&emu_handle))),
             Box::new(Disassembler::new(Arc::clone(&emu_handle))),
@@ -215,6 +224,7 @@ impl App {
             _audio: audio,
             fast_forwarding: false,
             saved_speed: 1.0,
+            fast_forward_key,
         }
     }
 
@@ -282,11 +292,7 @@ impl eframe::App for App {
 impl App {
     /// Handle keyboard input and send button commands to the emulator.
     fn handle_input(&mut self, ctx: &egui::Context) {
-        // Hold this key to temporarily fast-forward. Kept as a constant so the
-        // binding lives in one place until a remapping UI exists.
-        const FAST_FORWARD_KEY: Key = Key::Space;
         const FAST_FORWARD_SPEED: f32 = 4.0;
-
         const KEY_MAPPINGS: &[(Key, GbaButton)] = &[
             (Key::Z, GbaButton::A),
             (Key::X, GbaButton::B),
@@ -299,6 +305,8 @@ impl App {
             (Key::A, GbaButton::L),
             (Key::S, GbaButton::R),
         ];
+
+        let fast_forward_key = self.fast_forward_key.lock().map_or(Key::Space, |key| *key);
 
         let (toggle_fullscreen, is_fullscreen, fast_forward_pressed, fast_forward_released) = ctx
             .input(|input| {
@@ -324,8 +332,8 @@ impl App {
                 (
                     input.key_pressed(Key::F11),
                     input.viewport().fullscreen.unwrap_or(false),
-                    input.key_pressed(FAST_FORWARD_KEY),
-                    input.key_released(FAST_FORWARD_KEY),
+                    input.key_pressed(fast_forward_key),
+                    input.key_released(fast_forward_key),
                 )
             });
 

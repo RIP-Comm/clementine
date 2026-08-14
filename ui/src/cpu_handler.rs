@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut, Range};
 use std::sync::{Arc, Mutex};
 
 use egui::text_selection::text_cursor_state::byte_index_from_char_index;
-use egui::{TextBuffer, TextEdit};
+use egui::{Key, TextBuffer, TextEdit};
 
 use crate::emu_thread::{BreakpointKind, EmuCommand, EmuHandle};
 use crate::ui_traits::UiTool;
@@ -17,16 +17,22 @@ pub struct CpuHandler {
     cycle_to_skip_custom_value: u32,
     /// Local copy of speed for the slider.
     speed: f32,
+    /// Shared hold-to-fast-forward key, also read by the input handler.
+    fast_forward_key: Arc<Mutex<Key>>,
+    /// True while waiting to capture the next key press as the fast-forward key.
+    rebinding_fast_forward: bool,
 }
 
 impl CpuHandler {
-    pub fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
+    pub fn new(emu_handle: Arc<Mutex<EmuHandle>>, fast_forward_key: Arc<Mutex<Key>>) -> Self {
         Self {
             emu_handle,
             b_address: UpperHexString::default(),
             breakpoint_combo: BreakpointKind::Equal,
             cycle_to_skip_custom_value: 5000,
             speed: 1.0,
+            fast_forward_key,
+            rebinding_fast_forward: false,
         }
     }
 
@@ -163,6 +169,37 @@ impl UiTool for CpuHandler {
                 if ui.selectable_label(is_selected, label).clicked() {
                     self.set_speed(speed);
                 }
+            }
+        });
+
+        // Hold-to-fast-forward key binding.
+        ui.horizontal(|ui| {
+            let current = self.fast_forward_key.lock().map_or(Key::Space, |key| *key);
+            ui.label("Hold to fast-forward:");
+
+            let button_label = if self.rebinding_fast_forward {
+                "press a key...".to_string()
+            } else {
+                format!("{current:?}")
+            };
+            if ui.button(button_label).clicked() {
+                self.rebinding_fast_forward = !self.rebinding_fast_forward;
+            }
+
+            if self.rebinding_fast_forward
+                && let Some(key) = ui.input(|input| {
+                    input.events.iter().find_map(|event| match event {
+                        egui::Event::Key {
+                            key, pressed: true, ..
+                        } => Some(*key),
+                        _ => None,
+                    })
+                })
+            {
+                if let Ok(mut slot) = self.fast_forward_key.lock() {
+                    *slot = key;
+                }
+                self.rebinding_fast_forward = false;
             }
         });
 
