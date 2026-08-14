@@ -30,7 +30,7 @@
 //! - **Events** (CPU → UI): `EmuEvent` enum for state updates and frames
 //! - **Disasm** (CPU → UI): `DisasmEntry` for disassembler (reuses existing channel)
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -231,6 +231,10 @@ struct EmuThread {
 
     /// Memory regions re-written every frame (cheat freeze / lock value).
     freezes: Vec<Freeze>,
+
+    /// Reliable events that did not fit in the ring, retried on later sends so
+    /// responses like save-state data are never silently dropped.
+    pending_events: VecDeque<EmuEvent>,
 }
 
 /// A memory region held at a constant value, re-applied once per frame.
@@ -256,6 +260,7 @@ impl EmuThread {
             speed_multiplier: 1.0,
             frame_counter: 0,
             freezes: Vec::new(),
+            pending_events: VecDeque::new(),
         }
     }
 
@@ -716,9 +721,29 @@ impl EmuThread {
         }
     }
 
-    /// Send an event to the UI (non-blocking, drops if full).
+    /// Whether an event may be dropped when the ring is full. State snapshots and
+    /// frames are regenerated every frame, so losing one is harmless. Everything
+    /// else is a one-shot response the UI is waiting for and must be delivered.
+    const fn is_droppable(event: &EmuEvent) -> bool {
+        matches!(event, EmuEvent::State(_) | EmuEvent::Frame(_))
+    }
+
+    /// Send an event to the UI. Droppable events are dropped when the ring is
+    /// full; reliable ones are queued and retried on later sends.
     fn send_event(&mut self, event: EmuEvent) {
-        let _ = self.event_tx.push(event);
+        // Retry previously queued reliable events first, keeping their order.
+        while let Some(pending) = self.pending_events.pop_front() {
+            if let Err(rtrb::PushError::Full(returned)) = self.event_tx.push(pending) {
+                self.pending_events.push_front(returned);
+                break;
+            }
+        }
+
+        if let Err(rtrb::PushError::Full(returned)) = self.event_tx.push(event)
+            && !Self::is_droppable(&returned)
+        {
+            self.pending_events.push_back(returned);
+        }
     }
 }
 
@@ -891,5 +916,29 @@ pub fn spawn(gba: Gba, disasm_rx: rtrb::Consumer<DisasmEntry>) -> EmuHandle {
         load_state_error: None,
         load_state_success: false,
         speed: 1.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EmuEvent, EmuState, EmuThread};
+
+    #[test]
+    fn only_state_and_frame_are_droppable() {
+        // Frame shares the State match arm, so State covers both droppable cases
+        // without allocating a large frame buffer in the test.
+        assert!(EmuThread::is_droppable(&EmuEvent::State(
+            EmuState::default()
+        )));
+
+        assert!(!EmuThread::is_droppable(&EmuEvent::SaveStateData(vec![])));
+        assert!(!EmuThread::is_droppable(&EmuEvent::LoadStateSuccess));
+        assert!(!EmuThread::is_droppable(&EmuEvent::LoadStateFailed(
+            String::new()
+        )));
+        assert!(!EmuThread::is_droppable(&EmuEvent::MemoryData {
+            address: 0,
+            data: vec![],
+        }));
     }
 }
