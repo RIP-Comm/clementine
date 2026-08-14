@@ -103,7 +103,7 @@
 //! [`App::update()`]: eframe::App::update
 //! [`EmuHandle`]: crate::emu_thread::EmuHandle
 
-use crate::audio::AudioPlayer;
+use crate::audio::{AudioControls, AudioPlayer};
 use crate::disassembler::Disassembler;
 use crate::emu_thread::{self, EmuCommand, EmuHandle, GbaButton};
 use crate::keypad_debug::KeypadDebug;
@@ -121,9 +121,18 @@ use crate::{
 use egui::Key;
 use std::{
     collections::BTreeSet,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
+
+/// The emulator runtime built for a ROM: the thread handle, the audio player,
+/// its controls, and the tool windows.
+type Runtime = (
+    Arc<Mutex<EmuHandle>>,
+    Option<AudioPlayer>,
+    Option<Arc<AudioControls>>,
+    Vec<Box<dyn UiTool>>,
+);
 
 /// The main Clementine application.
 ///
@@ -164,6 +173,10 @@ pub struct App {
     settings_path: PathBuf,
     /// Shared keyboard-to-GBA-button bindings, editable from the keypad panel.
     key_bindings: Arc<Mutex<Vec<(GbaButton, Key)>>>,
+    /// BIOS bytes, kept so a new ROM can be loaded at runtime.
+    bios: Vec<u8>,
+    /// Last ROM-load status message shown in the side panel.
+    status: Option<String>,
 }
 
 impl App {
@@ -173,25 +186,24 @@ impl App {
     /// It panics if the cartridge can't be opened.
     #[must_use]
     pub fn new(bios_data: &[u8], cartridge_data: &[u8], battery_path: Option<PathBuf>) -> Self {
-        let mut gba = Gba::new(
-            bios_data[0..0x0000_4000].try_into().unwrap(),
-            cartridge_data,
-        );
-
-        // Take consumer for disassembler channel before spawning thread
-        let disasm_rx = gba.disasm_rx.take().expect("disasm_rx should be present");
-
-        // Start audio before the emulator moves onto its thread.
-        // The ring holds ~0.5s of stereo samples so brief scheduling hiccups do not underrun.
-        let audio = crate::audio::start(|rate| gba.init_audio(rate, 1 << 15));
-        let audio_controls = audio.as_ref().map(AudioPlayer::controls);
-
-        // Spawn the emulator thread and get the handle
-        let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx, battery_path)));
-
-        // Restore persisted settings and apply them.
+        // Restore persisted settings.
         let settings_path = crate::settings::Settings::path();
         let settings = crate::settings::Settings::load(&settings_path);
+
+        // Fast-forward key and button bindings are shared so the panels can
+        // rebind them while the input handler reads them each frame.
+        let fast_forward_key = Arc::new(Mutex::new(settings.fast_forward_key()));
+        let key_bindings = Arc::new(Mutex::new(settings.key_bindings()));
+
+        let (emu_handle, audio, audio_controls, tools) = Self::build_runtime(
+            bios_data,
+            cartridge_data,
+            battery_path,
+            &fast_forward_key,
+            &key_bindings,
+        );
+
+        // Apply persisted audio and speed to the fresh runtime.
         if let Some(controls) = &audio_controls {
             controls.set_volume(settings.volume);
             controls.set_muted(settings.muted);
@@ -199,33 +211,6 @@ impl App {
         if let Ok(mut handle) = emu_handle.lock() {
             handle.send(EmuCommand::SetSpeed(settings.speed));
         }
-
-        // Fast-forward key is shared so the speed panel can rebind it while the
-        // input handler reads it each frame.
-        let fast_forward_key = Arc::new(Mutex::new(settings.fast_forward_key()));
-
-        // GBA button bindings are shared so the keypad panel can rebind them.
-        let key_bindings = Arc::new(Mutex::new(settings.key_bindings()));
-
-        let tools: Vec<Box<dyn UiTool>> = vec![
-            Box::new(RomInfo::new(Arc::clone(&emu_handle))),
-            Box::new(SaveGame::new(Arc::clone(&emu_handle))),
-            Box::new(CpuHandler::new(
-                Arc::clone(&emu_handle),
-                Arc::clone(&fast_forward_key),
-            )),
-            Box::new(GbaDisplay::new(Arc::clone(&emu_handle))),
-            Box::new(CpuRegisters::new(Arc::clone(&emu_handle))),
-            Box::new(Disassembler::new(Arc::clone(&emu_handle))),
-            Box::new(KeypadDebug::new(
-                Arc::clone(&emu_handle),
-                Arc::clone(&key_bindings),
-            )),
-            Box::new(MemoryInspector::new(Arc::clone(&emu_handle))),
-            Box::new(PokemonDebugger::new(Arc::clone(&emu_handle))),
-            Box::new(SoundControls::new(audio_controls.clone())),
-            Box::<about::About>::default(),
-        ];
 
         // Open only the game view and the run controls at launch. The other
         // tools are debug panels the user can toggle on from the sidebar, so
@@ -252,7 +237,97 @@ impl App {
             audio_controls,
             settings_path,
             key_bindings,
+            bios: bios_data.to_vec(),
+            status: None,
         }
+    }
+
+    /// Build the emulator runtime for a ROM: the GBA thread, the audio player
+    /// and the tool windows, sharing the persistent key bindings.
+    fn build_runtime(
+        bios: &[u8],
+        rom: &[u8],
+        battery_path: Option<PathBuf>,
+        fast_forward_key: &Arc<Mutex<Key>>,
+        key_bindings: &Arc<Mutex<Vec<(GbaButton, Key)>>>,
+    ) -> Runtime {
+        let mut gba = Gba::new(bios[0..0x0000_4000].try_into().unwrap(), rom);
+        let disasm_rx = gba.disasm_rx.take().expect("disasm_rx should be present");
+
+        // Start audio before the emulator moves onto its thread. The ring holds
+        // ~0.5s of stereo samples so brief scheduling hiccups do not underrun.
+        let audio = crate::audio::start(|rate| gba.init_audio(rate, 1 << 15));
+        let audio_controls = audio.as_ref().map(AudioPlayer::controls);
+
+        let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx, battery_path)));
+
+        let tools: Vec<Box<dyn UiTool>> = vec![
+            Box::new(RomInfo::new(Arc::clone(&emu_handle))),
+            Box::new(SaveGame::new(Arc::clone(&emu_handle))),
+            Box::new(CpuHandler::new(
+                Arc::clone(&emu_handle),
+                Arc::clone(fast_forward_key),
+            )),
+            Box::new(GbaDisplay::new(Arc::clone(&emu_handle))),
+            Box::new(CpuRegisters::new(Arc::clone(&emu_handle))),
+            Box::new(Disassembler::new(Arc::clone(&emu_handle))),
+            Box::new(KeypadDebug::new(
+                Arc::clone(&emu_handle),
+                Arc::clone(key_bindings),
+            )),
+            Box::new(MemoryInspector::new(Arc::clone(&emu_handle))),
+            Box::new(PokemonDebugger::new(Arc::clone(&emu_handle))),
+            Box::new(SoundControls::new(audio_controls.clone())),
+            Box::<about::About>::default(),
+        ];
+
+        (emu_handle, audio, audio_controls, tools)
+    }
+
+    /// Load a new ROM at runtime, replacing the running emulator while keeping
+    /// the key bindings and current audio/speed settings.
+    #[allow(clippy::used_underscore_binding)]
+    fn load_rom(&mut self, rom_path: &Path) {
+        let rom = match std::fs::read(rom_path) {
+            Ok(data) => data,
+            Err(e) => {
+                self.status = Some(format!("Failed to read {}: {e}", rom_path.display()));
+                return;
+            }
+        };
+
+        // Preserve the live audio and speed across the swap.
+        let (volume, muted) = self
+            .audio_controls
+            .as_ref()
+            .map_or((1.0, false), |c| (c.volume(), c.muted()));
+        let speed = self.emu_handle.lock().map_or(1.0, |h| h.speed);
+
+        let battery_path = Some(rom_path.with_extension("srm"));
+        let bios = self.bios.clone();
+        let (emu_handle, audio, audio_controls, tools) = Self::build_runtime(
+            &bios,
+            &rom,
+            battery_path,
+            &self.fast_forward_key,
+            &self.key_bindings,
+        );
+
+        if let Some(controls) = &audio_controls {
+            controls.set_volume(volume);
+            controls.set_muted(muted);
+        }
+        if let Ok(mut handle) = emu_handle.lock() {
+            handle.send(EmuCommand::SetSpeed(speed));
+        }
+
+        // Replacing these drops the old tools, then the old emulator handle
+        // (shutting down its thread), then the old audio device.
+        self.tools = tools;
+        self.emu_handle = emu_handle;
+        self.audio_controls = audio_controls;
+        self._audio = audio;
+        self.status = Some(format!("Loaded {}", rom_path.display()));
     }
 
     /// Persist the current UI settings to disk.
@@ -333,6 +408,7 @@ impl eframe::App for App {
         ctx.request_repaint_after(std::time::Duration::from_millis(repaint_after));
 
         self.handle_input(&ctx);
+        self.handle_dropped_rom(&ctx);
 
         egui::Panel::right("Clementine Tools")
             .resizable(false)
@@ -350,6 +426,12 @@ impl eframe::App for App {
                 );
 
                 ui.separator();
+                ui.small("Drop a .gba file to load it");
+                if let Some(status) = &self.status {
+                    ui.small(status);
+                }
+
+                ui.separator();
 
                 self.checkboxes(ui);
             });
@@ -359,6 +441,21 @@ impl eframe::App for App {
 }
 
 impl App {
+    /// Load a `.gba` ROM dropped onto the window.
+    fn handle_dropped_rom(&mut self, ctx: &egui::Context) {
+        let dropped = ctx.input(|input| input.raw.dropped_files.clone());
+        for file in &dropped {
+            let path = file.path();
+            if path
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("gba"))
+            {
+                self.load_rom(path);
+                break;
+            }
+        }
+    }
+
     /// Handle keyboard input and send button commands to the emulator.
     fn handle_input(&mut self, ctx: &egui::Context) {
         const FAST_FORWARD_SPEED: f32 = 4.0;
