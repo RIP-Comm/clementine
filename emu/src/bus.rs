@@ -115,6 +115,10 @@ pub(crate) enum IrqType {
     Timer1,
     Timer2,
     Timer3,
+    Dma0,
+    Dma1,
+    Dma2,
+    Dma3,
 }
 
 impl IrqType {
@@ -127,6 +131,20 @@ impl IrqType {
             Self::Timer1 => 4,
             Self::Timer2 => 5,
             Self::Timer3 => 6,
+            Self::Dma0 => 8,
+            Self::Dma1 => 9,
+            Self::Dma2 => 10,
+            Self::Dma3 => 11,
+        }
+    }
+
+    /// IRQ source for a DMA channel index (0-3).
+    const fn dma(idx: usize) -> Self {
+        match idx {
+            0 => Self::Dma0,
+            1 => Self::Dma1,
+            2 => Self::Dma2,
+            _ => Self::Dma3,
         }
     }
 }
@@ -580,6 +598,12 @@ impl Bus {
             }
 
             self.dma.advance(idx, is_32bit);
+        }
+
+        // Control bit 14 raises the DMA-complete interrupt once the block has
+        // been transferred. Repeating channels raise it on each completed block.
+        if self.dma.channels[idx].control.get_bit(14) {
+            self.request_interrupt(IrqType::dma(idx));
         }
 
         self.dma.finish_block(idx);
@@ -1523,6 +1547,27 @@ impl Bus {
 #[cfg(test)]
 mod tests {
     use crate::bus::Bus;
+
+    #[test]
+    fn completed_dma_with_irq_bit_requests_interrupt() {
+        let mut bus = Bus::default();
+
+        // Channel 0: enable (15), IRQ on completion (14), 32-bit (10), one unit,
+        // immediate timing. Source EWRAM, destination IWRAM.
+        bus.dma.channels[0].source_address = 0x0200_0000;
+        bus.dma.channels[0].destination_address = 0x0300_0000;
+        bus.dma.channels[0].word_count = 1;
+        bus.dma.channels[0].control = (1 << 15) | (1 << 14) | (1 << 10);
+        bus.dma.check_immediate_transfer();
+
+        bus.run_dma_block(0);
+
+        assert_ne!(
+            bus.interrupt_control.interrupt_request & (1 << 8),
+            0,
+            "DMA0 completion must set IF bit 8"
+        );
+    }
 
     #[test]
     fn irq_pending_masks_unused_high_bits() {
