@@ -152,7 +152,7 @@ impl Bus {
                 tracing::debug!("read on unused memory 0x{address:08X}");
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
-            _ => match address & 0b111 {
+            _ => match address & 0xFFFF {
                 0x800 => self.interrupt_control.internal_memory_control.get_byte(0),
                 0x801 => self.interrupt_control.internal_memory_control.get_byte(1),
                 0x802 => self.interrupt_control.internal_memory_control.get_byte(2),
@@ -200,7 +200,7 @@ impl Bus {
                 tracing::debug!("write on unused memory");
                 self.unused_region.insert(address, value);
             }
-            _ => match address & 0b111 {
+            _ => match address & 0xFFFF {
                 0x800 => self
                     .interrupt_control
                     .internal_memory_control
@@ -1518,6 +1518,21 @@ impl Bus {
 #[cfg(test)]
 mod tests {
     use crate::bus::Bus;
+
+    #[test]
+    fn internal_memory_control_register_round_trips() {
+        // The register lives at 0x0400_0800..0803. A byte written there must be
+        // readable back, which the old `address & 0b111` mask made impossible.
+        let mut bus = Bus::default();
+
+        for (i, byte) in [0x11, 0x22, 0x33, 0x44].into_iter().enumerate() {
+            bus.write_raw(0x0400_0800 + i, byte);
+        }
+
+        for (i, expected) in [0x11, 0x22, 0x33, 0x44].into_iter().enumerate() {
+            assert_eq!(bus.read_raw(0x0400_0800 + i), expected);
+        }
+    }
 
     #[test]
     fn access_cycles_constant_regions() {
