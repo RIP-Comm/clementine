@@ -71,14 +71,42 @@ just run-log ~/roms/pokemon_emerald.gba
 
 When `--log-to-file` is passed, logs are written to `clementine.log` in your system's temp directory. The path is printed at startup.
 
+## Controls
+
+| Key | GBA button |
+|-----|------------|
+| Z | A |
+| X | B |
+| Enter | Start |
+| Backspace | Select |
+| Arrow keys | D-pad |
+| A | L |
+| S | R |
+
+Other keys:
+
+- **Space** (default) — hold to fast-forward to 4x, release to return to the previous speed. The key can be rebound from the Cpu Handler panel.
+- **F11** — toggle fullscreen.
+
+## Saves
+
+There are two independent save systems:
+
+- **Battery saves** are the game's own in-game saves. Cartridge SRAM, Flash and EEPROM are persisted automatically to `<rom>.srm` next to the ROM and reloaded on launch, so saving inside a game just works across runs.
+- **Save states** snapshot the full emulator state on demand from the Save Game panel, written to `<title>.sav` in the working directory. They are versioned and tied to the current build.
+
 ## Features
 
 - **ARM7TDMI CPU** — ARM and Thumb instruction sets
-- **LCD rendering** — Backgrounds (modes 0–5), sprites, windowing, color blending effects (alpha, brightness)
-- **Audio** — DMA sound channels A/B (timer-driven FIFOs refilled by DMA) and the four PSG channels (2 square with sweep/envelope, wave, noise), mixed per SOUNDCNT and played through the host device with master volume/mute
-- **Input** — Keyboard-mapped GBA buttons
-- **Save/Load state** — Versioned save states with integrity checks (ROM/BIOS excluded from serialization)
-- **Speed control** — Adjustable emulation speed multiplier
+- **LCD rendering** — Backgrounds (modes 0–5) including affine/mode-7 with per-scanline reference, sprites (regular, affine, semi-transparent), windowing, mosaic, and color blending effects (alpha, brightness)
+- **Interrupts** — VBlank, HBlank, VCount, timers, DMA completion and keypad
+- **DMA** — All four channels with immediate, VBlank, HBlank and sound-FIFO timing, hardware address/count masking
+- **Audio** — DMA sound channels A/B (timer-driven FIFOs refilled by DMA) and the four PSG channels (2 square with sweep/envelope, wave, noise), mixed per SOUNDCNT with a DC-blocking filter, played through the host device with master volume/mute
+- **Battery saves** — Cartridge SRAM, Flash (64K/128K) and EEPROM (512B/8K) persisted automatically to a `.srm` file next to the ROM, so in-game saving works across runs
+- **Real-time clock** — S3511 RTC over GPIO, driven from the host clock (Pokemon Fire Red / Ruby family)
+- **Input** — Keyboard-mapped GBA buttons plus a configurable hold-to-fast-forward key
+- **Save/Load state** — Versioned save states with integrity checks (ROM/BIOS excluded from serialization), separate from battery saves
+- **Speed control** — 1x/2x/4x/8x presets plus hold-to-fast-forward
 - **Pokemon tools** — Party viewer, wild encounter patching (see below)
 
 ### Pokemon Debugger
@@ -102,7 +130,7 @@ A built-in tool for Gen 3 Pokemon games (accessible from the sidebar). Supported
 The emulator includes several debug tools accessible via the sidebar:
 
 - **Gba Display** - Main game display (3x scale)
-- **Cpu Handler** - Run/Pause/Step controls and breakpoints
+- **Cpu Handler** - Run/Pause/Step controls, speed presets (1x-8x), the fast-forward key binding, and breakpoints
 - **Cpu Registers** - View ARM7TDMI register values
 - **Disassembler** - Real-time disassembly of executed instructions
 - **Save Game** - Save/Load state with version validation
