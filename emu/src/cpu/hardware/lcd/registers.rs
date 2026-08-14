@@ -46,8 +46,8 @@
 //! Each window can independently enable/disable layers within its bounds.
 //! Priority order: WIN0 > WIN1 > WINOBJ > Outside.
 //!
-//! Window coordinates use wrap-around logic: if right < left or bottom < top,
-//! the window wraps around the screen edge.
+//! Window coordinates do not wrap: if right < left or bottom < top, the window
+//! runs from the start coordinate to the screen edge.
 
 use serde::{Deserialize, Serialize};
 
@@ -529,24 +529,61 @@ impl Registers {
 
 /// Check if x is within horizontal window bounds [left, right).
 ///
-/// Handles wrap-around: if right < left, the range wraps around the screen edge
-/// (i.e., x >= left OR x < right). Returns false if left == right (empty window).
-fn in_horizontal_range(left: u8, right: u8, x: u8) -> bool {
-    match right.cmp(&left) {
-        std::cmp::Ordering::Greater => x >= left && x < right,
-        std::cmp::Ordering::Less => x >= left || x < right,
-        std::cmp::Ordering::Equal => false,
+/// The hardware sets an in-window flip-flop at `left` and clears it at `right`
+/// while scanning a line left to right, so it never wraps: when `right < left`
+/// the window simply runs from `left` to the screen edge. A `right` past the
+/// screen edge clamps naturally because visible x never reaches it.
+const fn in_horizontal_range(left: u8, right: u8, x: u8) -> bool {
+    if left >= right {
+        // Inverted window covers [left, edge); equal bounds is an empty window.
+        left != right && x >= left
+    } else {
+        x >= left && x < right
     }
 }
 
 /// Check if y is within vertical window bounds [top, bottom).
 ///
-/// Handles wrap-around: if bottom < top, the range wraps around the screen edge.
-/// Returns false if top == bottom (empty window).
-fn in_vertical_range(top: u8, bottom: u8, y: u8) -> bool {
-    match bottom.cmp(&top) {
-        std::cmp::Ordering::Greater => y >= top && y < bottom,
-        std::cmp::Ordering::Less => y >= top || y < bottom,
-        std::cmp::Ordering::Equal => false,
+/// Same non-wrapping flip-flop behavior as [`in_horizontal_range`]: when
+/// `bottom < top` the window runs from `top` to the bottom of the screen.
+const fn in_vertical_range(top: u8, bottom: u8, y: u8) -> bool {
+    if top >= bottom {
+        // Inverted window covers [top, edge); equal bounds is an empty window.
+        top != bottom && y >= top
+    } else {
+        y >= top && y < bottom
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{in_horizontal_range, in_vertical_range};
+
+    #[test]
+    fn window_normal_range_is_half_open() {
+        assert!(!in_horizontal_range(10, 20, 9));
+        assert!(in_horizontal_range(10, 20, 10));
+        assert!(in_horizontal_range(10, 20, 19));
+        assert!(!in_horizontal_range(10, 20, 20));
+    }
+
+    #[test]
+    fn window_inverted_range_runs_to_edge_without_wrapping() {
+        // left > right: covers [left, edge), NOT [0, right).
+        assert!(!in_horizontal_range(200, 50, 49));
+        assert!(!in_horizontal_range(200, 50, 199));
+        assert!(in_horizontal_range(200, 50, 200));
+        assert!(in_horizontal_range(200, 50, 239));
+
+        // Same rule vertically.
+        assert!(!in_vertical_range(120, 30, 29));
+        assert!(in_vertical_range(120, 30, 120));
+        assert!(in_vertical_range(120, 30, 159));
+    }
+
+    #[test]
+    fn window_equal_bounds_are_empty() {
+        assert!(!in_horizontal_range(50, 50, 50));
+        assert!(!in_vertical_range(50, 50, 50));
     }
 }
