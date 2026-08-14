@@ -3191,6 +3191,7 @@ dependencies = [
  "egui_extras",
  "emu",
  "rtrb",
+ "serde",
  "tracing",
 ]
 

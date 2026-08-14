@@ -136,7 +136,7 @@ use std::{
 ///
 /// let bios_data = std::fs::read("gba_bios.bin").unwrap();
 /// let cartridge_data = std::fs::read("path/to/game.gba").unwrap();
-/// let app = App::new(&bios_data, &cartridge_data);
+/// let app = App::new(&bios_data, &cartridge_data, None);
 /// // Then pass to eframe::run_native()
 /// ```
 ///
@@ -158,6 +158,10 @@ pub struct App {
     saved_speed: f32,
     /// Key that triggers hold-to-fast-forward, configurable from the speed panel.
     fast_forward_key: Arc<Mutex<Key>>,
+    /// Master volume and mute handle, kept so settings can be saved on exit.
+    audio_controls: Option<Arc<crate::audio::AudioControls>>,
+    /// Where persistent UI settings are stored.
+    settings_path: PathBuf,
 }
 
 impl App {
@@ -183,9 +187,20 @@ impl App {
         // Spawn the emulator thread and get the handle
         let emu_handle = Arc::new(Mutex::new(emu_thread::spawn(gba, disasm_rx, battery_path)));
 
+        // Restore persisted settings and apply them.
+        let settings_path = crate::settings::Settings::path();
+        let settings = crate::settings::Settings::load(&settings_path);
+        if let Some(controls) = &audio_controls {
+            controls.set_volume(settings.volume);
+            controls.set_muted(settings.muted);
+        }
+        if let Ok(mut handle) = emu_handle.lock() {
+            handle.send(EmuCommand::SetSpeed(settings.speed));
+        }
+
         // Fast-forward key is shared so the speed panel can rebind it while the
-        // input handler reads it each frame. Defaults to Space.
-        let fast_forward_key = Arc::new(Mutex::new(Key::Space));
+        // input handler reads it each frame.
+        let fast_forward_key = Arc::new(Mutex::new(settings.fast_forward_key()));
 
         let tools: Vec<Box<dyn UiTool>> = vec![
             Box::new(RomInfo::new(Arc::clone(&emu_handle))),
@@ -200,7 +215,7 @@ impl App {
             Box::new(KeypadDebug::new(Arc::clone(&emu_handle))),
             Box::new(MemoryInspector::new(Arc::clone(&emu_handle))),
             Box::new(PokemonDebugger::new(Arc::clone(&emu_handle))),
-            Box::new(SoundControls::new(audio_controls)),
+            Box::new(SoundControls::new(audio_controls.clone())),
             Box::<about::About>::default(),
         ];
 
@@ -226,7 +241,34 @@ impl App {
             fast_forwarding: false,
             saved_speed: 1.0,
             fast_forward_key,
+            audio_controls,
+            settings_path,
         }
+    }
+
+    /// Persist the current UI settings to disk.
+    fn save_settings(&self) {
+        let (volume, muted) = self
+            .audio_controls
+            .as_ref()
+            .map_or((1.0, false), |controls| {
+                (controls.volume(), controls.muted())
+            });
+        let speed = self.emu_handle.lock().map_or(1.0, |handle| handle.speed);
+        let fast_forward_key = self
+            .fast_forward_key
+            .lock()
+            .map_or(Key::Space, |key| *key)
+            .name()
+            .to_string();
+
+        let settings = crate::settings::Settings {
+            fast_forward_key,
+            speed,
+            volume,
+            muted,
+        };
+        settings.save(&self.settings_path);
     }
 
     pub fn checkboxes(&mut self, ui: &mut egui::Ui) {
@@ -243,6 +285,12 @@ impl App {
             tool.show(ctx, &mut is_open);
             set_open(&mut self.open, tool.name(), is_open);
         }
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        self.save_settings();
     }
 }
 

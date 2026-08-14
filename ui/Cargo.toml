@@ -10,6 +10,7 @@ eframe.workspace = true
 egui.workspace = true
 egui_extras = { version = "0.36", features = ["image"] }
 emu = { path = "../emu" }
+serde.workspace = true
 bincode = { version = "2", features = ["serde"] }
 cpal = "0.15"
 rtrb = "0.3"

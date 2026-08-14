@@ -12,5 +12,6 @@ pub mod memory_inspector;
 pub mod pokemon_debugger;
 mod rom_info;
 mod savegame;
+mod settings;
 mod sound_controls;
 mod ui_traits;
