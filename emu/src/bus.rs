@@ -1497,10 +1497,15 @@ impl Bus {
     /// Returns true if there is an enabled interrupt pending
     #[must_use]
     pub const fn is_irq_pending(&self) -> bool {
-        // Interrupt Master Enable has to be 1
-        // && there needs to be an interrupt requested which is also enabled in the interrupt enable reg
-        (self.interrupt_control.interrupt_master_enable == 1)
-            && (self.interrupt_control.interrupt_enable & self.interrupt_control.interrupt_request
+        // Only 14 interrupt sources exist; bits 14-15 of IE/IF are unused, and
+        // only bit 0 of IME is meaningful. Mask them so stray upper bits cannot
+        // spoof a pending interrupt.
+        const IRQ_MASK: u16 = 0x3FFF;
+
+        (self.interrupt_control.interrupt_master_enable & 1 == 1)
+            && (self.interrupt_control.interrupt_enable
+                & self.interrupt_control.interrupt_request
+                & IRQ_MASK
                 != 0)
     }
 
@@ -1518,6 +1523,28 @@ impl Bus {
 #[cfg(test)]
 mod tests {
     use crate::bus::Bus;
+
+    #[test]
+    fn irq_pending_masks_unused_high_bits() {
+        let mut bus = Bus::default();
+
+        // IME with only a stray high bit set must not count as enabled.
+        bus.interrupt_control.interrupt_master_enable = 0x8000;
+        bus.interrupt_control.interrupt_enable = 0x0001;
+        bus.interrupt_control.interrupt_request = 0x0001;
+        assert!(!bus.is_irq_pending());
+
+        // A match only in the unused bits 14-15 must not fire.
+        bus.interrupt_control.interrupt_master_enable = 1;
+        bus.interrupt_control.interrupt_enable = 0x4000;
+        bus.interrupt_control.interrupt_request = 0x4000;
+        assert!(!bus.is_irq_pending());
+
+        // A real match in a valid bit does fire.
+        bus.interrupt_control.interrupt_enable = 0x0001;
+        bus.interrupt_control.interrupt_request = 0x0001;
+        assert!(bus.is_irq_pending());
+    }
 
     #[test]
     fn internal_memory_control_register_round_trips() {
