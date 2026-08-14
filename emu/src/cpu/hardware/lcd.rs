@@ -227,6 +227,10 @@ impl Lcd {
                 }
 
                 self.should_draw = false;
+            } else if self.registers.vcount == 227 {
+                // The last line of Vblank clears the flag one line early, so a
+                // game polling DISPSTAT sees Vblank end on line 227.
+                self.registers.set_vblank_flag(false);
             }
         } else if self.pixel_index == 240 {
             // Entering Hblank. The flag and IRQ happen on every scanline,
