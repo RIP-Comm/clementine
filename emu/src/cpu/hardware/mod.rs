@@ -29,6 +29,7 @@ pub mod interrupt_control;
 pub mod keypad;
 
 pub mod lcd;
+pub mod rtc;
 pub mod serial;
 pub mod sound;
 pub mod timers;

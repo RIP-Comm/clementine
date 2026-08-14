@@ -178,6 +178,9 @@ pub struct InternalMemory {
     /// ROM, since non-GPIO carts store code and data there.
     gpio_present: bool,
 
+    /// Real-time clock driven over the GPIO pins.
+    rtc: super::rtc::Rtc,
+
     /// From 0x00004000 to `0x01FF_FFFF`.
     /// From 0x10000000 to `0xFFFF_FFFF`.
     unused_region: HashMap<usize, u8>,
@@ -212,6 +215,7 @@ impl InternalMemory {
             gpio_direction: 0, // All pins as inputs initially
             gpio_control: 1,   // GPIO enabled (allow reads)
             gpio_present: false,
+            rtc: super::rtc::Rtc::default(),
             unused_region: HashMap::new(),
             eeprom_buffer: Vec::new(),
             eeprom_out: Vec::new(),
@@ -245,6 +249,7 @@ impl Default for InternalMemory {
             gpio_direction: 0,
             gpio_control: 1,
             gpio_present: false,
+            rtc: super::rtc::Rtc::default(),
             unused_region: HashMap::new(),
             eeprom_buffer: Vec::new(),
             eeprom_out: Vec::new(),
@@ -262,7 +267,15 @@ impl InternalMemory {
         // 0xC8/0xC9 = Control register
         if self.gpio_present && (0xC4..=0xC9).contains(&address) {
             let value = match address {
-                0xC4 => self.gpio_data.get_byte(0),
+                0xC4 => {
+                    // The data register low nibble reflects the pins. The RTC
+                    // drives SIO (bit 1) whenever the game leaves it as input.
+                    let mut data = self.gpio_data.get_byte(0);
+                    if self.gpio_direction & 0b10 == 0 {
+                        data = (data & !0b10) | (u8::from(self.rtc.sio()) << 1);
+                    }
+                    data
+                }
                 0xC5 => self.gpio_data.get_byte(1),
                 0xC6 => self.gpio_direction.get_byte(0),
                 0xC7 => self.gpio_direction.get_byte(1),
@@ -646,6 +659,14 @@ impl InternalMemory {
                         self.gpio_direction,
                         self.gpio_control
                     );
+
+                    // Feed the pin state to the RTC on data or direction writes.
+                    if matches!(rom_offset, 0xC4 | 0xC6) {
+                        self.rtc.write(
+                            self.gpio_data.get_byte(0) & 0xF,
+                            self.gpio_direction.get_byte(0) & 0xF,
+                        );
+                    }
                 } else {
                     // ROM is read-only, writes are ignored
                     tracing::debug!("Attempted write to ROM at {address:#010x}");
