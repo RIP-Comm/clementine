@@ -871,6 +871,7 @@ impl Bus {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn write_lcd_raw(&mut self, address: usize, value: u8) {
         match address {
             0x0400_0000 => {
@@ -917,14 +918,20 @@ impl Bus {
             0x0400_0025 => self.lcd.registers.bg2pc.set_byte(1, value),
             0x0400_0026 => self.lcd.registers.bg2pd.set_byte(0, value),
             0x0400_0027 => self.lcd.registers.bg2pd.set_byte(1, value),
-            0x0400_0028 => self.lcd.registers.bg2x.set_byte(0, value),
-            0x0400_0029 => self.lcd.registers.bg2x.set_byte(1, value),
-            0x0400_002A => self.lcd.registers.bg2x.set_byte(2, value),
-            0x0400_002B => self.lcd.registers.bg2x.set_byte(3, value),
-            0x0400_002C => self.lcd.registers.bg2y.set_byte(0, value),
-            0x0400_002D => self.lcd.registers.bg2y.set_byte(1, value),
-            0x0400_002E => self.lcd.registers.bg2y.set_byte(2, value),
-            0x0400_002F => self.lcd.registers.bg2y.set_byte(3, value),
+            0x0400_0028..=0x0400_002B => {
+                self.lcd
+                    .registers
+                    .bg2x
+                    .set_byte(u8::try_from(address & 3).unwrap(), value);
+                self.lcd.registers.reload_internal_bg2x();
+            }
+            0x0400_002C..=0x0400_002F => {
+                self.lcd
+                    .registers
+                    .bg2y
+                    .set_byte(u8::try_from(address & 3).unwrap(), value);
+                self.lcd.registers.reload_internal_bg2y();
+            }
             0x0400_0030 => self.lcd.registers.bg3pa.set_byte(0, value),
             0x0400_0031 => self.lcd.registers.bg3pa.set_byte(1, value),
             0x0400_0032 => self.lcd.registers.bg3pb.set_byte(0, value),
@@ -933,14 +940,20 @@ impl Bus {
             0x0400_0035 => self.lcd.registers.bg3pc.set_byte(1, value),
             0x0400_0036 => self.lcd.registers.bg3pd.set_byte(0, value),
             0x0400_0037 => self.lcd.registers.bg3pd.set_byte(1, value),
-            0x0400_0038 => self.lcd.registers.bg3x.set_byte(0, value),
-            0x0400_0039 => self.lcd.registers.bg3x.set_byte(1, value),
-            0x0400_003A => self.lcd.registers.bg3x.set_byte(2, value),
-            0x0400_003B => self.lcd.registers.bg3x.set_byte(3, value),
-            0x0400_003C => self.lcd.registers.bg3y.set_byte(0, value),
-            0x0400_003D => self.lcd.registers.bg3y.set_byte(1, value),
-            0x0400_003E => self.lcd.registers.bg3y.set_byte(2, value),
-            0x0400_003F => self.lcd.registers.bg3y.set_byte(3, value),
+            0x0400_0038..=0x0400_003B => {
+                self.lcd
+                    .registers
+                    .bg3x
+                    .set_byte(u8::try_from(address & 3).unwrap(), value);
+                self.lcd.registers.reload_internal_bg3x();
+            }
+            0x0400_003C..=0x0400_003F => {
+                self.lcd
+                    .registers
+                    .bg3y
+                    .set_byte(u8::try_from(address & 3).unwrap(), value);
+                self.lcd.registers.reload_internal_bg3y();
+            }
             0x0400_0040 => self.lcd.registers.win0h.set_byte(0, value),
             0x0400_0041 => self.lcd.registers.win0h.set_byte(1, value),
             0x0400_0042 => self.lcd.registers.win1h.set_byte(0, value),

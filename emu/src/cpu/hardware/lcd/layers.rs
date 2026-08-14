@@ -408,21 +408,21 @@ pub const fn sign_extend_28(value: u32) -> i32 {
 pub fn render_affine_bg<T: AffineBgConfig>(
     config: &T,
     screen_x: usize,
-    screen_y: usize,
+    _screen_y: usize,
     memory: &Memory,
     registers: &Registers,
 ) -> Option<PixelInfo> {
-    let (pa, pb, pc, pd) = config.get_affine_params(registers);
+    // pb and pd (dmx, dmy) are folded into the reference point once per scanline
+    // by advance_affine_internals, so only pa and pc are applied per pixel here.
+    let (pa, _pb, pc, _pd) = config.get_affine_params(registers);
     let (ref_x, ref_y) = config.get_reference_point(registers);
 
     // Apply affine transformation (8.8 fixed-point math)
     // Screen coords (0-239) always fit in i32
     #[allow(clippy::cast_possible_wrap)]
     let sx = screen_x as i32;
-    #[allow(clippy::cast_possible_wrap)]
-    let sy = screen_y as i32;
-    let texture_x = (i32::from(pa) * sx) + (i32::from(pb) * sy) + ref_x;
-    let texture_y = (i32::from(pc) * sx) + (i32::from(pd) * sy) + ref_y;
+    let texture_x = i32::from(pa) * sx + ref_x;
+    let texture_y = i32::from(pc) * sx + ref_y;
 
     // Convert from 8.8 fixed-point to integer
     let tex_x = texture_x >> 8;

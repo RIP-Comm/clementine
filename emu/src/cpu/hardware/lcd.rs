@@ -217,6 +217,15 @@ impl Lcd {
                 self.registers.set_vblank_flag(false);
                 self.should_draw = true;
 
+                // The affine internal reference points reload at the start of the
+                // frame and advance by one scanline for every visible line after
+                // the first.
+                if self.registers.vcount == 0 {
+                    self.registers.reload_affine_internals();
+                } else {
+                    self.registers.advance_affine_internals();
+                }
+
                 // Cache attributes and scanline
                 self.layer_obj
                     .handle_enter_vdraw(&self.memory, &self.registers);

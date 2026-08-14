@@ -137,9 +137,74 @@ pub struct Registers {
     pub bldalpha: u16,
     /// Brightness (Fade-In/Out) Coefficient
     pub bldy: u16,
+
+    /// Internal affine reference points for BG2 and BG3, as signed 8.8
+    /// fixed-point. Hardware latches BGxX/BGxY into these at the start of each
+    /// frame and advances them by dmx/dmy every scanline, so mid-frame writes to
+    /// the reference registers take effect from the current line. Not serialized
+    /// because they rebuild themselves at the next frame start.
+    #[serde(skip)]
+    internal_bg2x: i32,
+    #[serde(skip)]
+    internal_bg2y: i32,
+    #[serde(skip)]
+    internal_bg3x: i32,
+    #[serde(skip)]
+    internal_bg3y: i32,
 }
 
 impl Registers {
+    /// Reload all affine internal reference points from BGxX/BGxY. Called at the
+    /// start of each frame.
+    pub(super) const fn reload_affine_internals(&mut self) {
+        self.internal_bg2x = super::layers::sign_extend_28(self.bg2x);
+        self.internal_bg2y = super::layers::sign_extend_28(self.bg2y);
+        self.internal_bg3x = super::layers::sign_extend_28(self.bg3x);
+        self.internal_bg3y = super::layers::sign_extend_28(self.bg3y);
+    }
+
+    /// Advance the affine internal reference points by one scanline (add dmx and
+    /// dmy, the PB and PD matrix parameters).
+    pub(super) fn advance_affine_internals(&mut self) {
+        self.internal_bg2x = self
+            .internal_bg2x
+            .wrapping_add(i32::from(self.bg2pb.cast_signed()));
+        self.internal_bg2y = self
+            .internal_bg2y
+            .wrapping_add(i32::from(self.bg2pd.cast_signed()));
+        self.internal_bg3x = self
+            .internal_bg3x
+            .wrapping_add(i32::from(self.bg3pb.cast_signed()));
+        self.internal_bg3y = self
+            .internal_bg3y
+            .wrapping_add(i32::from(self.bg3pd.cast_signed()));
+    }
+
+    /// Reload a single internal reference point after the game writes the
+    /// matching BGxX/BGxY register, so the write takes effect immediately.
+    pub(crate) const fn reload_internal_bg2x(&mut self) {
+        self.internal_bg2x = super::layers::sign_extend_28(self.bg2x);
+    }
+    pub(crate) const fn reload_internal_bg2y(&mut self) {
+        self.internal_bg2y = super::layers::sign_extend_28(self.bg2y);
+    }
+    pub(crate) const fn reload_internal_bg3x(&mut self) {
+        self.internal_bg3x = super::layers::sign_extend_28(self.bg3x);
+    }
+    pub(crate) const fn reload_internal_bg3y(&mut self) {
+        self.internal_bg3y = super::layers::sign_extend_28(self.bg3y);
+    }
+
+    /// Current internal affine reference point for BG2.
+    pub(super) const fn bg2_reference(&self) -> (i32, i32) {
+        (self.internal_bg2x, self.internal_bg2y)
+    }
+
+    /// Current internal affine reference point for BG3.
+    pub(super) const fn bg3_reference(&self) -> (i32, i32) {
+        (self.internal_bg3x, self.internal_bg3y)
+    }
+
     pub(super) fn get_bg0_enabled(&self) -> bool {
         self.dispcnt.get_bit(8)
     }
@@ -585,5 +650,30 @@ mod tests {
     fn window_equal_bounds_are_empty() {
         assert!(!in_horizontal_range(50, 50, 50));
         assert!(!in_vertical_range(50, 50, 50));
+    }
+
+    #[test]
+    fn affine_reference_advances_by_dmx_dmy_per_scanline() {
+        let mut reg = super::Registers {
+            bg2pb: 4,      // dmx = +4
+            bg2pd: 0xFFFF, // dmy = -1
+            ..Default::default()
+        };
+        reg.reload_affine_internals();
+        assert_eq!(reg.bg2_reference(), (0, 0));
+        reg.advance_affine_internals();
+        assert_eq!(reg.bg2_reference(), (4, -1));
+        reg.advance_affine_internals();
+        assert_eq!(reg.bg2_reference(), (8, -2));
+    }
+
+    #[test]
+    fn affine_mid_frame_write_updates_reference_immediately() {
+        let mut reg = super::Registers::default();
+        reg.reload_affine_internals();
+        reg.advance_affine_internals(); // moved down a line
+        reg.bg2x = 100;
+        reg.reload_internal_bg2x();
+        assert_eq!(reg.bg2_reference().0, 100);
     }
 }
