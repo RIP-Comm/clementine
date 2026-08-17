@@ -8,6 +8,6 @@
     "libiconv@latest",
     "rustc@1.97.1",
     "cargo@1.97.1",
-    "just@1.46.0"
+    "just@latest"
   ]
 }
