@@ -54,8 +54,6 @@
 //! | 0x07000000-0x070003FF | 1KB   | OAM (Object Attribute Memory)  |
 //! | 0x08000000-0x09FFFFFF | 32MB  | ROM (Game Pak)                 |
 
-use std::sync::{Arc, Mutex};
-
 use crate::{
     bus::Bus,
     cartridge_header::CartridgeHeader,
@@ -63,7 +61,6 @@ use crate::{
         DISASM_BUFFER_CAPACITY, DisasmEntry, arm7tdmi::Arm7tdmi,
         hardware::internal_memory::InternalMemory,
     },
-    render::gba_lcd::GbaLcd,
 };
 
 /// The complete Game Boy Advance system.
@@ -72,8 +69,6 @@ pub struct Gba {
 
     /// Parsed cartridge header with game metadata.
     pub cartridge_header: CartridgeHeader,
-
-    pub lcd: Arc<Mutex<Box<GbaLcd>>>,
 
     /// Consumer for the lock-free disassembler channel.
     pub disasm_rx: Option<rtrb::Consumer<DisasmEntry>>,
@@ -86,7 +81,6 @@ impl Gba {
     pub fn new(bios: [u8; 0x0000_4000], cartridge: &[u8]) -> Self {
         let cartridge_header = CartridgeHeader::new(cartridge);
 
-        let lcd = Arc::new(Mutex::new(Box::default()));
         let memory = InternalMemory::new(bios, cartridge);
         let bus = Bus::with_memory(memory);
         let mut arm = Arm7tdmi::new(bus);
@@ -98,7 +92,6 @@ impl Gba {
         Self {
             cpu: arm,
             cartridge_header,
-            lcd,
             disasm_rx: Some(rx),
         }
     }

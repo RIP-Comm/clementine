@@ -5,7 +5,6 @@ mod cpu_handler;
 mod cpu_registers;
 mod disassembler;
 pub mod emu_thread;
-mod gba_color;
 mod gba_display;
 pub mod keypad_debug;
 pub mod memory_inspector;
