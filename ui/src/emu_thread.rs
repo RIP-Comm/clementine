@@ -588,8 +588,11 @@ impl EmuThread {
                     // channel, so the disassembler can be toggled on and off.
                     self.gba.cpu.disasm_enabled = enabled;
                 }
-                EmuCommand::SetSpeed(multiplier) => {
+                EmuCommand::SetSpeed(multiplier) if is_valid_speed(multiplier) => {
                     self.speed_multiplier = multiplier;
+                }
+                EmuCommand::SetSpeed(_) => {
+                    tracing::warn!("Ignoring invalid emulation speed");
                 }
                 EmuCommand::Shutdown => {
                     return true;
@@ -1032,7 +1035,7 @@ mod tests {
 
     use emu::gba::Gba;
 
-    use super::{EmuCommand, EmuEvent, EmuState, EmuThread};
+    use super::{EmuCommand, EmuEvent, EmuHandle, EmuState, EmuThread};
 
     #[test]
     fn only_state_and_frame_are_droppable() {

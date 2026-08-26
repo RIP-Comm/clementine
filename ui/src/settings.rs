@@ -76,8 +76,15 @@ impl Settings {
         let Ok(bytes) = std::fs::read(path) else {
             return Self::default();
         };
-        bincode::serde::decode_from_slice(&bytes, bincode::config::standard())
-            .map_or_else(|_| Self::default(), |(settings, _)| settings)
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).map_or_else(
+            |_| Self::default(),
+            |(mut settings, _): (Self, usize)| {
+                if !settings.speed.is_finite() || settings.speed < 0.0 {
+                    settings.speed = 1.0;
+                }
+                settings
+            },
+        )
     }
 
     /// Write settings to disk atomically. Errors are ignored, since failing to
@@ -155,5 +162,27 @@ mod tests {
         assert!((decoded.speed - 4.0).abs() < f32::EPSILON);
         assert!((decoded.volume - 0.5).abs() < f32::EPSILON);
         assert!(decoded.muted);
+    }
+
+    #[test]
+    fn invalid_persisted_speeds_fall_back_to_normal() {
+        let path = std::env::temp_dir().join(format!(
+            "clementine-invalid-speed-{}.bin",
+            std::process::id()
+        ));
+
+        for speed in [-1.0, f32::NAN, f32::INFINITY] {
+            let settings = Settings {
+                speed,
+                ..Default::default()
+            };
+            let bytes =
+                bincode::serde::encode_to_vec(&settings, bincode::config::standard()).unwrap();
+            std::fs::write(&path, bytes).unwrap();
+
+            assert_eq!(Settings::load(&path).speed, 1.0);
+        }
+
+        let _ = std::fs::remove_file(path);
     }
 }
