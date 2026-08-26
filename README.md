@@ -93,7 +93,7 @@ Other keys:
 There are two independent save systems:
 
 - **Battery saves** are the game's own in-game saves. Cartridge SRAM, Flash and EEPROM are persisted automatically to `<rom>.srm` next to the ROM and reloaded on launch, so saving inside a game just works across runs.
-- **Save states** snapshot the full emulator state on demand from the Save Game panel, written to `<title>.sav` in the working directory. They are versioned and tied to the current build.
+- **Save states** snapshot the full emulator state on demand from the Save Game panel, written to `<game-code>_<title>.sav` in the working directory. They are versioned and tied to the current build.
 
 ## Features
 

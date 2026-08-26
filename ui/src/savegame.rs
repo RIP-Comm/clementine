@@ -1,13 +1,42 @@
 //! Save/Load state functionality.
 //!
 //! Allows saving and loading the emulator state to/from files.
-//! Save states are stored in the current directory with the game title as filename.
+//! Save states are stored in the current directory using the game code and a
+//! sanitized game title as the filename.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::emu_thread::{EmuCommand, EmuHandle};
 use crate::ui_traits::UiTool;
+
+fn sanitize_filename_component(value: &str) -> String {
+    let mut component = String::new();
+    for character in value.chars() {
+        if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+            component.push(character);
+        } else if character.is_ascii_whitespace() && !component.ends_with('_') {
+            component.push('_');
+        }
+    }
+
+    let component = component.trim_matches('_');
+    if component.is_empty() {
+        "unknown".to_string()
+    } else {
+        component.to_string()
+    }
+}
+
+fn save_filename(title: &str, game_code: &str) -> String {
+    let title = sanitize_filename_component(title);
+    let game_code = sanitize_filename_component(game_code);
+    if game_code == "unknown" {
+        format!("{title}.sav")
+    } else {
+        format!("{game_code}_{title}.sav")
+    }
+}
 
 pub struct SaveGame {
     emu_handle: Arc<Mutex<EmuHandle>>,
@@ -27,16 +56,11 @@ impl SaveGame {
     }
 
     fn get_save_path(&self) -> PathBuf {
-        let game_title = self.emu_handle.lock().map_or_else(
-            |_| "savestate".to_string(),
-            |h| h.state.cartridge_title.trim().replace(' ', "_"),
+        let (title, game_code) = self.emu_handle.lock().map_or_else(
+            |_| (String::new(), String::new()),
+            |h| (h.state.cartridge_title.clone(), h.state.game_code.clone()),
         );
-
-        let filename = if game_title.is_empty() {
-            "savestate.sav".to_string()
-        } else {
-            format!("{game_title}.sav")
-        };
+        let filename = save_filename(&title, &game_code);
 
         // Get absolute path in current working directory
         std::env::current_dir()
@@ -192,7 +216,7 @@ impl UiTool for SaveGame {
 
 #[cfg(test)]
 mod tests {
-    use super::SaveGame;
+    use super::{SaveGame, sanitize_filename_component, save_filename};
 
     #[test]
     fn write_atomic_replaces_file_and_leaves_no_temp() {
@@ -209,5 +233,12 @@ mod tests {
         assert!(!tmp.exists(), "temp file must be renamed away");
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn save_filename_uses_safe_components() {
+        assert_eq!(sanitize_filename_component("../escape/.."), "escape");
+        assert_eq!(sanitize_filename_component(" / "), "unknown");
+        assert_eq!(save_filename("../escape/..", "BPEE"), "BPEE_escape.sav");
     }
 }
