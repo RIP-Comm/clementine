@@ -1587,7 +1587,7 @@ impl Bus {
 
 #[cfg(test)]
 mod tests {
-    use crate::bus::Bus;
+    use crate::{bus::Bus, cpu::hardware::internal_memory::InternalMemory};
 
     #[test]
     fn completed_dma_with_irq_bit_requests_interrupt() {
@@ -1675,6 +1675,22 @@ mod tests {
         for (i, expected) in [0x11, 0x22, 0x33, 0x44].into_iter().enumerate() {
             assert_eq!(bus.read_raw(0x0400_0800 + i), expected);
         }
+    }
+
+    #[test]
+    fn rom_fast_paths_match_each_window_and_rom_end_behavior() {
+        let rom = [1, 2, 3, 4, 5, 6, 7, 8];
+        let mut bus = Bus::with_memory(InternalMemory::new([0; 0x4000], &rom));
+
+        for base in [0x0800_0000, 0x0A00_0000, 0x0C00_0000] {
+            assert_eq!(bus.read_word(base), 0x0403_0201);
+            assert_eq!(bus.read_half_word(base), 0x0201);
+        }
+
+        // Reads past the loaded ROM use Game Pak open-bus behavior instead of
+        // wrapping back to the first ROM bytes.
+        assert_eq!(bus.read_word(0x0800_0008), 0x0005_0004);
+        assert_eq!(bus.read_half_word(0x0800_0008), 0x0004);
     }
 
     #[test]

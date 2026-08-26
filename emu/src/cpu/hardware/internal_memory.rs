@@ -354,6 +354,17 @@ impl InternalMemory {
 }
 
 impl InternalMemory {
+    /// Return the offset within the active 32 MiB Game Pak ROM window.
+    #[inline]
+    fn rom_window_offset(address: usize) -> usize {
+        match address {
+            0x0800_0000..=0x09FF_FFFF => address - 0x0800_0000,
+            0x0A00_0000..=0x0BFF_FFFF => address - 0x0A00_0000,
+            0x0C00_0000..=0x0DFF_FFFF => address - 0x0C00_0000,
+            _ => unreachable!("address is outside the Game Pak ROM windows"),
+        }
+    }
+
     /// Fast-path word read for contiguous memory regions (ROM, WRAM, IWRAM).
     /// Returns `None` for I/O or special regions that need byte-by-byte access.
     #[inline]
@@ -364,12 +375,11 @@ impl InternalMemory {
             0x0800_0000..=0x0DFF_FFFC => {
                 // A GPIO cart maps 0xC4-0xC9 to registers, so route overlapping
                 // reads to the slow byte path where they see live GPIO state.
-                let raw = address & 0x01FF_FFFF;
-                if self.gpio_present && raw <= 0xC9 && raw + 3 >= 0xC4 {
+                let offset = Self::rom_window_offset(address);
+                if self.gpio_present && offset <= 0xC9 && offset.saturating_add(3) >= 0xC4 {
                     return None;
                 }
-                let offset = (address & 0x01FF_FFFF) % self.rom.len().max(1);
-                if offset + 3 < self.rom.len() {
+                if offset < self.rom.len() && self.rom.len() - offset >= 4 {
                     Some(u32::from_le_bytes([
                         self.rom[offset],
                         self.rom[offset + 1],
@@ -377,7 +387,7 @@ impl InternalMemory {
                         self.rom[offset + 3],
                     ]))
                 } else {
-                    None // Near end of ROM or GPIO region, use slow path
+                    None
                 }
             }
             // EWRAM (256KB, mirrored)
@@ -419,12 +429,11 @@ impl InternalMemory {
         match address {
             // ROM (wait state 0, 1, 2)
             0x0800_0000..=0x0DFF_FFFE => {
-                let raw = address & 0x01FF_FFFF;
-                if self.gpio_present && raw <= 0xC9 && raw + 1 >= 0xC4 {
+                let offset = Self::rom_window_offset(address);
+                if self.gpio_present && offset <= 0xC9 && offset.saturating_add(1) >= 0xC4 {
                     return None;
                 }
-                let offset = (address & 0x01FF_FFFF) % self.rom.len().max(1);
-                if offset + 1 < self.rom.len() {
+                if offset < self.rom.len() && self.rom.len() - offset >= 2 {
                     Some(u16::from_le_bytes([self.rom[offset], self.rom[offset + 1]]))
                 } else {
                     None
