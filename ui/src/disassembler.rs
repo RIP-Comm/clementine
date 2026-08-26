@@ -32,6 +32,7 @@
 //! 3. Old lines are removed when exceeding `MAX_DISPLAY_LINES`
 //! 4. The text is rendered in a scrollable view
 
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use crate::emu_thread::{EmuCommand, EmuHandle};
@@ -47,10 +48,10 @@ const MAX_ENTRIES_PER_FRAME: usize = 10000;
 pub struct Disassembler {
     /// Handle to the emulator (contains the disasm channel consumer).
     emu_handle: Arc<Mutex<EmuHandle>>,
+    /// Retained lines, stored separately to evict the oldest entry cheaply.
+    lines: VecDeque<String>,
     /// Pre-built display text (avoids rebuilding every frame).
     display_text: String,
-    /// Number of lines currently in `display_text`.
-    line_count: usize,
     /// Tracks whether the CPU is currently pushing instructions to us, so we
     /// only send a toggle command when the window opens or closes.
     enabled: bool,
@@ -60,8 +61,8 @@ impl Disassembler {
     pub fn new(emu_handle: Arc<Mutex<EmuHandle>>) -> Self {
         Self {
             emu_handle,
+            lines: VecDeque::with_capacity(MAX_DISPLAY_LINES),
             display_text: String::with_capacity(MAX_DISPLAY_LINES * 50),
-            line_count: 0,
             enabled: false,
         }
     }
@@ -89,24 +90,27 @@ impl Disassembler {
             while processed < MAX_ENTRIES_PER_FRAME {
                 match handle.disasm_rx().pop() {
                     Ok(entry) => {
-                        // If we're at max lines, remove the first line
-                        if self.line_count >= MAX_DISPLAY_LINES
-                            && let Some(newline_pos) = self.display_text.find('\n')
-                        {
-                            self.display_text.drain(..=newline_pos);
-                            self.line_count -= 1;
+                        if self.lines.len() >= MAX_DISPLAY_LINES {
+                            self.lines.pop_front();
                         }
-
-                        if !self.display_text.is_empty() {
-                            self.display_text.push('\n');
-                        }
-                        self.display_text.push_str(&entry.format());
-                        self.line_count += 1;
+                        self.lines.push_back(entry.format());
                         processed += 1;
                     }
                     Err(_) => break, // channel empty
                 }
             }
+        }
+
+        if processed == 0 {
+            return;
+        }
+
+        self.display_text.clear();
+        for (index, line) in self.lines.iter().enumerate() {
+            if index > 0 {
+                self.display_text.push('\n');
+            }
+            self.display_text.push_str(line);
         }
     }
 }
