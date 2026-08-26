@@ -1,4 +1,4 @@
-/// This module contains all the data structures used to render the GBA display.
+//! This module contains all the data structures used to render the GBA display.
 
 /// GBA display width
 pub const LCD_WIDTH: usize = 240;

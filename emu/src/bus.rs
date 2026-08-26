@@ -996,7 +996,7 @@ impl Bus {
                 if self.current_pc >= 0x4000 {
                     // Return the appropriate byte from last_bios_opcode
                     self.last_bios_opcode
-                        .get_byte(u8::try_from(address & 0b11).unwrap())
+                        .get_byte(u8::try_from(address & 0b11).unwrap_or_default())
                 } else {
                     self.internal_memory.read_at(address)
                 }
