@@ -1107,10 +1107,10 @@ mod tests {
 
         for speed in [-1.0, f32::NAN, f32::INFINITY] {
             assert!(!handle.send(EmuCommand::SetSpeed(speed)));
-            assert_eq!(handle.speed, 1.0);
+            assert!((handle.speed - 1.0).abs() < f32::EPSILON);
         }
 
         assert!(handle.send(EmuCommand::SetSpeed(2.0)));
-        assert_eq!(handle.speed, 2.0);
+        assert!((handle.speed - 2.0).abs() < f32::EPSILON);
     }
 }

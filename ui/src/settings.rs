@@ -180,7 +180,7 @@ mod tests {
                 bincode::serde::encode_to_vec(&settings, bincode::config::standard()).unwrap();
             std::fs::write(&path, bytes).unwrap();
 
-            assert_eq!(Settings::load(&path).speed, 1.0);
+            assert!((Settings::load(&path).speed - 1.0).abs() < f32::EPSILON);
         }
 
         let _ = std::fs::remove_file(path);
