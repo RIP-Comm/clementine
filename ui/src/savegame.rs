@@ -45,10 +45,13 @@ impl SaveGame {
     }
 
     fn save_state(&mut self) {
-        if let Ok(mut handle) = self.emu_handle.lock() {
-            handle.send(EmuCommand::RequestSaveState);
+        if let Ok(mut handle) = self.emu_handle.lock()
+            && handle.send(EmuCommand::RequestSaveState)
+        {
             self.pending_save = true;
             self.status = Some("Saving...".to_string());
+        } else {
+            self.status = Some("Emulator busy, try again.".to_string());
         }
     }
 
@@ -99,8 +102,11 @@ impl SaveGame {
             Ok(data) => {
                 let size_kb = data.len() / 1024;
                 if let Ok(mut handle) = self.emu_handle.lock() {
-                    handle.send(EmuCommand::LoadState(data));
-                    self.status = Some(format!("Loading {} ({size_kb} KB)...", path.display()));
+                    if handle.send(EmuCommand::LoadState(data)) {
+                        self.status = Some(format!("Loading {} ({size_kb} KB)...", path.display()));
+                    } else {
+                        self.status = Some("Emulator busy, try again.".to_string());
+                    }
                 }
             }
             Err(e) => {

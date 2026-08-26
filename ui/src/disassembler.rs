@@ -72,9 +72,10 @@ impl Disassembler {
         if self.enabled == enabled {
             return;
         }
-        self.enabled = enabled;
-        if let Ok(mut handle) = self.emu_handle.lock() {
-            handle.send(EmuCommand::SetDisasmEnabled(enabled));
+        if let Ok(mut handle) = self.emu_handle.lock()
+            && handle.send(EmuCommand::SetDisasmEnabled(enabled))
+        {
+            self.enabled = enabled;
         }
     }
 

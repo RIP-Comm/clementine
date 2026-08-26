@@ -32,6 +32,10 @@
 
 use std::collections::{BTreeSet, VecDeque};
 use std::path::PathBuf;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -63,6 +67,10 @@ const SAVE_STATE_HEADER: &[u8] = b"CLEM";
 /// Save state format version. Bump this whenever the serialized layout changes
 /// (e.g. adding/removing/reordering fields in any `Serialize`-derived struct).
 const SAVE_STATE_VERSION: u32 = 1;
+
+fn is_valid_speed(multiplier: f32) -> bool {
+    multiplier.is_finite() && multiplier >= 0.0
+}
 
 /// Commands sent from the UI thread to the emulator thread.
 #[derive(Debug, Clone)]
@@ -210,12 +218,19 @@ struct Breakpoint {
     kind: BreakpointKind,
 }
 
+#[derive(Clone, Copy)]
+enum HandleUpdate {
+    AddBreakpoint { address: u32, kind: BreakpointKind },
+    RemoveBreakpoint(u32),
+    SetSpeed(f32),
+}
+
 /// The emulator thread that owns and runs the GBA.
 struct EmuThread {
     gba: Gba,
     cmd_rx: rtrb::Consumer<EmuCommand>,
     event_tx: rtrb::Producer<EmuEvent>,
-
+    shutdown: Arc<AtomicBool>,
     // State
     running: bool,
     steps_remaining: u32,
@@ -257,11 +272,13 @@ impl EmuThread {
         cmd_rx: rtrb::Consumer<EmuCommand>,
         event_tx: rtrb::Producer<EmuEvent>,
         battery_path: Option<PathBuf>,
+        shutdown: Arc<AtomicBool>,
     ) -> Self {
         Self {
             gba,
             cmd_rx,
             event_tx,
+            shutdown,
             running: false,
             steps_remaining: 0,
             breakpoints: BTreeSet::new(),
@@ -278,10 +295,11 @@ impl EmuThread {
 
     fn run(mut self) {
         loop {
-            if self.process_commands() {
+            if self.shutdown.load(Ordering::Acquire) || self.process_commands() {
                 // Persist any unsaved battery data on exit, but only if the game
                 // actually wrote to save memory.
                 if self.battery_pending || self.gba.cpu.bus.internal_memory.take_save_dirty() {
+                    self.battery_pending = true;
                     self.flush_battery();
                 }
                 return;
@@ -802,6 +820,7 @@ pub struct EmuHandle {
     event_rx: rtrb::Consumer<EmuEvent>,
     disasm_rx: rtrb::Consumer<DisasmEntry>,
     thread_handle: Option<JoinHandle<()>>,
+    shutdown: Arc<AtomicBool>,
 
     /// Latest state snapshot from the emulator.
     pub state: EmuState,
@@ -830,21 +849,42 @@ pub struct EmuHandle {
 
 impl EmuHandle {
     /// Send a command to the emulator thread.
-    pub fn send(&mut self, cmd: EmuCommand) {
-        match &cmd {
-            EmuCommand::AddBreakpoint { address, kind } => {
-                self.breakpoints.push((*address, *kind));
+    ///
+    /// Returns `false` when the command queue is full.
+    pub fn send(&mut self, cmd: EmuCommand) -> bool {
+        if let EmuCommand::SetSpeed(multiplier) = &cmd
+            && !is_valid_speed(*multiplier)
+        {
+            return false;
+        }
+        let update = match &cmd {
+            EmuCommand::AddBreakpoint { address, kind } => Some(HandleUpdate::AddBreakpoint {
+                address: *address,
+                kind: *kind,
+            }),
+            EmuCommand::RemoveBreakpoint(address) => Some(HandleUpdate::RemoveBreakpoint(*address)),
+            EmuCommand::SetSpeed(multiplier) => Some(HandleUpdate::SetSpeed(*multiplier)),
+            _ => None,
+        };
+
+        if self.cmd_tx.push(cmd).is_err() {
+            return false;
+        }
+
+        match update {
+            Some(HandleUpdate::AddBreakpoint { address, kind }) => {
+                self.breakpoints.push((address, kind));
                 self.breakpoints.sort_by_key(|(addr, _)| *addr);
             }
-            EmuCommand::RemoveBreakpoint(address) => {
-                self.breakpoints.retain(|(addr, _)| addr != address);
+            Some(HandleUpdate::RemoveBreakpoint(address)) => {
+                self.breakpoints.retain(|(addr, _)| *addr != address);
             }
-            EmuCommand::SetSpeed(multiplier) => {
-                self.speed = *multiplier;
+            Some(HandleUpdate::SetSpeed(multiplier)) => {
+                self.speed = multiplier;
             }
-            _ => {}
+            None => {}
         }
-        let _ = self.cmd_tx.push(cmd);
+        true
     }
 
     /// Poll for events and update cached state.
@@ -895,7 +935,7 @@ impl EmuHandle {
 
 impl Drop for EmuHandle {
     fn drop(&mut self) {
-        let _ = self.cmd_tx.push(EmuCommand::Shutdown);
+        self.shutdown.store(true, Ordering::Release);
         if let Some(handle) = self.thread_handle.take() {
             let _ = handle.join();
         }
@@ -927,6 +967,7 @@ pub fn spawn(
 
     // Create event channel (CPU → UI)
     let (event_tx, event_rx) = rtrb::RingBuffer::new(EVENT_BUFFER_SIZE);
+    let shutdown = Arc::new(AtomicBool::new(false));
 
     // Get initial state before moving gba
     let header = &gba.cartridge_header;
@@ -955,8 +996,9 @@ pub fn spawn(
     };
 
     // Spawn the emulator thread
+    let thread_shutdown = Arc::clone(&shutdown);
     let thread_handle = thread::spawn(move || {
-        let emu_thread = EmuThread::new(gba, cmd_rx, event_tx, battery_path);
+        let emu_thread = EmuThread::new(gba, cmd_rx, event_tx, battery_path, thread_shutdown);
         emu_thread.run();
     });
 
@@ -965,6 +1007,7 @@ pub fn spawn(
         event_rx,
         disasm_rx,
         thread_handle: Some(thread_handle),
+        shutdown,
         state: initial_state,
         frame: None,
         frame_seq: 0,

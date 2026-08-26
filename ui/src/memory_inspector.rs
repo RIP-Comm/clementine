@@ -71,11 +71,12 @@ impl MemoryInspector {
     }
 
     fn request_memory(&mut self) {
-        if let Ok(mut handle) = self.emu_handle.lock() {
-            handle.send(EmuCommand::ReadMemory {
+        if let Ok(mut handle) = self.emu_handle.lock()
+            && handle.send(EmuCommand::ReadMemory {
                 address: self.address,
                 length: BYTES_TO_FETCH,
-            });
+            })
+        {
             self.pending_request = true;
         }
     }

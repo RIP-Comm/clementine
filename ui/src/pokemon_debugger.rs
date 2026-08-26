@@ -864,11 +864,12 @@ impl PokemonDebugger {
 
     fn request_party_data(&mut self) {
         let address = self.effective_address();
-        if let Ok(mut handle) = self.emu_handle.lock() {
-            handle.send(EmuCommand::ReadMemory {
+        if let Ok(mut handle) = self.emu_handle.lock()
+            && handle.send(EmuCommand::ReadMemory {
                 address,
                 length: PARTY_BYTES,
-            });
+            })
+        {
             self.pending_request = true;
             self.pending_address = address;
             self.debug_info = format!("Requested 0x{address:08X}");

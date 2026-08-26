@@ -38,9 +38,10 @@ impl CpuHandler {
 
     /// Send speed update to the emulator thread.
     fn set_speed(&mut self, speed: f32) {
-        self.speed = speed;
-        if let Ok(mut handle) = self.emu_handle.lock() {
-            handle.send(EmuCommand::SetSpeed(speed));
+        if let Ok(mut handle) = self.emu_handle.lock()
+            && handle.send(EmuCommand::SetSpeed(speed))
+        {
+            self.speed = speed;
         }
     }
 }
