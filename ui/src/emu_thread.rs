@@ -332,17 +332,21 @@ impl EmuThread {
 
     /// Write the cartridge battery save to disk atomically, if a path is set.
     fn flush_battery(&mut self) {
-        self.battery_pending = false;
         let Some(path) = self.battery_path.clone() else {
+            self.battery_pending = false;
             return;
         };
         let data = self.gba.cpu.bus.internal_memory.battery_data();
         let tmp = path.with_extension("srm.tmp");
-        if std::fs::write(&tmp, data)
-            .and_then(|()| std::fs::rename(&tmp, &path))
-            .is_err()
-        {
-            // Best effort: a failed battery flush must not crash emulation.
+        match std::fs::write(&tmp, data).and_then(|()| std::fs::rename(&tmp, &path)) {
+            Ok(()) => {
+                self.battery_pending = false;
+            }
+            Err(error) => {
+                self.battery_pending = true;
+                self.battery_debounce = 120;
+                tracing::warn!("Failed to flush battery save {}: {error}", path.display());
+            }
         }
     }
 
@@ -1024,7 +1028,11 @@ pub fn spawn(
 
 #[cfg(test)]
 mod tests {
-    use super::{EmuEvent, EmuState, EmuThread};
+    use std::sync::{Arc, atomic::AtomicBool};
+
+    use emu::gba::Gba;
+
+    use super::{EmuCommand, EmuEvent, EmuState, EmuThread};
 
     #[test]
     fn only_state_and_frame_are_droppable() {
@@ -1043,5 +1051,63 @@ mod tests {
             address: 0,
             data: vec![],
         }));
+    }
+
+    #[test]
+    fn failed_battery_flush_stays_pending() {
+        let blocker =
+            std::env::temp_dir().join(format!("clementine-battery-blocker-{}", std::process::id()));
+        let _ = std::fs::remove_file(&blocker);
+        std::fs::write(&blocker, []).unwrap();
+        let path = blocker.join("save.srm");
+
+        let (_, cmd_rx) = rtrb::RingBuffer::<EmuCommand>::new(1);
+        let (event_tx, _) = rtrb::RingBuffer::<EmuEvent>::new(1);
+        let mut emu_thread = EmuThread::new(
+            Gba::new([0; 0x4000], &[0; 0xE4]),
+            cmd_rx,
+            event_tx,
+            Some(path),
+            Arc::new(AtomicBool::new(false)),
+        );
+        emu_thread.battery_pending = true;
+
+        emu_thread.flush_battery();
+
+        assert!(emu_thread.battery_pending);
+        let _ = std::fs::remove_file(blocker);
+    }
+
+    #[test]
+    fn invalid_speed_commands_are_rejected() {
+        let (cmd_tx, _) = rtrb::RingBuffer::<EmuCommand>::new(1);
+        let (_, event_rx) = rtrb::RingBuffer::<EmuEvent>::new(1);
+        let (_, disasm_rx) = rtrb::RingBuffer::new(1);
+        let mut handle = EmuHandle {
+            cmd_tx,
+            event_rx,
+            disasm_rx,
+            thread_handle: None,
+            shutdown: Arc::new(AtomicBool::new(false)),
+            state: EmuState::default(),
+            frame: None,
+            frame_seq: 0,
+            breakpoints: Vec::new(),
+            pending_save_state: None,
+            pending_memory_data: None,
+            pending_rom_data: None,
+            wild_patch_result: None,
+            load_state_error: None,
+            load_state_success: false,
+            speed: 1.0,
+        };
+
+        for speed in [-1.0, f32::NAN, f32::INFINITY] {
+            assert!(!handle.send(EmuCommand::SetSpeed(speed)));
+            assert_eq!(handle.speed, 1.0);
+        }
+
+        assert!(handle.send(EmuCommand::SetSpeed(2.0)));
+        assert_eq!(handle.speed, 2.0);
     }
 }
