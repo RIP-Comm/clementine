@@ -1307,15 +1307,16 @@ impl Arm7tdmi {
                 let control = self.registers.register_at(2);
 
                 let count = control & 0x1FFFFF;
+                let word_count = count.div_ceil(8) * 8;
                 let is_fill = (control & (1 << 24)) != 0;
 
                 if is_fill {
                     let value = self.bus.read_word(src as usize);
-                    for i in 0..count {
+                    for i in 0..word_count {
                         self.bus.write_word((dest + i * 4) as usize, value);
                     }
                 } else {
-                    for i in 0..count {
+                    for i in 0..word_count {
                         let value = self.bus.read_word((src + i * 4) as usize);
                         self.bus.write_word((dest + i * 4) as usize, value);
                     }
@@ -1373,12 +1374,57 @@ impl std::fmt::Display for HalfwordTransferKind {
 mod tests {
     use pretty_assertions::assert_eq;
 
+    use super::*;
     use crate::cpu::condition::Condition;
     use crate::cpu::flags::{HalfwordDataTransferOffsetKind, Indexing, LoadStoreKind, Offsetting};
     use crate::cpu::registers::{REG_LR, REG_PC, REG_SP};
     use crate::cpu::thumb::instruction::Instruction;
 
-    use super::*;
+    #[test]
+    fn cpu_fast_set_rounds_copy_count_up_to_eight_words() {
+        let mut cpu = Arm7tdmi::default();
+        let source = 0x0200_0000_usize;
+        let destination = 0x0200_0100_usize;
+
+        for i in 0..8 {
+            cpu.bus.write_word(source + i * 4, 0x1000_0000 + i as u32);
+        }
+
+        cpu.registers.set_register_at(0, source as u32);
+        cpu.registers.set_register_at(1, destination as u32);
+        cpu.registers.set_register_at(2, 2);
+
+        assert!(cpu.handle_swi_hle(0x0C, cpu.cpsr, 0x0800_0000));
+
+        for i in 0..8 {
+            assert_eq!(
+                cpu.bus.read_word(destination + i * 4),
+                0x1000_0000 + i as u32
+            );
+        }
+        assert_eq!(cpu.bus.read_word(destination + 8 * 4), 0);
+    }
+
+    #[test]
+    fn cpu_fast_set_rounds_fill_count_up_to_eight_words() {
+        let mut cpu = Arm7tdmi::default();
+        let source = 0x0200_0000_usize;
+        let destination = 0x0200_0100_usize;
+        let value = 0x1234_5678;
+
+        cpu.bus.write_word(source, value);
+        cpu.registers.set_register_at(0, source as u32);
+        cpu.registers.set_register_at(1, destination as u32);
+        cpu.registers.set_register_at(2, (1 << 24) | 2);
+
+        assert!(cpu.handle_swi_hle(0x0C, cpu.cpsr, 0x0800_0000));
+
+        for i in 0..8 {
+            assert_eq!(cpu.bus.read_word(destination + i * 4), value);
+        }
+        assert_eq!(cpu.bus.read_word(destination + 8 * 4), 0);
+    }
+
 
     #[test]
     fn swap_costs_read_write_plus_internal_cycle() {
