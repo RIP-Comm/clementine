@@ -38,6 +38,17 @@ fn save_filename(title: &str, game_code: &str) -> String {
     }
 }
 
+fn legacy_save_filename(title: &str) -> Option<String> {
+    let title = title.trim();
+    let stem = if title.is_empty() {
+        "savestate".to_string()
+    } else {
+        title.replace(' ', "_")
+    };
+
+    (sanitize_filename_component(&stem) == stem).then(|| format!("{stem}.sav"))
+}
+
 pub struct SaveGame {
     emu_handle: Arc<Mutex<EmuHandle>>,
     /// Tracks if we're waiting for save state data from the emu thread.
@@ -67,7 +78,15 @@ impl SaveGame {
             .unwrap_or_else(|_| PathBuf::from("."))
             .join(filename)
     }
-
+    fn legacy_save_path(&self) -> Option<PathBuf> {
+        let title = self.emu_handle.lock().ok()?.state.cartridge_title.clone();
+        let filename = legacy_save_filename(&title)?;
+        Some(
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(filename),
+        )
+    }
     fn save_state(&mut self) {
         if let Ok(mut handle) = self.emu_handle.lock()
             && handle.send(EmuCommand::RequestSaveState)
@@ -115,7 +134,14 @@ impl SaveGame {
     }
 
     fn load_state(&mut self) {
-        let path = self.get_save_path();
+        let primary_path = self.get_save_path();
+        let path = if primary_path.exists() {
+            primary_path
+        } else {
+            self.legacy_save_path()
+                .filter(|legacy_path| legacy_path.exists())
+                .unwrap_or(primary_path)
+        };
 
         if !path.exists() {
             self.status = Some(format!("No save file: {}", path.display()));
@@ -216,7 +242,7 @@ impl UiTool for SaveGame {
 
 #[cfg(test)]
 mod tests {
-    use super::{SaveGame, sanitize_filename_component, save_filename};
+    use super::{SaveGame, legacy_save_filename, sanitize_filename_component, save_filename};
 
     #[test]
     fn write_atomic_replaces_file_and_leaves_no_temp() {
@@ -240,5 +266,14 @@ mod tests {
         assert_eq!(sanitize_filename_component("../escape/.."), "escape");
         assert_eq!(sanitize_filename_component(" / "), "unknown");
         assert_eq!(save_filename("../escape/..", "BPEE"), "BPEE_escape.sav");
+    }
+
+    #[test]
+    fn legacy_save_names_are_supported_only_when_safe() {
+        assert_eq!(
+            legacy_save_filename("Pokemon FireRed"),
+            Some("Pokemon_FireRed.sav".to_string())
+        );
+        assert_eq!(legacy_save_filename("../escape"), None);
     }
 }
