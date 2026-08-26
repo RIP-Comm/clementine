@@ -985,9 +985,7 @@ impl Bus {
 
     /// Reads a single byte from the given address.
     ///
-    /// # Panics
-    ///
-    /// Panics if address conversion fails (should not happen for valid GBA addresses).
+    /// Unimplemented addresses return zero and are logged at debug level.
     #[must_use]
     pub fn read_raw(&self, address: usize) -> u8 {
         // Mask address to 32-bit to handle potential overflow issues
@@ -1054,15 +1052,16 @@ impl Bus {
                 tracing::debug!("read on unused memory {address:x}");
                 *self.unused_region.get(&address).unwrap_or(&0)
             }
-            _ => unimplemented!(),
+            _ => {
+                tracing::debug!("read on unimplemented memory address: {address:08X}");
+                0
+            }
         }
     }
 
     /// Writes a single byte to the given address.
     ///
-    /// # Panics
-    ///
-    /// Panics if writing to an unimplemented memory region.
+    /// Writes to unimplemented addresses are ignored and logged at debug level.
     pub fn write_raw(&mut self, address: usize, value: u8) {
         // Mask address to 32-bit to handle potential overflow issues
         let address = address & 0xFFFF_FFFF;
@@ -1119,7 +1118,9 @@ impl Bus {
                 self.unused_region.insert(address, value);
             }
             _ => {
-                panic!("Unimplemented write to address 0x{address:08X} with value 0x{value:02X}");
+                tracing::debug!(
+                    "write on unimplemented memory address 0x{address:08X} with value 0x{value:02X}"
+                );
             }
         }
     }

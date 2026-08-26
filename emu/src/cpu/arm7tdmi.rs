@@ -427,6 +427,12 @@ impl Arm7tdmi {
                 transfer_kind,
             ),
             ArmModeInstruction::SingleDataTransfer {
+                kind: arm::instructions::SingleDataTransferKind::Pld,
+                ..
+            } => {
+                self.handle_exception(ExceptionType::UndefinedInstruction);
+            }
+            ArmModeInstruction::SingleDataTransfer {
                 condition: _,
                 kind,
                 quantity,
@@ -486,26 +492,14 @@ impl Arm7tdmi {
                 link,
                 offset,
             } => self.branch(link, offset),
-            ArmModeInstruction::CoprocessorDataTransfer { .. } => {
+            ArmModeInstruction::CoprocessorDataTransfer { .. }
+            | ArmModeInstruction::CoprocessorDataOperation
+            | ArmModeInstruction::CoprocessorRegisterTransfer => {
                 tracing::warn!(
-                    "!!! UNIMPLEMENTED: CoprocessorDataTransfer at PC=0x{:08X}",
-                    self.registers.program_counter() - 8
+                    "Coprocessor instruction at PC=0x{:08X} triggers undefined exception",
+                    self.registers.program_counter().wrapping_sub(8)
                 );
-                // Coprocessor instructions are typically ignored on GBA (no coprocessor)
-            }
-            ArmModeInstruction::CoprocessorDataOperation => {
-                tracing::warn!(
-                    "!!! UNIMPLEMENTED: CoprocessorDataOperation at PC=0x{:08X}",
-                    self.registers.program_counter() - 8
-                );
-                // Coprocessor instructions are typically ignored on GBA (no coprocessor)
-            }
-            ArmModeInstruction::CoprocessorRegisterTransfer => {
-                tracing::warn!(
-                    "!!! UNIMPLEMENTED: CoprocessorRegisterTransfer at PC=0x{:08X}",
-                    self.registers.program_counter() - 8
-                );
-                // Coprocessor instructions are typically ignored on GBA (no coprocessor)
+                self.handle_exception(ExceptionType::UndefinedInstruction);
             }
             ArmModeInstruction::SoftwareInterrupt => {
                 self.handle_exception(ExceptionType::SoftwareInterrupt);
@@ -1381,6 +1375,18 @@ mod tests {
     use crate::cpu::thumb::instruction::Instruction;
 
     #[test]
+    fn coprocessor_instruction_raises_undefined_exception() {
+        let mut cpu = Arm7tdmi::default();
+        cpu.registers.set_program_counter(8);
+        let opcode: ArmModeOpcode = Arm7tdmi::decode(0xEE00_0010);
+
+        assert_eq!(opcode.instruction.disassembler(), "MCR/MRC");
+        cpu.execute_arm(opcode);
+
+        assert_eq!(cpu.registers.program_counter(), 4);
+    }
+
+    #[test]
     fn cpu_fast_set_rounds_copy_count_up_to_eight_words() {
         let mut cpu = Arm7tdmi::default();
         let source = 0x0200_0000_usize;
@@ -1424,7 +1430,6 @@ mod tests {
         }
         assert_eq!(cpu.bus.read_word(destination + 8 * 4), 0);
     }
-
 
     #[test]
     fn swap_costs_read_write_plus_internal_cycle() {

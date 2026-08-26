@@ -487,12 +487,12 @@ impl ArmModeInstruction {
                 let op = match kind {
                     SingleDataTransferKind::Ldr => "LDR",
                     SingleDataTransferKind::Str => "STR",
-                    SingleDataTransferKind::Pld => unimplemented!(),
+                    SingleDataTransferKind::Pld => "PLD",
                 };
 
                 format!("{op}{condition}{b} R{rd}, {offset_info}")
             }
-            Self::Undefined => panic!("Undefined not implemented"),
+            Self::Undefined => "UNDEFINED".to_string(),
             Self::BlockDataTransfer {
                 condition,
                 indexing,
@@ -564,10 +564,8 @@ impl ArmModeInstruction {
                 // FIXME: Finish address
                 format!("{op}{condition}{long_transfer} p{cp_number},{crd},{address:08X}")
             }
-            Self::CoprocessorDataOperation => panic!("CoprocessorDataOperation not implemented"),
-            Self::CoprocessorRegisterTransfer => {
-                panic!("CoprocessorRegisterTransfer not implemented")
-            }
+            Self::CoprocessorDataOperation => "CDP".to_string(),
+            Self::CoprocessorRegisterTransfer => "MCR/MRC".to_string(),
             Self::SoftwareInterrupt => "SWI".to_string(),
         }
     }
@@ -875,7 +873,7 @@ impl From<u32> for ArmModeInstruction {
                     let register = op_code.get_bits(0..=3);
                     let shift_op = if shift_by_register_bit {
                         if op_code.get_bit(7) {
-                            todo!("should be zero or need different work")
+                            return Self::Undefined;
                         }
                         ShiftOperator::Register(op_code.get_bits(8..=11))
                     } else {
@@ -899,8 +897,8 @@ impl From<u32> for ArmModeInstruction {
                 op2,
             }
         } else {
-            tracing::debug!("not identified instruction");
-            unimplemented!()
+            tracing::debug!("undefined ARM instruction: opcode=0x{op_code:08X}");
+            Self::Undefined
         }
     }
 }
